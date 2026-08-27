@@ -1,0 +1,59 @@
+{
+  "expo": {
+    "name": "Ego",
+    "slug": "ego",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "icon": "./assets/app-icon.png",
+    "scheme": "ego",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0a0e1a",
+    "android": {
+      "package": "com.kharitonovegor.ego",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      },
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "ios": {
+      "bundleIdentifier": "com.kharitonovegor.ego",
+      "supportsTablet": true
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Ego attaches photos you pick to a Trello card."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/app-icon.png",
+          "imageWidth": 160,
+          "resizeMode": "contain",
+          "backgroundColor": "#0a0e1a"
+        }
+      ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "a4caa3de-f925-49ac-a271-0fb68df066ab"
+      }
+    },
+    "owner": "kharitonov",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/a4caa3de-f925-49ac-a271-0fb68df066ab"
+    }
+  }
+}

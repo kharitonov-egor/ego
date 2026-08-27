@@ -1,29 +1,17 @@
+export type {
+  ListShortcut as QuickAddListShortcut,
+  TrelloBoardSummary,
+  TrelloListSummary,
+  TrelloResult
+} from '@ego/core'
+
+import type { ListShortcut, TrelloBoardSummary, TrelloListSummary, TrelloResult } from '@ego/core'
+
 export type BuildStage = 'compiling' | 'packaging' | 'installing' | 'done' | 'error'
 
 export interface BuildResult {
   success: boolean
   error?: string
-}
-
-export interface TrelloBoardSummary {
-  id: string
-  name: string
-}
-
-export interface TrelloListSummary {
-  id: string
-  name: string
-}
-
-export interface TrelloResult<T> {
-  ok: boolean
-  data?: T
-  detail?: string
-}
-
-export interface QuickAddListShortcut {
-  listId: string
-  listName: string
 }
 
 export interface QuickAddImage {
@@ -62,13 +50,13 @@ export interface IpcApi {
   listTrelloBoards: () => Promise<TrelloResult<TrelloBoardSummary[]>>
   listTrelloLists: (boardId: string) => Promise<TrelloResult<TrelloListSummary[]>>
 
-  getQuickAddListShortcuts: () => Promise<QuickAddListShortcut[]>
-  setQuickAddListShortcuts: (shortcuts: QuickAddListShortcut[]) => Promise<void>
+  getQuickAddListShortcuts: () => Promise<ListShortcut[]>
+  setQuickAddListShortcuts: (shortcuts: ListShortcut[]) => Promise<void>
 
   submitQuickAdd: (payload: QuickAddPayload) => Promise<QuickAddResult>
   cancelQuickAdd: () => void
   setQuickAddPreview: (expanded: boolean, aspectRatio?: number) => void
-  onQuickAddFocus: (callback: (shortcuts: QuickAddListShortcut[]) => void) => () => void
+  onQuickAddFocus: (callback: (shortcuts: ListShortcut[]) => void) => () => void
 
   buildAndInstall: () => Promise<BuildResult>
   onBuildProgress: (callback: (stage: BuildStage) => void) => () => void

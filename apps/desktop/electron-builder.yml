@@ -1,0 +1,22 @@
+appId: com.kharitonovegor.ego
+productName: Ego
+directories:
+  buildResources: resources
+  output: dist
+extraResources:
+  - from: resources/app-icon.png
+    to: app-icon.png
+files:
+  - out/**/*
+win:
+  icon: resources/app-icon.ico
+  target:
+    - nsis
+  artifactName: ${productName}-${version}-Setup.${ext}
+nsis:
+  oneClick: true
+  perMachine: false
+  allowToChangeInstallationDirectory: false
+  installerIcon: resources/app-icon.ico
+  uninstallerIcon: resources/app-icon.ico
+  installerHeaderIcon: resources/app-icon.ico

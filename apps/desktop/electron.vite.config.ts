@@ -4,7 +4,9 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    // @ego/core is a workspace package, so bundle it rather than leaving a bare require
+    // that electron-builder would have to resolve through a symlink.
+    plugins: [externalizeDepsPlugin({ exclude: ['@ego/core'] })],
     envPrefix: ['MAIN_VITE_']
   },
   preload: {

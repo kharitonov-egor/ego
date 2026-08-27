@@ -18,7 +18,7 @@ import {
   getQuickAddListShortcuts,
   setQuickAddListShortcuts as saveQuickAddListShortcuts
 } from './settings'
-import { listBoards, listLists } from './trello'
+import { trello } from './trello'
 import { showQuickAddWindow, setupQuickAddIpc } from './quickAdd'
 import type { QuickAddListShortcut } from '../shared/types'
 
@@ -135,8 +135,8 @@ function setupIpcHandlers(): void {
   ipcMain.handle('set-trello-board-id', (_event, value: string) => saveTrelloBoardId(value))
   ipcMain.handle('get-trello-list-id', () => getTrelloListId())
   ipcMain.handle('set-trello-list-id', (_event, value: string) => saveTrelloListId(value))
-  ipcMain.handle('trello-list-boards', () => listBoards())
-  ipcMain.handle('trello-list-lists', (_event, boardId: string) => listLists(boardId))
+  ipcMain.handle('trello-list-boards', () => trello.listBoards())
+  ipcMain.handle('trello-list-lists', (_event, boardId: string) => trello.listLists(boardId))
 
   ipcMain.handle('get-quick-add-list-shortcuts', () => getQuickAddListShortcuts())
   ipcMain.handle(

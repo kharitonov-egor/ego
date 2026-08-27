@@ -1,7 +1,8 @@
 import { BrowserWindow, ipcMain, screen } from 'electron'
 import { join } from 'path'
 import { getQuickAddListShortcuts, getTrelloListId } from './settings'
-import { addAttachmentToCard, createCard } from './trello'
+import { captureToTrello } from '@ego/core'
+import { trello } from './trello'
 import { getAppIconPath } from './icon'
 import type { QuickAddPayload, QuickAddResult } from '../shared/types'
 
@@ -160,40 +161,17 @@ export function showNotification(type: 'success' | 'error', message: string): vo
 }
 
 async function sendToTrello(payload: QuickAddPayload): Promise<QuickAddResult> {
-  const listId = payload.listId || getTrelloListId()
-  if (!listId) {
-    return { ok: false, detail: 'Trello list not set. Open Settings.' }
-  }
-
-  const cardResult = await createCard({
-    name: payload.title,
-    desc: payload.description,
-    idList: listId
+  return captureToTrello(trello, {
+    title: payload.title,
+    description: payload.description,
+    listId: payload.listId || getTrelloListId(),
+    attachments: payload.images.map((image) => ({
+      kind: 'bytes',
+      name: image.name,
+      mimeType: image.mimeType,
+      data: image.data
+    }))
   })
-  if (!cardResult.ok || !cardResult.data) {
-    return { ok: false, detail: cardResult.detail ?? 'Failed to create card' }
-  }
-
-  const card = cardResult.data
-  let failedAttachments = 0
-
-  if (payload.images.length > 0) {
-    const uploads = await Promise.all(
-      payload.images.map((image) =>
-        addAttachmentToCard(card.id, new Uint8Array(image.data), image.name, image.mimeType)
-      )
-    )
-    failedAttachments = uploads.filter((result) => !result.ok).length
-  }
-
-  if (failedAttachments > 0) {
-    return {
-      ok: false,
-      detail: `Card created, ${failedAttachments}/${payload.images.length} attachment(s) failed`
-    }
-  }
-
-  return { ok: true }
 }
 
 export function setupQuickAddIpc(): void {
