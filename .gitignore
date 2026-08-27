@@ -5,3 +5,4 @@ release
 .env
 .env.local
 *.log
+files.zip

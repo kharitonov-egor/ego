@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Minus, Square, X, Package, Loader2, Check, AlertCircle } from 'lucide-react'
 import { windowMinimize, windowMaximize, windowClose } from '../hooks/useIpc'
+import appIcon from '../app-icon.png'
 import type { BuildStage } from '../../shared/types'
 
 type BuildStatus = 'idle' | BuildStage
@@ -49,6 +50,7 @@ export default function TitleBar(): React.ReactElement {
       style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
       <div className="flex items-center gap-2 px-3 text-xs font-medium text-surface-300">
+        <img src={appIcon} alt="" className="h-4 w-4 rounded-sm" />
         <span>Ego</span>
       </div>
 

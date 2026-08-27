@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="Ego">
+  <style>
+    .bg { fill: #FFFFFF }
+    .fg { fill: #000000; stroke: #000000 }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #000000 }
+      .fg { fill: #FFFFFF; stroke: #FFFFFF }
+    }
+  </style>
+  <rect class="bg" width="1024" height="1024" rx="229"/>
+  <circle class="fg" cx="512" cy="512" r="288" fill="none" stroke-width="64"/>
+  <circle class="fg" cx="512" cy="512" r="96"/>
+</svg>

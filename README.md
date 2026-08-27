@@ -52,6 +52,13 @@ token at https://trello.com/power-ups/admin.
 Note that `electron-vite` inlines these values into `out/main/index.js` at build time, so a packaged
 installer carries them. Don't hand the installer to anyone.
 
+## Icons
+
+The mark is a white ring with a dot in the middle. The desktop app uses the dark variant, white on
+black. Every source file plus the generated sizes live in `assets/brand`, including the web favicon,
+the PWA maskable icon, and the iOS touch icon, so a web or mobile build later has them ready. See
+`assets/brand/README.md` for what each file is for.
+
 ## Running it
 
 ```

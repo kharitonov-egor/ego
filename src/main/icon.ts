@@ -1,10 +1,20 @@
-import { nativeImage, type NativeImage } from 'electron'
+import { app, nativeImage, type NativeImage } from 'electron'
+import { join } from 'path'
 
-/** Ego ships without an icon for now; Electron falls back to its default chrome. */
-export function getAppIconPath(): string | undefined {
-  return undefined
+const appIconFileName = 'app-icon.png'
+
+export function getAppIconPath(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, appIconFileName)
+    : join(app.getAppPath(), 'resources', appIconFileName)
 }
 
 export function getTrayIcon(): NativeImage {
-  return nativeImage.createEmpty()
+  const icon = nativeImage.createFromPath(getAppIconPath())
+
+  if (icon.isEmpty()) {
+    return nativeImage.createEmpty()
+  }
+
+  return icon.resize({ width: 16, height: 16 })
 }
