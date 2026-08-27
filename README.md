@@ -23,15 +23,18 @@ A toast slides in from the bottom right on success or failure.
 
 ## Settings
 
-The main window is tray-only. Double-click the tray icon or pick "Open settings".
+One panel, "Add to Trello", holding everything the feature needs. The main window is tray-only, so
+double-click the tray icon or pick "Open settings".
 
 - Global hotkey, captured by pressing the key combination you want
 - Start with Windows
-- Trello API key and token, then the board and list new cards go to
-- Ctrl+number list shortcuts for the quick add window
-- An optional webhook. When enabled, Ego POSTs JSON to it after each card is created:
-  `{ event, title, description, listId, cardId, cardUrl, attachmentCount, createdAt }`.
-  A webhook failure gets logged and never blocks the card.
+- Trello API key and token. The token field warns you if the value doesn't start with `ATTA`, since
+  pasting the OAuth secret there instead is an easy mistake and returns a bare 401
+- Board and the default list new cards go to
+- Ctrl+number list shortcuts, for sending a card somewhere other than the default
+
+Cards are created through the Trello REST API. `POST /1/cards`, then one `POST /1/cards/{id}/attachments`
+per pasted screenshot.
 
 ## Credentials
 
@@ -42,7 +45,6 @@ MAIN_VITE_TRELLO_API_KEY=
 MAIN_VITE_TRELLO_TOKEN=
 MAIN_VITE_TRELLO_BOARD_ID=
 MAIN_VITE_TRELLO_LIST_ID=
-MAIN_VITE_WEBHOOK_URL=
 ```
 
 These only seed the settings store the first time the app runs. After that the Settings UI is the
@@ -80,7 +82,6 @@ src/main/       Electron main process
   index.ts      app lifecycle, tray, IPC handlers, the build-and-install command
   quickAdd.ts   the capture window and the toasts
   trello.ts     Trello REST calls
-  webhook.ts    optional POST after a card is created
   settings.ts   electron-store schema and accessors
   hotkeys.ts    global shortcut registration
 src/preload/    contextBridge API

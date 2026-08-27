@@ -51,11 +51,6 @@ export interface IpcApi {
   getQuickAddHotkey: () => Promise<string>
   setQuickAddHotkey: (hotkey: string) => Promise<void>
 
-  getWebhookUrl: () => Promise<string>
-  setWebhookUrl: (url: string) => Promise<void>
-  getWebhookEnabled: () => Promise<boolean>
-  setWebhookEnabled: (enabled: boolean) => Promise<void>
-
   getTrelloApiKey: () => Promise<string>
   setTrelloApiKey: (value: string) => Promise<void>
   getTrelloToken: () => Promise<string>

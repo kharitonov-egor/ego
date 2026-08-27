@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Power, Link, Trello, RefreshCw, Webhook, Zap } from 'lucide-react'
+import { Power, Link, Trello, RefreshCw } from 'lucide-react'
 import HotkeyInput from './HotkeyInput'
 import type {
   QuickAddListShortcut,
@@ -23,6 +23,10 @@ const refreshButtonClass =
   'p-2 rounded-lg border border-surface-700 bg-surface-800/50 ' +
   'text-surface-400 hover:text-surface-200 hover:bg-surface-800 disabled:opacity-50'
 
+const dividerClass = 'border-t border-surface-800 pt-4'
+
+const TRELLO_TOKEN_DOCS = 'https://trello.com/power-ups/admin'
+
 export default function SettingsView(): React.ReactElement {
   const [autoStart, setAutoStart] = useState(false)
   const [quickAddHotkey, setQuickAddHotkey] = useState('')
@@ -36,14 +40,12 @@ export default function SettingsView(): React.ReactElement {
   const [boardsLoading, setBoardsLoading] = useState(false)
   const [listsLoading, setListsLoading] = useState(false)
   const [trelloError, setTrelloError] = useState<string | null>(null)
-  const [webhookUrl, setWebhookUrl] = useState('')
-  const [webhookEnabled, setWebhookEnabled] = useState(false)
 
   const apiKeyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const tokenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const webhookTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const credsReady = Boolean(trelloApiKey && trelloToken)
+  const ready = credsReady && Boolean(trelloListId) && Boolean(quickAddHotkey)
 
   useEffect(() => {
     window.api.getAutoStart().then(setAutoStart)
@@ -53,8 +55,6 @@ export default function SettingsView(): React.ReactElement {
     window.api.getTrelloBoardId().then(setTrelloBoardId)
     window.api.getTrelloListId().then(setTrelloListId)
     window.api.getQuickAddListShortcuts().then(setListShortcuts)
-    window.api.getWebhookUrl().then(setWebhookUrl)
-    window.api.getWebhookEnabled().then(setWebhookEnabled)
   }, [])
 
   useEffect(() => {
@@ -68,6 +68,7 @@ export default function SettingsView(): React.ReactElement {
       if (cancelled) return
       if (result.ok && result.data) {
         setBoards(result.data)
+        setTrelloError(null)
       } else {
         setTrelloError(result.detail ?? 'Failed to fetch boards')
       }
@@ -75,7 +76,7 @@ export default function SettingsView(): React.ReactElement {
     return () => {
       cancelled = true
     }
-  }, [credsReady])
+  }, [credsReady, trelloApiKey, trelloToken])
 
   useEffect(() => {
     let cancelled = false
@@ -88,6 +89,7 @@ export default function SettingsView(): React.ReactElement {
       if (cancelled) return
       if (result.ok && result.data) {
         setLists(result.data)
+        setTrelloError(null)
       } else {
         setTrelloError(result.detail ?? 'Failed to fetch lists')
       }
@@ -192,20 +194,6 @@ export default function SettingsView(): React.ReactElement {
     persistShortcuts(listShortcuts.filter((_, i) => i !== index))
   }
 
-  const handleWebhookUrlChange = (url: string): void => {
-    setWebhookUrl(url)
-    if (webhookTimerRef.current) clearTimeout(webhookTimerRef.current)
-    webhookTimerRef.current = setTimeout(() => {
-      window.api.setWebhookUrl(url)
-    }, 500)
-  }
-
-  const toggleWebhookEnabled = async (): Promise<void> => {
-    const next = !webhookEnabled
-    await window.api.setWebhookEnabled(next)
-    setWebhookEnabled(next)
-  }
-
   return (
     <div className="flex flex-col h-full">
       <div className="px-5 py-3 border-b border-surface-800">
@@ -213,14 +201,26 @@ export default function SettingsView(): React.ReactElement {
         <p className="text-xs text-surface-500 mt-0.5">App configuration</p>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-5 space-y-6">
+      <div className="flex-1 overflow-y-auto p-5">
         <div className="bg-surface-900/50 border border-surface-800 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-surface-300 mb-1 flex items-center gap-2">
-            <Zap size={14} />
-            Quick add
-          </h3>
+          <div className="flex items-start justify-between gap-3 mb-1">
+            <h3 className="text-sm font-medium text-surface-300 flex items-center gap-2">
+              <Trello size={14} />
+              Add to Trello
+            </h3>
+            <span
+              className={`text-[11px] px-2 py-0.5 rounded-full border ${
+                ready
+                  ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10'
+                  : 'text-surface-500 border-surface-700 bg-surface-800/50'
+              }`}
+            >
+              {ready ? 'Ready' : 'Needs setup'}
+            </span>
+          </div>
           <p className="text-xs text-surface-500 mb-4">
-            Press the hotkey anywhere to open the capture window and send a card to Trello.
+            Press the hotkey anywhere in Windows to capture a title, a description, and pasted
+            screenshots, then send it straight to a Trello list.
           </p>
 
           <div className="space-y-4">
@@ -252,125 +252,142 @@ export default function SettingsView(): React.ReactElement {
                 </div>
               </div>
             </label>
-          </div>
-        </div>
 
-        <div className="bg-surface-900/50 border border-surface-800 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-surface-300 mb-1 flex items-center gap-2">
-            <Trello size={14} />
-            Trello target
-          </h3>
-          <p className="text-xs text-surface-500 mb-4">
-            Pick the board and list that quick-add cards land in.
-          </p>
-
-          <div className="space-y-3">
-            <div>
-              <label className="text-xs text-surface-400 mb-1.5 flex items-center gap-1.5">
-                <Link size={11} />
-                Trello API key
-              </label>
-              <input
-                type="password"
-                value={trelloApiKey}
-                onChange={(e) => handleApiKeyChange(e.target.value)}
-                placeholder="API key"
-                className={inputClass}
-              />
-            </div>
-
-            <div>
-              <label className="text-xs text-surface-400 mb-1.5 flex items-center gap-1.5">
-                <Link size={11} />
-                Trello token
-              </label>
-              <input
-                type="password"
-                value={trelloToken}
-                onChange={(e) => handleTokenChange(e.target.value)}
-                placeholder="Token"
-                className={inputClass}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs text-surface-400 mb-1.5">Board</label>
-              <div className="flex gap-2">
-                <select
-                  value={trelloBoardId}
-                  onChange={(e) => void handleBoardChange(e.target.value)}
-                  disabled={!credsReady || boardsLoading}
-                  className={selectClass}
-                >
-                  <option value="">
-                    {credsReady ? 'Select a board…' : 'Add API key + token first'}
-                  </option>
-                  {boards.map((board) => (
-                    <option key={board.id} value={board.id}>
-                      {board.name}
-                    </option>
-                  ))}
-                </select>
+            <div className={dividerClass}>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-medium text-surface-400">Trello account</span>
                 <button
                   type="button"
-                  onClick={() => void refreshBoards()}
-                  disabled={!credsReady || boardsLoading}
-                  className={refreshButtonClass}
-                  title="Refresh boards"
+                  onClick={() => void window.api.openExternalUrl(TRELLO_TOKEN_DOCS)}
+                  className="text-[11px] text-accent-400 hover:text-accent-300 transition-colors"
                 >
-                  <RefreshCw size={14} className={boardsLoading ? 'animate-spin' : ''} />
+                  Get key and token
                 </button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-surface-400 mb-1.5 flex items-center gap-1.5">
+                    <Link size={11} />
+                    API key
+                  </label>
+                  <input
+                    type="password"
+                    value={trelloApiKey}
+                    onChange={(e) => handleApiKeyChange(e.target.value)}
+                    placeholder="32-character key"
+                    className={inputClass}
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs text-surface-400 mb-1.5 flex items-center gap-1.5">
+                    <Link size={11} />
+                    Token
+                  </label>
+                  <input
+                    type="password"
+                    value={trelloToken}
+                    onChange={(e) => handleTokenChange(e.target.value)}
+                    placeholder="Starts with ATTA"
+                    className={inputClass}
+                  />
+                  {trelloToken && !trelloToken.startsWith('ATTA') && (
+                    <p className="text-[11px] text-amber-400 mt-1.5">
+                      Trello tokens start with ATTA. A 64-character hex string is the OAuth secret,
+                      which will not authenticate.
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs text-surface-400 mb-1.5">List</label>
-              <div className="flex gap-2">
-                <select
-                  value={trelloListId}
-                  onChange={(e) => void handleListChange(e.target.value)}
-                  disabled={!trelloBoardId || listsLoading}
-                  className={selectClass}
-                >
-                  <option value="">
-                    {trelloBoardId ? 'Select a list…' : 'Pick a board first'}
-                  </option>
-                  {lists.map((list) => (
-                    <option key={list.id} value={list.id}>
-                      {list.name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => void refreshLists(trelloBoardId)}
-                  disabled={!trelloBoardId || listsLoading}
-                  className={refreshButtonClass}
-                  title="Refresh lists"
-                >
-                  <RefreshCw size={14} className={listsLoading ? 'animate-spin' : ''} />
-                </button>
+            <div className={dividerClass}>
+              <span className="block text-xs font-medium text-surface-400 mb-3">Destination</span>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs text-surface-400 mb-1.5">Board</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={trelloBoardId}
+                      onChange={(e) => void handleBoardChange(e.target.value)}
+                      disabled={!credsReady || boardsLoading}
+                      className={selectClass}
+                    >
+                      <option value="">
+                        {credsReady ? 'Select a board…' : 'Add key and token first'}
+                      </option>
+                      {boards.map((board) => (
+                        <option key={board.id} value={board.id}>
+                          {board.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => void refreshBoards()}
+                      disabled={!credsReady || boardsLoading}
+                      className={refreshButtonClass}
+                      title="Refresh boards"
+                    >
+                      <RefreshCw size={14} className={boardsLoading ? 'animate-spin' : ''} />
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-surface-400 mb-1.5">Default list</label>
+                  <div className="flex gap-2">
+                    <select
+                      value={trelloListId}
+                      onChange={(e) => void handleListChange(e.target.value)}
+                      disabled={!trelloBoardId || listsLoading}
+                      className={selectClass}
+                    >
+                      <option value="">
+                        {trelloBoardId ? 'Select a list…' : 'Pick a board first'}
+                      </option>
+                      {lists.map((list) => (
+                        <option key={list.id} value={list.id}>
+                          {list.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => void refreshLists(trelloBoardId)}
+                      disabled={!trelloBoardId || listsLoading}
+                      className={refreshButtonClass}
+                      title="Refresh lists"
+                    >
+                      <RefreshCw size={14} className={listsLoading ? 'animate-spin' : ''} />
+                    </button>
+                  </div>
+                </div>
+
+                {trelloError && <p className="text-[11px] text-red-400">{trelloError}</p>}
               </div>
             </div>
-
-            {trelloError && <p className="text-[11px] text-red-400">{trelloError}</p>}
 
             {lists.length > 0 && (
-              <div>
+              <div className={dividerClass}>
                 <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs text-surface-400">
-                    Ctrl+number shortcuts (quick add target)
-                  </label>
+                  <span className="text-xs font-medium text-surface-400">List shortcuts</span>
                   {listShortcuts.length < 9 && (
                     <button
                       type="button"
                       onClick={handleShortcutAdd}
-                      className="text-xs text-accent-400 hover:text-accent-300 transition-colors"
+                      className="text-[11px] text-accent-400 hover:text-accent-300 transition-colors"
                     >
                       + Add
                     </button>
                   )}
                 </div>
+                <p className="text-[11px] text-surface-500 mb-3">
+                  Press Ctrl+1, Ctrl+2, and so on inside the capture window to send that card to a
+                  different list than the default.
+                </p>
                 {listShortcuts.length === 0 ? (
                   <p className="text-[11px] text-surface-500">
                     No shortcuts yet. Press + Add to assign a list to Ctrl+1.
@@ -405,55 +422,8 @@ export default function SettingsView(): React.ReactElement {
                     ))}
                   </div>
                 )}
-                <p className="text-[11px] text-surface-500 mt-2">
-                  Press Ctrl+1, Ctrl+2, and so on inside the quick add window to switch the
-                  target list.
-                </p>
               </div>
             )}
-          </div>
-        </div>
-
-        <div className="bg-surface-900/50 border border-surface-800 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-surface-300 mb-1 flex items-center gap-2">
-            <Webhook size={14} />
-            Webhook
-          </h3>
-          <p className="text-xs text-surface-500 mb-4">
-            After a card is created, Ego POSTs the card title, description, list id, and card URL
-            as JSON to this URL. Failures are logged and never block the card.
-          </p>
-
-          <div className="space-y-3">
-            <label className="flex items-center gap-3 cursor-pointer">
-              <div
-                onClick={() => void toggleWebhookEnabled()}
-                className={`relative w-10 h-5 rounded-full transition-colors ${
-                  webhookEnabled ? 'bg-accent-600' : 'bg-surface-700'
-                }`}
-              >
-                <div
-                  className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                    webhookEnabled ? 'translate-x-5' : 'translate-x-0.5'
-                  }`}
-                />
-              </div>
-              <div className="text-sm text-surface-200">Send webhook on card creation</div>
-            </label>
-
-            <div>
-              <label className="text-xs text-surface-400 mb-1.5 flex items-center gap-1.5">
-                <Link size={11} />
-                Webhook URL
-              </label>
-              <input
-                type="text"
-                value={webhookUrl}
-                onChange={(e) => handleWebhookUrlChange(e.target.value)}
-                placeholder="https://example.com/webhook/..."
-                className={inputClass}
-              />
-            </div>
           </div>
         </div>
       </div>

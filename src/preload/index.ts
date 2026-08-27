@@ -13,11 +13,6 @@ const api: IpcApi = {
   getQuickAddHotkey: () => ipcRenderer.invoke('get-quick-add-hotkey'),
   setQuickAddHotkey: (hotkey: string) => ipcRenderer.invoke('set-quick-add-hotkey', hotkey),
 
-  getWebhookUrl: () => ipcRenderer.invoke('get-webhook-url'),
-  setWebhookUrl: (url: string) => ipcRenderer.invoke('set-webhook-url', url),
-  getWebhookEnabled: () => ipcRenderer.invoke('get-webhook-enabled'),
-  setWebhookEnabled: (enabled: boolean) => ipcRenderer.invoke('set-webhook-enabled', enabled),
-
   getTrelloApiKey: () => ipcRenderer.invoke('get-trello-api-key'),
   setTrelloApiKey: (value: string) => ipcRenderer.invoke('set-trello-api-key', value),
   getTrelloToken: () => ipcRenderer.invoke('get-trello-token'),

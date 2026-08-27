@@ -2,7 +2,6 @@ import { BrowserWindow, ipcMain, screen } from 'electron'
 import { join } from 'path'
 import { getQuickAddListShortcuts, getTrelloListId } from './settings'
 import { addAttachmentToCard, createCard } from './trello'
-import { notifyWebhook } from './webhook'
 import { getAppIconPath } from './icon'
 import type { QuickAddPayload, QuickAddResult } from '../shared/types'
 
@@ -186,16 +185,6 @@ async function sendToTrello(payload: QuickAddPayload): Promise<QuickAddResult> {
     )
     failedAttachments = uploads.filter((result) => !result.ok).length
   }
-
-  void notifyWebhook({
-    title: payload.title,
-    description: payload.description,
-    listId,
-    cardId: card.id,
-    cardUrl: card.shortUrl,
-    attachmentCount: payload.images.length - failedAttachments,
-    createdAt: new Date().toISOString()
-  })
 
   if (failedAttachments > 0) {
     return {

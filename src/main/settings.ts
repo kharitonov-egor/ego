@@ -8,8 +8,6 @@ interface AppSettings {
   trelloBoardId: string
   trelloListId: string
   quickAddListShortcuts: QuickAddListShortcut[]
-  webhookUrl: string
-  webhookEnabled: boolean
 }
 
 /**
@@ -20,8 +18,7 @@ const seed = {
   trelloApiKey: import.meta.env.MAIN_VITE_TRELLO_API_KEY ?? '',
   trelloToken: import.meta.env.MAIN_VITE_TRELLO_TOKEN ?? '',
   trelloBoardId: import.meta.env.MAIN_VITE_TRELLO_BOARD_ID ?? '',
-  trelloListId: import.meta.env.MAIN_VITE_TRELLO_LIST_ID ?? '',
-  webhookUrl: import.meta.env.MAIN_VITE_WEBHOOK_URL ?? ''
+  trelloListId: import.meta.env.MAIN_VITE_TRELLO_LIST_ID ?? ''
 }
 
 const store = new Store<AppSettings>({
@@ -32,9 +29,7 @@ const store = new Store<AppSettings>({
     trelloToken: seed.trelloToken,
     trelloBoardId: seed.trelloBoardId,
     trelloListId: seed.trelloListId,
-    quickAddListShortcuts: [],
-    webhookUrl: seed.webhookUrl,
-    webhookEnabled: false
+    quickAddListShortcuts: []
   }
 })
 
@@ -86,18 +81,3 @@ export function setQuickAddListShortcuts(shortcuts: QuickAddListShortcut[]): voi
   store.set('quickAddListShortcuts', shortcuts)
 }
 
-export function getWebhookUrl(): string {
-  return store.get('webhookUrl')
-}
-
-export function setWebhookUrl(url: string): void {
-  store.set('webhookUrl', url)
-}
-
-export function getWebhookEnabled(): boolean {
-  return store.get('webhookEnabled')
-}
-
-export function setWebhookEnabled(enabled: boolean): void {
-  store.set('webhookEnabled', enabled)
-}

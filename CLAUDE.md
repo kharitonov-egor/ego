@@ -7,7 +7,7 @@ Personal Electron + TypeScript + React + Tailwind desktop app for Windows. Singl
 - No `any`. Use `unknown` plus narrowing, generics, or unions.
 - Do not run `npm run build`, `npm run dev`, or `npx electron-vite build`. I run those myself.
   `npm run typecheck` is fine.
-- Secrets go in `.env.local` only. The repo is public. Never commit a key, token, or webhook URL.
+- Secrets go in `.env.local` only. The repo is public. Never commit a key or token.
 - Comments only for non-obvious reasons. No comments restating the code.
 
 ## Architecture

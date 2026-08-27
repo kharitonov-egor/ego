@@ -16,11 +16,7 @@ import {
   getTrelloListId,
   setTrelloListId as saveTrelloListId,
   getQuickAddListShortcuts,
-  setQuickAddListShortcuts as saveQuickAddListShortcuts,
-  getWebhookUrl,
-  setWebhookUrl as saveWebhookUrl,
-  getWebhookEnabled,
-  setWebhookEnabled as saveWebhookEnabled
+  setQuickAddListShortcuts as saveQuickAddListShortcuts
 } from './settings'
 import { listBoards, listLists } from './trello'
 import { showQuickAddWindow, setupQuickAddIpc } from './quickAdd'
@@ -146,13 +142,6 @@ function setupIpcHandlers(): void {
   ipcMain.handle(
     'set-quick-add-list-shortcuts',
     (_event, shortcuts: QuickAddListShortcut[]) => saveQuickAddListShortcuts(shortcuts)
-  )
-
-  ipcMain.handle('get-webhook-url', () => getWebhookUrl())
-  ipcMain.handle('set-webhook-url', (_event, url: string) => saveWebhookUrl(url))
-  ipcMain.handle('get-webhook-enabled', () => getWebhookEnabled())
-  ipcMain.handle('set-webhook-enabled', (_event, enabled: boolean) =>
-    saveWebhookEnabled(enabled)
   )
 
   ipcMain.handle('open-external-url', (_event, url: string) => shell.openExternal(url))
