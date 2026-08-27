@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        background: transparent;
+        overflow: hidden;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        -webkit-app-region: no-drag;
+        color: #e2e8f0;
+      }
+      .container {
+        width: 100%;
+        height: 100vh;
+        display: flex;
+        padding: 8px;
+      }
+      .card {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background: rgba(12, 16, 30, 0.97);
+        border: 1px solid rgba(96, 165, 250, 0.25);
+        border-radius: 14px;
+        overflow: hidden;
+      }
+      .header {
+        display: flex;
+        align-items: center;
+        padding: 10px 14px 6px 14px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      }
+      .header .icon {
+        color: rgba(96, 165, 250, 0.7);
+        margin-right: 10px;
+        display: flex;
+        align-items: center;
+      }
+      .header .icon svg { width: 16px; height: 16px; }
+      .header .label {
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: rgba(148, 163, 184, 0.6);
+      }
+      .fields {
+        display: flex;
+        flex-direction: column;
+        padding: 10px 14px 0 14px;
+        gap: 8px;
+        flex: 1;
+        min-height: 0;
+      }
+      input.title {
+        background: transparent;
+        border: none;
+        outline: none;
+        color: #f1f5f9;
+        font-size: 16px;
+        font-weight: 500;
+        padding: 4px 0;
+        font-family: inherit;
+      }
+      input.title::placeholder {
+        color: rgba(148, 163, 184, 0.45);
+      }
+      textarea.desc {
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.04);
+        border-radius: 8px;
+        outline: none;
+        color: #e2e8f0;
+        font-size: 13px;
+        font-family: inherit;
+        padding: 8px 10px;
+        resize: none;
+        flex: 1;
+        min-height: 80px;
+        line-height: 1.45;
+      }
+      textarea.desc:focus {
+        border-color: rgba(96, 165, 250, 0.3);
+      }
+      textarea.desc::placeholder {
+        color: rgba(148, 163, 184, 0.4);
+      }
+      .images {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 14px 14px 2px 14px;
+        margin-top: 4px;
+        border-top: 1px solid rgba(255, 255, 255, 0.04);
+        min-height: 0;
+      }
+      .images:empty {
+        display: none;
+      }
+      .thumb {
+        position: relative;
+        width: 56px;
+        height: 56px;
+        border-radius: 6px;
+        overflow: hidden;
+        cursor: zoom-in;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(0, 0, 0, 0.3);
+      }
+      .thumb img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .thumb .del {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.7);
+        color: #fff;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        line-height: 1;
+        border: none;
+        cursor: pointer;
+      }
+      .thumb:hover .del { display: flex; }
+      .list-bar {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        padding: 5px 14px;
+        border-top: 1px solid rgba(255, 255, 255, 0.04);
+        flex-wrap: wrap;
+      }
+      .list-bar:empty { display: none; }
+      .list-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        border-radius: 6px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.04);
+        color: rgba(148, 163, 184, 0.6);
+        font-size: 11px;
+        cursor: pointer;
+        transition: background 0.1s, color 0.1s, border-color 0.1s;
+        white-space: nowrap;
+      }
+      .list-chip .chip-key {
+        font-size: 10px;
+        opacity: 0.6;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+      }
+      .list-chip.active {
+        background: rgba(96, 165, 250, 0.15);
+        border-color: rgba(96, 165, 250, 0.4);
+        color: rgba(147, 197, 253, 0.9);
+      }
+      .footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 14px 10px 14px;
+        color: rgba(148, 163, 184, 0.5);
+        font-size: 11px;
+      }
+      .status {
+        color: rgba(148, 163, 184, 0.8);
+      }
+      .status.error { color: #fca5a5; }
+      kbd {
+        background: rgba(255, 255, 255, 0.07);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        padding: 1px 5px;
+        font-family: inherit;
+        font-size: 10px;
+        color: rgba(226, 232, 240, 0.8);
+      }
+      .overlay {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        background: transparent;
+        display: none;
+        z-index: 100;
+        cursor: zoom-out;
+        padding: 0;
+        margin: 0;
+        box-sizing: border-box;
+      }
+      .overlay.open { display: block; }
+      .overlay img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 10px;
+        image-rendering: -webkit-optimize-contrast;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="card">
+        <div class="header">
+          <span class="icon">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <rect x="1" y="1" width="22" height="22" rx="3" ry="3" fill="none" stroke="currentColor" stroke-width="1.5"/>
+              <rect x="4.5" y="4.5" width="6" height="13" rx="1.5" fill="currentColor"/>
+              <rect x="13.5" y="4.5" width="6" height="8.5" rx="1.5" fill="currentColor"/>
+            </svg>
+          </span>
+          <span class="label">New Trello card</span>
+        </div>
+        <div class="fields">
+          <input id="title" class="title" type="text" placeholder="Card title…" autofocus />
+          <textarea id="desc" class="desc" placeholder="Description (optional). Paste screenshots with Ctrl+V."></textarea>
+        </div>
+        <div id="images" class="images"></div>
+        <div id="list-bar" class="list-bar"></div>
+        <div class="footer">
+          <span id="status" class="status"></span>
+          <span>
+            <kbd>Enter</kbd> send ·
+            <kbd>Shift</kbd>+<kbd>Enter</kbd> newline ·
+            <kbd>Esc</kbd> close
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <div id="overlay" class="overlay">
+      <img id="overlayImg" alt="preview" />
+    </div>
+
+    <script>
+      const titleEl = document.getElementById('title')
+      const descEl = document.getElementById('desc')
+      const imagesEl = document.getElementById('images')
+      const listBarEl = document.getElementById('list-bar')
+      const statusEl = document.getElementById('status')
+      const overlayEl = document.getElementById('overlay')
+      const overlayImg = document.getElementById('overlayImg')
+
+      /** @type {{ id: number; name: string; mimeType: string; data: ArrayBuffer; objectUrl: string }[]} */
+      let images = []
+      let nextId = 1
+      let sending = false
+
+      /** @type {{ listId: string; listName: string }[]} */
+      let listShortcuts = []
+      let activeShortcutIndex = -1
+
+      function renderListBar() {
+        listBarEl.innerHTML = ''
+        if (listShortcuts.length === 0) return
+        listShortcuts.forEach((s, i) => {
+          const chip = document.createElement('div')
+          chip.className = 'list-chip' + (i === activeShortcutIndex ? ' active' : '')
+          const key = document.createElement('span')
+          key.className = 'chip-key'
+          key.textContent = `Ctrl+${i + 1}`
+          const name = document.createElement('span')
+          name.textContent = s.listName
+          chip.appendChild(key)
+          chip.appendChild(name)
+          chip.addEventListener('click', () => selectShortcut(i))
+          listBarEl.appendChild(chip)
+        })
+      }
+
+      function selectShortcut(index) {
+        activeShortcutIndex = index >= 0 && index < listShortcuts.length ? index : -1
+        renderListBar()
+      }
+
+      function setShortcuts(shortcuts) {
+        listShortcuts = shortcuts || []
+        activeShortcutIndex = listShortcuts.length > 0 ? 0 : -1
+        renderListBar()
+      }
+
+      function setStatus(text, isError) {
+        statusEl.textContent = text || ''
+        statusEl.className = 'status' + (isError ? ' error' : '')
+      }
+
+      function renderImages() {
+        imagesEl.innerHTML = ''
+        images.forEach((img) => {
+          const thumb = document.createElement('div')
+          thumb.className = 'thumb'
+          thumb.title = img.name
+
+          const imageEl = document.createElement('img')
+          imageEl.src = img.objectUrl
+          imageEl.alt = img.name
+          thumb.appendChild(imageEl)
+
+          const del = document.createElement('button')
+          del.className = 'del'
+          del.textContent = '×'
+          del.addEventListener('mousedown', (e) => {
+            e.stopPropagation()
+            e.preventDefault()
+          })
+          del.addEventListener('click', (e) => {
+            e.stopPropagation()
+            removeImage(img.id)
+          })
+          thumb.appendChild(del)
+
+          thumb.addEventListener('click', () => openOverlay(img.objectUrl))
+
+          imagesEl.appendChild(thumb)
+        })
+      }
+
+      function removeImage(id) {
+        const idx = images.findIndex((i) => i.id === id)
+        if (idx === -1) return
+        URL.revokeObjectURL(images[idx].objectUrl)
+        images.splice(idx, 1)
+        renderImages()
+      }
+
+      function clearAll() {
+        images.forEach((i) => URL.revokeObjectURL(i.objectUrl))
+        images = []
+        renderImages()
+        titleEl.value = ''
+        descEl.value = ''
+        setStatus('')
+      }
+
+      function expandPreviewToAspect() {
+        const w = overlayImg.naturalWidth
+        const h = overlayImg.naturalHeight
+        const aspect = w && h ? w / h : 0
+        if (window.api && window.api.setQuickAddPreview) {
+          window.api.setQuickAddPreview(true, aspect)
+        }
+      }
+
+      function openOverlay(url) {
+        overlayImg.onload = expandPreviewToAspect
+        overlayImg.src = url
+        overlayEl.classList.add('open')
+        if (overlayImg.complete && overlayImg.naturalWidth) {
+          expandPreviewToAspect()
+        }
+      }
+
+      function closeOverlay() {
+        if (!overlayEl.classList.contains('open')) return
+        overlayEl.classList.remove('open')
+        overlayImg.src = ''
+        if (window.api && window.api.setQuickAddPreview) {
+          window.api.setQuickAddPreview(false)
+        }
+      }
+
+      overlayEl.addEventListener('click', closeOverlay)
+
+      async function handlePaste(e) {
+        const items = e.clipboardData && e.clipboardData.items
+        if (!items) return
+        const files = []
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i]
+          if (item.kind === 'file' && item.type.startsWith('image/')) {
+            const file = item.getAsFile()
+            if (file) files.push(file)
+          }
+        }
+        if (files.length === 0) return
+
+        e.preventDefault()
+        for (const file of files) {
+          const buffer = await file.arrayBuffer()
+          const id = nextId++
+          const extFromMime = (file.type.split('/')[1] || 'png').split(';')[0]
+          const name =
+            file.name && file.name !== 'image.png' ? file.name : `paste-${id}.${extFromMime}`
+          const blob = new Blob([buffer], { type: file.type || 'image/png' })
+          images.push({
+            id,
+            name,
+            mimeType: file.type || 'image/png',
+            data: buffer,
+            objectUrl: URL.createObjectURL(blob)
+          })
+        }
+        renderImages()
+      }
+
+      async function submit() {
+        if (sending) return
+        const title = titleEl.value.trim() || '(empty)'
+        sending = true
+        setStatus('Sending…')
+
+        const selectedListId =
+          activeShortcutIndex >= 0 && listShortcuts[activeShortcutIndex]
+            ? listShortcuts[activeShortcutIndex].listId
+            : undefined
+
+        const payload = {
+          title,
+          description: descEl.value,
+          images: images.map((img) => ({
+            name: img.name,
+            mimeType: img.mimeType,
+            data: img.data
+          })),
+          ...(selectedListId ? { listId: selectedListId } : {})
+        }
+
+        try {
+          const result = await window.api.submitQuickAdd(payload)
+          if (result && result.ok) {
+            clearAll()
+          } else {
+            setStatus((result && result.detail) || 'Failed to send', true)
+          }
+        } catch (err) {
+          setStatus(err && err.message ? err.message : 'Failed to send', true)
+        } finally {
+          sending = false
+        }
+      }
+
+      function cycleFocus() {
+        const overlayOpen = overlayEl.classList.contains('open')
+        if (document.activeElement === titleEl) {
+          descEl.focus()
+          return
+        }
+        if (document.activeElement === descEl) {
+          if (images.length > 0) {
+            openOverlay(images[0].objectUrl)
+          } else {
+            titleEl.focus()
+          }
+          return
+        }
+        if (overlayOpen) {
+          closeOverlay()
+          titleEl.focus()
+          return
+        }
+        titleEl.focus()
+      }
+
+      let altOnly = false
+
+      function handleKeyDown(e) {
+        if (e.key === 'Alt' || e.keyCode === 18) {
+          altOnly = true
+          return
+        }
+        if (e.altKey) {
+          altOnly = false
+        }
+        const isAltX =
+          e.altKey && (e.code === 'KeyX' || e.key === 'x' || e.key === 'X' || e.keyCode === 88)
+        if (isAltX) {
+          e.preventDefault()
+          e.stopPropagation()
+          cycleFocus()
+          return
+        }
+        if (e.ctrlKey && !e.altKey && !e.shiftKey && listShortcuts.length > 0) {
+          const digit = parseInt(e.key, 10)
+          if (!isNaN(digit) && digit >= 1 && digit <= listShortcuts.length) {
+            e.preventDefault()
+            e.stopPropagation()
+            selectShortcut(digit - 1)
+            return
+          }
+        }
+        if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+          e.preventDefault()
+          e.stopPropagation()
+          cycleFocus()
+          return
+        }
+        if (e.key === 'Escape') {
+          if (overlayEl.classList.contains('open')) {
+            closeOverlay()
+            e.preventDefault()
+            return
+          }
+          window.api.cancelQuickAdd()
+          return
+        }
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault()
+          submit()
+        }
+      }
+
+      function handleKeyUp(e) {
+        if ((e.key === 'Alt' || e.keyCode === 18) && altOnly) {
+          altOnly = false
+          e.preventDefault()
+          e.stopPropagation()
+          cycleFocus()
+        }
+      }
+
+      document.addEventListener('paste', handlePaste)
+      // capture: true so inputs/textarea can't swallow these before we see them.
+      document.addEventListener('keydown', handleKeyDown, true)
+      document.addEventListener('keyup', handleKeyUp, true)
+
+      if (window.api && window.api.onQuickAddFocus) {
+        window.api.onQuickAddFocus((shortcuts) => {
+          setShortcuts(shortcuts)
+          clearAll()
+          closeOverlay()
+          titleEl.focus()
+        })
+      }
+    </script>
+  </body>
+</html>
