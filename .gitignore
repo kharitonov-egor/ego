@@ -10,3 +10,4 @@ release
 .env.local
 *.log
 files.zip
+money_template/
