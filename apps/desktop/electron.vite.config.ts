@@ -20,7 +20,8 @@ export default defineConfig({
     envPrefix: ['RENDERER_VITE_', 'VITE_'],
     resolve: {
       alias: {
-        '@': resolve('src/renderer')
+        '@': resolve('src/renderer'),
+        '@ego/core': resolve(__dirname, '../../packages/core/src/index.ts')
       }
     },
     plugins: [react()],

@@ -1,5 +1,9 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import type { AccountInput, CategoryInput, MoneyResult, MoneySnapshot, TransactionInput } from '@ego/core'
+import {
+  budgetBreachMessage, budgetBreaches,
+  type AccountInput, type BudgetInput, type CategoryInput, type MoneyResult, type MoneySnapshot,
+  type PurchaseInput, type TransactionInput
+} from '@ego/core'
 import { moneyClientFor } from './money'
 import { isMoneyConfigured, useSettings } from './settings'
 
@@ -9,6 +13,8 @@ interface MoneyContextValue {
   busy: boolean
   readOnly: boolean
   error: string | null
+  alert: string | null
+  dismissAlert: () => void
   refresh: () => Promise<void>
   createAccount: (input: AccountInput) => Promise<boolean>
   updateAccount: (id: string, input: AccountInput) => Promise<boolean>
@@ -19,6 +25,11 @@ interface MoneyContextValue {
   createTransaction: (input: TransactionInput) => Promise<boolean>
   updateTransaction: (id: string, input: TransactionInput) => Promise<boolean>
   deleteTransaction: (id: string) => Promise<boolean>
+  saveBudget: (input: BudgetInput) => Promise<boolean>
+  deleteBudget: (month: string) => Promise<boolean>
+  createPurchase: (input: PurchaseInput) => Promise<boolean>
+  updatePurchase: (id: string, input: PurchaseInput) => Promise<boolean>
+  deletePurchase: (id: string) => Promise<boolean>
 }
 
 const MoneyContext = createContext<MoneyContextValue | null>(null)
@@ -30,6 +41,7 @@ export function MoneyProvider({ children }: { children: React.ReactNode }): Reac
   const [busy, setBusy] = useState(false)
   const [readOnly, setReadOnly] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [alert, setAlert] = useState<string | null>(null)
   const client = useMemo(() => moneyClientFor(settings), [settings.cloudflareAccountId, settings.d1DatabaseId, settings.d1ApiToken])
 
   const apply = useCallback((result: MoneyResult<MoneySnapshot>): boolean => {
@@ -59,13 +71,20 @@ export function MoneyProvider({ children }: { children: React.ReactNode }): Reac
   const run = async (request: Promise<MoneyResult<MoneySnapshot>>): Promise<boolean> => {
     if (readOnly || !isMoneyConfigured(settings)) return false
     setBusy(true)
-    const result = apply(await request)
+    const before = snapshot
+    const result = await request
+    const saved = apply(result)
+    if (result.ok) {
+      const breaches = budgetBreaches(before, result.data)
+      if (breaches.length > 0) setAlert(breaches.map((breach) => budgetBreachMessage(breach)).join('\n'))
+    }
     setBusy(false)
-    return result
+    return saved
   }
 
   const value: MoneyContextValue = {
     snapshot, loading, busy, readOnly, error, refresh,
+    alert, dismissAlert: () => setAlert(null),
     createAccount: (input) => run(client.createAccount(input)),
     updateAccount: (id, input) => run(client.updateAccount(id, input)),
     archiveAccount: (id, archived) => run(client.archiveAccount(id, { archived })),
@@ -74,7 +93,12 @@ export function MoneyProvider({ children }: { children: React.ReactNode }): Reac
     archiveCategory: (id, archived) => run(client.archiveCategory(id, { archived })),
     createTransaction: (input) => run(client.createTransaction(input)),
     updateTransaction: (id, input) => run(client.updateTransaction(id, input)),
-    deleteTransaction: (id) => run(client.deleteTransaction(id))
+    deleteTransaction: (id) => run(client.deleteTransaction(id)),
+    saveBudget: (input) => run(client.saveBudget(input)),
+    deleteBudget: (month) => run(client.deleteBudget(month)),
+    createPurchase: (input) => run(client.createPurchase(input)),
+    updatePurchase: (id, input) => run(client.updatePurchase(id, input)),
+    deletePurchase: (id) => run(client.deletePurchase(id))
   }
 
   return <MoneyContext.Provider value={value}>{children}</MoneyContext.Provider>

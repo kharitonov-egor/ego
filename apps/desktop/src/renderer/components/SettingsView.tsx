@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Power, Link, Trello, RefreshCw } from 'lucide-react'
+import { Power, Link, Trello, RefreshCw, ScanLine } from 'lucide-react'
 import HotkeyInput from './HotkeyInput'
 import MoneySyncSettings from './money/MoneySyncSettings'
 import type {
@@ -41,6 +41,10 @@ export default function SettingsView(): React.ReactElement {
   const [boardsLoading, setBoardsLoading] = useState(false)
   const [listsLoading, setListsLoading] = useState(false)
   const [trelloError, setTrelloError] = useState<string | null>(null)
+  const [openRouterApiKey, setOpenRouterApiKey] = useState('')
+  const [transactionImageModel, setTransactionImageModel] = useState('openai/gpt-5.6-terra')
+  const [hasOpenRouterApiKey, setHasOpenRouterApiKey] = useState(false)
+  const [imageSettingsSaved, setImageSettingsSaved] = useState(false)
 
   const apiKeyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const tokenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -56,6 +60,10 @@ export default function SettingsView(): React.ReactElement {
     window.api.getTrelloBoardId().then(setTrelloBoardId)
     window.api.getTrelloListId().then(setTrelloListId)
     window.api.getQuickAddListShortcuts().then(setListShortcuts)
+    window.api.getTransactionImageSettings().then((settings) => {
+      setHasOpenRouterApiKey(settings.hasApiKey)
+      setTransactionImageModel(settings.model)
+    })
   }, [])
 
   useEffect(() => {
@@ -137,6 +145,17 @@ export default function SettingsView(): React.ReactElement {
     setAutoStart(next)
   }
 
+  const saveImageSettings = async (): Promise<void> => {
+    const saved = await window.api.setTransactionImageSettings({
+      apiKey: openRouterApiKey.trim() || undefined,
+      model: transactionImageModel.trim()
+    })
+    setHasOpenRouterApiKey(saved.hasApiKey)
+    setTransactionImageModel(saved.model)
+    setOpenRouterApiKey('')
+    setImageSettingsSaved(true)
+  }
+
   const handleHotkeyChange = async (hotkey: string): Promise<void> => {
     setQuickAddHotkey(hotkey)
     await window.api.setQuickAddHotkey(hotkey)
@@ -204,6 +223,15 @@ export default function SettingsView(): React.ReactElement {
 
       <div className="flex-1 overflow-y-auto p-5">
         <MoneySyncSettings />
+        <div className="mb-4 rounded-lg border border-surface-800 bg-surface-900/50 p-4">
+          <div className="mb-1 flex items-center gap-2"><ScanLine size={14} /><h3 className="text-sm font-medium text-surface-300">Transaction image analysis</h3></div>
+          <p className="mb-4 text-xs text-surface-500">OpenRouter reads one temporary image. Ego does not save it.</p>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="text-xs text-surface-400">OpenRouter API key<input type="password" value={openRouterApiKey} onChange={(event) => { setOpenRouterApiKey(event.target.value); setImageSettingsSaved(false) }} placeholder={hasOpenRouterApiKey ? 'Saved key' : 'sk-or-v1-...'} className={`${inputClass} mt-1.5`} /></label>
+            <label className="text-xs text-surface-400">Analysis model<input value={transactionImageModel} onChange={(event) => { setTransactionImageModel(event.target.value); setImageSettingsSaved(false) }} placeholder="openai/gpt-5.6-terra" className={`${inputClass} mt-1.5`} /></label>
+          </div>
+          <div className="mt-3 flex items-center justify-between"><span className={`text-[11px] ${hasOpenRouterApiKey ? 'text-emerald-400' : 'text-surface-500'}`}>{hasOpenRouterApiKey ? 'API key saved' : 'API key needed'}</span><div className="flex items-center gap-3">{imageSettingsSaved && <span className="text-[11px] text-emerald-400">Saved</span>}<button type="button" disabled={!transactionImageModel.trim() || (!hasOpenRouterApiKey && !openRouterApiKey.trim())} onClick={() => void saveImageSettings()} className="rounded-lg bg-accent-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-40">Save analyzer settings</button></div></div>
+        </div>
         <div className="bg-surface-900/50 border border-surface-800 rounded-lg p-4">
           <div className="flex items-start justify-between gap-3 mb-1">
             <h3 className="text-sm font-medium text-surface-300 flex items-center gap-2">

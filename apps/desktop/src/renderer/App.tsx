@@ -2,7 +2,7 @@ import React from 'react'
 import TitleBar from './components/TitleBar'
 import SettingsView from './components/SettingsView'
 import MoneyWorkspace, { type AppView } from './components/money/MoneyWorkspace'
-import { Landmark, Tags, ReceiptText, ChartNoAxesCombined, Settings } from 'lucide-react'
+import { Landmark, Tags, ReceiptText, ScanLine, PiggyBank, ChartNoAxesCombined, Settings } from 'lucide-react'
 
 export default function App(): React.ReactElement {
   const [view, setView] = React.useState<AppView>('accounts')
@@ -10,6 +10,8 @@ export default function App(): React.ReactElement {
     { id: 'accounts' as const, label: 'Accounts', icon: Landmark },
     { id: 'categories' as const, label: 'Categories', icon: Tags },
     { id: 'transactions' as const, label: 'Transactions', icon: ReceiptText },
+    { id: 'purchases' as const, label: 'Purchases', icon: ScanLine },
+    { id: 'budget' as const, label: 'Budget', icon: PiggyBank },
     { id: 'overview' as const, label: 'Overview', icon: ChartNoAxesCombined }
   ]
   return (

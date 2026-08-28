@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
-import { Database } from 'lucide-react-native'
+import { Database, ScanLine } from 'lucide-react-native'
 import {
   looksLikeTrelloToken,
   type ListShortcut,
@@ -115,6 +115,12 @@ export default function Settings(): React.ReactElement {
         <View className="mt-4 gap-3"><View><Text className="mb-1.5 text-xs text-surface-400">Account ID</Text><TextInput value={accountId} onChangeText={setAccountId} autoCapitalize="none" autoCorrect={false} placeholder="32-character account ID" placeholderTextColor="#3c4b73" className={inputClass} /></View><View><Text className="mb-1.5 text-xs text-surface-400">D1 database ID</Text><TextInput value={databaseId} onChangeText={setDatabaseId} autoCapitalize="none" autoCorrect={false} placeholder="Database UUID" placeholderTextColor="#3c4b73" className={inputClass} /></View><View><Text className="mb-1.5 text-xs text-surface-400">D1 API token</Text><TextInput value={apiToken} onChangeText={setApiToken} secureTextEntry autoCapitalize="none" autoCorrect={false} placeholder="D1 Read and D1 Write token" placeholderTextColor="#3c4b73" className={inputClass} /></View></View>
         <Pressable disabled={savingMoney || !accountId || !databaseId || !apiToken} onPress={() => void saveMoney()} className={`mt-4 rounded-xl px-4 py-3 ${savingMoney || !accountId || !databaseId || !apiToken ? 'bg-surface-800' : 'bg-accent-600'}`}><Text className={`text-center text-sm font-semibold ${savingMoney ? 'text-surface-500' : 'text-white'}`}>{savingMoney ? 'Connecting...' : 'Save and connect'}</Text></Pressable>
         {moneyStatus && <Text className={`mt-2 text-xs ${moneyStatus.startsWith('Connected') ? 'text-emerald-400' : 'text-red-400'}`}>{moneyStatus}</Text>}
+      </View>
+
+      <View className="mt-4 rounded-2xl border border-surface-800 bg-surface-900/50 p-4">
+        <View className="flex-row items-center"><ScanLine color="#60a5fa" size={17} /><Text className="ml-2 text-sm font-medium text-surface-200">Transaction image analysis</Text></View>
+        <Text className="mt-1 text-xs text-surface-500">OpenRouter reads one temporary image. Ego does not save it.</Text>
+        <View className="mt-4 gap-3"><View><Text className="mb-1.5 text-xs text-surface-400">OpenRouter API key</Text><TextInput value={settings.openRouterApiKey} onChangeText={(value) => void update({ openRouterApiKey: value.trim() })} secureTextEntry autoCapitalize="none" autoCorrect={false} placeholder="sk-or-v1-..." placeholderTextColor="#3c4b73" className={inputClass} /></View><View><Text className="mb-1.5 text-xs text-surface-400">Analysis model</Text><TextInput value={settings.receiptModel} onChangeText={(value) => void update({ receiptModel: value.trim() })} autoCapitalize="none" autoCorrect={false} placeholder="openai/gpt-5.6-terra" placeholderTextColor="#3c4b73" className={inputClass} /></View></View>
       </View>
 
       <View className="mt-8">

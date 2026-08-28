@@ -29,7 +29,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Ego attaches photos you pick to a Trello card."
+          "photosPermission": "Ego uses photos you choose for Trello attachments and transaction image analysis.",
+          "cameraPermission": "Ego uses the camera to analyze a transaction image."
         }
       ],
       [

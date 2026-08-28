@@ -22,6 +22,7 @@ export default function RootLayout(): React.ReactElement {
           <Stack.Screen name="(money)" options={{ headerShown: false }} />
           <Stack.Screen name="capture" options={{ title: 'New Trello card' }} />
           <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+          <Stack.Screen name="transaction-image" options={{ title: 'Analyze image' }} />
         </Stack>
       </MoneyProvider>
     </SettingsProvider>

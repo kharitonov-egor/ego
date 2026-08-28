@@ -8,12 +8,26 @@ transactions, transfers, and reports are available from the main window.
 
 ## Money
 
-The Money sidebar has four views:
+The Money sidebar has six views:
 
 - Accounts holds manual USD accounts and derives each balance from its opening balance and history.
 - Categories holds user-created income and expense groups.
 - Transactions records income, expenses, and transfers between two accounts.
+- Purchases shows itemized receipts, their product names, and line prices.
+- Budget plans one month at a time: the income you expect and an amount per expense category.
 - Overview reports balance changes, cash flow, monthly totals, averages, and top categories.
+
+Transaction image analysis accepts one check, receipt, invoice, card slip, or screenshot. Desktop
+accepts Ctrl+V, drag and drop, and file selection. Mobile accepts the camera, photo library, and a
+clipboard image. Add an OpenRouter API key and model in Settings on each device. The default model
+is `openai/gpt-5.6-terra`. Review the income or expense before saving. Itemized expenses keep their
+purchase rows. Other images create normal transactions. Ego stores the result in D1 and discards
+the image.
+
+A budget covers one month. Set the planned income, give each expense category an amount, and the
+view tracks what is left. A category turns amber at 80 percent of its amount and red once spending
+passes it. Crossing the line raises a desktop notification and an in-app banner on mobile. Money
+spent in a category with no amount is listed separately as unplanned.
 
 When D1 cannot be reached, the app opens the last encrypted snapshot in read-only mode. Configure
 the Cloudflare account ID, D1 database ID, and a token limited to D1 Read and D1 Write under
@@ -82,7 +96,7 @@ npm run dev
 ```
 
 `npm run dev` starts electron-vite with hot reload. `npm run typecheck` runs `tsc --build` across
-the main, preload, and renderer projects.
+the main, preload, and renderer projects. `npm test` runs the shared core and mobile suites.
 
 To package a Windows installer, use the package icon in the title bar. It runs the build, packages
 with electron-builder, and opens `dist/Ego-<version>-Setup.exe`. `npm run dist` does the same from

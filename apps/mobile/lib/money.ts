@@ -2,20 +2,33 @@ import * as SecureStore from 'expo-secure-store'
 import {
   MONEY_SCHEMA_QUERIES,
   calculateAccountBalance,
+  createPurchaseStatements,
+  deleteBudgetStatements,
+  deletePurchaseStatements,
   isAccountInput,
+  isBudgetInput,
   isCategoryInput,
   isMoneySnapshot,
+  isPurchaseInput,
   isTransactionInput,
+  parseCachedSnapshot,
+  saveBudgetStatements,
+  updatePurchaseStatements,
   type AccountInput,
   type AccountKind,
+  type BudgetInput,
   type ArchiveInput,
   type CategoryInput,
   type CategoryKind,
   type MoneyAccount,
   type MoneyCategory,
+  type MoneyPurchase,
+  type MonthlyBudget,
   type MoneyResult,
   type MoneySnapshot,
   type MoneyTransaction,
+  type PurchaseInput,
+  type ReceiptItem,
   type TransactionInput,
   type TransactionKind
 } from '@ego/core'
@@ -58,6 +71,26 @@ interface TransactionRow {
   updated_at: string
 }
 
+interface PurchaseRow {
+  id: string; transaction_id: string; merchant: string; purchase_date: string; currency: 'USD'
+  subtotal_cents: number; discount_cents: number; tax_cents: number; fees_cents: number
+  total_cents: number; created_at: string; updated_at: string
+}
+
+interface ReceiptItemRow {
+  id: string; purchase_id: string; position: number; name: string; quantity: number
+  unit_price_cents: number | null; gross_price_cents: number; discount_cents: number
+  line_total_cents: number
+}
+
+interface BudgetRow {
+  id: string; month: string; planned_income_cents: number; created_at: string; updated_at: string
+}
+
+interface BudgetAllocationRow {
+  id: string; budget_id: string; category_id: string; amount_cents: number
+}
+
 interface D1Query { sql: string; params?: unknown[] }
 interface D1QueryResult { success?: boolean; results?: unknown[] }
 interface D1Response {
@@ -78,6 +111,11 @@ export interface MobileMoneyClient {
   createTransaction: (input: TransactionInput) => Promise<MoneyResult<MoneySnapshot>>
   updateTransaction: (id: string, input: TransactionInput) => Promise<MoneyResult<MoneySnapshot>>
   deleteTransaction: (id: string) => Promise<MoneyResult<MoneySnapshot>>
+  saveBudget: (input: BudgetInput) => Promise<MoneyResult<MoneySnapshot>>
+  deleteBudget: (month: string) => Promise<MoneyResult<MoneySnapshot>>
+  createPurchase: (input: PurchaseInput) => Promise<MoneyResult<MoneySnapshot>>
+  updatePurchase: (id: string, input: PurchaseInput) => Promise<MoneyResult<MoneySnapshot>>
+  deletePurchase: (id: string) => Promise<MoneyResult<MoneySnapshot>>
 }
 
 class D1Error extends Error {
@@ -98,8 +136,7 @@ async function readCache(): Promise<MoneySnapshot | null> {
   if (!isRecord(meta) || !Number.isSafeInteger(meta.chunks) || Number(meta.chunks) < 1) return null
   const parts = await Promise.all(Array.from({ length: Number(meta.chunks) }, (_, index) => SecureStore.getItemAsync(`${CACHE_KEY}.${index}`)))
   if (parts.some((part) => part === null)) return null
-  const value: unknown = JSON.parse(parts.join(''))
-  return isMoneySnapshot(value) ? value : null
+  return parseCachedSnapshot(parts.join(''))
 }
 
 async function writeCache(snapshot: MoneySnapshot): Promise<void> {
@@ -206,10 +243,15 @@ export function moneyClientFor(settings: Pick<EgoSettings, 'cloudflareAccountId'
 
   const load = async (): Promise<MoneySnapshot> => {
     await ensureSchema()
-    const [accountResult, categoryResult, transactionResult] = await batch([
+    const [accountResult, categoryResult, transactionResult, purchaseResult, itemResult,
+      budgetResult, allocationResult] = await batch([
       { sql: 'SELECT * FROM accounts ORDER BY created_at' },
       { sql: 'SELECT * FROM categories ORDER BY kind, name COLLATE NOCASE' },
-      { sql: 'SELECT * FROM transactions ORDER BY date DESC, created_at DESC' }
+      { sql: 'SELECT * FROM transactions ORDER BY date DESC, created_at DESC' },
+      { sql: 'SELECT * FROM purchases ORDER BY purchase_date DESC, created_at DESC' },
+      { sql: 'SELECT * FROM receipt_items ORDER BY purchase_id, position' },
+      { sql: 'SELECT * FROM budgets ORDER BY month DESC' },
+      { sql: 'SELECT * FROM budget_allocations' }
     ])
     const transactions = rows<TransactionRow>(transactionResult).map(transaction)
     const accounts = rows<AccountRow>(accountResult).map((row): MoneyAccount => {
@@ -224,7 +266,29 @@ export function moneyClientFor(settings: Pick<EgoSettings, 'cloudflareAccountId'
       id: row.id, name: row.name, kind: row.kind, icon: row.icon, color: row.color,
       archivedAt: row.archived_at, createdAt: row.created_at, updatedAt: row.updated_at
     }))
-    const snapshot = { accounts, categories, transactions, syncedAt: new Date().toISOString() }
+    const receiptItems = rows<ReceiptItemRow>(itemResult).map((row): ReceiptItem => ({
+      id: row.id, purchaseId: row.purchase_id, position: row.position, name: row.name,
+      quantity: row.quantity, unitPriceCents: row.unit_price_cents,
+      grossPriceCents: row.gross_price_cents, discountCents: row.discount_cents,
+      lineTotalCents: row.line_total_cents
+    }))
+    const purchases = rows<PurchaseRow>(purchaseResult).map((row): MoneyPurchase => ({
+      id: row.id, transactionId: row.transaction_id, merchant: row.merchant,
+      purchaseDate: row.purchase_date, currency: row.currency,
+      subtotalCents: row.subtotal_cents, discountCents: row.discount_cents,
+      taxCents: row.tax_cents, feesCents: row.fees_cents, totalCents: row.total_cents,
+      createdAt: row.created_at, updatedAt: row.updated_at,
+      items: receiptItems.filter((item) => item.purchaseId === row.id)
+    }))
+    const allocations = rows<BudgetAllocationRow>(allocationResult).map((row) => ({
+      id: row.id, budgetId: row.budget_id, categoryId: row.category_id, amountCents: row.amount_cents
+    }))
+    const budgets = rows<BudgetRow>(budgetResult).map((row): MonthlyBudget => ({
+      id: row.id, month: row.month, plannedIncomeCents: row.planned_income_cents,
+      createdAt: row.created_at, updatedAt: row.updated_at,
+      allocations: allocations.filter((item) => item.budgetId === row.id)
+    }))
+    const snapshot = { accounts, categories, transactions, purchases, budgets, syncedAt: new Date().toISOString() }
     if (!isMoneySnapshot(snapshot)) throw new D1Error('D1 returned invalid money data', 'SERVER_ERROR')
     await writeCache(snapshot)
     return snapshot
@@ -234,6 +298,16 @@ export function moneyClientFor(settings: Pick<EgoSettings, 'cloudflareAccountId'
     try {
       await ensureSchema()
       await batch([query])
+      return { ok: true, data: await load() }
+    } catch (error: unknown) {
+      return cachedFailure(error)
+    }
+  }
+
+  const mutateBatch = async (queries: D1Query[]): Promise<MoneyResult<MoneySnapshot>> => {
+    try {
+      await ensureSchema()
+      await batch(queries)
       return { ok: true, data: await load() }
     } catch (error: unknown) {
       return cachedFailure(error)
@@ -254,6 +328,26 @@ export function moneyClientFor(settings: Pick<EgoSettings, 'cloudflareAccountId'
       if (!category) throw new D1Error('Category was not found', 'NOT_FOUND')
       if (category.archivedAt || category.kind !== input.kind) throw new D1Error(`Choose an active ${input.kind} category`, 'CONFLICT')
     }
+  }
+
+  const purchaseReferences = async (input: PurchaseInput): Promise<void> => {
+    const snapshot = await load()
+    const account = snapshot.accounts.find((item) => item.id === input.accountId)
+    const category = snapshot.categories.find((item) => item.id === input.categoryId)
+    if (!account) throw new D1Error('Account was not found', 'NOT_FOUND')
+    if (account.archivedAt) throw new D1Error('Account is archived', 'CONFLICT')
+    if (!category) throw new D1Error('Category was not found', 'NOT_FOUND')
+    if (category.archivedAt || category.kind !== 'expense') throw new D1Error('Choose an active expense category', 'CONFLICT')
+  }
+
+  const budgetReferences = async (input: BudgetInput): Promise<void> => {
+    if (input.allocations.length === 0) return
+    const snapshot = await load()
+    input.allocations.forEach((allocation) => {
+      const category = snapshot.categories.find((item) => item.id === allocation.categoryId)
+      if (!category) throw new D1Error('Category was not found', 'NOT_FOUND')
+      if (category.archivedAt || category.kind !== 'expense') throw new D1Error('Budget only covers active expense categories', 'CONFLICT')
+    })
   }
 
   return {
@@ -308,6 +402,44 @@ export function moneyClientFor(settings: Pick<EgoSettings, 'cloudflareAccountId'
       try { await references(input) } catch (error: unknown) { return failure(error) }
       return mutate({ sql: 'UPDATE transactions SET kind = ?, account_id = ?, destination_account_id = ?, category_id = ?, amount_cents = ?, date = ?, notes = ?, updated_at = ? WHERE id = ?', params: [input.kind, input.accountId, input.destinationAccountId, input.categoryId, input.amountCents, input.date, input.notes.trim(), new Date().toISOString(), transactionId] })
     },
-    deleteTransaction: (transactionId) => mutate({ sql: 'DELETE FROM transactions WHERE id = ?', params: [transactionId] })
+    deleteTransaction: (transactionId) => mutate({ sql: 'DELETE FROM transactions WHERE id = ?', params: [transactionId] }),
+    async saveBudget(input) {
+      if (!isBudgetInput(input)) return { ok: false, code: 'INVALID_REQUEST', message: 'Check the budget amounts' }
+      try { await budgetReferences(input) } catch (error: unknown) { return failure(error) }
+      return mutateBatch(saveBudgetStatements(input, {
+        budgetId: id(), allocationIds: input.allocations.map(() => id())
+      }, new Date().toISOString()))
+    },
+    deleteBudget: (month) => mutateBatch(deleteBudgetStatements(month)),
+    async createPurchase(input) {
+      if (!isPurchaseInput(input)) return { ok: false, code: 'INVALID_REQUEST', message: 'Check the purchase fields' }
+      try { await purchaseReferences(input) } catch (error: unknown) { return failure(error) }
+      const purchaseId = id()
+      const transactionId = id()
+      const now = new Date().toISOString()
+      return mutateBatch(createPurchaseStatements(input, {
+        purchaseId, transactionId, itemIds: input.items.map(() => id())
+      }, now))
+    },
+    async updatePurchase(purchaseId, input) {
+      if (!isPurchaseInput(input)) return { ok: false, code: 'INVALID_REQUEST', message: 'Check the purchase fields' }
+      let purchase: MoneyPurchase | undefined
+      try {
+        const snapshot = await load()
+        purchase = snapshot.purchases.find((item) => item.id === purchaseId)
+        if (!purchase) throw new D1Error('Purchase was not found', 'NOT_FOUND')
+        await purchaseReferences(input)
+      } catch (error: unknown) { return failure(error) }
+      const now = new Date().toISOString()
+      return mutateBatch(updatePurchaseStatements(purchaseId, purchase.transactionId, input,
+        input.items.map(() => id()), now))
+    },
+    async deletePurchase(purchaseId) {
+      const snapshotResult = await this.getSnapshot()
+      if (!snapshotResult.ok) return snapshotResult
+      const purchase = snapshotResult.data.purchases.find((item) => item.id === purchaseId)
+      if (!purchase) return { ok: false, code: 'NOT_FOUND', message: 'Purchase was not found' }
+      return mutateBatch(deletePurchaseStatements(purchase.transactionId))
+    }
   }
 }

@@ -10,6 +10,7 @@
   ],
   "scripts": {
     "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
     "build": "turbo run build",
     "desktop": "npm run dev --workspace @ego/desktop",
     "mobile": "npm run start --workspace @ego/mobile"

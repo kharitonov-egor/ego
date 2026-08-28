@@ -2,7 +2,7 @@ import React from 'react'
 import { Pressable } from 'react-native'
 import { Tabs, useRouter } from 'expo-router'
 import {
-  ChartNoAxesCombined, Landmark, ListPlus, ReceiptText, Settings, Tags
+  ChartNoAxesCombined, Landmark, ListPlus, PiggyBank, ReceiptText, ScanLine, Settings, Tags
 } from 'lucide-react-native'
 import { moneyTabBarStyle } from '../../components/money/navigation'
 
@@ -23,6 +23,8 @@ export default function MoneyTabs(): React.ReactElement {
     <Tabs.Screen name="accounts" options={{ title: 'Accounts', tabBarIcon: ({ color, size }) => <Landmark color={color} size={size} /> }} />
     <Tabs.Screen name="categories" options={{ title: 'Categories', tabBarIcon: ({ color, size }) => <Tags color={color} size={size} /> }} />
     <Tabs.Screen name="transactions" options={{ title: 'Transactions', tabBarIcon: ({ color, size }) => <ReceiptText color={color} size={size} /> }} />
+    <Tabs.Screen name="purchases" options={{ title: 'Purchases', tabBarIcon: ({ color, size }) => <ScanLine color={color} size={size} /> }} />
+    <Tabs.Screen name="budget" options={{ title: 'Budget', tabBarIcon: ({ color, size }) => <PiggyBank color={color} size={size} /> }} />
     <Tabs.Screen name="overview" options={{ title: 'Overview', tabBarIcon: ({ color, size }) => <ChartNoAxesCombined color={color} size={size} /> }} />
   </Tabs>
 }

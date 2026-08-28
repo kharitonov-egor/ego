@@ -9,28 +9,45 @@ import type { ListShortcut, TrelloBoardSummary, TrelloListSummary, TrelloResult 
 import type {
   AccountInput,
   ArchiveInput,
+  BudgetInput,
   CategoryInput,
   MoneyResult,
   MoneySnapshot,
   MoneySyncConfigInput,
   MoneySyncStatus,
+  PurchaseInput,
+  TransactionImageAnalysisResult,
   TransactionInput
 } from '@ego/core'
 
 export type {
   AccountInput,
+  AnalyzedTransactionDraft,
   AccountKind,
+  BudgetAllocation,
+  BudgetAllocationInput,
+  BudgetInput,
+  BudgetState,
+  BudgetSummary,
+  CategoryBudgetStatus,
   CategoryInput,
   CategoryKind,
   DateRange,
   MoneyAccount,
   MoneyCategory,
+  MoneyPurchase,
   MoneyResult,
   MoneySnapshot,
   MoneySyncConfigInput,
   MoneySyncStatus,
   MoneyTransaction,
+  MonthlyBudget,
   PeriodPreset,
+  PurchaseInput,
+  ReceiptDraft,
+  ReceiptItem,
+  ReceiptItemInput,
+  ImageAnalysisCategory,
   TransactionInput,
   TransactionKind
 } from '@ego/core'
@@ -60,6 +77,22 @@ export interface QuickAddResult {
   detail?: string
 }
 
+export interface TransactionImageSettings {
+  hasApiKey: boolean
+  model: string
+}
+
+export interface TransactionImageSettingsInput {
+  apiKey?: string
+  model: string
+}
+
+export interface DesktopTransactionImageInput {
+  base64: string
+  mimeType: string
+  categories: import('@ego/core').ImageAnalysisCategory[]
+}
+
 export interface IpcApi {
   moneyGetSyncStatus: () => Promise<MoneySyncStatus>
   moneySetSyncConfig: (input: MoneySyncConfigInput) => Promise<MoneyResult<{ connected: true }>>
@@ -74,6 +107,14 @@ export interface IpcApi {
   moneyCreateTransaction: (input: TransactionInput) => Promise<MoneyResult<MoneySnapshot>>
   moneyUpdateTransaction: (id: string, input: TransactionInput) => Promise<MoneyResult<MoneySnapshot>>
   moneyDeleteTransaction: (id: string) => Promise<MoneyResult<MoneySnapshot>>
+  moneySaveBudget: (input: BudgetInput) => Promise<MoneyResult<MoneySnapshot>>
+  moneyDeleteBudget: (month: string) => Promise<MoneyResult<MoneySnapshot>>
+  moneyCreatePurchase: (input: PurchaseInput) => Promise<MoneyResult<MoneySnapshot>>
+  moneyUpdatePurchase: (id: string, input: PurchaseInput) => Promise<MoneyResult<MoneySnapshot>>
+  moneyDeletePurchase: (id: string) => Promise<MoneyResult<MoneySnapshot>>
+  getTransactionImageSettings: () => Promise<TransactionImageSettings>
+  setTransactionImageSettings: (input: TransactionImageSettingsInput) => Promise<TransactionImageSettings>
+  analyzeTransactionImage: (input: DesktopTransactionImageInput) => Promise<TransactionImageAnalysisResult>
 
   getAutoStart: () => Promise<boolean>
   setAutoStart: (enabled: boolean) => Promise<void>

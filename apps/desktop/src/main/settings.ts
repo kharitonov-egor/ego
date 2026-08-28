@@ -1,7 +1,7 @@
 import { safeStorage } from 'electron'
 import Store from 'electron-store'
 import type { QuickAddListShortcut } from '../shared/types'
-import { isMoneySnapshot, type MoneySnapshot, type MoneySyncConfigInput, type MoneySyncStatus } from '@ego/core'
+import { parseCachedSnapshot, type MoneySnapshot, type MoneySyncConfigInput, type MoneySyncStatus } from '@ego/core'
 
 interface AppSettings {
   quickAddHotkey: string
@@ -14,6 +14,8 @@ interface AppSettings {
   moneyDatabaseId: string
   moneyApiTokenEncrypted: string
   moneyCacheEncrypted: string
+  openRouterApiKeyEncrypted: string
+  transactionImageModel: string
 }
 
 /**
@@ -39,7 +41,9 @@ const store = new Store<AppSettings>({
     moneyAccountId: '',
     moneyDatabaseId: '',
     moneyApiTokenEncrypted: '',
-    moneyCacheEncrypted: ''
+    moneyCacheEncrypted: '',
+    openRouterApiKeyEncrypted: '',
+    transactionImageModel: 'openai/gpt-5.6-terra'
   }
 })
 
@@ -82,18 +86,30 @@ export function setMoneySyncConfig(input: MoneySyncConfigInput): void {
 }
 
 export function getMoneyCache(): MoneySnapshot | null {
-  const raw = decrypt(store.get('moneyCacheEncrypted'))
-  if (!raw) return null
-  try {
-    const value: unknown = JSON.parse(raw)
-    return isMoneySnapshot(value) ? value : null
-  } catch {
-    return null
-  }
+  return parseCachedSnapshot(decrypt(store.get('moneyCacheEncrypted')))
 }
 
 export function setMoneyCache(snapshot: MoneySnapshot): void {
   store.set('moneyCacheEncrypted', encrypt(JSON.stringify(snapshot)))
+}
+
+export function getTransactionImageSettings(): { hasApiKey: boolean; model: string } {
+  return {
+    hasApiKey: Boolean(decrypt(store.get('openRouterApiKeyEncrypted'))),
+    model: store.get('transactionImageModel')
+  }
+}
+
+export function getOpenRouterApiKey(): string {
+  return decrypt(store.get('openRouterApiKeyEncrypted'))
+}
+
+export function setTransactionImageSettings(input: { apiKey?: string; model: string }): void {
+  if (!input || typeof input.model !== 'string' || !input.model.trim()) return
+  if (typeof input.apiKey === 'string' && input.apiKey.trim()) {
+    store.set('openRouterApiKeyEncrypted', encrypt(input.apiKey.trim()))
+  }
+  store.set('transactionImageModel', input.model.trim())
 }
 
 export function getQuickAddHotkey(): string {

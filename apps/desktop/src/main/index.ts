@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Tray, Menu, net, shell } from 'electron'
 import { join } from 'path'
 import { exec } from 'child_process'
 import { readdirSync } from 'fs'
@@ -16,12 +16,26 @@ import {
   getTrelloListId,
   setTrelloListId as saveTrelloListId,
   getQuickAddListShortcuts,
-  setQuickAddListShortcuts as saveQuickAddListShortcuts
+  setQuickAddListShortcuts as saveQuickAddListShortcuts,
+  getMoneyCache,
+  getOpenRouterApiKey,
+  getTransactionImageSettings,
+  setTransactionImageSettings
 } from './settings'
 import { trello } from './trello'
-import { showQuickAddWindow, setupQuickAddIpc } from './quickAdd'
+import { showQuickAddWindow, setupQuickAddIpc, showNotification } from './quickAdd'
 import { money } from './money'
-import type { QuickAddListShortcut } from '../shared/types'
+import { analyzeTransactionImage, budgetBreachMessage, budgetBreaches, type MoneyResult, type MoneySnapshot } from '@ego/core'
+import type { DesktopTransactionImageInput, QuickAddListShortcut, TransactionImageSettingsInput } from '../shared/types'
+
+async function withBudgetAlerts(request: Promise<MoneyResult<MoneySnapshot>>): Promise<MoneyResult<MoneySnapshot>> {
+  const before = getMoneyCache()
+  const result = await request
+  if (result.ok && before) {
+    budgetBreaches(before, result.data).forEach((breach) => showNotification('error', budgetBreachMessage(breach, 'short')))
+  }
+  return result
+}
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -121,9 +135,25 @@ function setupIpcHandlers(): void {
   ipcMain.handle('money-create-category', (_event, input) => money.createCategory(input))
   ipcMain.handle('money-update-category', (_event, id, input) => money.updateCategory(id, input))
   ipcMain.handle('money-archive-category', (_event, id, input) => money.archiveCategory(id, input))
-  ipcMain.handle('money-create-transaction', (_event, input) => money.createTransaction(input))
-  ipcMain.handle('money-update-transaction', (_event, id, input) => money.updateTransaction(id, input))
+  ipcMain.handle('money-create-transaction', (_event, input) => withBudgetAlerts(money.createTransaction(input)))
+  ipcMain.handle('money-update-transaction', (_event, id, input) => withBudgetAlerts(money.updateTransaction(id, input)))
   ipcMain.handle('money-delete-transaction', (_event, id) => money.deleteTransaction(id))
+  ipcMain.handle('money-save-budget', (_event, input) => withBudgetAlerts(money.saveBudget(input)))
+  ipcMain.handle('money-delete-budget', (_event, month) => money.deleteBudget(month))
+  ipcMain.handle('money-create-purchase', (_event, input) => withBudgetAlerts(money.createPurchase(input)))
+  ipcMain.handle('money-update-purchase', (_event, id, input) => withBudgetAlerts(money.updatePurchase(id, input)))
+  ipcMain.handle('money-delete-purchase', (_event, id) => money.deletePurchase(id))
+  ipcMain.handle('transaction-image-get-settings', () => getTransactionImageSettings())
+  ipcMain.handle('transaction-image-set-settings', (_event, input: TransactionImageSettingsInput) => {
+    setTransactionImageSettings(input)
+    return getTransactionImageSettings()
+  })
+  ipcMain.handle('transaction-image-analyze', (_event, input: DesktopTransactionImageInput) =>
+    analyzeTransactionImage({
+      ...input,
+      apiKey: getOpenRouterApiKey(),
+      model: getTransactionImageSettings().model
+    }, (url, init) => net.fetch(url, init)))
 
   ipcMain.handle('get-auto-start', () => app.getLoginItemSettings().openAtLogin)
 

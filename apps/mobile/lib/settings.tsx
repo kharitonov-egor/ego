@@ -11,6 +11,8 @@ export interface EgoSettings {
   cloudflareAccountId: string
   d1DatabaseId: string
   d1ApiToken: string
+  openRouterApiKey: string
+  receiptModel: string
 }
 
 const EMPTY: EgoSettings = {
@@ -21,7 +23,9 @@ const EMPTY: EgoSettings = {
   listShortcuts: [],
   cloudflareAccountId: '',
   d1DatabaseId: '',
-  d1ApiToken: ''
+  d1ApiToken: '',
+  openRouterApiKey: '',
+  receiptModel: 'openai/gpt-5.6-terra'
 }
 
 const STORE_KEY = 'ego.settings'
@@ -46,7 +50,9 @@ function parse(raw: string | null): EgoSettings {
       listShortcuts: Array.isArray(parsed.listShortcuts) ? parsed.listShortcuts : [],
       cloudflareAccountId: parsed.cloudflareAccountId ?? '',
       d1DatabaseId: parsed.d1DatabaseId ?? '',
-      d1ApiToken: parsed.d1ApiToken ?? ''
+      d1ApiToken: parsed.d1ApiToken ?? '',
+      openRouterApiKey: parsed.openRouterApiKey ?? '',
+      receiptModel: parsed.receiptModel ?? 'openai/gpt-5.6-terra'
     }
   } catch {
     return EMPTY

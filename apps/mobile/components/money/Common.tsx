@@ -5,11 +5,12 @@ import {
 import {
   ArrowRight, Banknote, Bitcoin, BriefcaseBusiness, Car, CircleDollarSign,
   CreditCard, Gift, GraduationCap, HandCoins, Heart, Home, Landmark, PiggyBank,
-  Receipt, ShoppingBag, ShoppingBasket, Tag, Utensils, WalletCards, X,
+  Receipt, ShoppingBag, ShoppingBasket, Tag, TriangleAlert, Utensils, WalletCards, X,
   type LucideIcon
 } from 'lucide-react-native'
 import type { MoneySnapshot, MoneyTransaction, PeriodPreset } from '@ego/core'
 import { useMoney } from '../../lib/money-context'
+import { isoFromParts, isoToday } from '../../lib/dates'
 import { useNavigation, useRouter } from 'expo-router'
 import { moneyTabBarStyle } from './navigation'
 
@@ -33,9 +34,7 @@ export function money(cents: number, sign = false): string {
 }
 
 export function today(): string {
-  const now = new Date()
-  const offset = now.getTimezoneOffset()
-  return new Date(now.getTime() - offset * 60000).toISOString().slice(0, 10)
+  return isoToday()
 }
 
 export function filteredTransactions(snapshot: MoneySnapshot, period: PeriodPreset): MoneyTransaction[] {
@@ -45,21 +44,16 @@ export function filteredTransactions(snapshot: MoneySnapshot, period: PeriodPres
   if (period === 'week') from.setDate(now.getDate() - ((now.getDay() + 6) % 7))
   if (period === 'month') from.setDate(1)
   if (period === 'year') from.setMonth(0, 1)
-  const fromText = period === 'today' ? today() : localIso(from)
+  const fromText = period === 'today' ? today() : isoFromParts(from.getFullYear(), from.getMonth(), from.getDate())
   return snapshot.transactions.filter((item) => item.date >= fromText && item.date <= today())
 }
 
-function localIso(date: Date): string {
-  const offset = date.getTimezoneOffset()
-  return new Date(date.getTime() - offset * 60000).toISOString().slice(0, 10)
-}
-
 export function MoneyScreen({ children }: { children: (snapshot: MoneySnapshot) => React.ReactNode }): React.ReactElement {
-  const { snapshot, loading, error, readOnly, refresh } = useMoney()
+  const { snapshot, loading, error, readOnly, refresh, alert, dismissAlert } = useMoney()
   const router = useRouter()
   if (loading && !snapshot) return <View className="flex-1 items-center justify-center bg-surface-950"><ActivityIndicator color="#60a5fa" /></View>
   if (!snapshot) return <View className="flex-1 items-center justify-center bg-surface-950 px-8"><CircleDollarSign color="#636f8f" size={38} /><Text className="mt-4 text-center text-base font-medium text-surface-100">Connect Cloudflare D1</Text><Text className="mt-2 text-center text-sm text-surface-500">{error ?? 'Add the account ID, database ID, and API token in Settings.'}</Text><Pressable onPress={() => router.push('/settings')} className="mt-5 rounded-xl bg-accent-600 px-5 py-3"><Text className="font-medium text-white">Open settings</Text></Pressable></View>
-  return <View className="flex-1 bg-surface-950">{(readOnly || error) && <Pressable onPress={() => void refresh()} className={`px-4 py-2 ${readOnly ? 'bg-amber-500/10' : 'bg-red-500/10'}`}><Text className={`text-center text-xs ${readOnly ? 'text-amber-300' : 'text-red-300'}`}>{error}. Tap to retry.</Text></Pressable>}{children(snapshot)}</View>
+  return <View className="flex-1 bg-surface-950">{(readOnly || error) && <Pressable onPress={() => void refresh()} className={`px-4 py-2 ${readOnly ? 'bg-amber-500/10' : 'bg-red-500/10'}`}><Text className={`text-center text-xs ${readOnly ? 'text-amber-300' : 'text-red-300'}`}>{error}. Tap to retry.</Text></Pressable>}{alert && <Pressable onPress={dismissAlert} className="flex-row items-start gap-2 border-b border-rose-500/30 bg-rose-500/15 px-4 py-3"><TriangleAlert color="#fb7185" size={15} style={{ marginTop: 1 }} /><Text className="flex-1 text-xs leading-4 text-rose-200">{alert}</Text><X color="#fb7185" size={14} /></Pressable>}{children(snapshot)}</View>
 }
 
 export function Sheet({ visible, title, onClose, children }: { visible: boolean; title: string; onClose: () => void; children: React.ReactNode }): React.ReactElement {

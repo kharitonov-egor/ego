@@ -1,22 +1,34 @@
 import { randomUUID } from 'crypto'
 import {
   calculateAccountBalance,
+  createPurchaseStatements,
+  deleteBudgetStatements,
+  deletePurchaseStatements,
   isAccountInput,
+  isBudgetInput,
   isCategoryInput,
   isMoneySnapshot,
+  isPurchaseInput,
   isTransactionInput,
   MONEY_SCHEMA_QUERIES,
+  saveBudgetStatements,
+  updatePurchaseStatements,
   type AccountInput,
   type AccountKind,
   type ArchiveInput,
+  type BudgetInput,
   type CategoryInput,
   type CategoryKind,
   type MoneyAccount,
   type MoneyCategory,
+  type MoneyPurchase,
   type MoneyResult,
   type MoneySnapshot,
   type MoneySyncConfigInput,
   type MoneyTransaction,
+  type MonthlyBudget,
+  type PurchaseInput,
+  type ReceiptItem,
   type TransactionInput,
   type TransactionKind
 } from '@ego/core'
@@ -63,6 +75,48 @@ interface TransactionRow {
   notes: string
   created_at: string
   updated_at: string
+}
+
+interface PurchaseRow {
+  id: string
+  transaction_id: string
+  merchant: string
+  purchase_date: string
+  currency: 'USD'
+  subtotal_cents: number
+  discount_cents: number
+  tax_cents: number
+  fees_cents: number
+  total_cents: number
+  created_at: string
+  updated_at: string
+}
+
+interface ReceiptItemRow {
+  id: string
+  purchase_id: string
+  position: number
+  name: string
+  quantity: number
+  unit_price_cents: number | null
+  gross_price_cents: number
+  discount_cents: number
+  line_total_cents: number
+}
+
+interface BudgetRow {
+  id: string
+  month: string
+  planned_income_cents: number
+  created_at: string
+  updated_at: string
+}
+
+interface BudgetAllocationRow {
+  id: string
+  budget_id: string
+  category_id: string
+  amount_cents: number
 }
 
 interface D1Query {
@@ -180,10 +234,15 @@ function mapTransaction(row: TransactionRow): MoneyTransaction {
 
 async function loadSnapshot(): Promise<MoneySnapshot> {
   await ensureSchema()
-  const [accountResult, categoryResult, transactionResult] = await d1Batch([
+  const [accountResult, categoryResult, transactionResult, purchaseResult, itemResult,
+    budgetResult, allocationResult] = await d1Batch([
     { sql: 'SELECT * FROM accounts ORDER BY created_at' },
     { sql: 'SELECT * FROM categories ORDER BY kind, name COLLATE NOCASE' },
-    { sql: 'SELECT * FROM transactions ORDER BY date DESC, created_at DESC' }
+    { sql: 'SELECT * FROM transactions ORDER BY date DESC, created_at DESC' },
+    { sql: 'SELECT * FROM purchases ORDER BY purchase_date DESC, created_at DESC' },
+    { sql: 'SELECT * FROM receipt_items ORDER BY purchase_id, position' },
+    { sql: 'SELECT * FROM budgets ORDER BY month DESC' },
+    { sql: 'SELECT * FROM budget_allocations' }
   ])
   const transactions = rows<TransactionRow>(transactionResult).map(mapTransaction)
   const accounts = rows<AccountRow>(accountResult).map((row): MoneyAccount => {
@@ -211,7 +270,29 @@ async function loadSnapshot(): Promise<MoneySnapshot> {
     createdAt: row.created_at,
     updatedAt: row.updated_at
   }))
-  const snapshot = { accounts, categories, transactions, syncedAt: new Date().toISOString() }
+  const receiptItems = rows<ReceiptItemRow>(itemResult).map((row): ReceiptItem => ({
+    id: row.id, purchaseId: row.purchase_id, position: row.position, name: row.name,
+    quantity: row.quantity, unitPriceCents: row.unit_price_cents,
+    grossPriceCents: row.gross_price_cents, discountCents: row.discount_cents,
+    lineTotalCents: row.line_total_cents
+  }))
+  const purchases = rows<PurchaseRow>(purchaseResult).map((row): MoneyPurchase => ({
+    id: row.id, transactionId: row.transaction_id, merchant: row.merchant,
+    purchaseDate: row.purchase_date, currency: row.currency,
+    subtotalCents: row.subtotal_cents, discountCents: row.discount_cents,
+    taxCents: row.tax_cents, feesCents: row.fees_cents, totalCents: row.total_cents,
+    createdAt: row.created_at, updatedAt: row.updated_at,
+    items: receiptItems.filter((item) => item.purchaseId === row.id)
+  }))
+  const allocations = rows<BudgetAllocationRow>(allocationResult).map((row) => ({
+    id: row.id, budgetId: row.budget_id, categoryId: row.category_id, amountCents: row.amount_cents
+  }))
+  const budgets = rows<BudgetRow>(budgetResult).map((row): MonthlyBudget => ({
+    id: row.id, month: row.month, plannedIncomeCents: row.planned_income_cents,
+    createdAt: row.created_at, updatedAt: row.updated_at,
+    allocations: allocations.filter((item) => item.budgetId === row.id)
+  }))
+  const snapshot = { accounts, categories, transactions, purchases, budgets, syncedAt: new Date().toISOString() }
   if (!isMoneySnapshot(snapshot)) throw new MoneyApiError('D1 returned invalid money data', 'SERVER_ERROR')
   setMoneyCache(snapshot)
   return snapshot
@@ -221,6 +302,16 @@ async function mutate(query: D1Query): Promise<MoneyResult<MoneySnapshot>> {
   try {
     await ensureSchema()
     await d1Batch([query])
+    return { ok: true, data: await loadSnapshot() }
+  } catch (error: unknown) {
+    return error instanceof MoneyApiError && error.code === 'OFFLINE' ? offline(error) : failure(error)
+  }
+}
+
+async function mutateBatch(queries: D1Query[]): Promise<MoneyResult<MoneySnapshot>> {
+  try {
+    await ensureSchema()
+    await d1Batch(queries)
     return { ok: true, data: await loadSnapshot() }
   } catch (error: unknown) {
     return error instanceof MoneyApiError && error.code === 'OFFLINE' ? offline(error) : failure(error)
@@ -254,6 +345,30 @@ async function validateTransactionReferences(input: TransactionInput): Promise<v
     if (category.archivedAt) throw new MoneyApiError('Category is archived', 'CONFLICT')
     if (category.kind !== input.kind) throw new MoneyApiError(`This transaction needs an ${input.kind} category`, 'CONFLICT')
   }
+}
+
+async function validatePurchaseReferences(input: PurchaseInput): Promise<void> {
+  const snapshot = await currentSnapshot()
+  const account = snapshot.accounts.find((item) => item.id === input.accountId)
+  const category = snapshot.categories.find((item) => item.id === input.categoryId)
+  if (!account) throw new MoneyApiError('Account was not found', 'NOT_FOUND')
+  if (account.archivedAt) throw new MoneyApiError('Account is archived', 'CONFLICT')
+  if (!category) throw new MoneyApiError('Category was not found', 'NOT_FOUND')
+  if (category.archivedAt || category.kind !== 'expense') {
+    throw new MoneyApiError('Choose an active expense category', 'CONFLICT')
+  }
+}
+
+async function validateBudgetReferences(input: BudgetInput): Promise<void> {
+  if (input.allocations.length === 0) return
+  const snapshot = await currentSnapshot()
+  input.allocations.forEach((allocation) => {
+    const category = snapshot.categories.find((item) => item.id === allocation.categoryId)
+    if (!category) throw new MoneyApiError('Category was not found', 'NOT_FOUND')
+    if (category.archivedAt || category.kind !== 'expense') {
+      throw new MoneyApiError('Budget only covers active expense categories', 'CONFLICT')
+    }
+  })
 }
 
 export const money = {
@@ -392,5 +507,50 @@ export const money = {
     if (!snapshot.ok) return snapshot
     if (!snapshot.data.transactions.some((transaction) => transaction.id === id)) return { ok: false, code: 'NOT_FOUND', message: 'Transaction was not found' }
     return mutate({ sql: 'DELETE FROM transactions WHERE id = ?', params: [id] })
+  },
+
+  async saveBudget(input: BudgetInput): Promise<MoneyResult<MoneySnapshot>> {
+    if (!isBudgetInput(input)) return { ok: false, code: 'INVALID_REQUEST', message: 'Check the budget amounts' }
+    try { await validateBudgetReferences(input) } catch (error: unknown) { return failure(error) }
+    return mutateBatch(saveBudgetStatements(input, {
+      budgetId: randomUUID(), allocationIds: input.allocations.map(() => randomUUID())
+    }, new Date().toISOString()))
+  },
+
+  async deleteBudget(month: string): Promise<MoneyResult<MoneySnapshot>> {
+    return mutateBatch(deleteBudgetStatements(month))
+  },
+
+  async createPurchase(input: PurchaseInput): Promise<MoneyResult<MoneySnapshot>> {
+    if (!isPurchaseInput(input)) return { ok: false, code: 'INVALID_REQUEST', message: 'Check the purchase fields' }
+    try { await validatePurchaseReferences(input) } catch (error: unknown) { return failure(error) }
+    const purchaseId = randomUUID()
+    const transactionId = randomUUID()
+    const now = new Date().toISOString()
+    return mutateBatch(createPurchaseStatements(input, {
+      purchaseId, transactionId, itemIds: input.items.map(() => randomUUID())
+    }, now))
+  },
+
+  async updatePurchase(id: string, input: PurchaseInput): Promise<MoneyResult<MoneySnapshot>> {
+    if (!isPurchaseInput(input)) return { ok: false, code: 'INVALID_REQUEST', message: 'Check the purchase fields' }
+    let purchase: MoneyPurchase | undefined
+    try {
+      const snapshot = await currentSnapshot()
+      purchase = snapshot.purchases.find((item) => item.id === id)
+      if (!purchase) throw new MoneyApiError('Purchase was not found', 'NOT_FOUND')
+      await validatePurchaseReferences(input)
+    } catch (error: unknown) { return failure(error) }
+    const now = new Date().toISOString()
+    return mutateBatch(updatePurchaseStatements(id, purchase.transactionId, input,
+      input.items.map(() => randomUUID()), now))
+  },
+
+  async deletePurchase(id: string): Promise<MoneyResult<MoneySnapshot>> {
+    const snapshot = await this.getSnapshot()
+    if (!snapshot.ok) return snapshot
+    const purchase = snapshot.data.purchases.find((item) => item.id === id)
+    if (!purchase) return { ok: false, code: 'NOT_FOUND', message: 'Purchase was not found' }
+    return mutateBatch(deletePurchaseStatements(purchase.transactionId))
   }
 }
