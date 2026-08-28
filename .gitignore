@@ -3,6 +3,8 @@ dist
 out
 release
 .turbo
+.wrangler
+**/.wrangler
 .expo
 .env
 .env.local

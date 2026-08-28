@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Power, Link, Trello, RefreshCw } from 'lucide-react'
 import HotkeyInput from './HotkeyInput'
+import MoneySyncSettings from './money/MoneySyncSettings'
 import type {
   QuickAddListShortcut,
   TrelloBoardSummary,
@@ -202,6 +203,7 @@ export default function SettingsView(): React.ReactElement {
       </div>
 
       <div className="flex-1 overflow-y-auto p-5">
+        <MoneySyncSettings />
         <div className="bg-surface-900/50 border border-surface-800 rounded-lg p-4">
           <div className="flex items-start justify-between gap-3 mb-1">
             <h3 className="text-sm font-medium text-surface-300 flex items-center gap-2">

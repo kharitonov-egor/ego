@@ -8,6 +8,9 @@ export interface EgoSettings {
   trelloBoardId: string
   trelloListId: string
   listShortcuts: ListShortcut[]
+  cloudflareAccountId: string
+  d1DatabaseId: string
+  d1ApiToken: string
 }
 
 const EMPTY: EgoSettings = {
@@ -15,7 +18,10 @@ const EMPTY: EgoSettings = {
   trelloToken: '',
   trelloBoardId: '',
   trelloListId: '',
-  listShortcuts: []
+  listShortcuts: [],
+  cloudflareAccountId: '',
+  d1DatabaseId: '',
+  d1ApiToken: ''
 }
 
 const STORE_KEY = 'ego.settings'
@@ -37,7 +43,10 @@ function parse(raw: string | null): EgoSettings {
       trelloToken: parsed.trelloToken ?? '',
       trelloBoardId: parsed.trelloBoardId ?? '',
       trelloListId: parsed.trelloListId ?? '',
-      listShortcuts: Array.isArray(parsed.listShortcuts) ? parsed.listShortcuts : []
+      listShortcuts: Array.isArray(parsed.listShortcuts) ? parsed.listShortcuts : [],
+      cloudflareAccountId: parsed.cloudflareAccountId ?? '',
+      d1DatabaseId: parsed.d1DatabaseId ?? '',
+      d1ApiToken: parsed.d1ApiToken ?? ''
     }
   } catch {
     return EMPTY
@@ -77,4 +86,8 @@ export function useSettings(): SettingsContextValue {
 
 export function isConfigured(settings: EgoSettings): boolean {
   return Boolean(settings.trelloApiKey && settings.trelloToken && settings.trelloListId)
+}
+
+export function isMoneyConfigured(settings: EgoSettings): boolean {
+  return Boolean(settings.cloudflareAccountId && settings.d1DatabaseId && settings.d1ApiToken)
 }

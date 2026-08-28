@@ -7,6 +7,20 @@ import type {
 } from '../shared/types'
 
 const api: IpcApi = {
+  moneyGetSyncStatus: () => ipcRenderer.invoke('money-get-sync-status'),
+  moneySetSyncConfig: (input) => ipcRenderer.invoke('money-set-sync-config', input),
+  moneyTestConnection: () => ipcRenderer.invoke('money-test-connection'),
+  moneyGetSnapshot: () => ipcRenderer.invoke('money-get-snapshot'),
+  moneyCreateAccount: (input) => ipcRenderer.invoke('money-create-account', input),
+  moneyUpdateAccount: (id, input) => ipcRenderer.invoke('money-update-account', id, input),
+  moneyArchiveAccount: (id, input) => ipcRenderer.invoke('money-archive-account', id, input),
+  moneyCreateCategory: (input) => ipcRenderer.invoke('money-create-category', input),
+  moneyUpdateCategory: (id, input) => ipcRenderer.invoke('money-update-category', id, input),
+  moneyArchiveCategory: (id, input) => ipcRenderer.invoke('money-archive-category', id, input),
+  moneyCreateTransaction: (input) => ipcRenderer.invoke('money-create-transaction', input),
+  moneyUpdateTransaction: (id, input) => ipcRenderer.invoke('money-update-transaction', id, input),
+  moneyDeleteTransaction: (id) => ipcRenderer.invoke('money-delete-transaction', id),
+
   getAutoStart: () => ipcRenderer.invoke('get-auto-start'),
   setAutoStart: (enabled: boolean) => ipcRenderer.invoke('set-auto-start', enabled),
 

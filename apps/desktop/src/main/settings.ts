@@ -1,5 +1,7 @@
+import { safeStorage } from 'electron'
 import Store from 'electron-store'
 import type { QuickAddListShortcut } from '../shared/types'
+import { isMoneySnapshot, type MoneySnapshot, type MoneySyncConfigInput, type MoneySyncStatus } from '@ego/core'
 
 interface AppSettings {
   quickAddHotkey: string
@@ -8,6 +10,10 @@ interface AppSettings {
   trelloBoardId: string
   trelloListId: string
   quickAddListShortcuts: QuickAddListShortcut[]
+  moneyAccountId: string
+  moneyDatabaseId: string
+  moneyApiTokenEncrypted: string
+  moneyCacheEncrypted: string
 }
 
 /**
@@ -29,9 +35,66 @@ const store = new Store<AppSettings>({
     trelloToken: seed.trelloToken,
     trelloBoardId: seed.trelloBoardId,
     trelloListId: seed.trelloListId,
-    quickAddListShortcuts: []
+    quickAddListShortcuts: [],
+    moneyAccountId: '',
+    moneyDatabaseId: '',
+    moneyApiTokenEncrypted: '',
+    moneyCacheEncrypted: ''
   }
 })
+
+function encrypt(value: string): string {
+  if (!value || !safeStorage.isEncryptionAvailable()) return ''
+  return safeStorage.encryptString(value).toString('base64')
+}
+
+function decrypt(value: string): string {
+  if (!value || !safeStorage.isEncryptionAvailable()) return ''
+  try {
+    return safeStorage.decryptString(Buffer.from(value, 'base64'))
+  } catch {
+    return ''
+  }
+}
+
+export function getMoneySyncStatus(): MoneySyncStatus {
+  const accountId = store.get('moneyAccountId')
+  const databaseId = store.get('moneyDatabaseId')
+  const hasApiToken = Boolean(decrypt(store.get('moneyApiTokenEncrypted')))
+  return {
+    configured: Boolean(accountId && databaseId && hasApiToken),
+    accountId,
+    databaseId,
+    hasApiToken
+  }
+}
+
+export function getMoneyApiToken(): string {
+  return decrypt(store.get('moneyApiTokenEncrypted'))
+}
+
+export function setMoneySyncConfig(input: MoneySyncConfigInput): void {
+  store.set('moneyAccountId', input.accountId.trim())
+  store.set('moneyDatabaseId', input.databaseId.trim())
+  if (input.apiToken !== undefined && input.apiToken.length > 0) {
+    store.set('moneyApiTokenEncrypted', encrypt(input.apiToken))
+  }
+}
+
+export function getMoneyCache(): MoneySnapshot | null {
+  const raw = decrypt(store.get('moneyCacheEncrypted'))
+  if (!raw) return null
+  try {
+    const value: unknown = JSON.parse(raw)
+    return isMoneySnapshot(value) ? value : null
+  } catch {
+    return null
+  }
+}
+
+export function setMoneyCache(snapshot: MoneySnapshot): void {
+  store.set('moneyCacheEncrypted', encrypt(JSON.stringify(snapshot)))
+}
 
 export function getQuickAddHotkey(): string {
   return store.get('quickAddHotkey')

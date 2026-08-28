@@ -2,9 +2,22 @@
 
 My personal desktop app for Windows. Electron, TypeScript, React, Tailwind.
 
-Right now it does one thing: press a global hotkey anywhere in Windows, type a title and
-description, paste screenshots, hit Enter, and a Trello card appears. Everything else that used
-to live in my old desktop app is gone. This is the clean base I'm building the rest on.
+The desktop app has a personal budget tracker and a global Trello capture hotkey. The Electron
+main process reads and writes budget data through Cloudflare's D1 HTTPS API. Accounts, categories,
+transactions, transfers, and reports are available from the main window.
+
+## Money
+
+The Money sidebar has four views:
+
+- Accounts holds manual USD accounts and derives each balance from its opening balance and history.
+- Categories holds user-created income and expense groups.
+- Transactions records income, expenses, and transfers between two accounts.
+- Overview reports balance changes, cash flow, monthly totals, averages, and top categories.
+
+When D1 cannot be reached, the app opens the last encrypted snapshot in read-only mode. Configure
+the Cloudflare account ID, D1 database ID, and a token limited to D1 Read and D1 Write under
+Settings. The app creates its tables and indexes when the connection first succeeds.
 
 The repo is public so I can point people at it. The credentials are not in it.
 

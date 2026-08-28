@@ -4,9 +4,13 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   main: {
-    // @ego/core is a workspace package, so bundle it rather than leaving a bare require
-    // that electron-builder would have to resolve through a symlink.
+    // Resolve the workspace source so development never depends on a stale core dist folder.
     plugins: [externalizeDepsPlugin({ exclude: ['@ego/core'] })],
+    resolve: {
+      alias: {
+        '@ego/core': resolve(__dirname, '../../packages/core/src/index.ts')
+      }
+    },
     envPrefix: ['MAIN_VITE_']
   },
   preload: {

@@ -6,6 +6,34 @@ export type {
 } from '@ego/core'
 
 import type { ListShortcut, TrelloBoardSummary, TrelloListSummary, TrelloResult } from '@ego/core'
+import type {
+  AccountInput,
+  ArchiveInput,
+  CategoryInput,
+  MoneyResult,
+  MoneySnapshot,
+  MoneySyncConfigInput,
+  MoneySyncStatus,
+  TransactionInput
+} from '@ego/core'
+
+export type {
+  AccountInput,
+  AccountKind,
+  CategoryInput,
+  CategoryKind,
+  DateRange,
+  MoneyAccount,
+  MoneyCategory,
+  MoneyResult,
+  MoneySnapshot,
+  MoneySyncConfigInput,
+  MoneySyncStatus,
+  MoneyTransaction,
+  PeriodPreset,
+  TransactionInput,
+  TransactionKind
+} from '@ego/core'
 
 export type BuildStage = 'compiling' | 'packaging' | 'installing' | 'done' | 'error'
 
@@ -33,6 +61,20 @@ export interface QuickAddResult {
 }
 
 export interface IpcApi {
+  moneyGetSyncStatus: () => Promise<MoneySyncStatus>
+  moneySetSyncConfig: (input: MoneySyncConfigInput) => Promise<MoneyResult<{ connected: true }>>
+  moneyTestConnection: () => Promise<MoneyResult<{ connected: true }>>
+  moneyGetSnapshot: () => Promise<MoneyResult<MoneySnapshot>>
+  moneyCreateAccount: (input: AccountInput) => Promise<MoneyResult<MoneySnapshot>>
+  moneyUpdateAccount: (id: string, input: AccountInput) => Promise<MoneyResult<MoneySnapshot>>
+  moneyArchiveAccount: (id: string, input: ArchiveInput) => Promise<MoneyResult<MoneySnapshot>>
+  moneyCreateCategory: (input: CategoryInput) => Promise<MoneyResult<MoneySnapshot>>
+  moneyUpdateCategory: (id: string, input: CategoryInput) => Promise<MoneyResult<MoneySnapshot>>
+  moneyArchiveCategory: (id: string, input: ArchiveInput) => Promise<MoneyResult<MoneySnapshot>>
+  moneyCreateTransaction: (input: TransactionInput) => Promise<MoneyResult<MoneySnapshot>>
+  moneyUpdateTransaction: (id: string, input: TransactionInput) => Promise<MoneyResult<MoneySnapshot>>
+  moneyDeleteTransaction: (id: string) => Promise<MoneyResult<MoneySnapshot>>
+
   getAutoStart: () => Promise<boolean>
   setAutoStart: (enabled: boolean) => Promise<void>
 

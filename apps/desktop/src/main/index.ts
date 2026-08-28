@@ -20,6 +20,7 @@ import {
 } from './settings'
 import { trello } from './trello'
 import { showQuickAddWindow, setupQuickAddIpc } from './quickAdd'
+import { money } from './money'
 import type { QuickAddListShortcut } from '../shared/types'
 
 let mainWindow: BrowserWindow | null = null
@@ -110,6 +111,20 @@ function runCommand(command: string, cwd: string): Promise<string> {
 }
 
 function setupIpcHandlers(): void {
+  ipcMain.handle('money-get-sync-status', () => money.getSyncStatus())
+  ipcMain.handle('money-set-sync-config', (_event, input) => money.setSyncConfig(input))
+  ipcMain.handle('money-test-connection', () => money.testConnection())
+  ipcMain.handle('money-get-snapshot', () => money.getSnapshot())
+  ipcMain.handle('money-create-account', (_event, input) => money.createAccount(input))
+  ipcMain.handle('money-update-account', (_event, id, input) => money.updateAccount(id, input))
+  ipcMain.handle('money-archive-account', (_event, id, input) => money.archiveAccount(id, input))
+  ipcMain.handle('money-create-category', (_event, input) => money.createCategory(input))
+  ipcMain.handle('money-update-category', (_event, id, input) => money.updateCategory(id, input))
+  ipcMain.handle('money-archive-category', (_event, id, input) => money.archiveCategory(id, input))
+  ipcMain.handle('money-create-transaction', (_event, input) => money.createTransaction(input))
+  ipcMain.handle('money-update-transaction', (_event, id, input) => money.updateTransaction(id, input))
+  ipcMain.handle('money-delete-transaction', (_event, id) => money.deleteTransaction(id))
+
   ipcMain.handle('get-auto-start', () => app.getLoginItemSettings().openAtLogin)
 
   ipcMain.handle('set-auto-start', (_event, enabled: boolean) => {
