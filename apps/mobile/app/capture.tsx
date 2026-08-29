@@ -96,7 +96,7 @@ export default function Capture(): React.ReactElement {
           placeholder="Card title…"
           placeholderTextColor="#707078"
           autoFocus
-          className="text-lg font-medium text-surface-100"
+          className="text-[14px] font-medium text-surface-100"
         />
 
         <TextInput
@@ -106,7 +106,7 @@ export default function Capture(): React.ReactElement {
           placeholderTextColor="#707078"
           multiline
           textAlignVertical="top"
-          className="mt-4 min-h-[160px] rounded-xl border border-surface-700 bg-surface-900/50 p-4 text-lg text-surface-100"
+          className="mt-3 min-h-[130px] rounded-lg border border-surface-700 bg-surface-900/50 p-3 text-[14px] text-surface-100"
         />
 
         {images.length > 0 && (
@@ -127,19 +127,19 @@ export default function Capture(): React.ReactElement {
           onPress={() => void pickImages()}
           className="mt-4 rounded-xl border border-surface-800 bg-surface-900/50 px-4 py-3 active:bg-surface-800"
         >
-          <Text className="text-center text-lg font-medium text-surface-200">
+          <Text className="text-center text-[14px] font-medium text-surface-200">
             {images.length > 0 ? 'Attach another photo' : 'Attach a photo'}
           </Text>
         </Pressable>
         {images.length > 0 && (
-          <Text className="mt-2 text-center text-base text-surface-400">
+          <Text className="mt-1.5 text-center text-[12px] text-surface-400">
             Tap a thumbnail to remove it.
           </Text>
         )}
 
         {settings.listShortcuts.length > 0 && (
           <View className="mt-5">
-            <Text className="mb-2 text-base font-semibold text-surface-300">Send to</Text>
+            <Text className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-surface-400">Send to</Text>
             <View className="flex-row flex-wrap gap-2">
               {settings.listShortcuts.map((shortcut) => {
                 const active = shortcut.listId === activeListId
@@ -154,7 +154,7 @@ export default function Capture(): React.ReactElement {
                     }`}
                   >
                     <Text
-                      className={`text-base font-medium ${active ? 'text-accent-400' : 'text-surface-300'}`}
+                      className={`text-[12px] font-medium ${active ? 'text-accent-400' : 'text-surface-300'}`}
                     >
                       {shortcut.listName}
                     </Text>
@@ -167,7 +167,7 @@ export default function Capture(): React.ReactElement {
 
         {status && (
           <Text
-            className={`mt-4 text-base ${status.error ? 'text-red-400' : 'text-surface-300'}`}
+            className={`mt-3 text-[12px] ${status.error ? 'text-red-400' : 'text-surface-300'}`}
           >
             {status.text}
           </Text>
@@ -181,7 +181,7 @@ export default function Capture(): React.ReactElement {
           className={`rounded-2xl px-5 py-4 ${sending ? 'bg-surface-800' : 'bg-accent-600 active:bg-accent-500'}`}
         >
           <Text
-            className={`text-center text-base font-semibold ${sending ? 'text-surface-500' : 'text-white'}`}
+            className={`text-center text-[13px] font-semibold ${sending ? 'text-surface-500' : 'text-white'}`}
           >
             {sending ? 'Sending…' : 'Add card'}
           </Text>

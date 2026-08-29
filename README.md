@@ -17,12 +17,13 @@ The Money sidebar has six views:
 - Budget plans one month at a time: the income you expect and an amount per expense category.
 - Overview reports balance changes, cash flow, monthly totals, averages, and top categories.
 
-Transaction image analysis accepts one check, receipt, invoice, card slip, or screenshot. Desktop
-accepts Ctrl+V, drag and drop, and file selection. Mobile accepts the camera, photo library, and a
-clipboard image. Add an OpenRouter API key and model in Settings on each device. The default model
-is `openai/gpt-5.6-terra`. Review the income or expense before saving. Itemized expenses keep their
-purchase rows. Other images create normal transactions. Ego stores the result in D1 and discards
-the image.
+Mobile has a money agent for messages and receipt images. A message can describe one transaction
+or several. The agent produces one `record_transactions` tool call with an entry for each one.
+The user checks the entries before Ego writes them to D1. The agent can also read a photo, library image,
+or clipboard image. Itemized receipts keep their purchase rows. Ego discards each image after
+OpenRouter reads it. Desktop still accepts Ctrl+V, drag and drop, and file selection for one-shot
+transaction image analysis. Add an OpenRouter API key and model in Settings on each device. The
+default model is `openai/gpt-5.6-terra`.
 
 A budget covers one month. Set the planned income, give each expense category an amount, and the
 view tracks what is left. A category turns amber at 80 percent of its amount and red once spending

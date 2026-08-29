@@ -25,6 +25,7 @@ interface MoneyContextValue {
   createTransaction: (input: TransactionInput) => Promise<boolean>
   updateTransaction: (id: string, input: TransactionInput) => Promise<boolean>
   deleteTransaction: (id: string) => Promise<boolean>
+  deleteTransactions: (ids: string[]) => Promise<boolean>
   saveBudget: (input: BudgetInput) => Promise<boolean>
   deleteBudget: (month: string) => Promise<boolean>
   createPurchase: (input: PurchaseInput) => Promise<boolean>
@@ -94,6 +95,7 @@ export function MoneyProvider({ children }: { children: React.ReactNode }): Reac
     createTransaction: (input) => run(client.createTransaction(input)),
     updateTransaction: (id, input) => run(client.updateTransaction(id, input)),
     deleteTransaction: (id) => run(client.deleteTransaction(id)),
+    deleteTransactions: (ids) => run(client.deleteTransactions(ids)),
     saveBudget: (input) => run(client.saveBudget(input)),
     deleteBudget: (month) => run(client.deleteBudget(month)),
     createPurchase: (input) => run(client.createPurchase(input)),

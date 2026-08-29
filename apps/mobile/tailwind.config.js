@@ -19,6 +19,7 @@ module.exports = {
           950: '#121214'
         },
         accent: {
+          300: '#b9dbff',
           400: '#91c4ff',
           500: '#6aaaff',
           600: '#4e91e8'

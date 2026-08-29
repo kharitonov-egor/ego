@@ -11,3 +11,6 @@ release
 *.log
 files.zip
 money_template/
+
+# Financial exports. Never commit bank data to a public repo.
+*.csv

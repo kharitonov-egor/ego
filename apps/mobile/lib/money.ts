@@ -111,6 +111,7 @@ export interface MobileMoneyClient {
   createTransaction: (input: TransactionInput) => Promise<MoneyResult<MoneySnapshot>>
   updateTransaction: (id: string, input: TransactionInput) => Promise<MoneyResult<MoneySnapshot>>
   deleteTransaction: (id: string) => Promise<MoneyResult<MoneySnapshot>>
+  deleteTransactions: (ids: string[]) => Promise<MoneyResult<MoneySnapshot>>
   saveBudget: (input: BudgetInput) => Promise<MoneyResult<MoneySnapshot>>
   deleteBudget: (month: string) => Promise<MoneyResult<MoneySnapshot>>
   createPurchase: (input: PurchaseInput) => Promise<MoneyResult<MoneySnapshot>>
@@ -414,6 +415,9 @@ export function moneyClientFor(settings: Pick<EgoSettings, 'cloudflareAccountId'
       return mutate({ sql: 'UPDATE transactions SET kind = ?, account_id = ?, destination_account_id = ?, category_id = ?, amount_cents = ?, date = ?, notes = ?, updated_at = ? WHERE id = ?', params: [input.kind, input.accountId, input.destinationAccountId, input.categoryId, input.amountCents, input.date, input.notes.trim(), new Date().toISOString(), transactionId] })
     },
     deleteTransaction: (transactionId) => mutate({ sql: 'DELETE FROM transactions WHERE id = ?', params: [transactionId] }),
+    deleteTransactions: (transactionIds) => transactionIds.length === 0
+      ? mutateBatch([])
+      : mutateBatch(transactionIds.map((transactionId) => ({ sql: 'DELETE FROM transactions WHERE id = ?', params: [transactionId] }))),
     async saveBudget(input) {
       if (!isBudgetInput(input)) return { ok: false, code: 'INVALID_REQUEST', message: 'Check the budget amounts' }
       try { await budgetReferences(input) } catch (error: unknown) { return failure(error) }

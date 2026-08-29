@@ -10,6 +10,7 @@
     "backgroundColor": "#121214",
     "android": {
       "package": "com.kharitonovegor.ego",
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#121214"

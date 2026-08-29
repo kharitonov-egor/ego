@@ -10,9 +10,9 @@ export default function OverviewView({ snapshot }: { snapshot: MoneySnapshot }):
   const range = rangeForPreset(preset, custom)
   const income = transactions.filter((item) => item.kind === 'income').reduce((sum, item) => sum + item.amountCents, 0)
   const expenses = transactions.filter((item) => item.kind === 'expense').reduce((sum, item) => sum + item.amountCents, 0)
-  const opening = range.from ? totalBalanceAt(snapshot, range.from, true) : snapshot.accounts.reduce((sum, account) => sum + account.openingBalanceCents, 0)
   const closing = range.to ? totalBalanceAt(snapshot, range.to) : totalBalanceAt(snapshot, null)
-  const net = closing - opening
+  const net = income - expenses
+  const opening = closing - net
   const firstDate = range.from ?? [...snapshot.transactions.map((item) => item.date), ...snapshot.accounts.map((item) => item.openingDate)].sort()[0] ?? todayString()
   const lastDate = range.to ?? todayString()
   const days = Math.max(1, Math.floor((new Date(`${lastDate}T00:00:00`).getTime() - new Date(`${firstDate}T00:00:00`).getTime()) / 86400000) + 1)
