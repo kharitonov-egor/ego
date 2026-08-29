@@ -7,12 +7,12 @@
     "icon": "./assets/app-icon.png",
     "scheme": "ego",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#0a0e1a",
+    "backgroundColor": "#121214",
     "android": {
       "package": "com.kharitonovegor.ego",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#000000"
+        "backgroundColor": "#121214"
       },
       "permissions": [
         "android.permission.RECORD_AUDIO",
@@ -39,7 +39,7 @@
           "image": "./assets/app-icon.png",
           "imageWidth": 160,
           "resizeMode": "contain",
-          "backgroundColor": "#0a0e1a"
+          "backgroundColor": "#121214"
         }
       ]
     ],

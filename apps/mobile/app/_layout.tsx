@@ -12,10 +12,10 @@ export default function RootLayout(): React.ReactElement {
         <StatusBar style="light" />
         <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: '#0a0e1a' },
-          headerTintColor: '#d8dbe3',
-          headerTitleStyle: { fontSize: 16 },
-          contentStyle: { backgroundColor: '#0a0e1a' }
+          headerStyle: { backgroundColor: '#1c1d1f' },
+          headerTintColor: '#e6e6e8',
+          headerTitleStyle: { fontSize: 22, fontWeight: '700' },
+          contentStyle: { backgroundColor: '#121214' }
         }}
       >
           <Stack.Screen name="index" options={{ headerShown: false }} />

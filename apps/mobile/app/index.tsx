@@ -2,5 +2,5 @@ import React from 'react'
 import { Redirect } from 'expo-router'
 
 export default function Home(): React.ReactElement {
-  return <Redirect href="/(money)/accounts" />
+  return <Redirect href="/(money)/overview" />
 }

@@ -241,18 +241,20 @@ export function moneyClientFor(settings: Pick<EgoSettings, 'cloudflareAccountId'
     initialized.add(configKey)
   }
 
-  const load = async (): Promise<MoneySnapshot> => {
-    await ensureSchema()
+  const snapshotQueries: D1Query[] = [
+    { sql: 'SELECT * FROM accounts ORDER BY created_at' },
+    { sql: 'SELECT * FROM categories ORDER BY kind, name COLLATE NOCASE' },
+    { sql: 'SELECT * FROM transactions ORDER BY date DESC, created_at DESC' },
+    { sql: 'SELECT * FROM purchases ORDER BY purchase_date DESC, created_at DESC' },
+    { sql: 'SELECT * FROM receipt_items ORDER BY purchase_id, position' },
+    { sql: 'SELECT * FROM budgets ORDER BY month DESC' },
+    { sql: 'SELECT * FROM budget_allocations' }
+  ]
+  let latestSnapshot: MoneySnapshot | null = null
+
+  const snapshotFrom = (results: D1QueryResult[]): MoneySnapshot => {
     const [accountResult, categoryResult, transactionResult, purchaseResult, itemResult,
-      budgetResult, allocationResult] = await batch([
-      { sql: 'SELECT * FROM accounts ORDER BY created_at' },
-      { sql: 'SELECT * FROM categories ORDER BY kind, name COLLATE NOCASE' },
-      { sql: 'SELECT * FROM transactions ORDER BY date DESC, created_at DESC' },
-      { sql: 'SELECT * FROM purchases ORDER BY purchase_date DESC, created_at DESC' },
-      { sql: 'SELECT * FROM receipt_items ORDER BY purchase_id, position' },
-      { sql: 'SELECT * FROM budgets ORDER BY month DESC' },
-      { sql: 'SELECT * FROM budget_allocations' }
-    ])
+      budgetResult, allocationResult] = results
     const transactions = rows<TransactionRow>(transactionResult).map(transaction)
     const accounts = rows<AccountRow>(accountResult).map((row): MoneyAccount => {
       const account = {
@@ -290,32 +292,41 @@ export function moneyClientFor(settings: Pick<EgoSettings, 'cloudflareAccountId'
     }))
     const snapshot = { accounts, categories, transactions, purchases, budgets, syncedAt: new Date().toISOString() }
     if (!isMoneySnapshot(snapshot)) throw new D1Error('D1 returned invalid money data', 'SERVER_ERROR')
-    await writeCache(snapshot)
+    latestSnapshot = snapshot
+    void writeCache(snapshot).catch(() => undefined)
     return snapshot
   }
 
-  const mutate = async (query: D1Query): Promise<MoneyResult<MoneySnapshot>> => {
+  const load = async (): Promise<MoneySnapshot> => {
+    await ensureSchema()
+    return snapshotFrom(await batch(snapshotQueries))
+  }
+
+  const localSnapshot = async (): Promise<MoneySnapshot> => {
+    if (latestSnapshot) return latestSnapshot
     try {
-      await ensureSchema()
-      await batch([query])
-      return { ok: true, data: await load() }
-    } catch (error: unknown) {
-      return cachedFailure(error)
+      const cached = await readCache()
+      if (cached) return cached
+    } catch {
+      // A broken cache should not block an online write.
     }
+    return load()
   }
 
   const mutateBatch = async (queries: D1Query[]): Promise<MoneyResult<MoneySnapshot>> => {
     try {
       await ensureSchema()
-      await batch(queries)
-      return { ok: true, data: await load() }
+      const results = await batch([...queries, ...snapshotQueries])
+      return { ok: true, data: snapshotFrom(results.slice(queries.length)) }
     } catch (error: unknown) {
       return cachedFailure(error)
     }
   }
 
+  const mutate = (query: D1Query): Promise<MoneyResult<MoneySnapshot>> => mutateBatch([query])
+
   const references = async (input: TransactionInput): Promise<void> => {
-    const snapshot = await load()
+    const snapshot = await localSnapshot()
     const source = snapshot.accounts.find((item) => item.id === input.accountId)
     if (!source) throw new D1Error('Source account was not found', 'NOT_FOUND')
     if (source.archivedAt) throw new D1Error('Source account is archived', 'CONFLICT')
@@ -331,7 +342,7 @@ export function moneyClientFor(settings: Pick<EgoSettings, 'cloudflareAccountId'
   }
 
   const purchaseReferences = async (input: PurchaseInput): Promise<void> => {
-    const snapshot = await load()
+    const snapshot = await localSnapshot()
     const account = snapshot.accounts.find((item) => item.id === input.accountId)
     const category = snapshot.categories.find((item) => item.id === input.categoryId)
     if (!account) throw new D1Error('Account was not found', 'NOT_FOUND')
@@ -342,7 +353,7 @@ export function moneyClientFor(settings: Pick<EgoSettings, 'cloudflareAccountId'
 
   const budgetReferences = async (input: BudgetInput): Promise<void> => {
     if (input.allocations.length === 0) return
-    const snapshot = await load()
+    const snapshot = await localSnapshot()
     input.allocations.forEach((allocation) => {
       const category = snapshot.categories.find((item) => item.id === allocation.categoryId)
       if (!category) throw new D1Error('Category was not found', 'NOT_FOUND')
@@ -381,7 +392,7 @@ export function moneyClientFor(settings: Pick<EgoSettings, 'cloudflareAccountId'
     async updateCategory(categoryId, input) {
       if (!isCategoryInput(input)) return { ok: false, code: 'INVALID_REQUEST', message: 'Check the category fields' }
       try {
-        const snapshot = await load()
+        const snapshot = await localSnapshot()
         if (snapshot.transactions.some((item) => item.categoryId === categoryId && item.kind !== input.kind)) {
           return { ok: false, code: 'CONFLICT', message: 'A used category cannot change type' }
         }
@@ -425,7 +436,7 @@ export function moneyClientFor(settings: Pick<EgoSettings, 'cloudflareAccountId'
       if (!isPurchaseInput(input)) return { ok: false, code: 'INVALID_REQUEST', message: 'Check the purchase fields' }
       let purchase: MoneyPurchase | undefined
       try {
-        const snapshot = await load()
+        const snapshot = await localSnapshot()
         purchase = snapshot.purchases.find((item) => item.id === purchaseId)
         if (!purchase) throw new D1Error('Purchase was not found', 'NOT_FOUND')
         await purchaseReferences(input)
@@ -435,9 +446,9 @@ export function moneyClientFor(settings: Pick<EgoSettings, 'cloudflareAccountId'
         input.items.map(() => id()), now))
     },
     async deletePurchase(purchaseId) {
-      const snapshotResult = await this.getSnapshot()
-      if (!snapshotResult.ok) return snapshotResult
-      const purchase = snapshotResult.data.purchases.find((item) => item.id === purchaseId)
+      let snapshot: MoneySnapshot
+      try { snapshot = await localSnapshot() } catch (error: unknown) { return failure(error) }
+      const purchase = snapshot.purchases.find((item) => item.id === purchaseId)
       if (!purchase) return { ok: false, code: 'NOT_FOUND', message: 'Purchase was not found' }
       return mutateBatch(deletePurchaseStatements(purchase.transactionId))
     }

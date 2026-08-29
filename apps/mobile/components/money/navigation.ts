@@ -1,6 +1,7 @@
 export const moneyTabBarStyle = {
-  backgroundColor: '#0f1525',
-  borderTopColor: '#161e35',
-  height: 64,
-  paddingTop: 5
+  backgroundColor: '#1c1d1f',
+  borderTopColor: '#2b2c30',
+  height: 88,
+  paddingTop: 8,
+  paddingBottom: 9
 }

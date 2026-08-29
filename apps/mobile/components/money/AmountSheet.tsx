@@ -25,13 +25,13 @@ export function AmountSheet({ visible, title, detail, valueCents, color, allowZe
       <View className="rounded-t-3xl border-t border-surface-700 bg-surface-950 pb-8">
         <View className="flex-row items-center justify-between px-5 py-4">
           <View className="flex-1 pr-3">
-            <Text className="text-base font-semibold text-surface-100">{title}</Text>
-            {detail && <Text className="mt-0.5 text-xs text-surface-500">{detail}</Text>}
+            <Text className="text-2xl font-bold text-surface-100">{title}</Text>
+            {detail && <Text className="mt-1 text-base text-surface-400">{detail}</Text>}
           </View>
-          <Pressable onPress={onClose} hitSlop={10}><X color="#8a93ab" size={20} /></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} hitSlop={10}><X color="#b5b5bc" size={28} /></Pressable>
         </View>
-        <Pressable onLongPress={() => setExpression('')} className="items-center py-5">
-          <Text numberOfLines={1} className="text-4xl font-light" style={{ color }}>$ {formatAmountExpression(expression)}</Text>
+        <Pressable accessibilityRole="button" accessibilityHint="Hold to clear the amount" onLongPress={() => setExpression('')} className="items-center py-5">
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65} className="px-4 text-6xl font-bold" style={{ color, fontVariant: ['tabular-nums'] }}>$ {formatAmountExpression(expression)}</Text>
         </Pressable>
         <AmountKeypad
           onKey={(key) => setExpression((current) => pressAmountKey(current, key))}

@@ -2,29 +2,43 @@ import React from 'react'
 import { Pressable } from 'react-native'
 import { Tabs, useRouter } from 'expo-router'
 import {
-  ChartNoAxesCombined, Landmark, ListPlus, PiggyBank, ReceiptText, ScanLine, Settings, Tags
+  ChartNoAxesCombined, CirclePlus, Landmark, PiggyBank, ReceiptText, Settings
 } from 'lucide-react-native'
 import { moneyTabBarStyle } from '../../components/money/navigation'
 
 export default function MoneyTabs(): React.ReactElement {
   const router = useRouter()
-  return <Tabs screenOptions={{
-    headerStyle: { backgroundColor: '#0a0e1a' },
-    headerTintColor: '#d8dbe3',
-    headerTitleStyle: { fontSize: 17 },
-    sceneStyle: { backgroundColor: '#0a0e1a' },
+  return <Tabs initialRouteName="overview" screenOptions={{
+    headerStyle: { backgroundColor: '#1c1d1f' },
+    headerTintColor: '#e6e6e8',
+    headerTitleAlign: 'center',
+    headerTitleStyle: { fontSize: 24, fontWeight: '700' },
+    sceneStyle: { backgroundColor: '#121214' },
     tabBarStyle: moneyTabBarStyle,
-    tabBarActiveTintColor: '#60a5fa',
-    tabBarInactiveTintColor: '#636f8f',
-    tabBarLabelStyle: { fontSize: 10, paddingBottom: 5 },
-    headerLeft: () => <Pressable onPress={() => router.push('/capture')} hitSlop={12} style={{ marginLeft: 16 }}><ListPlus color="#8a93ab" size={21} /></Pressable>,
-    headerRight: () => <Pressable onPress={() => router.push('/settings')} hitSlop={12} style={{ marginRight: 16 }}><Settings color="#8a93ab" size={20} /></Pressable>
+    tabBarActiveTintColor: '#91c4ff',
+    tabBarInactiveTintColor: '#909099',
+    tabBarLabelStyle: { fontSize: 16, fontWeight: '700', paddingBottom: 2 },
+    tabBarIconStyle: { marginTop: 1 },
+    headerLeft: () => <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Add transaction"
+      onPress={() => router.push({ pathname: '/(money)/transactions', params: { new: 'true' } })}
+      hitSlop={12}
+      style={{ marginLeft: 18 }}
+    ><CirclePlus color="#91c4ff" size={29} strokeWidth={2.2} /></Pressable>,
+    headerRight: () => <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Open settings"
+      onPress={() => router.push('/settings')}
+      hitSlop={12}
+      style={{ marginRight: 18 }}
+    ><Settings color="#b5b5bc" size={27} /></Pressable>
   }}>
-    <Tabs.Screen name="accounts" options={{ title: 'Accounts', tabBarIcon: ({ color, size }) => <Landmark color={color} size={size} /> }} />
-    <Tabs.Screen name="categories" options={{ title: 'Categories', tabBarIcon: ({ color, size }) => <Tags color={color} size={size} /> }} />
-    <Tabs.Screen name="transactions" options={{ title: 'Transactions', tabBarIcon: ({ color, size }) => <ReceiptText color={color} size={size} /> }} />
-    <Tabs.Screen name="purchases" options={{ title: 'Purchases', tabBarIcon: ({ color, size }) => <ScanLine color={color} size={size} /> }} />
-    <Tabs.Screen name="budget" options={{ title: 'Budget', tabBarIcon: ({ color, size }) => <PiggyBank color={color} size={size} /> }} />
-    <Tabs.Screen name="overview" options={{ title: 'Overview', tabBarIcon: ({ color, size }) => <ChartNoAxesCombined color={color} size={size} /> }} />
+    <Tabs.Screen name="overview" options={{ title: 'Home', tabBarIcon: ({ color }) => <ChartNoAxesCombined color={color} size={30} /> }} />
+    <Tabs.Screen name="transactions" options={{ title: 'Activity', tabBarIcon: ({ color }) => <ReceiptText color={color} size={30} /> }} />
+    <Tabs.Screen name="budget" options={{ title: 'Budget', tabBarIcon: ({ color }) => <PiggyBank color={color} size={30} /> }} />
+    <Tabs.Screen name="accounts" options={{ title: 'Accounts', tabBarIcon: ({ color }) => <Landmark color={color} size={30} /> }} />
+    <Tabs.Screen name="categories" options={{ href: null, title: 'Categories' }} />
+    <Tabs.Screen name="purchases" options={{ href: null, title: 'Purchase details' }} />
   </Tabs>
 }
