@@ -13,7 +13,7 @@ import { trelloClientFor } from '../lib/trello'
 import { moneyClientFor } from '../lib/money'
 
 const inputClass =
-  'rounded-lg border border-surface-700 bg-surface-900/50 px-3 py-2.5 text-[14px] text-surface-100'
+  'rounded-lg border border-surface-700 bg-surface-900/50 px-3 py-2.5 text-[16px] text-surface-100'
 
 export default function Settings(): React.ReactElement {
   const { settings, update } = useSettings()
@@ -113,36 +113,36 @@ export default function Settings(): React.ReactElement {
     <ScrollView className="flex-1 bg-surface-950 px-3 pt-3" keyboardShouldPersistTaps="handled">
       <Pressable onPress={() => router.push('/capture')} className="mb-3 flex-row items-center justify-center rounded-xl border border-surface-700 bg-surface-900 px-4 py-2.5">
         <ListPlus color="#91c4ff" size={16} />
-        <Text className="ml-2 text-[13px] font-semibold text-surface-100">Add Trello card</Text>
+        <Text className="ml-2 text-[16px] font-semibold text-surface-100">Add Trello card</Text>
       </Pressable>
       <View className="rounded-xl border border-surface-800 bg-surface-900/50 p-3">
-        <View className="flex-row items-center"><Database color="#91c4ff" size={15} /><Text className="ml-1.5 text-[14px] font-bold text-surface-100">Cloudflare D1</Text></View>
-        <Text className="mt-1.5 text-[11px] leading-4 text-surface-400">The app reads and writes the budget database directly.</Text>
-        <View className="mt-3 gap-2.5"><View><Text className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-surface-400">Account ID</Text><TextInput value={accountId} onChangeText={setAccountId} autoCapitalize="none" autoCorrect={false} placeholder="32-character account ID" placeholderTextColor="#707078" className={inputClass} /></View><View><Text className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-surface-400">D1 database ID</Text><TextInput value={databaseId} onChangeText={setDatabaseId} autoCapitalize="none" autoCorrect={false} placeholder="Database UUID" placeholderTextColor="#707078" className={inputClass} /></View><View><Text className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-surface-400">D1 API token</Text><TextInput value={apiToken} onChangeText={setApiToken} secureTextEntry autoCapitalize="none" autoCorrect={false} placeholder="D1 Read and D1 Write token" placeholderTextColor="#707078" className={inputClass} /></View></View>
-        <Pressable disabled={savingMoney || !accountId || !databaseId || !apiToken} onPress={() => void saveMoney()} className={`mt-3 rounded-lg px-3 py-2.5 ${savingMoney || !accountId || !databaseId || !apiToken ? 'bg-surface-800' : 'bg-accent-600'}`}><Text className={`text-center text-[14px] font-semibold ${savingMoney ? 'text-surface-500' : 'text-white'}`}>{savingMoney ? 'Connecting...' : 'Save and connect'}</Text></Pressable>
-        {moneyStatus && <Text className={`mt-2 text-[11px] leading-4 ${moneyStatus.startsWith('Connected') ? 'text-emerald-400' : 'text-red-400'}`}>{moneyStatus}</Text>}
+        <View className="flex-row items-center"><Database color="#91c4ff" size={15} /><Text className="ml-1.5 text-[16px] font-bold text-surface-100">Cloudflare D1</Text></View>
+        <Text className="mt-1.5 text-[14px] leading-5 text-surface-400">The app reads and writes the budget database directly.</Text>
+        <View className="mt-3 gap-2.5"><View><Text className="mb-1 text-[14px] font-semibold uppercase tracking-wide text-surface-400">Account ID</Text><TextInput value={accountId} onChangeText={setAccountId} autoCapitalize="none" autoCorrect={false} placeholder="32-character account ID" placeholderTextColor="#909099" className={inputClass} /></View><View><Text className="mb-1 text-[14px] font-semibold uppercase tracking-wide text-surface-400">D1 database ID</Text><TextInput value={databaseId} onChangeText={setDatabaseId} autoCapitalize="none" autoCorrect={false} placeholder="Database UUID" placeholderTextColor="#909099" className={inputClass} /></View><View><Text className="mb-1 text-[14px] font-semibold uppercase tracking-wide text-surface-400">D1 API token</Text><TextInput value={apiToken} onChangeText={setApiToken} secureTextEntry autoCapitalize="none" autoCorrect={false} placeholder="D1 Read and D1 Write token" placeholderTextColor="#909099" className={inputClass} /></View></View>
+        <Pressable disabled={savingMoney || !accountId || !databaseId || !apiToken} onPress={() => void saveMoney()} className={`mt-3 rounded-lg px-3 py-2.5 ${savingMoney || !accountId || !databaseId || !apiToken ? 'bg-surface-800' : 'bg-accent-600'}`}><Text className={`text-center text-[16px] font-semibold ${savingMoney ? 'text-surface-400' : 'text-white'}`}>{savingMoney ? 'Connecting...' : 'Save and connect'}</Text></Pressable>
+        {moneyStatus && <Text className={`mt-2 text-[14px] leading-5 ${moneyStatus.startsWith('Connected') ? 'text-emerald-400' : 'text-red-400'}`}>{moneyStatus}</Text>}
       </View>
 
       <View className="mt-3 rounded-xl border border-surface-800 bg-surface-900/50 p-3">
-        <View className="flex-row items-center"><ScanLine color="#91c4ff" size={15} /><Text className="ml-1.5 text-[14px] font-bold text-surface-100">Money agent</Text></View>
-        <Text className="mt-1.5 text-[11px] leading-4 text-surface-400">OpenRouter prepares transactions from messages and receipt images. Ego does not save the images.</Text>
-        <View className="mt-3 gap-2.5"><View><Text className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-surface-400">OpenRouter API key</Text><TextInput value={settings.openRouterApiKey} onChangeText={(value) => void update({ openRouterApiKey: value.trim() })} secureTextEntry autoCapitalize="none" autoCorrect={false} placeholder="sk-or-v1-..." placeholderTextColor="#707078" className={inputClass} /></View><View><Text className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-surface-400">Agent model</Text><TextInput value={settings.receiptModel} onChangeText={(value) => void update({ receiptModel: value.trim() })} autoCapitalize="none" autoCorrect={false} placeholder="openai/gpt-5.6-terra" placeholderTextColor="#707078" className={inputClass} /></View></View>
+        <View className="flex-row items-center"><ScanLine color="#91c4ff" size={15} /><Text className="ml-1.5 text-[16px] font-bold text-surface-100">Money agent</Text></View>
+        <Text className="mt-1.5 text-[14px] leading-5 text-surface-400">OpenRouter prepares transactions from messages and receipt images. Ego does not save the images.</Text>
+        <View className="mt-3 gap-2.5"><View><Text className="mb-1 text-[14px] font-semibold uppercase tracking-wide text-surface-400">OpenRouter API key</Text><TextInput value={settings.openRouterApiKey} onChangeText={(value) => void update({ openRouterApiKey: value.trim() })} secureTextEntry autoCapitalize="none" autoCorrect={false} placeholder="sk-or-v1-..." placeholderTextColor="#909099" className={inputClass} /></View><View><Text className="mb-1 text-[14px] font-semibold uppercase tracking-wide text-surface-400">Agent model</Text><TextInput value={settings.receiptModel} onChangeText={(value) => void update({ receiptModel: value.trim() })} autoCapitalize="none" autoCorrect={false} placeholder="openai/gpt-5.6-terra" placeholderTextColor="#909099" className={inputClass} /></View></View>
       </View>
 
       <View className="mt-5">
-      <Text className="text-[14px] font-bold text-surface-100">Add to Trello</Text>
-      <Text className="mt-1.5 text-[11px] leading-4 text-surface-400">
+      <Text className="text-[16px] font-bold text-surface-100">Add to Trello</Text>
+      <Text className="mt-1.5 text-[14px] leading-5 text-surface-400">
         Same key, token, and destination the desktop app uses.
       </Text>
 
       <View className="mt-3 gap-2.5">
         <View>
-          <Text className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-surface-400">API key</Text>
+          <Text className="mb-1 text-[14px] font-semibold uppercase tracking-wide text-surface-400">API key</Text>
           <TextInput
             value={settings.trelloApiKey}
             onChangeText={(value) => void update({ trelloApiKey: value.trim() })}
             placeholder="32-character key"
-            placeholderTextColor="#707078"
+            placeholderTextColor="#909099"
             autoCapitalize="none"
             autoCorrect={false}
             className={inputClass}
@@ -150,18 +150,18 @@ export default function Settings(): React.ReactElement {
         </View>
 
         <View>
-          <Text className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-surface-400">Token</Text>
+          <Text className="mb-1 text-[14px] font-semibold uppercase tracking-wide text-surface-400">Token</Text>
           <TextInput
             value={settings.trelloToken}
             onChangeText={(value) => void update({ trelloToken: value.trim() })}
             placeholder="Starts with ATTA"
-            placeholderTextColor="#707078"
+            placeholderTextColor="#909099"
             autoCapitalize="none"
             autoCorrect={false}
             className={inputClass}
           />
           {tokenLooksWrong && (
-            <Text className="mt-1.5 text-[11px] leading-4 text-amber-400">
+            <Text className="mt-1.5 text-[14px] leading-5 text-amber-400">
               Trello tokens start with ATTA. A 64-character hex string is the OAuth secret, which
               will not authenticate.
             </Text>
@@ -171,11 +171,11 @@ export default function Settings(): React.ReactElement {
 
       <View className="mt-4">
         <View className="mb-1.5 flex-row items-center justify-between">
-          <Text className="text-[11px] font-semibold uppercase tracking-wide text-surface-400">Board</Text>
+          <Text className="text-[14px] font-semibold uppercase tracking-wide text-surface-400">Board</Text>
           {loadingBoards && <ActivityIndicator size="small" color="#91c4ff" />}
         </View>
         {boards.length === 0 ? (
-          <Text className="text-[12px] text-surface-400">
+          <Text className="text-[14px] text-surface-400">
             {credsReady ? 'No boards loaded yet.' : 'Add your key and token first.'}
           </Text>
         ) : (
@@ -198,7 +198,7 @@ export default function Settings(): React.ReactElement {
                       : 'border-surface-800 bg-surface-900/50'
                   }`}
                 >
-                  <Text className={`text-[13px] font-medium ${active ? 'text-accent-400' : 'text-surface-100'}`}>
+                  <Text className={`text-[16px] font-medium ${active ? 'text-accent-400' : 'text-surface-100'}`}>
                     {board.name}
                   </Text>
                 </Pressable>
@@ -211,7 +211,7 @@ export default function Settings(): React.ReactElement {
       {settings.trelloBoardId && (
         <View className="mt-4">
           <View className="mb-1.5 flex-row items-center justify-between">
-            <Text className="text-[11px] font-semibold uppercase tracking-wide text-surface-400">Default list</Text>
+            <Text className="text-[14px] font-semibold uppercase tracking-wide text-surface-400">Default list</Text>
             {loadingLists && <ActivityIndicator size="small" color="#91c4ff" />}
           </View>
           <View className="gap-2">
@@ -229,7 +229,7 @@ export default function Settings(): React.ReactElement {
                     }`}
                   >
                     <Text
-                      className={`text-[13px] font-medium ${active ? 'text-accent-400' : 'text-surface-100'}`}
+                      className={`text-[16px] font-medium ${active ? 'text-accent-400' : 'text-surface-100'}`}
                     >
                       {list.name}
                     </Text>
@@ -243,7 +243,7 @@ export default function Settings(): React.ReactElement {
                     }`}
                   >
                     <Text
-                      className={`text-[12px] ${shortcut ? 'text-accent-400' : 'text-surface-400'}`}
+                      className={`text-[14px] ${shortcut ? 'text-accent-400' : 'text-surface-400'}`}
                     >
                       Pin
                     </Text>
@@ -252,14 +252,14 @@ export default function Settings(): React.ReactElement {
               )
             })}
           </View>
-          <Text className="mt-2 text-[11px] leading-4 text-surface-400">
+          <Text className="mt-2 text-[14px] leading-5 text-surface-400">
             Pinned lists show as buttons on the capture screen, the phone equivalent of the
             desktop Ctrl+number shortcuts.
           </Text>
         </View>
       )}
 
-      {error && <Text className="mt-3 text-[11px] leading-4 text-red-400">{error}</Text>}
+      {error && <Text className="mt-3 text-[14px] leading-5 text-red-400">{error}</Text>}
 
       <View className="h-8" />
       </View>

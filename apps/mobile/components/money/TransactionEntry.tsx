@@ -22,8 +22,8 @@ function Badge({ icon, color, round, className }: { icon: string; color: string;
 
 function Tile({ label, name, color, onPress }: { label: string; name: string; color: string; onPress: () => void }): React.ReactElement {
   return <Pressable accessibilityRole="button" onPress={onPress} style={{ backgroundColor: color }} className="min-h-[64px] flex-1 justify-center px-3 py-3">
-    <Text className="text-[11px] font-semibold" style={{ color: '#e6e6e8' }}>{label}</Text>
-    <Text numberOfLines={1} className="mt-0.5 text-[15px] font-bold" style={{ color: '#f4f4f5' }}>{name}</Text>
+    <Text className="text-[14px] font-semibold" style={{ color: '#e6e6e8' }}>{label}</Text>
+    <Text numberOfLines={1} className="mt-0.5 text-[18px] font-bold" style={{ color: '#f4f4f5' }}>{name}</Text>
   </Pressable>
 }
 
@@ -31,7 +31,7 @@ function OptionSheet({ visible, title, onClose, children }: { visible: boolean; 
   return <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
     <Pressable onPress={onClose} className="flex-1 justify-end bg-black/70">
       <Pressable onPress={(event) => event.stopPropagation()} className="max-h-[70%] rounded-t-2xl border-t border-surface-700 bg-surface-950 px-4 pb-8 pt-4">
-        <Text className="mb-3 text-center text-[15px] font-bold text-surface-100">{title}</Text>
+        <Text className="mb-3 text-center text-[18px] font-bold text-surface-100">{title}</Text>
         <ScrollView>{children}</ScrollView>
       </Pressable>
     </Pressable>
@@ -117,7 +117,7 @@ export default function TransactionEntry({ snapshot, transaction, onClose }: { s
       >
         <View className="flex-row items-center justify-between px-3 py-2.5">
           <View className="flex-row gap-1.5">{KINDS.map((item) => <Pressable accessibilityRole="button" accessibilityState={{ selected: kind === item }} key={item} onPress={() => changeKind(item)} className={`rounded-full px-3 py-2 ${kind === item ? 'bg-surface-700' : 'bg-surface-900'}`}>
-            <Text className="text-[12px] font-semibold capitalize" style={{ color: kind === item ? KIND_COLORS[item] : '#b5b5bc' }}>{item}</Text>
+            <Text className="text-[14px] font-semibold capitalize" style={{ color: kind === item ? KIND_COLORS[item] : '#b5b5bc' }}>{item}</Text>
           </Pressable>)}</View>
           <View className="flex-row items-center gap-3">
             {transaction && <Pressable onPress={() => setConfirmingDelete(true)} hitSlop={10}><Trash2 color="#fb7185" size={18} /></Pressable>}
@@ -141,20 +141,20 @@ export default function TransactionEntry({ snapshot, transaction, onClose }: { s
         </View>}
 
         {!typingNotes && <Pressable accessibilityRole="button" accessibilityHint="Hold to clear the amount" onLongPress={() => setExpression('')} className="items-center py-3">
-          <Text className="text-[12px] font-semibold capitalize" style={{ color }}>{kind}</Text>
+          <Text className="text-[14px] font-semibold capitalize" style={{ color }}>{kind}</Text>
           <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65} className="mt-0.5 px-4 text-[38px] font-bold" style={{ color, fontVariant: ['tabular-nums'] }}>$ {formatAmountExpression(expression)}</Text>
         </Pressable>}
 
-        {typingNotes && <Text className="mx-3 mt-3 text-[12px] font-semibold text-surface-400">Transaction note</Text>}
+        {typingNotes && <Text className="mx-3 mt-3 text-[14px] font-semibold text-surface-400">Transaction note</Text>}
         <TextInput
           value={notes} onChangeText={setNotes} multiline maxLength={500}
           onFocus={() => { setTypingNotes(true); requestAnimationFrame(() => formScroll.current?.scrollToEnd({ animated: true })) }} onBlur={() => setTypingNotes(false)}
-          placeholder="Notes..." placeholderTextColor="#707078"
-          className={`mx-3 mb-2 rounded-xl border border-surface-700 px-3 py-2 text-[14px] text-surface-100 ${typingNotes ? 'mt-1.5 min-h-24 text-left' : 'min-h-11 text-center'}`}
+          placeholder="Notes..." placeholderTextColor="#909099"
+          className={`mx-3 mb-2 rounded-xl border border-surface-700 px-3 py-2 text-[16px] text-surface-100 ${typingNotes ? 'mt-1.5 min-h-24 text-left' : 'min-h-11 text-center'}`}
         />
 
         {typingNotes
-          ? <Pressable onPress={() => Keyboard.dismiss()} className="items-center py-2.5"><Text className="text-[14px] font-semibold" style={{ color }}>Done</Text></Pressable>
+          ? <Pressable onPress={() => Keyboard.dismiss()} className="items-center py-2.5"><Text className="text-[16px] font-semibold" style={{ color }}>Done</Text></Pressable>
           : <>
             <AmountKeypad
               onKey={(key) => setExpression((current) => pressAmountKey(current, key))}
@@ -165,7 +165,7 @@ export default function TransactionEntry({ snapshot, transaction, onClose }: { s
               busy={state.busy}
             />
             <Pressable onPress={() => setDatePicking(true)} className="items-center pt-2.5">
-              <Text className="text-[13px] font-semibold text-surface-300">{relativeDayLabel(date)}</Text>
+              <Text className="text-[16px] font-semibold text-surface-300">{relativeDayLabel(date)}</Text>
             </Pressable>
           </>}
         </ScrollView>
@@ -176,7 +176,7 @@ export default function TransactionEntry({ snapshot, transaction, onClose }: { s
     <OptionSheet visible={picking === 'account'} title="From account" onClose={() => setPicking(null)}>
       {accounts.map((item) => <Pressable key={item.id} onPress={() => { setAccountId(item.id); if (item.id === destinationId) setDestinationId(''); setPicking(null) }} className={`mb-1.5 flex-row items-center rounded-xl border px-2.5 py-2 ${accountId === item.id ? 'border-accent-500 bg-accent-500/15' : 'border-surface-800 bg-surface-900'}`}>
         <View className="h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: item.color }}><MoneyIcon name={item.icon} size={15} /></View>
-        <Text className={`ml-2 text-[13px] font-semibold ${accountId === item.id ? 'text-accent-300' : 'text-surface-200'}`}>{item.name}</Text>
+        <Text className={`ml-2 text-[16px] font-semibold ${accountId === item.id ? 'text-accent-300' : 'text-surface-200'}`}>{item.name}</Text>
       </Pressable>)}
     </OptionSheet>
 
@@ -184,13 +184,13 @@ export default function TransactionEntry({ snapshot, transaction, onClose }: { s
       {kind === 'transfer'
         ? accounts.filter((item) => item.id !== accountId).map((item) => <Pressable key={item.id} onPress={() => { setDestinationId(item.id); setPicking(null) }} className={`mb-1.5 flex-row items-center rounded-xl border px-2.5 py-2 ${destinationId === item.id ? 'border-accent-500 bg-accent-500/15' : 'border-surface-800 bg-surface-900'}`}>
             <View className="h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: item.color }}><MoneyIcon name={item.icon} size={15} /></View>
-            <Text className={`ml-2 text-[13px] font-semibold ${destinationId === item.id ? 'text-accent-300' : 'text-surface-200'}`}>{item.name}</Text>
+            <Text className={`ml-2 text-[16px] font-semibold ${destinationId === item.id ? 'text-accent-300' : 'text-surface-200'}`}>{item.name}</Text>
           </Pressable>)
         : <View className="flex-row flex-wrap gap-1.5">{categories.map((item) => <Pressable key={item.id} onPress={() => { setCategoryId(item.id); setPicking(null) }} className={`flex-row items-center rounded-full border px-2.5 py-1.5 ${categoryId === item.id ? 'border-accent-500 bg-accent-500/15' : 'border-surface-800 bg-surface-900'}`}>
             <MoneyIcon name={item.icon} color={item.color} size={12} />
-            <Text className={`ml-1.5 text-[12px] ${categoryId === item.id ? 'font-semibold text-accent-300' : 'text-surface-300'}`}>{item.name}</Text>
+            <Text className={`ml-1.5 text-[14px] ${categoryId === item.id ? 'font-semibold text-accent-300' : 'text-surface-300'}`}>{item.name}</Text>
           </Pressable>)}</View>}
-      {kind !== 'transfer' && categories.length === 0 && <Text className="text-center text-[12px] text-amber-400">Create an active {kind} category first.</Text>}
+      {kind !== 'transfer' && categories.length === 0 && <Text className="text-center text-[14px] text-amber-400">Create an active {kind} category first.</Text>}
     </OptionSheet>
 
     <DateSheet visible={datePicking} value={date} onClose={() => setDatePicking(false)} onChange={setDate} />

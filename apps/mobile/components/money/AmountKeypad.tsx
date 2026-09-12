@@ -21,7 +21,7 @@ export function AmountKeypad({ onKey, onOpenDate, onConfirm, confirmDisabled, co
       <SideKey onPress={() => onKey('back')} onLongPress={() => onKey('clear')} className="h-10 border border-surface-800 bg-surface-900/60 active:bg-surface-800"><Delete color="#b5b5bc" size={16} /></SideKey>
       {onOpenDate
         ? <SideKey onPress={onOpenDate} className="h-10 border border-surface-800 bg-surface-900/60 active:bg-surface-800"><CalendarDays color="#b5b5bc" size={18} /></SideKey>
-        : <SideKey onPress={() => onKey('clear')} className="h-10 border border-surface-800 bg-surface-900/60 active:bg-surface-800"><Text className="text-[15px] font-semibold text-surface-300">C</Text></SideKey>}
+        : <SideKey onPress={() => onKey('clear')} className="h-10 border border-surface-800 bg-surface-900/60 active:bg-surface-800"><Text className="text-[18px] font-semibold text-surface-300">C</Text></SideKey>}
       <Pressable disabled={confirmDisabled} onPress={onConfirm} style={{ backgroundColor: confirmDisabled ? '#2a2a2f' : confirmColor }} className="flex-1 items-center justify-center rounded-xl">
         {busy ? <ActivityIndicator color="#b5b5bc" /> : <Check color={confirmDisabled ? '#707078' : '#fff'} size={22} />}
       </Pressable>

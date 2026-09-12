@@ -27,7 +27,7 @@ export default function Overview(): React.ReactElement {
       <ScrollView className="flex-1 px-3" contentContainerStyle={{ paddingBottom: 20 }}>
         <View className="overflow-hidden rounded-2xl border border-accent-500/25 bg-surface-900 px-4 pb-3 pt-3.5">
           <View className="absolute left-0 top-0 h-0.5 w-full bg-accent-400" />
-          <Text className="text-[12px] font-semibold text-surface-300">Total balance</Text>
+          <Text className="text-[14px] font-semibold text-surface-300">Total balance</Text>
           <Text
             numberOfLines={1}
             adjustsFontSizeToFit
@@ -37,10 +37,10 @@ export default function Overview(): React.ReactElement {
           >{money(closing)}</Text>
           <View className="mt-3 flex-row items-end justify-between border-t border-surface-800 pt-2.5">
             <View>
-              <Text className="text-[11px] font-medium text-surface-400">{label} change</Text>
-              <Text className={`mt-0.5 text-[15px] font-bold ${net < 0 ? 'text-rose-400' : 'text-emerald-400'}`} style={{ fontVariant: ['tabular-nums'] }}>{money(net, true)}</Text>
+              <Text className="text-[14px] font-medium text-surface-400">{label} change</Text>
+              <Text className={`mt-0.5 text-[18px] font-bold ${net < 0 ? 'text-rose-400' : 'text-emerald-400'}`} style={{ fontVariant: ['tabular-nums'] }}>{money(net, true)}</Text>
             </View>
-            <Text className="text-[11px] font-medium text-surface-400">{accountCount} {accountCount === 1 ? 'account' : 'accounts'}</Text>
+            <Text className="text-[14px] font-medium text-surface-400">{accountCount} {accountCount === 1 ? 'account' : 'accounts'}</Text>
           </View>
         </View>
 
@@ -51,27 +51,27 @@ export default function Overview(): React.ReactElement {
 
         <View className="mt-2.5 rounded-xl border border-surface-800 bg-surface-900/70 p-3">
           <View className="flex-row items-center justify-between">
-            <Text className="text-[13px] font-bold text-surface-100">Monthly cash flow</Text>
+            <Text className="text-[16px] font-bold text-surface-100">Monthly cash flow</Text>
             <View className="flex-row items-center gap-2.5">
               <Legend color="#10b981" label="In" />
               <Legend color="#f43f5e" label="Out" />
             </View>
           </View>
           {monthEntries.length === 0
-            ? <Text className="py-6 text-center text-[12px] text-surface-400">Record a transaction to see the chart.</Text>
-            : <View className="mt-3 h-28 flex-row items-end gap-2">{monthEntries.map(([month, value]) => <View key={month} className="flex-1 items-center"><View className="h-20 w-full flex-row items-end justify-center gap-0.5"><View className="w-2/5 rounded-t bg-emerald-500" style={{ height: `${Math.max(value.income ? 4 : 0, value.income / max * 100)}%` }} /><View className="w-2/5 rounded-t bg-rose-500" style={{ height: `${Math.max(value.expense ? 4 : 0, value.expense / max * 100)}%` }} /></View><Text className="mt-1.5 text-[11px] font-semibold text-surface-400">{new Date(`${month}-01T00:00:00`).toLocaleDateString('en-US', { month: 'short' })}</Text></View>)}</View>}
+            ? <Text className="py-6 text-center text-[14px] text-surface-400">Record a transaction to see the chart.</Text>
+            : <View className="mt-3 h-28 flex-row items-end gap-2">{monthEntries.map(([month, value]) => <View key={month} className="flex-1 items-center"><View className="h-20 w-full flex-row items-end justify-center gap-0.5"><View className="w-2/5 rounded-t bg-emerald-500" style={{ height: `${Math.max(value.income ? 4 : 0, value.income / max * 100)}%` }} /><View className="w-2/5 rounded-t bg-rose-500" style={{ height: `${Math.max(value.expense ? 4 : 0, value.expense / max * 100)}%` }} /></View><Text className="mt-1.5 text-[14px] font-semibold text-surface-400">{new Date(`${month}-01T00:00:00`).toLocaleDateString('en-US', { month: 'short' })}</Text></View>)}</View>}
         </View>
 
         <View className="mt-2.5 rounded-xl border border-surface-800 bg-surface-900/70 p-3">
-          <Text className="text-[13px] font-bold text-surface-100">Average spending</Text>
+          <Text className="text-[16px] font-bold text-surface-100">Average spending</Text>
           <View className="mt-2.5 flex-row"><Average label="Daily" cents={expenses / days} /><Average label="Weekly" cents={expenses / days * 7} /><Average label="Monthly" cents={expenses / days * 30.44} /></View>
         </View>
 
         <View className="mt-2.5 rounded-xl border border-surface-800 bg-surface-900/70 p-3">
-          <Text className="text-[13px] font-bold text-surface-100">Top categories</Text>
+          <Text className="text-[16px] font-bold text-surface-100">Top categories</Text>
           {ranked.length === 0
-            ? <Text className="py-5 text-center text-[12px] text-surface-400">No expenses in this period.</Text>
-            : <View className="mt-2.5 gap-3">{ranked.slice(0, 6).map(({ category, amount }) => <View key={category.id}><View className="flex-row items-center"><View className="h-8 w-8 items-center justify-center rounded-full" style={{ backgroundColor: category.color }}><MoneyIcon name={category.icon} size={14} /></View><Text numberOfLines={1} className="ml-2 flex-1 text-[13px] font-semibold text-surface-100">{category.name}</Text><Text className="text-[13px] font-bold text-surface-100" style={{ fontVariant: ['tabular-nums'] }}>{money(amount)}</Text></View><View className="ml-10 mt-1.5 h-1 overflow-hidden rounded-full bg-surface-800"><View className="h-full rounded-full" style={{ width: `${expenses ? amount / expenses * 100 : 0}%`, backgroundColor: category.color }} /></View></View>)}</View>}
+            ? <Text className="py-5 text-center text-[14px] text-surface-400">No expenses in this period.</Text>
+            : <View className="mt-2.5 gap-3">{ranked.slice(0, 6).map(({ category, amount }) => <View key={category.id}><View className="flex-row items-center"><View className="h-8 w-8 items-center justify-center rounded-full" style={{ backgroundColor: category.color }}><MoneyIcon name={category.icon} size={14} /></View><Text numberOfLines={1} className="ml-2 flex-1 text-[16px] font-semibold text-surface-100">{category.name}</Text><Text className="text-[16px] font-bold text-surface-100" style={{ fontVariant: ['tabular-nums'] }}>{money(amount)}</Text></View><View className="ml-10 mt-1.5 h-1 overflow-hidden rounded-full bg-surface-800"><View className="h-full rounded-full" style={{ width: `${expenses ? amount / expenses * 100 : 0}%`, backgroundColor: category.color }} /></View></View>)}</View>}
         </View>
       </ScrollView>
     </View>
@@ -79,17 +79,17 @@ export default function Overview(): React.ReactElement {
 }
 
 function Average({ label, cents }: { label: string; cents: number }): React.ReactElement {
-  return <View className="flex-1 items-center px-1"><Text className="text-[11px] font-semibold text-surface-400">{label}</Text><Text numberOfLines={1} adjustsFontSizeToFit className="mt-0.5 text-[13px] font-bold text-rose-400" style={{ fontVariant: ['tabular-nums'] }}>{money(Math.round(cents))}</Text></View>
+  return <View className="flex-1 items-center px-1"><Text className="text-[14px] font-semibold text-surface-400">{label}</Text><Text numberOfLines={1} adjustsFontSizeToFit className="mt-0.5 text-[16px] font-bold text-rose-400" style={{ fontVariant: ['tabular-nums'] }}>{money(Math.round(cents))}</Text></View>
 }
 
 function Summary({ label, cents, tone }: { label: string; cents: number; tone: 'expense' | 'income' }): React.ReactElement {
   const expense = tone === 'expense'
   return <View className={`flex-1 rounded-xl border p-3 ${expense ? 'border-rose-500/25 bg-rose-500/10' : 'border-emerald-500/25 bg-emerald-500/10'}`}>
-    <Text className="text-[12px] font-semibold text-surface-300">{label}</Text>
+    <Text className="text-[14px] font-semibold text-surface-300">{label}</Text>
     <Text numberOfLines={1} adjustsFontSizeToFit className={`mt-0.5 text-[19px] font-bold ${expense ? 'text-rose-400' : 'text-emerald-400'}`} style={{ fontVariant: ['tabular-nums'] }}>{money(cents)}</Text>
   </View>
 }
 
 function Legend({ color, label }: { color: string; label: string }): React.ReactElement {
-  return <View className="flex-row items-center"><View className="mr-1 h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} /><Text className="text-[11px] font-medium text-surface-400">{label}</Text></View>
+  return <View className="flex-row items-center"><View className="mr-1 h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} /><Text className="text-[14px] font-medium text-surface-400">{label}</Text></View>
 }

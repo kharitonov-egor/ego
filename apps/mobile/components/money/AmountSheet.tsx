@@ -25,8 +25,8 @@ export function AmountSheet({ visible, title, detail, valueCents, color, allowZe
       <View className="rounded-t-2xl border-t border-surface-700 bg-surface-950 pb-6">
         <View className="flex-row items-center justify-between px-4 py-3">
           <View className="flex-1 pr-3">
-            <Text className="text-[15px] font-bold text-surface-100">{title}</Text>
-            {detail && <Text className="mt-0.5 text-[11px] text-surface-400">{detail}</Text>}
+            <Text className="text-[18px] font-bold text-surface-100">{title}</Text>
+            {detail && <Text className="mt-0.5 text-[14px] text-surface-400">{detail}</Text>}
           </View>
           <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} hitSlop={10}><X color="#b5b5bc" size={20} /></Pressable>
         </View>

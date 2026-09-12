@@ -26,10 +26,10 @@ function CategoryForm({ category, defaultKind, onClose }: {
     if (saved) onClose()
   }
   return <View>
-    <Label text="Name"><TextInput autoFocus value={name} onChangeText={setName} placeholder="Food" placeholderTextColor="#707078" className={inputClass} /></Label>
+    <Label text="Name"><TextInput autoFocus value={name} onChangeText={setName} placeholder="Food" placeholderTextColor="#909099" className={inputClass} /></Label>
     <Label text="Type"><Chips values={['expense', 'income'] as const} value={kind} onChange={setKind} /></Label>
-    <Label text="Icon"><View className="flex-row flex-wrap gap-2">{ICON_OPTIONS.map((item) => <Pressable key={item} onPress={() => setIcon(item)} className={`rounded-lg border p-2 ${icon === item ? 'border-accent-500 bg-accent-500/15' : 'border-surface-800 bg-surface-900'}`}><MoneyIcon name={item} color={icon === item ? '#91c4ff' : '#b5b5bc'} size={15} /></Pressable>)}</View></Label>
-    <Label text="Color"><View className="flex-row flex-wrap gap-2">{COLORS.map((item) => <Pressable accessibilityLabel={`Use color ${item}`} key={item} onPress={() => setColor(item)} className={`h-7 w-7 rounded-full border-2 ${color === item ? 'border-white' : 'border-transparent'}`} style={{ backgroundColor: item }} />)}</View></Label>
+    <Label text="Icon"><View className="flex-row flex-wrap gap-2">{ICON_OPTIONS.map((item) => <Pressable accessibilityRole="button" accessibilityLabel={`Use ${item} icon`} accessibilityState={{ selected: icon === item }} key={item} onPress={() => setIcon(item)} className={`h-11 w-11 items-center justify-center rounded-lg border ${icon === item ? 'border-accent-500 bg-accent-500/15' : 'border-surface-800 bg-surface-900'}`}><MoneyIcon name={item} color={icon === item ? '#91c4ff' : '#b5b5bc'} size={17} /></Pressable>)}</View></Label>
+    <Label text="Color"><View className="flex-row flex-wrap gap-2">{COLORS.map((item) => <Pressable accessibilityRole="button" accessibilityLabel={`Use color ${item}`} accessibilityState={{ selected: color === item }} key={item} onPress={() => setColor(item)} className={`h-11 w-11 rounded-full border-2 ${color === item ? 'border-white' : 'border-transparent'}`} style={{ backgroundColor: item }} />)}</View></Label>
     <PrimaryButton label={category ? 'Save category' : 'Create category'} disabled={!name.trim() || moneyState.busy} onPress={() => void save()} />
   </View>
 }
@@ -53,11 +53,11 @@ function CategoryNode({ category, amount, total, onEdit, onArchive }: {
     onPress={onEdit}
     onLongPress={onArchive}
     delayLongPress={450}
-    className="h-[104px] w-1/4 items-center px-0.5 pt-1.5"
+    className="h-[120px] w-1/4 items-center px-0.5 pt-1.5"
   >
-    <Text numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.78} className="h-7 text-center text-[11px] font-semibold leading-[14px] text-surface-300">{category.name}</Text>
+    <Text numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.86} className="h-10 text-center text-[14px] font-semibold leading-[18px] text-surface-300">{category.name}</Text>
     <View className="h-10 w-10 items-center justify-center rounded-full border" style={{ backgroundColor: alpha(category.color, '24'), borderColor: alpha(category.color, '80') }}><MoneyIcon name={category.icon} color={category.color} size={17} /></View>
-    <Text numberOfLines={1} adjustsFontSizeToFit className="mt-1.5 text-center text-[10px] font-bold" style={{ color: amount > 0 ? category.color : '#707078', fontVariant: ['tabular-nums'] }}>{money(amount)} · {percent}%</Text>
+    <Text numberOfLines={1} adjustsFontSizeToFit className="mt-1.5 text-center text-[14px] font-bold" style={{ color: amount > 0 ? category.color : '#707078', fontVariant: ['tabular-nums'] }}>{money(amount)} · {percent}%</Text>
   </Pressable>
 }
 
@@ -112,9 +112,9 @@ function CategoryDonut({ mode, categories, totals, total, oppositeTotal, onToggl
     className="h-[172px] w-[172px] items-center justify-center rounded-full"
   >
     <Svg width={172} height={172} viewBox="0 0 172 172" className="absolute"><Circle cx="86" cy="86" r={radius} fill="none" stroke="#34343a" strokeWidth="11" />{segments}</Svg>
-    <Text className="text-[12px] font-semibold capitalize text-surface-300">{mode}</Text>
+    <Text className="text-[14px] font-semibold capitalize text-surface-300">{mode}</Text>
     <Text className={`mt-0.5 text-[20px] font-bold ${income ? 'text-emerald-400' : 'text-rose-400'}`} style={{ fontVariant: ['tabular-nums'] }}>{money(total)}</Text>
-    <Text className="mt-1 text-[10px] text-surface-500">{income ? 'Expenses' : 'Income'} {money(oppositeTotal)}</Text>
+    <Text className="mt-1 text-[14px] text-surface-400">{income ? 'Expenses' : 'Income'} {money(oppositeTotal)}</Text>
   </Pressable>
 }
 
@@ -146,7 +146,7 @@ export default function Categories(): React.ReactElement {
     return <View className="flex-1">
       <PeriodChips />
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 72 }}>
-        <View className="flex-row items-center justify-between px-3 pb-1.5"><View><Text className={`text-[13px] font-bold ${mode === 'expense' ? 'text-rose-400' : 'text-emerald-400'}`}>{mode === 'expense' ? 'Expense categories' : 'Income categories'}</Text><Text className="mt-0.5 text-[10px] text-surface-500">Tap to edit · Hold to {archived ? 'restore' : 'archive'}</Text></View><Pressable onPress={() => setArchived((value) => !value)} className="rounded-full border border-surface-700 bg-surface-900 px-2.5 py-1.5"><Text className="text-[11px] font-semibold text-surface-300">{archived ? 'Show active' : 'Archived'}</Text></Pressable></View>
+        <View className="flex-row items-center justify-between px-3 pb-1.5"><View><Text className={`text-[16px] font-bold ${mode === 'expense' ? 'text-rose-400' : 'text-emerald-400'}`}>{mode === 'expense' ? 'Expense categories' : 'Income categories'}</Text><Text className="mt-0.5 text-[14px] text-surface-400">Tap to edit · Hold to {archived ? 'restore' : 'archive'}</Text></View><Pressable onPress={() => setArchived((value) => !value)} className="rounded-full border border-surface-700 bg-surface-900 px-2.5 py-1.5"><Text className="text-[14px] font-semibold text-surface-300">{archived ? 'Show active' : 'Archived'}</Text></Pressable></View>
         <CategoryRow categories={top} totals={totals} total={total} onEdit={setEditing} onArchive={archive} />
         <View className="relative h-[264px]">
           {sides[0] && <View pointerEvents="box-none" className="absolute left-0 top-2 z-10 w-full"><CategoryNode category={sides[0]} amount={totals.get(sides[0].id) ?? 0} total={total} onEdit={() => setEditing(sides[0])} onArchive={() => archive(sides[0])} /></View>}
@@ -156,7 +156,7 @@ export default function Categories(): React.ReactElement {
           <View className="absolute left-0 right-0 top-[44px] items-center"><CategoryDonut mode={mode} categories={categories} totals={totals} total={total} oppositeTotal={oppositeTotal} onToggle={() => { setMode((value) => value === 'expense' ? 'income' : 'expense'); setArchived(false) }} /></View>
         </View>
         {restRows.map((row, index) => <CategoryRow key={index} categories={row} totals={totals} total={total} onEdit={setEditing} onArchive={archive} />)}
-        {categories.length === 0 && <Text className="px-8 pb-6 text-center text-[12px] leading-5 text-surface-400">No {archived ? 'archived' : 'active'} {mode} categories. Tap + to create one.</Text>}
+        {categories.length === 0 && <Text className="px-8 pb-6 text-center text-[14px] leading-5 text-surface-400">No {archived ? 'archived' : 'active'} {mode} categories. Tap + to create one.</Text>}
       </ScrollView>
       {!editing && !confirming && <Pressable accessibilityRole="button" accessibilityLabel="Add category" disabled={state.readOnly} onPress={() => setEditing('new')} className="absolute bottom-4 right-3 h-11 w-11 items-center justify-center rounded-xl bg-accent-600"><Plus color="#fff" size={21} /></Pressable>}
       <Sheet visible={Boolean(editing)} title={editing === 'new' ? `New ${mode} category` : 'Edit category'} onClose={() => setEditing(null)}>{editing && <CategoryForm key={editing === 'new' ? `new-${mode}` : editing.id} category={editing === 'new' ? undefined : editing} defaultKind={mode} onClose={() => setEditing(null)} />}</Sheet>

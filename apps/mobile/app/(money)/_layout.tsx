@@ -33,7 +33,7 @@ export default function MoneyTabs(): React.ReactElement {
     tabBarStyle,
     tabBarActiveTintColor: '#91c4ff',
     tabBarInactiveTintColor: '#909099',
-    tabBarLabelStyle: { fontSize: 11, fontWeight: '600', paddingBottom: 2 },
+    tabBarLabelStyle: { fontSize: 14, fontWeight: '600', paddingBottom: 2 },
     tabBarIconStyle: { marginTop: 1 },
     headerRight: () => <Pressable
       accessibilityRole="button"
