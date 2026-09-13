@@ -61,7 +61,7 @@ export function Sheet({ visible, title, onClose, children }: { visible: boolean;
     navigation.setOptions({ tabBarStyle: { ...tabBarStyle, display: 'none' } })
     return () => navigation.setOptions({ tabBarStyle })
   }, [navigation, tabBarStyle, visible])
-  return <Modal visible={visible} transparent animationType={sheetAnimation(reducedMotion)} onRequestClose={onClose}><View className="flex-1 justify-end bg-black/70"><View className="max-h-[92%] rounded-t-2xl border-t border-surface-700 bg-surface-950"><View className="min-h-14 flex-row items-center justify-between border-b border-surface-800 px-4 py-2"><Text className="text-[18px] font-semibold text-surface-100">{title}</Text><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} className="h-11 w-11 items-end justify-center"><X color="#b5b5bc" size={22} /></Pressable></View><ScrollView className="px-4 py-4" keyboardShouldPersistTaps="handled">{children}<View className="h-6" /></ScrollView></View></View></Modal>
+  return <Modal visible={visible} transparent animationType={sheetAnimation(reducedMotion)} onRequestClose={onClose}><View className="flex-1 justify-end bg-black/70"><View className="max-h-[92%] rounded-t-3xl border-t border-surface-700 bg-surface-950"><View className="min-h-14 flex-row items-center justify-between border-b border-surface-800 px-4 py-2"><Text className="text-[20px] font-semibold text-surface-100">{title}</Text><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} className="h-11 w-11 items-end justify-center"><X color="#b5b5bc" size={22} /></Pressable></View><ScrollView className="px-4 py-4" keyboardShouldPersistTaps="handled">{children}<View className="h-6" /></ScrollView></View></View></Modal>
 }
 
 export function ConfirmDialog({ visible, title, detail, confirmLabel, destructive = false, busy = false, hideNavigation = true, onCancel, onConfirm }: { visible: boolean; title: string; detail: string; confirmLabel: string; destructive?: boolean; busy?: boolean; hideNavigation?: boolean; onCancel: () => void; onConfirm: () => void }): React.ReactElement {
@@ -72,7 +72,7 @@ export function ConfirmDialog({ visible, title, detail, confirmLabel, destructiv
     navigation.setOptions({ tabBarStyle: { ...tabBarStyle, display: 'none' } })
     return () => navigation.setOptions({ tabBarStyle })
   }, [hideNavigation, navigation, tabBarStyle, visible])
-  return <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel} statusBarTranslucent navigationBarTranslucent><Pressable onPress={onCancel} className="flex-1 items-center justify-center bg-black/80 px-6"><Pressable onPress={(event) => event.stopPropagation()} className="w-full max-w-md rounded-2xl border border-surface-700 bg-surface-900 p-4"><Text className="text-[18px] font-semibold text-surface-100">{title}</Text><Text className="mt-1.5 text-[16px] leading-5 text-surface-300">{detail}</Text><View className="mt-4 flex-row gap-2"><Pressable disabled={busy} onPress={onCancel} className="min-h-11 flex-1 items-center justify-center rounded-lg border border-surface-700 bg-surface-800 px-3"><Text className="text-center text-[16px] font-semibold text-surface-200">Cancel</Text></Pressable><Pressable disabled={busy} onPress={onConfirm} className={`min-h-11 flex-1 items-center justify-center rounded-lg px-3 ${destructive ? 'bg-rose-600' : 'bg-accent-600'}`}><Text className="text-center text-[16px] font-semibold text-white">{busy ? 'Saving...' : confirmLabel}</Text></Pressable></View></Pressable></Pressable></Modal>
+  return <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel} statusBarTranslucent navigationBarTranslucent><Pressable onPress={onCancel} className="flex-1 items-center justify-center bg-black/80 px-6"><Pressable onPress={(event) => event.stopPropagation()} className="w-full max-w-md rounded-2xl border border-surface-700 bg-surface-900 p-4"><Text className="text-[20px] font-semibold text-surface-100">{title}</Text><Text className="mt-1.5 text-[16px] leading-5 text-surface-300">{detail}</Text><View className="mt-4 flex-row gap-2"><Pressable disabled={busy} onPress={onCancel} className="min-h-11 flex-1 items-center justify-center rounded-lg border border-surface-700 bg-surface-800 px-3"><Text className="text-center text-[16px] font-semibold text-surface-200">Cancel</Text></Pressable><Pressable disabled={busy} onPress={onConfirm} className={`min-h-11 flex-1 items-center justify-center rounded-lg px-3 ${destructive ? 'bg-rose-600' : 'bg-accent-600'}`}><Text className="text-center text-[16px] font-semibold text-white">{busy ? 'Saving...' : confirmLabel}</Text></Pressable></View></Pressable></Pressable></Modal>
 }
 
 export function Label({ text, children }: { text: string; children: React.ReactNode }): React.ReactElement {
@@ -117,11 +117,15 @@ export function PeriodChips(): React.ReactElement {
 }
 
 export function PrimaryButton({ label, onPress, disabled = false }: { label: string; onPress: () => void; disabled?: boolean }): React.ReactElement {
-  return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} className={`min-h-11 items-center justify-center rounded-lg px-3 ${disabled ? 'bg-surface-800' : 'bg-accent-600 active:bg-accent-500'}`}><Text className={`text-center text-[16px] font-semibold ${disabled ? 'text-surface-400' : 'text-white'}`}>{label}</Text></Pressable>
+  return <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={{ minHeight: 48 }} className={`items-center justify-center rounded-2xl px-4 ${disabled ? 'bg-surface-800' : 'bg-accent-600 active:bg-accent-500'}`}><Text className={`text-center text-[16px] font-semibold ${disabled ? 'text-surface-400' : 'text-white'}`}>{label}</Text></Pressable>
 }
 
 export function Empty({ title, detail }: { title: string; detail: string }): React.ReactElement {
-  return <View className="items-center px-8 py-10"><CircleDollarSign color="#707078" size={32} /><Text className="mt-3 text-[18px] font-semibold text-surface-100">{title}</Text><Text className="mt-1.5 text-center text-[16px] leading-5 text-surface-400">{detail}</Text></View>
+  return <View className="items-center px-8 py-14">
+    <View className="h-16 w-16 items-center justify-center rounded-full bg-surface-900"><CircleDollarSign color="#8a8a92" size={30} /></View>
+    <Text className="mt-4 text-[20px] font-semibold text-surface-100">{title}</Text>
+    <Text className="mt-2 text-center text-[16px] leading-6 text-surface-400">{detail}</Text>
+  </View>
 }
 
 export { TextInput }
