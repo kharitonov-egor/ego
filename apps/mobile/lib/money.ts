@@ -125,25 +125,36 @@ class D1Error extends Error {
   }
 }
 
-const CACHE_KEY = 'ego.money.snapshot'
-const CACHE_META_KEY = `${CACHE_KEY}.meta`
 const CACHE_CHUNK_SIZE = 1800
 const initialized = new Set<string>()
 
-async function readCache(): Promise<MoneySnapshot | null> {
-  const metaRaw = await SecureStore.getItemAsync(CACHE_META_KEY)
+/**
+ * The cache belongs to one database. Changing the connection must not surface the previous
+ * connection's ledger while the new one is failing.
+ */
+export function cacheKeyFor(datasetId: string): string {
+  let hash = 0x811c9dc5
+  for (let index = 0; index < datasetId.length; index += 1) {
+    hash ^= datasetId.charCodeAt(index)
+    hash = Math.imul(hash, 0x01000193) >>> 0
+  }
+  return `ego.money.snapshot.${hash.toString(36)}`
+}
+
+async function readCache(key: string): Promise<MoneySnapshot | null> {
+  const metaRaw = await SecureStore.getItemAsync(`${key}.meta`)
   if (!metaRaw) return null
   const meta: unknown = JSON.parse(metaRaw)
   if (!isRecord(meta) || !Number.isSafeInteger(meta.chunks) || Number(meta.chunks) < 1) return null
-  const parts = await Promise.all(Array.from({ length: Number(meta.chunks) }, (_, index) => SecureStore.getItemAsync(`${CACHE_KEY}.${index}`)))
+  const parts = await Promise.all(Array.from({ length: Number(meta.chunks) }, (_, index) => SecureStore.getItemAsync(`${key}.${index}`)))
   if (parts.some((part) => part === null)) return null
   return parseCachedSnapshot(parts.join(''))
 }
 
-async function writeCache(snapshot: MoneySnapshot): Promise<void> {
+async function writeCache(key: string, snapshot: MoneySnapshot): Promise<void> {
   const raw = JSON.stringify(snapshot)
   const chunks = Array.from({ length: Math.ceil(raw.length / CACHE_CHUNK_SIZE) }, (_, index) => raw.slice(index * CACHE_CHUNK_SIZE, (index + 1) * CACHE_CHUNK_SIZE))
-  const previousRaw = await SecureStore.getItemAsync(CACHE_META_KEY)
+  const previousRaw = await SecureStore.getItemAsync(`${key}.meta`)
   let previousCount = 0
   try {
     const previous: unknown = previousRaw ? JSON.parse(previousRaw) : null
@@ -151,9 +162,9 @@ async function writeCache(snapshot: MoneySnapshot): Promise<void> {
   } catch {
     previousCount = 0
   }
-  await Promise.all(chunks.map((chunk, index) => SecureStore.setItemAsync(`${CACHE_KEY}.${index}`, chunk)))
-  await SecureStore.setItemAsync(CACHE_META_KEY, JSON.stringify({ chunks: chunks.length }))
-  await Promise.all(Array.from({ length: Math.max(0, previousCount - chunks.length) }, (_, index) => SecureStore.deleteItemAsync(`${CACHE_KEY}.${chunks.length + index}`)))
+  await Promise.all(chunks.map((chunk, index) => SecureStore.setItemAsync(`${key}.${index}`, chunk)))
+  await SecureStore.setItemAsync(`${key}.meta`, JSON.stringify({ chunks: chunks.length }))
+  await Promise.all(Array.from({ length: Math.max(0, previousCount - chunks.length) }, (_, index) => SecureStore.deleteItemAsync(`${key}.${chunks.length + index}`)))
 }
 
 function id(): string {
@@ -173,10 +184,10 @@ function failure<T>(error: unknown): MoneyResult<T> {
   return { ok: false, code: 'SERVER_ERROR', message: 'D1 could not complete the request' }
 }
 
-async function cachedFailure(error: unknown): Promise<MoneyResult<MoneySnapshot>> {
+async function cachedFailure(cacheKey: string, error: unknown): Promise<MoneyResult<MoneySnapshot>> {
   const base = failure<MoneySnapshot>(error)
   try {
-    const value = await readCache()
+    const value = await readCache(cacheKey)
     return value && !base.ok ? { ...base, cachedData: value } : base
   } catch {
     return base
@@ -204,6 +215,7 @@ function transaction(row: TransactionRow): MoneyTransaction {
 
 export function moneyClientFor(settings: Pick<EgoSettings, 'cloudflareAccountId' | 'd1DatabaseId' | 'd1ApiToken'>): MobileMoneyClient {
   const configKey = `${settings.cloudflareAccountId}:${settings.d1DatabaseId}`
+  const cacheKey = cacheKeyFor(configKey)
 
   const batch = async (queries: D1Query[]): Promise<D1QueryResult[]> => {
     if (!settings.cloudflareAccountId || !settings.d1DatabaseId || !settings.d1ApiToken) {
@@ -294,7 +306,7 @@ export function moneyClientFor(settings: Pick<EgoSettings, 'cloudflareAccountId'
     const snapshot = { accounts, categories, transactions, purchases, budgets, syncedAt: new Date().toISOString() }
     if (!isMoneySnapshot(snapshot)) throw new D1Error('D1 returned invalid money data', 'SERVER_ERROR')
     latestSnapshot = snapshot
-    void writeCache(snapshot).catch(() => undefined)
+    void writeCache(cacheKey, snapshot).catch(() => undefined)
     return snapshot
   }
 
@@ -306,7 +318,7 @@ export function moneyClientFor(settings: Pick<EgoSettings, 'cloudflareAccountId'
   const localSnapshot = async (): Promise<MoneySnapshot> => {
     if (latestSnapshot) return latestSnapshot
     try {
-      const cached = await readCache()
+      const cached = await readCache(cacheKey)
       if (cached) return cached
     } catch {
       // A broken cache should not block an online write.
@@ -320,7 +332,7 @@ export function moneyClientFor(settings: Pick<EgoSettings, 'cloudflareAccountId'
       const results = await batch([...queries, ...snapshotQueries])
       return { ok: true, data: snapshotFrom(results.slice(queries.length)) }
     } catch (error: unknown) {
-      return cachedFailure(error)
+      return cachedFailure(cacheKey, error)
     }
   }
 
@@ -373,7 +385,7 @@ export function moneyClientFor(settings: Pick<EgoSettings, 'cloudflareAccountId'
       }
     },
     async getSnapshot() {
-      try { return { ok: true, data: await load() } } catch (error: unknown) { return cachedFailure(error) }
+      try { return { ok: true, data: await load() } } catch (error: unknown) { return cachedFailure(cacheKey, error) }
     },
     async createAccount(input) {
       if (!isAccountInput(input)) return { ok: false, code: 'INVALID_REQUEST', message: 'Check the account fields' }
