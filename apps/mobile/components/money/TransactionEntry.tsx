@@ -38,9 +38,20 @@ function OptionSheet({ visible, title, onClose, children }: { visible: boolean; 
   </Modal>
 }
 
-export default function TransactionEntry({ snapshot, transaction, onClose }: { snapshot: MoneySnapshot; transaction?: MoneyTransaction; onClose: () => void }): React.ReactElement {
+interface TransactionEntryProps {
+  snapshot: MoneySnapshot
+  transaction?: MoneyTransaction
+  onClose: () => void
+  /** Supplied when Activity reads and writes the phone's own ledger. */
+  onSave?: (input: TransactionInput) => Promise<boolean>
+  onDelete?: () => Promise<boolean>
+  busy?: boolean
+}
+
+export default function TransactionEntry({ snapshot, transaction, onClose, onSave, onDelete, busy = false }: TransactionEntryProps): React.ReactElement {
   const state = useMoney()
   const navigation = useNavigation()
+  const [saveFailed, setSaveFailed] = useState(false)
   const tabBarStyle = useMoneyTabBarStyle()
   const accounts = snapshot.accounts.filter((item) => !item.archivedAt || item.id === transaction?.accountId || item.id === transaction?.destinationAccountId)
   const openAccounts = accounts.filter((item) => !item.archivedAt)
@@ -95,16 +106,20 @@ export default function TransactionEntry({ snapshot, transaction, onClose }: { s
 
   const changeKind = (value: TransactionKind): void => { setKind(value); setDestinationId(''); setCategoryId(lastUsedCategory(value)) }
   const save = async (): Promise<void> => {
+    setSaveFailed(false)
     const input: TransactionInput = {
       kind, accountId, destinationAccountId: kind === 'transfer' ? destinationId : null,
       categoryId: kind === 'transfer' ? null : categoryId, amountCents: cents, date, notes: notes.trim()
     }
-    const saved = transaction ? await state.updateTransaction(transaction.id, input) : await state.createTransaction(input)
+    const saved = onSave
+      ? await onSave(input)
+      : transaction ? await state.updateTransaction(transaction.id, input) : await state.createTransaction(input)
     if (saved) onClose()
+    else setSaveFailed(true)
   }
   const remove = async (): Promise<void> => {
     if (!transaction) return
-    const saved = await state.deleteTransaction(transaction.id)
+    const saved = onDelete ? await onDelete() : await state.deleteTransaction(transaction.id)
     if (saved) onClose()
   }
 
@@ -145,6 +160,9 @@ export default function TransactionEntry({ snapshot, transaction, onClose }: { s
           <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65} className="mt-0.5 px-4 text-[38px] font-bold" style={{ color, fontVariant: ['tabular-nums'] }}>$ {formatAmountExpression(expression)}</Text>
         </Pressable>}
 
+        {saveFailed && <Text accessibilityLiveRegion="polite" className="mx-3 mb-1 text-center text-[14px] leading-5 text-amber-300">
+          Not saved yet. Your entry is kept here, so you can try again.
+        </Text>}
         {typingNotes && <Text className="mx-3 mt-3 text-[14px] font-semibold text-surface-400">Transaction note</Text>}
         <TextInput
           value={notes} onChangeText={setNotes} multiline maxLength={500}
@@ -160,9 +178,9 @@ export default function TransactionEntry({ snapshot, transaction, onClose }: { s
               onKey={(key) => setExpression((current) => pressAmountKey(current, key))}
               onOpenDate={() => setDatePicking(true)}
               onConfirm={() => void save()}
-              confirmDisabled={!valid || state.busy}
+              confirmDisabled={!valid || state.busy || busy}
               confirmColor={color}
-              busy={state.busy}
+              busy={state.busy || busy}
             />
             <Pressable onPress={() => setDatePicking(true)} className="items-center pt-2.5">
               <Text className="text-[16px] font-semibold text-surface-300">{relativeDayLabel(date)}</Text>
@@ -197,7 +215,7 @@ export default function TransactionEntry({ snapshot, transaction, onClose }: { s
 
     <ConfirmDialog
       visible={confirmingDelete} title="Delete transaction?" detail="This will update the account balances immediately."
-      confirmLabel="Delete" destructive busy={state.busy} hideNavigation={false}
+      confirmLabel="Delete" destructive busy={state.busy || busy} hideNavigation={false}
       onCancel={() => setConfirmingDelete(false)} onConfirm={() => void remove()}
     />
   </Modal>

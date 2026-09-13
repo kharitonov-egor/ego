@@ -9,9 +9,10 @@ import type { QuickAddPayload, QuickAddResult } from '../shared/types'
 let quickAddWindow: BrowserWindow | null = null
 let previewExpanded = false
 
-const notificationWindows: { window: BrowserWindow; displayId: number }[] = []
-const notificationWidth = 280
-const notificationHeight = 56
+const notificationWindows: { window: BrowserWindow; displayId: number; height: number }[] = []
+const notificationWidth = 360
+const notificationHeight = 66
+const notificationDetailHeight = 108
 const notificationMargin = 16
 const notificationGap = 10
 
@@ -84,17 +85,16 @@ function repositionNotifications(displayId: number): void {
   const display = screen.getAllDisplays().find((item) => item.id === displayId)
   if (!display) return
 
+  let offset = 0
   notificationWindows
     .filter(({ window, displayId: id }) => id === displayId && !window.isDestroyed())
-    .forEach(({ window }, index) => {
+    .forEach(({ window, height }) => {
+      offset += height
       window.setPosition(
         display.workArea.x + display.workArea.width - notificationWidth - notificationMargin,
-        display.workArea.y +
-          display.workArea.height -
-          notificationHeight -
-          notificationMargin -
-          index * (notificationHeight + notificationGap)
+        display.workArea.y + display.workArea.height - notificationMargin - offset
       )
+      offset += notificationGap
     })
 }
 
@@ -109,13 +109,54 @@ function closeNotificationWindow(window: BrowserWindow): void {
   repositionNotifications(displayId)
 }
 
-export function showNotification(type: 'success' | 'error', message: string): void {
+export type NotificationTone = 'success' | 'error' | 'waiting'
+
+export interface NotificationInput {
+  tone: NotificationTone
+  message: string
+  detail?: string
+  meta?: string
+  project?: string
+  projectEmoji?: string
+  projectImage?: string
+  projectInitial?: string
+  projectColor?: string
+  model?: string
+  providerGlyph?: string
+  theme?: 'ego' | 't3'
+  durationMs?: number
+}
+
+/** The page measures its own content and calls back, so no toast is clipped by a guessed height. */
+export function setupNotificationResize(): void {
+  ipcMain.on('notification-resize', (event, height: number) => {
+    if (!Number.isFinite(height) || height <= 0) return
+
+    const sender = BrowserWindow.fromWebContents(event.sender)
+    const entry = notificationWindows.find(({ window }) => window === sender)
+    if (!entry || entry.window.isDestroyed()) return
+
+    const next = Math.ceil(height)
+    if (next === entry.height) return
+
+    entry.height = next
+    entry.window.setBounds({ ...entry.window.getBounds(), height: next })
+    repositionNotifications(entry.displayId)
+  })
+}
+
+export function showNotification(tone: NotificationTone, message: string): void {
+  presentNotification({ tone, message })
+}
+
+export function presentNotification(input: NotificationInput): void {
   const cursorPoint = screen.getCursorScreenPoint()
   const display = screen.getDisplayNearestPoint(cursorPoint)
+  const height = input.theme === 't3' ? notificationDetailHeight : notificationHeight
 
   const notificationWindow = new BrowserWindow({
     width: notificationWidth,
-    height: notificationHeight,
+    height,
     frame: false,
     transparent: true,
     resizable: false,
@@ -130,7 +171,7 @@ export function showNotification(type: 'success' | 'error', message: string): vo
     }
   })
 
-  notificationWindows.push({ window: notificationWindow, displayId: display.id })
+  notificationWindows.push({ window: notificationWindow, displayId: display.id, height })
   repositionNotifications(display.id)
 
   notificationWindow.on('closed', () => {
@@ -141,7 +182,28 @@ export function showNotification(type: 'success' | 'error', message: string): vo
     repositionNotifications(displayId)
   })
 
-  const params = `?type=${encodeURIComponent(type)}&message=${encodeURIComponent(message)}`
+  const holdMs = input.durationMs ?? 3000
+  const query = new URLSearchParams({
+    type: input.tone,
+    message: input.message,
+    hold: String(holdMs)
+  })
+  const optional: Record<string, string | undefined> = {
+    detail: input.detail,
+    meta: input.meta,
+    project: input.project,
+    projectEmoji: input.projectEmoji,
+    projectImage: input.projectImage,
+    projectInitial: input.projectInitial,
+    projectColor: input.projectColor,
+    model: input.model,
+    providerGlyph: input.providerGlyph,
+    theme: input.theme
+  }
+  for (const [key, value] of Object.entries(optional)) {
+    if (value) query.set(key, value)
+  }
+  const params = `?${query.toString()}`
 
   if (process.env.ELECTRON_RENDERER_URL) {
     notificationWindow.loadURL(`${process.env.ELECTRON_RENDERER_URL}/notification.html${params}`)
@@ -157,7 +219,7 @@ export function showNotification(type: 'success' | 'error', message: string): vo
 
   setTimeout(() => {
     closeNotificationWindow(notificationWindow)
-  }, 3000)
+  }, holdMs)
 }
 
 async function sendToTrello(payload: QuickAddPayload): Promise<QuickAddResult> {
@@ -175,6 +237,8 @@ async function sendToTrello(payload: QuickAddPayload): Promise<QuickAddResult> {
 }
 
 export function setupQuickAddIpc(): void {
+  setupNotificationResize()
+
   ipcMain.handle('quick-add-submit', async (_event, payload: QuickAddPayload) => {
     const normalized: QuickAddPayload = {
       title: (payload?.title ?? '').trim() || '(empty)',
