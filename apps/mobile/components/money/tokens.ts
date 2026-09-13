@@ -78,3 +78,9 @@ export const semibold: TextStyle = Platform.select({
   ios: { fontWeight: '600' },
   default: { fontWeight: '600' }
 }) as TextStyle
+
+/** Bold fintech surfaces: wide radii, one flat panel, no hairline boxes inside boxes. */
+export const CARD = 'rounded-3xl border border-surface-800 bg-surface-900/80'
+export const CARD_PADDING = 'p-5'
+export const HERO_AMOUNT = 'text-[40px] font-bold tracking-tight'
+export const SECTION_TITLE = 'text-[20px] font-semibold text-surface-100'

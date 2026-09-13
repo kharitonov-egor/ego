@@ -10,6 +10,7 @@ import {
 } from '../../components/money/Common'
 import { usePeriod } from '../../lib/period-context'
 import { useRouter } from 'expo-router'
+import { tabular } from '../../components/money/tokens'
 
 function CategoryForm({ category, defaultKind, onClose, onArchive }: {
   category?: MoneyCategory
@@ -61,11 +62,14 @@ function CategoryNode({ category, amount, total, onOpen, onEdit }: {
     onPress={onOpen}
     onLongPress={onEdit}
     delayLongPress={450}
-    className="h-[120px] w-1/4 items-center px-0.5 pt-1.5"
+    className="h-[126px] w-1/4 items-center px-1 pt-1.5"
   >
     <Text numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.86} className="h-10 text-center text-[14px] font-semibold leading-[18px] text-surface-300">{category.name}</Text>
-    <View className="h-10 w-10 items-center justify-center rounded-full border" style={{ backgroundColor: alpha(category.color, '24'), borderColor: alpha(category.color, '80') }}><MoneyIcon name={category.icon} color={category.color} size={17} /></View>
-    <Text numberOfLines={1} adjustsFontSizeToFit className="mt-1.5 text-center text-[14px] font-bold" style={{ color: amount > 0 ? category.color : '#707078', fontVariant: ['tabular-nums'] }}>{money(amount)} · {percent}%</Text>
+    <View className="h-12 w-12 items-center justify-center rounded-full" style={{ backgroundColor: amount > 0 ? category.color : alpha(category.color, '33') }}>
+      <MoneyIcon name={category.icon} color={amount > 0 ? '#ffffff' : category.color} size={19} />
+    </View>
+    <Text numberOfLines={1} adjustsFontSizeToFit className="mt-2 text-center text-[14px] font-bold text-surface-100" style={tabular}>{money(amount)}</Text>
+    <Text numberOfLines={1} className="text-center text-[14px] text-surface-500" style={tabular}>{percent}%</Text>
   </Pressable>
 }
 
@@ -121,7 +125,7 @@ function CategoryDonut({ mode, categories, totals, total, oppositeTotal, onToggl
   >
     <Svg width={172} height={172} viewBox="0 0 172 172" className="absolute"><Circle cx="86" cy="86" r={radius} fill="none" stroke="#34343a" strokeWidth="11" />{segments}</Svg>
     <Text className="text-[14px] font-semibold capitalize text-surface-300">{mode}</Text>
-    <Text className={`mt-0.5 text-[20px] font-bold ${income ? 'text-emerald-400' : 'text-rose-400'}`} style={{ fontVariant: ['tabular-nums'] }}>{money(total)}</Text>
+    <Text className={`mt-0.5 text-[24px] font-bold ${income ? 'text-positive' : 'text-surface-50'}`} style={tabular}>{money(total)}</Text>
     <Text className="mt-1 text-[14px] text-surface-400">{income ? 'Expenses' : 'Income'} {money(oppositeTotal)}</Text>
   </Pressable>
 }
@@ -157,7 +161,7 @@ export default function Categories(): React.ReactElement {
     return <View className="flex-1">
       <PeriodChips />
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 72 }}>
-        <View className="flex-row items-center justify-between px-3 pb-1.5"><View><Text className={`text-[16px] font-bold ${mode === 'expense' ? 'text-rose-400' : 'text-emerald-400'}`}>{mode === 'expense' ? 'Expense categories' : 'Income categories'}</Text><Text className="mt-0.5 text-[14px] text-surface-400">Tap for transactions · Hold to edit</Text></View><Pressable onPress={() => setArchived((value) => !value)} className="rounded-full border border-surface-700 bg-surface-900 px-2.5 py-1.5"><Text className="text-[14px] font-semibold text-surface-300">{archived ? 'Show active' : 'Archived'}</Text></Pressable></View>
+        <View className="flex-row items-center justify-between px-4 pb-2 pt-1"><View><Text className={`text-[20px] font-semibold ${mode === 'expense' ? 'text-surface-100' : 'text-positive'}`}>{mode === 'expense' ? 'Expense categories' : 'Income categories'}</Text><Text className="mt-0.5 text-[14px] text-surface-400">Tap for transactions · Hold to edit</Text></View><Pressable onPress={() => setArchived((value) => !value)} style={{ minHeight: 44 }} className="justify-center rounded-full border border-surface-700 bg-surface-900 px-4"><Text className="text-[14px] font-semibold text-surface-300">{archived ? 'Show active' : 'Archived'}</Text></Pressable></View>
         <CategoryRow categories={top} totals={totals} total={total} onOpen={openCategory} onEdit={setEditing} />
         <View className="relative h-[264px]">
           {sides[0] && <View pointerEvents="box-none" className="absolute left-0 top-2 z-10 w-full"><CategoryNode category={sides[0]} amount={totals.get(sides[0].id) ?? 0} total={total} onOpen={() => openCategory(sides[0])} onEdit={() => setEditing(sides[0])} /></View>}
@@ -169,7 +173,7 @@ export default function Categories(): React.ReactElement {
         {restRows.map((row, index) => <CategoryRow key={index} categories={row} totals={totals} total={total} onOpen={openCategory} onEdit={setEditing} />)}
         {categories.length === 0 && <Text className="px-8 pb-6 text-center text-[14px] leading-5 text-surface-400">No {archived ? 'archived' : 'active'} {mode} categories. Tap + to create one.</Text>}
       </ScrollView>
-      {!editing && !confirming && <Pressable accessibilityRole="button" accessibilityLabel="Add category" disabled={state.readOnly} onPress={() => setEditing('new')} className="absolute bottom-4 right-3 h-11 w-11 items-center justify-center rounded-xl bg-accent-600"><Plus color="#fff" size={21} /></Pressable>}
+      {!editing && !confirming && <Pressable accessibilityRole="button" accessibilityLabel="Add category" disabled={state.readOnly} onPress={() => setEditing('new')} style={{ minHeight: 48 }} className="absolute bottom-5 right-4 flex-row items-center rounded-2xl bg-accent-600 px-5"><Plus color="#fff" size={19} /><Text className="ml-1.5 text-[16px] font-semibold text-white">Category</Text></Pressable>}
       <Sheet visible={Boolean(editing)} title={editing === 'new' ? `New ${mode} category` : 'Edit category'} onClose={() => setEditing(null)}>{editing && <CategoryForm key={editing === 'new' ? `new-${mode}` : editing.id} category={editing === 'new' ? undefined : editing} defaultKind={mode} onClose={() => setEditing(null)} onArchive={(category) => { setEditing(null); archive(category) }} />}</Sheet>
       <ConfirmDialog visible={Boolean(confirming)} title={confirming?.archivedAt ? 'Restore category?' : 'Archive category?'} detail="Past transactions will keep this category." confirmLabel={confirming?.archivedAt ? 'Restore' : 'Archive'} busy={state.busy} onCancel={() => setConfirming(null)} onConfirm={() => void confirmArchive()} />
     </View>

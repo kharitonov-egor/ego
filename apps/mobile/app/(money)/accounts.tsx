@@ -7,6 +7,7 @@ import {
   Chips, COLORS, ConfirmDialog, Empty, ICON_OPTIONS, Label, MoneyIcon, MoneyScreen,
   PrimaryButton, Sheet, inputClass, money, today
 } from '../../components/money/Common'
+import { CARD, CARD_PADDING, HERO_AMOUNT, tabular } from '../../components/money/tokens'
 
 const KINDS: AccountKind[] = ['checking', 'savings', 'cash', 'credit-card', 'investment', 'crypto', 'other']
 
@@ -42,6 +43,75 @@ export default function Accounts(): React.ReactElement {
       const saved = await moneyState.archiveAccount(confirming.id, !confirming.archivedAt)
       if (saved) setConfirming(null)
     }
-    return <View className="flex-1"><View className="border-b border-surface-800 px-3 pb-3 pt-3"><Text className="text-[14px] font-semibold text-surface-300">Total balance</Text><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} className={`mt-0.5 text-[30px] font-bold tracking-tight ${total < 0 ? 'text-rose-400' : 'text-surface-50'}`} style={{ fontVariant: ['tabular-nums'] }}>{money(total)}</Text><Pressable accessibilityRole="button" onPress={() => setArchived(!archived)} className="mt-2.5 self-start rounded-full border border-surface-700 bg-surface-900 px-3 py-1.5"><Text className="text-[14px] font-semibold text-surface-300">{archived ? 'Show active' : 'Show archived'}</Text></Pressable></View><ScrollView className="flex-1 px-3 pt-2.5" refreshControl={undefined}>{accounts.length === 0 ? <Empty title={archived ? 'No archived accounts' : 'Create your first account'} detail="Add the accounts you want to track, then record income, expenses, and transfers." /> : <View className="gap-2">{accounts.map((account) => <Pressable accessibilityRole="button" key={account.id} onPress={() => setEditing(account)} className="flex-row items-center rounded-xl border border-surface-800 bg-surface-900/70 p-2.5"><View className="items-center justify-center rounded-xl" style={{ width: 36, height: 36, backgroundColor: account.color }}><MoneyIcon name={account.icon} size={16} /></View><View className="ml-2 flex-1"><Text numberOfLines={1} className="text-[16px] font-semibold text-surface-100">{account.name}</Text><Text className="text-[14px] capitalize text-surface-400">{account.kind.replace('-', ' ')}</Text></View><View className="ml-2 items-end"><Text numberOfLines={1} adjustsFontSizeToFit className={`text-[16px] font-bold ${account.balanceCents < 0 ? 'text-rose-400' : 'text-surface-100'}`} style={{ fontVariant: ['tabular-nums'] }}>{money(account.balanceCents)}</Text><Pressable accessibilityRole="button" accessibilityLabel={account.archivedAt ? `Restore ${account.name}` : `Archive ${account.name}`} hitSlop={8} onPress={() => toggleArchive(account)} className="mt-0.5 h-7 w-7 items-end justify-center">{account.archivedAt ? <RotateCcw color="#b5b5bc" size={15} /> : <Archive color="#b5b5bc" size={15} />}</Pressable></View></Pressable>)}</View>}<View className="h-20" /></ScrollView>{!editing && !confirming && <Pressable accessibilityRole="button" accessibilityLabel="Add account" disabled={moneyState.readOnly} onPress={() => setEditing('new')} className="absolute bottom-4 right-3 h-11 w-11 items-center justify-center rounded-xl bg-accent-600 shadow-lg"><Plus color="#fff" size={21} /></Pressable>}<Sheet visible={Boolean(editing)} title={editing === 'new' ? 'New account' : 'Edit account'} onClose={() => setEditing(null)}>{editing && <AccountForm key={editing === 'new' ? 'new' : editing.id} account={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} />}</Sheet><ConfirmDialog visible={Boolean(confirming)} title={confirming?.archivedAt ? 'Restore account?' : 'Archive account?'} detail="Transaction history will stay intact." confirmLabel={confirming?.archivedAt ? 'Restore' : 'Archive'} busy={moneyState.busy} onCancel={() => setConfirming(null)} onConfirm={() => void confirmArchive()} /></View>
+    return <View className="flex-1">
+      <View className="px-4 pb-4 pt-5">
+        <View className="overflow-hidden rounded-3xl bg-accent-600 px-5 pb-5 pt-6">
+          <Text className="text-[14px] font-semibold uppercase tracking-wider text-white/70">Total balance</Text>
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.6}
+            className={`mt-1.5 ${HERO_AMOUNT} text-white`}
+            style={tabular}
+          >{money(total)}</Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setArchived(!archived)}
+            style={{ minHeight: 44 }}
+            className="mt-5 self-start justify-center rounded-full bg-black/20 px-4"
+          ><Text className="text-[14px] font-semibold text-white">{archived ? 'Show active' : 'Show archived'}</Text></Pressable>
+        </View>
+      </View>
+
+      <ScrollView className="flex-1 px-4">
+        {accounts.length === 0
+          ? <Empty title={archived ? 'No archived accounts' : 'Create your first account'} detail="Add the accounts you want to track, then record income, expenses, and transfers." />
+          : <View className="gap-3">{accounts.map((account) => <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${account.name}, ${money(account.balanceCents)}`}
+            accessibilityHint="Opens the account editor"
+            key={account.id}
+            onPress={() => setEditing(account)}
+            android_ripple={{ color: 'rgba(145, 196, 255, 0.12)' }}
+            className={`${CARD} ${CARD_PADDING}`}
+          >
+            <View className="flex-row items-center">
+              <View className="h-12 w-12 items-center justify-center rounded-2xl" style={{ backgroundColor: account.color }}>
+                <MoneyIcon name={account.icon} size={20} />
+              </View>
+              <View className="ml-3 flex-1">
+                <Text numberOfLines={1} className="text-[16px] font-semibold text-surface-100">{account.name}</Text>
+                <Text className="mt-0.5 text-[14px] capitalize text-surface-500">{account.kind.replace('-', ' ')}</Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={account.archivedAt ? `Restore ${account.name}` : `Archive ${account.name}`}
+                hitSlop={10}
+                onPress={() => toggleArchive(account)}
+                className="h-12 w-12 items-end justify-center"
+              >{account.archivedAt ? <RotateCcw color="#8a8a92" size={17} /> : <Archive color="#8a8a92" size={17} />}</Pressable>
+            </View>
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              className={`mt-4 text-[28px] font-bold ${account.balanceCents < 0 ? 'text-destructive' : 'text-surface-50'}`}
+              style={tabular}
+            >{money(account.balanceCents)}</Text>
+          </Pressable>)}</View>}
+        <View className="h-28" />
+      </ScrollView>
+
+      {!editing && !confirming && <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Add account"
+        disabled={moneyState.readOnly}
+        onPress={() => setEditing('new')}
+        style={{ minHeight: 48 }}
+        className="absolute bottom-5 right-4 flex-row items-center rounded-2xl bg-accent-600 px-5"
+      ><Plus color="#fff" size={19} /><Text className="ml-1.5 text-[16px] font-semibold text-white">Account</Text></Pressable>}
+
+      <Sheet visible={Boolean(editing)} title={editing === 'new' ? 'New account' : 'Edit account'} onClose={() => setEditing(null)}>{editing && <AccountForm key={editing === 'new' ? 'new' : editing.id} account={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} />}</Sheet>
+      <ConfirmDialog visible={Boolean(confirming)} title={confirming?.archivedAt ? 'Restore account?' : 'Archive account?'} detail="Transaction history will stay intact." confirmLabel={confirming?.archivedAt ? 'Restore' : 'Archive'} busy={moneyState.busy} onCancel={() => setConfirming(null)} onConfirm={() => void confirmArchive()} />
+    </View>
   }}</MoneyScreen>
 }
