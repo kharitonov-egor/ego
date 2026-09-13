@@ -85,8 +85,9 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
         }
         setDb(opened)
         setError(null)
-      } catch {
-        if (!cancelled) setError('The device could not open its local ledger')
+      } catch (failure: unknown) {
+        const detail = failure instanceof Error ? failure.message : 'The local database did not open'
+        if (!cancelled) setError(detail)
       }
     })()
     return () => {
