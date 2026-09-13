@@ -29,8 +29,9 @@ function LegacyTransactions(): React.ReactElement {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const { range } = usePeriod()
-  const params = useLocalSearchParams<{ new?: string }>()
+  const params = useLocalSearchParams<{ new?: string; categoryId?: string }>()
   const [search, setSearch] = useState('')
+  const [categoryId, setCategoryId] = useState<string | null>(null)
   const [page, setPage] = useState(0)
   const scrollRef = useRef<ScrollView>(null)
   useEffect(() => {
@@ -38,7 +39,13 @@ function LegacyTransactions(): React.ReactElement {
     setSelecting(false)
     setSelected([])
     scrollRef.current?.scrollTo({ y: 0, animated: false })
-  }, [search, range.from, range.to])
+  }, [search, categoryId, range.from, range.to])
+
+  useEffect(() => {
+    if (!params.categoryId) return
+    setCategoryId(params.categoryId)
+    router.setParams({ categoryId: undefined })
+  }, [params.categoryId, router])
   const [editing, setEditing] = useState<MoneyTransaction | 'new' | null>(null)
   const [selected, setSelected] = useState<string[]>([])
   const [selecting, setSelecting] = useState(false)
@@ -62,6 +69,7 @@ function LegacyTransactions(): React.ReactElement {
   return <MoneyScreen>{(snapshot) => {
     const query = search.trim().toLowerCase()
     const transactions = filteredTransactions(snapshot, range).filter((item) => {
+      if (categoryId && item.categoryId !== categoryId) return false
       const account = snapshot.accounts.find((accountItem) => accountItem.id === item.accountId)?.name ?? ''
       const merchant = snapshot.purchases.find((purchase) => purchase.transactionId === item.id)?.merchant ?? ''
       const destination = snapshot.accounts.find((accountItem) => accountItem.id === item.destinationAccountId)?.name ?? ''
@@ -92,6 +100,19 @@ function LegacyTransactions(): React.ReactElement {
           {search.length > 0 && <Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={() => setSearch('')} hitSlop={8} className="h-12 w-10 items-center justify-center"><X color="#8a8a92" size={16} /></Pressable>}
           <Pressable accessibilityRole="button" accessibilityLabel="Select transactions" disabled={pagination.items.length === 0} onPress={() => setSelecting(true)} style={{ minHeight: TOUCH }} className="justify-center pl-2"><Text className={`text-[14px] font-semibold ${pagination.items.length === 0 ? 'text-surface-600' : 'text-accent-400'}`}>Select</Text></Pressable>
         </View>}
+
+      {categoryId && <View className="flex-row flex-wrap items-center gap-2 px-4 pt-3">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Remove the ${snapshot.categories.find((item) => item.id === categoryId)?.name ?? 'category'} filter`}
+          onPress={() => setCategoryId(null)}
+          style={{ minHeight: 44 }}
+          className="flex-row items-center rounded-full border border-accent-500/50 bg-accent-500/20 px-3.5"
+        >
+          <Text className="text-[14px] font-semibold text-accent-400">{snapshot.categories.find((item) => item.id === categoryId)?.name ?? 'Category'}</Text>
+          <X color="#91c4ff" size={13} style={{ marginLeft: 6 }} />
+        </Pressable>
+      </View>}
 
       <PeriodChips />
 

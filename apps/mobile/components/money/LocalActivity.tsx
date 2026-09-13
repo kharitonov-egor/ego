@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, SectionList, Text, TextInput, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as SecureStore from 'expo-secure-store'
 import { ArrowRight, Check, ListFilter, Plus, ScanLine, Search, Trash2, X } from 'lucide-react-native'
-import { useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import type { MoneySnapshot } from '@ego/core'
 import { syncLabel, useLedger } from '../../lib/ledger-context'
 import type { LocalFeedTransaction } from '../../lib/repositories/transactions'
@@ -137,6 +137,7 @@ export default function LocalActivity(): React.ReactElement {
   const ledger = useLedger()
   const router = useRouter()
   const insets = useSafeAreaInsets()
+  const params = useLocalSearchParams<{ categoryId?: string }>()
   const [view, setView] = useState<ActivityView>(DEFAULT_ACTIVITY_VIEW)
   const [restored, setRestored] = useState(false)
   const [rows, setRows] = useState<LocalFeedTransaction[]>(session?.rows ?? [])
@@ -161,6 +162,15 @@ export default function LocalActivity(): React.ReactElement {
       setRestored(true)
     })()
   }, [])
+
+  useEffect(() => {
+    if (!params.categoryId) return
+    const categoryId = params.categoryId
+    setView((current) => current.categoryIds.includes(categoryId)
+      ? current
+      : { ...current, categoryIds: [...current.categoryIds, categoryId] })
+    router.setParams({ categoryId: undefined })
+  }, [params.categoryId, router])
 
   const identity = viewIdentity(view)
 

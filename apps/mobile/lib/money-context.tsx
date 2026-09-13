@@ -1,10 +1,11 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { AppState } from 'react-native'
 import {
   budgetBreachMessage, budgetBreaches,
   type AccountInput, type BudgetInput, type CategoryInput, type MoneyResult, type MoneySnapshot,
   type PurchaseInput, type TransactionInput
 } from '@ego/core'
-import { moneyClientFor } from './money'
+import { flushSnapshotCache, moneyClientFor } from './money'
 import { isMoneyConfigured, useSettings } from './settings'
 
 interface MoneyContextValue {
@@ -77,6 +78,13 @@ export function MoneyProvider({ children }: { children: React.ReactNode }): Reac
   useEffect(() => {
     if (!settingsLoading) void refresh()
   }, [refresh, settingsLoading])
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') void flushSnapshotCache()
+    })
+    return () => subscription.remove()
+  }, [])
 
   /**
    * The request only starts once the read-only, configuration, and busy checks pass, and a

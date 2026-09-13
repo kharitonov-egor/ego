@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Dimensions, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
-import { Trash2, X } from 'lucide-react-native'
+import { ChevronRight, Trash2, X } from 'lucide-react-native'
 import { useNavigation } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { MoneyAccount, MoneyCategory, MoneySnapshot, MoneyTransaction, TransactionInput, TransactionKind } from '@ego/core'
 import { useMoney } from '../../lib/money-context'
 import { amountToExpression, evaluateAmount, formatAmountExpression, pressAmountKey } from '../../lib/amount-input'
@@ -14,16 +15,28 @@ import { useMoneyTabBarStyle } from './navigation'
 const KIND_COLORS: Record<TransactionKind, string> = { expense: '#e84d8a', income: '#2bb3a9', transfer: '#5b6ee1' }
 const KINDS: TransactionKind[] = ['expense', 'income', 'transfer']
 
-function Badge({ icon, color, round, className }: { icon: string; color: string; round: boolean; className: string }): React.ReactElement {
-  return <View className={`absolute top-0 h-9 w-9 items-center justify-center border-[3px] border-surface-950 bg-surface-100 ${round ? 'rounded-full' : 'rounded-2xl'} ${className}`}>
-    <MoneyIcon name={icon} color={color} size={15} />
-  </View>
-}
-
-function Tile({ label, name, color, onPress }: { label: string; name: string; color: string; onPress: () => void }): React.ReactElement {
-  return <Pressable accessibilityRole="button" onPress={onPress} style={{ backgroundColor: color }} className="min-h-[64px] flex-1 justify-center px-3 py-3">
-    <Text className="text-[14px] font-semibold" style={{ color: '#e6e6e8' }}>{label}</Text>
-    <Text numberOfLines={1} className="mt-0.5 text-[18px] font-bold" style={{ color: '#f4f4f5' }}>{name}</Text>
+function Field({ label, name, icon, color, onPress }: {
+  label: string
+  name: string
+  icon?: string
+  color?: string
+  onPress: () => void
+}): React.ReactElement {
+  return <Pressable
+    accessibilityRole="button"
+    accessibilityLabel={`${label}: ${name}`}
+    onPress={onPress}
+    style={{ minHeight: 60 }}
+    className="flex-row items-center rounded-2xl border border-surface-800 bg-surface-900/60 px-4"
+  >
+    {icon && <View className="mr-3 h-9 w-9 items-center justify-center rounded-full" style={{ backgroundColor: color ?? '#38383d' }}>
+      <MoneyIcon name={icon} size={15} />
+    </View>}
+    <View className="flex-1">
+      <Text className="text-[14px] text-surface-500">{label}</Text>
+      <Text numberOfLines={1} className="mt-0.5 text-[16px] font-semibold text-surface-100">{name}</Text>
+    </View>
+    <ChevronRight color="#8a8a92" size={18} />
   </Pressable>
 }
 
@@ -51,6 +64,7 @@ interface TransactionEntryProps {
 export default function TransactionEntry({ snapshot, transaction, onClose, onSave, onDelete, busy = false }: TransactionEntryProps): React.ReactElement {
   const state = useMoney()
   const navigation = useNavigation()
+  const insets = useSafeAreaInsets()
   const [saveFailed, setSaveFailed] = useState(false)
   const tabBarStyle = useMoneyTabBarStyle()
   const accounts = snapshot.accounts.filter((item) => !item.archivedAt || item.id === transaction?.accountId || item.id === transaction?.destinationAccountId)
@@ -125,20 +139,29 @@ export default function TransactionEntry({ snapshot, transaction, onClose, onSav
 
   return <Modal visible transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
     <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-    <View className="flex-1 justify-end bg-black/70">
+    <View className="flex-1 bg-surface-950">
       <View
-        className="max-h-[96%] rounded-t-2xl border-t border-surface-700 bg-surface-950"
+        className="flex-1"
         style={typingNotes && Platform.OS === 'android' ? { marginBottom: keyboardOverlap } : undefined}
       >
-        <View className="flex-row items-center justify-between px-3 py-2.5">
-          <View className="flex-row gap-1.5">{KINDS.map((item) => <Pressable accessibilityRole="button" accessibilityState={{ selected: kind === item }} key={item} onPress={() => changeKind(item)} className={`rounded-full px-3 py-2 ${kind === item ? 'bg-surface-700' : 'bg-surface-900'}`}>
-            <Text className="text-[14px] font-semibold capitalize" style={{ color: kind === item ? KIND_COLORS[item] : '#b5b5bc' }}>{item}</Text>
-          </Pressable>)}</View>
-          <View className="flex-row items-center gap-3">
-            {transaction && <Pressable onPress={() => setConfirmingDelete(true)} hitSlop={10}><Trash2 color="#fb7185" size={18} /></Pressable>}
-            <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} hitSlop={10}><X color="#b5b5bc" size={21} /></Pressable>
+        <View style={{ paddingTop: insets.top + 8 }} className="flex-row items-center justify-between px-4 pb-1">
+          <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} hitSlop={12} className="h-12 w-12 items-start justify-center"><X color="#b5b5bc" size={24} /></Pressable>
+          <Text className="text-[16px] font-semibold text-surface-300">{transaction ? 'Edit transaction' : 'New transaction'}</Text>
+          <View className="h-12 w-12 items-end justify-center">
+            {transaction && <Pressable accessibilityRole="button" accessibilityLabel="Delete transaction" onPress={() => setConfirmingDelete(true)} hitSlop={12} className="h-12 w-12 items-end justify-center"><Trash2 color="#fb7185" size={21} /></Pressable>}
           </View>
         </View>
+
+        <View className="flex-row gap-2 px-4 pb-1 pt-2">{KINDS.map((item) => <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ selected: kind === item }}
+          key={item}
+          onPress={() => changeKind(item)}
+          style={{ minHeight: 44 }}
+          className={`flex-1 items-center justify-center rounded-xl ${kind === item ? 'bg-surface-800' : 'bg-surface-900/60'}`}
+        >
+          <Text className="text-[14px] font-semibold capitalize" style={{ color: kind === item ? KIND_COLORS[item] : '#8a8a92' }}>{item}</Text>
+        </Pressable>)}</View>
 
         <ScrollView
           ref={formScroll}
@@ -146,19 +169,33 @@ export default function TransactionEntry({ snapshot, transaction, onClose, onSav
           keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
           contentContainerStyle={{ paddingBottom: 20 }}
         >
-        {!typingNotes && <View className="pt-4">
-          <View className="flex-row">
-            <Tile label="From account" name={account?.name ?? 'Select account'} color={account?.color ?? '#505056'} onPress={() => setPicking('account')} />
-            <Tile label={kind === 'transfer' ? 'To account' : 'To category'} name={target?.name ?? (kind === 'transfer' ? 'Select account' : 'Select category')} color={target?.color ?? '#505056'} onPress={() => setPicking('target')} />
-          </View>
-          {account && <Badge icon={account.icon} color={account.color} round={false} className="left-[36%]" />}
-          {target && <Badge icon={target.icon} color={target.color} round className="right-5" />}
-        </View>}
-
-        {!typingNotes && <Pressable accessibilityRole="button" accessibilityHint="Hold to clear the amount" onLongPress={() => setExpression('')} className="items-center py-3">
-          <Text className="text-[14px] font-semibold capitalize" style={{ color }}>{kind}</Text>
-          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65} className="mt-0.5 px-4 text-[38px] font-bold" style={{ color, fontVariant: ['tabular-nums'] }}>$ {formatAmountExpression(expression)}</Text>
+        {!typingNotes && <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Amount ${formatAmountExpression(expression)}`}
+          accessibilityHint="Hold to clear the amount"
+          onLongPress={() => setExpression('')}
+          className="items-center px-4 pb-5 pt-7"
+        >
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} className="text-[52px] font-bold" style={{ color, fontVariant: ['tabular-nums'] }}>$ {formatAmountExpression(expression)}</Text>
         </Pressable>}
+
+        {!typingNotes && <View className="gap-2 px-4">
+          <Field
+            label={kind === 'transfer' ? 'From' : 'Account'}
+            name={account?.name ?? 'Choose an account'}
+            icon={account?.icon}
+            color={account?.color}
+            onPress={() => setPicking('account')}
+          />
+          <Field
+            label={kind === 'transfer' ? 'To' : 'Category'}
+            name={target?.name ?? (kind === 'transfer' ? 'Choose an account' : 'Choose a category')}
+            icon={target?.icon}
+            color={target?.color}
+            onPress={() => setPicking('target')}
+          />
+          <Field label="Date" name={relativeDayLabel(date)} onPress={() => setDatePicking(true)} />
+        </View>}
 
         {saveFailed && <Text accessibilityLiveRegion="polite" className="mx-3 mb-1 text-center text-[14px] leading-5 text-amber-300">
           Not saved yet. Your entry is kept here, so you can try again.
@@ -168,7 +205,7 @@ export default function TransactionEntry({ snapshot, transaction, onClose, onSav
           value={notes} onChangeText={setNotes} multiline maxLength={500}
           onFocus={() => { setTypingNotes(true); requestAnimationFrame(() => formScroll.current?.scrollToEnd({ animated: true })) }} onBlur={() => setTypingNotes(false)}
           placeholder="Notes..." placeholderTextColor="#909099"
-          className={`mx-3 mb-2 rounded-xl border border-surface-700 px-3 py-2 text-[16px] text-surface-100 ${typingNotes ? 'mt-1.5 min-h-24 text-left' : 'min-h-11 text-center'}`}
+          className={`mx-4 mb-3 mt-3 rounded-xl border border-surface-800 bg-surface-900/60 px-4 py-3 text-[16px] text-surface-100 ${typingNotes ? 'min-h-24' : 'min-h-12'}`}
         />
 
         {typingNotes
@@ -182,9 +219,6 @@ export default function TransactionEntry({ snapshot, transaction, onClose, onSav
               confirmColor={color}
               busy={state.busy || busy}
             />
-            <Pressable onPress={() => setDatePicking(true)} className="items-center pt-2.5">
-              <Text className="text-[16px] font-semibold text-surface-300">{relativeDayLabel(date)}</Text>
-            </Pressable>
           </>}
         </ScrollView>
       </View>

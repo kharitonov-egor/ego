@@ -126,7 +126,33 @@ class D1Error extends Error {
 }
 
 const CACHE_CHUNK_SIZE = 1800
+const CACHE_MIN_INTERVAL_MS = 60000
 const initialized = new Set<string>()
+const lastCacheWrite = new Map<string, number>()
+const pendingCache = new Map<string, MoneySnapshot>()
+
+/**
+ * A snapshot fills about a hundred SecureStore entries, and each one is a separate encrypted
+ * keystore write. Doing that after every saved transaction is what made saving feel slow, so
+ * the cache is written at most once a minute and flushed when the app leaves the foreground.
+ */
+function dueForCache(key: string, now: number): boolean {
+  const previous = lastCacheWrite.get(key)
+  return previous === undefined || now - previous >= CACHE_MIN_INTERVAL_MS
+}
+
+export async function flushSnapshotCache(): Promise<void> {
+  const entries = [...pendingCache.entries()]
+  pendingCache.clear()
+  for (const [key, snapshot] of entries) {
+    lastCacheWrite.set(key, Date.now())
+    try {
+      await writeCache(key, snapshot)
+    } catch {
+      // An offline fallback that fails to save is not worth interrupting the app for.
+    }
+  }
+}
 
 /**
  * The cache belongs to one database. Changing the connection must not surface the previous
@@ -325,7 +351,14 @@ export function moneyClientFor(settings: Pick<EgoSettings, 'cloudflareAccountId'
     const snapshot = { accounts, categories, transactions, purchases, budgets, syncedAt: new Date().toISOString() }
     if (!isMoneySnapshot(snapshot)) throw new D1Error('D1 returned invalid money data', 'SERVER_ERROR')
     latestSnapshot = snapshot
-    void writeCache(cacheKey, snapshot).catch(() => undefined)
+    const now = Date.now()
+    if (dueForCache(cacheKey, now)) {
+      lastCacheWrite.set(cacheKey, now)
+      pendingCache.delete(cacheKey)
+      void writeCache(cacheKey, snapshot).catch(() => undefined)
+    } else {
+      pendingCache.set(cacheKey, snapshot)
+    }
     return snapshot
   }
 
