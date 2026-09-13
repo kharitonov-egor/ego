@@ -11,7 +11,7 @@
     "build:preview": "eas build --profile preview --platform android",
     "update": "eas update --branch preview",
     "test": "vitest run",
-    "eas-build-post-install": "npm run build --workspace @ego/core"
+    "eas-build-post-install": "npm run build --workspace @ego/core && npm run build --workspace @ego/api-contracts"
   },
   "dependencies": {
     "@ego/api-contracts": "*",
