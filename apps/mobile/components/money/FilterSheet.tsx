@@ -5,6 +5,7 @@ import type { PeriodPreset, TransactionKind } from '@ego/core'
 import { clearFilters, toggleIn, type ActivityView } from '../../lib/activity-view'
 import { PERIOD_PRESETS, periodLabel } from '../../lib/period-context'
 import { MoneyIcon, Sheet } from './Common'
+import { TOUCH } from './tokens'
 import { CustomPeriodSheet } from './PeriodSheet'
 
 const KIND_LABELS: Record<TransactionKind, string> = {
@@ -30,7 +31,8 @@ function Choice({ label, selected, onPress, icon, color }: {
     accessibilityState={{ checked: selected }}
     accessibilityLabel={label}
     onPress={onPress}
-    className={`min-h-11 flex-row items-center rounded-full border px-3 py-2 ${selected ? 'border-accent-500/50 bg-accent-500/20' : 'border-surface-700 bg-surface-900'}`}
+    style={{ minHeight: 44 }}
+    className={`flex-row items-center rounded-full border px-3.5 ${selected ? 'border-accent-500/50 bg-accent-500/20' : 'border-surface-700 bg-surface-900'}`}
   >
     {icon && <View className="mr-1.5 h-5 w-5 items-center justify-center rounded-full" style={{ backgroundColor: color ?? '#707078' }}>
       <MoneyIcon name={icon} size={11} />
@@ -40,8 +42,8 @@ function Choice({ label, selected, onPress, icon, color }: {
 }
 
 function Group({ title, children }: { title: string; children: React.ReactNode }): React.ReactElement {
-  return <View className="mb-5">
-    <Text className="mb-2 text-[14px] font-semibold uppercase tracking-wide text-surface-400">{title}</Text>
+  return <View className="mb-6">
+    <Text className="mb-2.5 text-[14px] font-semibold uppercase tracking-wider text-surface-400">{title}</Text>
     <View className="flex-row flex-wrap gap-2">{children}</View>
   </View>
 }
@@ -107,16 +109,18 @@ export default function FilterSheet({ visible, view, accounts, categories, onApp
       />)}
     </Group>
 
-    <View className="flex-row gap-2">
+    <View className="flex-row gap-3 pb-2">
       <Pressable
         accessibilityRole="button"
         onPress={() => setDraft(clearFilters(draft))}
-        className="min-h-11 flex-1 items-center justify-center rounded-lg border border-surface-600"
+        style={{ minHeight: TOUCH }}
+        className="flex-1 items-center justify-center rounded-xl border border-surface-600"
       ><Text className="text-[16px] font-semibold text-surface-200">Clear filters</Text></Pressable>
       <Pressable
         accessibilityRole="button"
         onPress={() => onApply(draft)}
-        className="min-h-11 flex-1 items-center justify-center rounded-lg bg-accent-600"
+        style={{ minHeight: TOUCH }}
+        className="flex-1 items-center justify-center rounded-xl bg-accent-600"
       ><Text className="text-[16px] font-semibold text-white">Show results</Text></Pressable>
     </View>
 

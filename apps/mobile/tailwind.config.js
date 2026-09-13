@@ -18,6 +18,9 @@ module.exports = {
           900: '#1d1d21',
           950: '#121214'
         },
+        positive: '#34d399',
+        attention: '#fbbf24',
+        destructive: '#fb7185',
         accent: {
           300: '#b9dbff',
           400: '#91c4ff',

@@ -14,6 +14,7 @@ import { isoToday } from '../../lib/dates'
 import { PERIOD_PRESETS, transactionsInRange, usePeriod } from '../../lib/period-context'
 import { useNavigation, useRouter } from 'expo-router'
 import { useMoneyTabBarStyle } from './navigation'
+import { sheetAnimation, useReducedMotion } from './tokens'
 import { CustomPeriodSheet } from './PeriodSheet'
 
 const ICONS: Record<string, LucideIcon> = {
@@ -53,13 +54,14 @@ export function MoneyScreen({ children }: { children: (snapshot: MoneySnapshot) 
 
 export function Sheet({ visible, title, onClose, children }: { visible: boolean; title: string; onClose: () => void; children: React.ReactNode }): React.ReactElement {
   const navigation = useNavigation()
+  const reducedMotion = useReducedMotion()
   const tabBarStyle = useMoneyTabBarStyle()
   React.useEffect(() => {
     if (!visible) return
     navigation.setOptions({ tabBarStyle: { ...tabBarStyle, display: 'none' } })
     return () => navigation.setOptions({ tabBarStyle })
   }, [navigation, tabBarStyle, visible])
-  return <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}><View className="flex-1 justify-end bg-black/70"><View className="max-h-[92%] rounded-t-2xl border-t border-surface-700 bg-surface-950"><View className="min-h-14 flex-row items-center justify-between border-b border-surface-800 px-4 py-2"><Text className="text-[18px] font-semibold text-surface-100">{title}</Text><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} className="h-11 w-11 items-end justify-center"><X color="#b5b5bc" size={22} /></Pressable></View><ScrollView className="px-4 py-4" keyboardShouldPersistTaps="handled">{children}<View className="h-6" /></ScrollView></View></View></Modal>
+  return <Modal visible={visible} transparent animationType={sheetAnimation(reducedMotion)} onRequestClose={onClose}><View className="flex-1 justify-end bg-black/70"><View className="max-h-[92%] rounded-t-2xl border-t border-surface-700 bg-surface-950"><View className="min-h-14 flex-row items-center justify-between border-b border-surface-800 px-4 py-2"><Text className="text-[18px] font-semibold text-surface-100">{title}</Text><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} className="h-11 w-11 items-end justify-center"><X color="#b5b5bc" size={22} /></Pressable></View><ScrollView className="px-4 py-4" keyboardShouldPersistTaps="handled">{children}<View className="h-6" /></ScrollView></View></View></Modal>
 }
 
 export function ConfirmDialog({ visible, title, detail, confirmLabel, destructive = false, busy = false, hideNavigation = true, onCancel, onConfirm }: { visible: boolean; title: string; detail: string; confirmLabel: string; destructive?: boolean; busy?: boolean; hideNavigation?: boolean; onCancel: () => void; onConfirm: () => void }): React.ReactElement {

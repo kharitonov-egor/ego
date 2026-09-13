@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { ActivityIndicator, Pressable, SectionList, Text, TextInput, View } from 'react-native'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as SecureStore from 'expo-secure-store'
 import { ArrowRight, Check, ListFilter, Plus, ScanLine, Search, Trash2, X } from 'lucide-react-native'
 import { useRouter } from 'expo-router'
@@ -15,6 +16,7 @@ import { periodLabel } from '../../lib/period-context'
 import { ConfirmDialog, Empty, MoneyIcon, Sheet, money } from './Common'
 import FilterSheet from './FilterSheet'
 import TransactionEntry from './TransactionEntry'
+import { ROW_MIN_HEIGHT, TOUCH, amountColor, amountSign, tabular } from './tokens'
 
 const PAGE_SIZE = 50
 const PREFERENCES_KEY = 'ego.activity.view'
@@ -63,39 +65,45 @@ function TransactionRow({ item, selecting, checked, onOpen, onToggle, onSelect }
   onSelect: () => void
 }): React.ReactElement {
   const state = pendingLabel(item.pending)
-  const sign = item.kind === 'income' ? '+' : item.kind === 'expense' ? '-' : ''
+  const sign = amountSign(item.kind)
+  const second = item.kind === 'transfer'
+    ? item.destinationAccountName
+    : item.merchant ? item.categoryName : null
   return <Pressable
     accessibilityRole="button"
     accessibilityState={selecting ? { selected: checked } : undefined}
     accessibilityLabel={`${item.kind} ${sign}${money(item.amountCents)}, ${title(item)}, ${item.accountName}${state ? `, ${state}` : ''}`}
+    accessibilityHint={selecting ? undefined : 'Opens this transaction'}
     onPress={selecting ? onToggle : onOpen}
     onLongPress={selecting ? onToggle : onSelect}
     delayLongPress={350}
-    className={`min-h-16 flex-row items-center border-t border-surface-800 px-3 py-3 ${checked ? 'bg-accent-500/15' : 'bg-surface-900/70'}`}
+    android_ripple={{ color: 'rgba(145, 196, 255, 0.12)' }}
+    style={{ minHeight: ROW_MIN_HEIGHT }}
+    className={`flex-row items-center border-t border-surface-800 px-4 py-3 ${checked ? 'bg-accent-500/15' : 'bg-surface-900/70'}`}
   >
-    {selecting && <View className={`mr-2 h-5 w-5 items-center justify-center rounded-full border ${checked ? 'border-accent-500 bg-accent-600' : 'border-surface-600'}`}>
-      {checked && <Check color="#fff" size={12} strokeWidth={3} />}
+    {selecting && <View className={`mr-3 h-6 w-6 items-center justify-center rounded-full border ${checked ? 'border-accent-500 bg-accent-600' : 'border-surface-600'}`}>
+      {checked && <Check color="#fff" size={13} strokeWidth={3} />}
     </View>}
-    <View className="h-8 w-8 items-center justify-center rounded-full" style={{ backgroundColor: item.categoryColor ?? '#707078' }}>
-      <MoneyIcon name={item.categoryIcon ?? (item.kind === 'transfer' ? 'ArrowRight' : 'Tag')} size={14} />
+    <View className="h-9 w-9 items-center justify-center rounded-full" style={{ backgroundColor: item.categoryColor ?? '#38383d' }}>
+      <MoneyIcon name={item.categoryIcon ?? (item.kind === 'transfer' ? 'ArrowRight' : 'Tag')} size={15} />
     </View>
-    <View className="ml-2 flex-1">
-      <Text className="text-[16px] font-semibold text-surface-100">{title(item)}</Text>
-      <View className="flex-row flex-wrap items-center">
+    <View className="ml-3 flex-1">
+      <Text numberOfLines={2} className="text-[16px] font-semibold text-surface-100">{title(item)}</Text>
+      <View className="mt-0.5 flex-row flex-wrap items-center">
         <Text className="text-[14px] text-surface-400">{item.accountName}</Text>
-        {item.kind === 'transfer' && <>
-          <ArrowRight color="#909099" size={10} style={{ marginHorizontal: 3 }} />
-          <Text className="text-[14px] text-surface-400">{item.destinationAccountName}</Text>
+        {item.kind === 'transfer' && second && <>
+          <ArrowRight color="#8a8a92" size={11} style={{ marginHorizontal: 4 }} />
+          <Text className="text-[14px] text-surface-400">{second}</Text>
         </>}
-        {item.categoryName && item.kind !== 'transfer' && item.merchant &&
-          <Text className="ml-1.5 text-[14px] text-surface-400">{item.categoryName}</Text>}
-        {state && <Text className={`ml-1.5 text-[14px] ${item.pending === 'pending' ? 'text-surface-400' : 'text-amber-300'}`}>{state}</Text>}
+        {item.kind !== 'transfer' && second && <Text className="text-[14px] text-surface-400"> · {second}</Text>}
+        {state && <View className={`ml-2 rounded-full px-2 py-0.5 ${item.pending === 'pending' ? 'bg-surface-800' : 'bg-attention/20'}`}>
+          <Text className={`text-[14px] ${item.pending === 'pending' ? 'text-surface-300' : 'text-attention'}`}>{state}</Text>
+        </View>}
       </View>
     </View>
-    <Text
-      className={`ml-2 text-[16px] font-bold ${item.kind === 'income' ? 'text-emerald-400' : item.kind === 'expense' ? 'text-rose-400' : 'text-accent-400'}`}
-      style={{ fontVariant: ['tabular-nums'] }}
-    >{sign}{money(item.amountCents)}</Text>
+    <Text className="ml-3 text-[16px] font-semibold" style={{ ...tabular, color: amountColor(item.kind) }}>
+      {sign}{money(item.amountCents)}
+    </Text>
   </Pressable>
 }
 
@@ -106,19 +114,19 @@ function ConflictReview({ entries, onKeepMine, onUseSaved, onClose }: {
   onClose: () => void
 }): React.ReactElement {
   return <Sheet visible title="Needs attention" onClose={onClose}>
-    {entries.map((entry) => <View key={entry.operationId} className="mb-4 rounded-xl border border-surface-700 bg-surface-900 p-3">
+    {entries.map((entry) => <View key={entry.operationId} className="mb-4 rounded-2xl border border-surface-700 bg-surface-900 p-4">
       <Text className="text-[16px] font-semibold text-surface-100">{entry.lastError ?? 'This record changed on another device'}</Text>
       <Text className="mt-1 text-[14px] text-surface-400">{entry.entity} · {entry.commandType}</Text>
       {entry.status === 'conflict'
-        ? <View className="mt-3 flex-row gap-2">
-          <Pressable accessibilityRole="button" onPress={() => onKeepMine(entry)} className="min-h-11 flex-1 items-center justify-center rounded-lg bg-accent-600 px-3">
+        ? <View className="mt-4 flex-row gap-2">
+          <Pressable accessibilityRole="button" onPress={() => onKeepMine(entry)} style={{ minHeight: TOUCH }} className="flex-1 items-center justify-center rounded-xl bg-accent-600 px-3">
             <Text className="text-[16px] font-semibold text-white">Keep mine</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={() => onUseSaved(entry)} className="min-h-11 flex-1 items-center justify-center rounded-lg border border-surface-600 px-3">
+          <Pressable accessibilityRole="button" onPress={() => onUseSaved(entry)} style={{ minHeight: TOUCH }} className="flex-1 items-center justify-center rounded-xl border border-surface-600 px-3">
             <Text className="text-[16px] font-semibold text-surface-200">Use saved version</Text>
           </Pressable>
         </View>
-        : <Pressable accessibilityRole="button" onPress={() => onUseSaved(entry)} className="mt-3 min-h-11 items-center justify-center rounded-lg border border-surface-600 px-3">
+        : <Pressable accessibilityRole="button" onPress={() => onUseSaved(entry)} style={{ minHeight: TOUCH }} className="mt-4 items-center justify-center rounded-xl border border-surface-600 px-3">
           <Text className="text-[16px] font-semibold text-surface-200">Discard this change</Text>
         </Pressable>}
     </View>)}
@@ -128,6 +136,7 @@ function ConflictReview({ entries, onKeepMine, onUseSaved, onClose }: {
 export default function LocalActivity(): React.ReactElement {
   const ledger = useLedger()
   const router = useRouter()
+  const insets = useSafeAreaInsets()
   const [view, setView] = useState<ActivityView>(DEFAULT_ACTIVITY_VIEW)
   const [restored, setRestored] = useState(false)
   const [rows, setRows] = useState<LocalFeedTransaction[]>(session?.rows ?? [])
@@ -245,12 +254,13 @@ export default function LocalActivity(): React.ReactElement {
   const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.includes(id))
   const openAccounts = accounts.filter((account) => !account.archivedAt)
   const filtered = view.search.trim().length > 0 || hasFilters(view)
+  const attention = ledger.conflicts.length > 0
 
   if (ledger.error) {
     return <View className="flex-1 items-center justify-center bg-surface-950 px-8">
       <Text className="text-center text-[20px] font-semibold text-surface-100">This device cannot open its ledger</Text>
-      <Text className="mt-2 text-center text-[16px] leading-5 text-surface-400">{ledger.error}. Turn off local Activity storage in Settings to use the previous connection.</Text>
-      <Pressable accessibilityRole="button" onPress={() => router.push('/settings')} className="mt-4 min-h-11 justify-center rounded-lg bg-accent-600 px-4">
+      <Text className="mt-2 text-center text-[16px] leading-6 text-surface-400">{ledger.error}. Turn off local Activity storage in Settings to use the previous connection.</Text>
+      <Pressable accessibilityRole="button" onPress={() => router.push('/settings')} style={{ minHeight: TOUCH }} className="mt-5 justify-center rounded-xl bg-accent-600 px-5">
         <Text className="text-[16px] font-semibold text-white">Open settings</Text>
       </Pressable>
     </View>
@@ -264,62 +274,88 @@ export default function LocalActivity(): React.ReactElement {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Sync status: ${syncLabel(ledger.status)}`}
-      onPress={() => ledger.conflicts.length > 0 ? setReviewing(true) : void ledger.sync()}
-      className={`min-h-11 flex-row items-center justify-between px-4 py-2 ${ledger.conflicts.length > 0 ? 'bg-amber-500/15' : 'bg-surface-900'}`}
+      accessibilityHint={attention ? 'Opens the changes that need a decision' : 'Syncs with the ledger service'}
+      onPress={() => attention ? setReviewing(true) : void ledger.sync()}
+      style={{ minHeight: 44 }}
+      className={`flex-row items-center justify-between px-4 ${attention ? 'bg-attention/15' : 'bg-surface-900'}`}
     >
-      <Text className={`text-[14px] ${ledger.conflicts.length > 0 ? 'text-amber-300' : 'text-surface-400'}`}>{syncLabel(ledger.status)}</Text>
-      <Text className="text-[14px] text-surface-500">{ledger.conflicts.length > 0 ? 'Review' : 'Sync now'}</Text>
+      <View className="flex-row items-center">
+        <View className={`mr-2 h-1.5 w-1.5 rounded-full ${attention ? 'bg-attention' : ledger.status?.state === 'synced' ? 'bg-positive' : 'bg-surface-500'}`} />
+        <Text className={`text-[14px] ${attention ? 'text-attention' : 'text-surface-400'}`}>{syncLabel(ledger.status)}</Text>
+      </View>
+      <Text className="text-[14px] text-surface-500">{attention ? 'Review' : 'Sync now'}</Text>
     </Pressable>
 
     {selecting
-      ? <View className="flex-row items-center gap-2 border-b border-surface-800 px-3 py-2">
-        <Pressable accessibilityRole="button" accessibilityLabel="Leave selection" onPress={exitSelection} hitSlop={10} className="h-11 w-11 items-center justify-center"><X color="#b5b5bc" size={18} /></Pressable>
+      ? <View className="flex-row items-center gap-2 border-b border-surface-800 px-2 py-1.5">
+        <Pressable accessibilityRole="button" accessibilityLabel="Leave selection" onPress={exitSelection} hitSlop={8} className="h-12 w-12 items-center justify-center">
+          <X color="#b5b5bc" size={19} />
+        </Pressable>
         <Text className="text-[16px] font-semibold text-surface-100">{selected.length} selected</Text>
-        <Pressable accessibilityRole="button" onPress={() => setSelected(allSelected ? [] : visibleIds)} className="ml-auto min-h-11 justify-center rounded-full border border-surface-700 bg-surface-900 px-2.5 py-1.5">
-          <Text className="text-[14px] font-semibold text-surface-300">{allSelected ? 'Clear loaded' : 'Select loaded'}</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Delete selected" disabled={selected.length === 0} onPress={() => setConfirmingBulk(true)} className={`min-h-11 min-w-11 items-center justify-center rounded-full px-3 py-1.5 ${selected.length === 0 ? 'bg-surface-800' : 'bg-rose-600'}`}>
-          <Trash2 color={selected.length === 0 ? '#707078' : '#fff'} size={16} />
-        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setSelected(allSelected ? [] : visibleIds)}
+          style={{ minHeight: TOUCH }}
+          className="ml-auto justify-center rounded-full border border-surface-700 bg-surface-900 px-3"
+        ><Text className="text-[14px] font-semibold text-surface-300">{allSelected ? 'Clear loaded' : 'Select loaded'}</Text></Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Delete ${selected.length} selected`}
+          disabled={selected.length === 0}
+          onPress={() => setConfirmingBulk(true)}
+          style={{ minHeight: TOUCH, minWidth: TOUCH }}
+          className={`items-center justify-center rounded-full ${selected.length === 0 ? 'bg-surface-800' : 'bg-destructive'}`}
+        ><Trash2 color={selected.length === 0 ? '#707078' : '#1c1d1f'} size={17} /></Pressable>
       </View>
-      : <View className="mx-3 mt-2 flex-row items-center rounded-lg border border-surface-700 bg-surface-900 px-3">
-        <Search color="#b5b5bc" size={15} />
+      : <View className="mx-4 mt-3 flex-row items-center rounded-xl border border-surface-700 bg-surface-900 px-3">
+        <Search color="#8a8a92" size={16} />
         <TextInput
           value={view.search}
           onChangeText={(value) => setView((current) => ({ ...current, search: value }))}
           accessibilityLabel="Search activity"
           placeholder="Search activity"
-          placeholderTextColor="#909099"
+          placeholderTextColor="#8a8a92"
           returnKeyType="search"
-          className="ml-2 flex-1 py-2 text-[16px] text-surface-100"
+          className="ml-2 flex-1 py-2.5 text-[16px] text-surface-100"
         />
-        {view.search.length > 0 && <Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={() => setView((current) => ({ ...current, search: '' }))} hitSlop={8} className="h-11 w-8 items-center justify-center">
-          <X color="#909099" size={15} />
-        </Pressable>}
-        <Pressable accessibilityRole="button" accessibilityLabel="Select transactions" disabled={rows.length === 0} onPress={() => setSelecting(true)} className="min-h-11 justify-center pl-1">
-          <Text className={`text-[14px] font-semibold ${rows.length === 0 ? 'text-surface-600' : 'text-accent-400'}`}>Select</Text>
-        </Pressable>
+        {view.search.length > 0 && <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Clear search"
+          onPress={() => setView((current) => ({ ...current, search: '' }))}
+          hitSlop={8}
+          className="h-12 w-10 items-center justify-center"
+        ><X color="#8a8a92" size={16} /></Pressable>}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Select transactions"
+          disabled={rows.length === 0}
+          onPress={() => setSelecting(true)}
+          style={{ minHeight: TOUCH }}
+          className="justify-center pl-2"
+        ><Text className={`text-[14px] font-semibold ${rows.length === 0 ? 'text-surface-600' : 'text-accent-400'}`}>Select</Text></Pressable>
       </View>}
 
-    <View className="flex-row flex-wrap items-center gap-2 px-3 py-2">
+    <View className="flex-row flex-wrap items-center gap-2 px-4 py-2.5">
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Filters. Period ${periodLabel(view.period, view.custom)}`}
         onPress={() => setFiltering(true)}
-        className={`min-h-11 flex-row items-center rounded-full border px-3 ${hasFilters(view) ? 'border-accent-500/50 bg-accent-500/20' : 'border-surface-700 bg-surface-900'}`}
+        style={{ minHeight: 44 }}
+        className={`flex-row items-center rounded-full border px-3.5 ${hasFilters(view) ? 'border-accent-500/50 bg-accent-500/20' : 'border-surface-700 bg-surface-900'}`}
       >
         <ListFilter color={hasFilters(view) ? '#91c4ff' : '#b5b5bc'} size={14} />
-        <Text className={`ml-1.5 text-[14px] ${hasFilters(view) ? 'font-semibold text-accent-400' : 'text-surface-300'}`}>{periodLabel(view.period, view.custom)}</Text>
+        <Text className={`ml-2 text-[14px] ${hasFilters(view) ? 'font-semibold text-accent-400' : 'text-surface-300'}`}>{periodLabel(view.period, view.custom)}</Text>
       </Pressable>
       {chips.map((chip) => <Pressable
         key={chip.id}
         accessibilityRole="button"
         accessibilityLabel={`Remove filter ${chip.label}`}
         onPress={() => changeView(chip.next)}
-        className="min-h-11 flex-row items-center rounded-full border border-accent-500/50 bg-accent-500/20 px-3"
+        style={{ minHeight: 44 }}
+        className="flex-row items-center rounded-full border border-accent-500/50 bg-accent-500/20 px-3.5"
       >
         <Text className="text-[14px] font-semibold text-accent-400">{chip.label}</Text>
-        <X color="#91c4ff" size={13} style={{ marginLeft: 5 }} />
+        <X color="#91c4ff" size={13} style={{ marginLeft: 6 }} />
       </Pressable>)}
     </View>
 
@@ -331,7 +367,8 @@ export default function LocalActivity(): React.ReactElement {
       windowSize={9}
       removeClippedSubviews
       keyboardShouldPersistTaps="handled"
-      className="flex-1 px-3"
+      keyboardDismissMode="on-drag"
+      contentContainerStyle={{ paddingHorizontal: 16 }}
       onScroll={(event) => {
         offset.current = event.nativeEvent.contentOffset.y
       }}
@@ -339,13 +376,13 @@ export default function LocalActivity(): React.ReactElement {
       onEndReachedThreshold={0.6}
       onEndReached={() => void loadOlder()}
       ListHeaderComponent={rows.length > 0
-        ? <Text accessibilityLiveRegion="polite" className="py-2 text-[14px] text-surface-400">
+        ? <Text accessibilityLiveRegion="polite" className="pt-3 text-[14px] text-surface-500">
           {partial ? `1-${rows.length} of ${total} transactions` : `${total} ${total === 1 ? 'transaction' : 'transactions'}`}
         </Text>
         : null}
       ListEmptyComponent={loading
         ? null
-        : <View>
+        : <View className="pt-6">
           <Empty
             title={filtered ? 'No matching transactions' : 'Record your first transaction'}
             detail={filtered
@@ -354,20 +391,21 @@ export default function LocalActivity(): React.ReactElement {
           {filtered && view.period !== 'all' && <Pressable
             accessibilityRole="button"
             onPress={() => changeView(searchAllTime(view))}
-            className="mx-8 min-h-11 items-center justify-center rounded-xl border border-surface-700 bg-surface-900"
+            style={{ minHeight: TOUCH }}
+            className="mx-6 items-center justify-center rounded-xl border border-surface-700 bg-surface-900"
           ><Text className="text-[16px] text-surface-100">Search all time</Text></Pressable>}
         </View>}
-      renderSectionHeader={({ section }) => <View className="flex-row justify-between bg-surface-950 px-0.5 pb-1 pt-3">
-        <Text className="text-[14px] font-semibold uppercase tracking-wide text-surface-400">
+      renderSectionHeader={({ section }) => <View className="flex-row items-end justify-between bg-surface-950 pb-2 pt-5">
+        <Text className="text-[14px] font-semibold uppercase tracking-wider text-surface-400">
           {new Date(`${section.date}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
         </Text>
         <Text
-          accessibilityLabel={`${partial ? 'Shown net' : 'Net'} ${money(netOf(section.data), true)}`}
-          className="text-[14px] font-bold text-surface-300"
-          style={{ fontVariant: ['tabular-nums'] }}
+          accessibilityLabel={`${partial ? 'Net of the loaded rows' : 'Net'} ${money(netOf(section.data), true)}`}
+          className="text-[14px] font-semibold text-surface-400"
+          style={tabular}
         >{partial ? 'Shown ' : ''}{money(netOf(section.data), true)}</Text>
       </View>}
-      renderItem={({ item, index, section }) => <View className={`border-x border-surface-800 ${index === 0 ? 'overflow-hidden rounded-t-xl' : ''} ${index === section.data.length - 1 ? 'overflow-hidden rounded-b-xl border-b' : ''}`}>
+      renderItem={({ item, index, section }) => <View className={`overflow-hidden border-x border-surface-800 ${index === 0 ? 'rounded-t-2xl' : ''} ${index === section.data.length - 1 ? 'rounded-b-2xl border-b' : ''}`}>
         <TransactionRow
           item={item}
           selecting={selecting}
@@ -380,34 +418,40 @@ export default function LocalActivity(): React.ReactElement {
           }}
         />
       </View>}
-      ListFooterComponent={<View className="pb-28 pt-4">
+      ListFooterComponent={<View style={{ paddingBottom: 96 + insets.bottom }} className="pt-4">
         {cursor && <Pressable
           accessibilityRole="button"
           onPress={() => void loadOlder()}
-          className="min-h-11 items-center justify-center rounded-xl border border-surface-700 bg-surface-900"
+          style={{ minHeight: TOUCH }}
+          className="items-center justify-center rounded-xl border border-surface-700 bg-surface-900"
         ><Text className="text-[16px] text-surface-100">Load older activity</Text></Pressable>}
       </View>}
     />
 
-    {!selecting && <View className="absolute bottom-4 left-3 right-3 flex-row items-center justify-between">
+    {!selecting && <View
+      style={{ bottom: Math.max(insets.bottom, 12) + 4 }}
+      className="absolute left-4 right-4 flex-row items-center justify-between"
+    >
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Scan receipt"
         onPress={() => router.push('/transaction-image')}
-        className="min-h-11 flex-row items-center rounded-xl border border-surface-700 bg-surface-900 px-3"
+        style={{ minHeight: TOUCH }}
+        className="flex-row items-center rounded-2xl border border-surface-700 bg-surface-900/95 px-4"
       >
         <ScanLine color="#b5b5bc" size={16} />
-        <Text className="ml-1.5 text-[14px] font-semibold text-surface-200">Scan receipt</Text>
+        <Text className="ml-2 text-[14px] font-semibold text-surface-200">Scan receipt</Text>
       </Pressable>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Add transaction"
         disabled={openAccounts.length === 0}
         onPress={() => setAdding(true)}
-        className={`min-h-11 flex-row items-center rounded-xl px-4 ${openAccounts.length === 0 ? 'bg-surface-800' : 'bg-accent-600'}`}
+        style={{ minHeight: TOUCH }}
+        className={`flex-row items-center rounded-2xl px-5 ${openAccounts.length === 0 ? 'bg-surface-800' : 'bg-accent-600'}`}
       >
-        <Plus color={openAccounts.length === 0 ? '#707078' : '#fff'} size={18} />
-        <Text className={`ml-1 text-[16px] font-semibold ${openAccounts.length === 0 ? 'text-surface-500' : 'text-white'}`}>Add</Text>
+        <Plus color={openAccounts.length === 0 ? '#707078' : '#fff'} size={19} />
+        <Text className={`ml-1.5 text-[16px] font-semibold ${openAccounts.length === 0 ? 'text-surface-500' : 'text-white'}`}>Add</Text>
       </Pressable>
     </View>}
 
@@ -418,10 +462,11 @@ export default function LocalActivity(): React.ReactElement {
           setAdding(false)
           setCreating(true)
         }}
-        className="min-h-16 justify-center rounded-xl border border-surface-700 bg-surface-900 px-3 py-3"
+        style={{ minHeight: ROW_MIN_HEIGHT }}
+        className="justify-center rounded-2xl border border-surface-700 bg-surface-900 px-4 py-3"
       >
         <Text className="text-[16px] font-semibold text-surface-100">Transaction</Text>
-        <Text className="mt-0.5 text-[14px] text-surface-400">The amount keypad, with account, category, date, and notes.</Text>
+        <Text className="mt-0.5 text-[14px] leading-5 text-surface-400">The amount keypad, with account, category, date, and notes.</Text>
       </Pressable>
       <Pressable
         accessibilityRole="button"
@@ -429,10 +474,11 @@ export default function LocalActivity(): React.ReactElement {
           setAdding(false)
           router.push('/transaction-image')
         }}
-        className="mt-2 min-h-16 justify-center rounded-xl border border-surface-700 bg-surface-900 px-3 py-3"
+        style={{ minHeight: ROW_MIN_HEIGHT }}
+        className="mt-3 justify-center rounded-2xl border border-surface-700 bg-surface-900 px-4 py-3"
       >
         <Text className="text-[16px] font-semibold text-surface-100">Money agent</Text>
-        <Text className="mt-0.5 text-[14px] text-surface-400">Read a receipt image or a message into one or more transactions.</Text>
+        <Text className="mt-0.5 text-[14px] leading-5 text-surface-400">Read a receipt image or a message into one or more transactions.</Text>
       </Pressable>
     </Sheet>
 
