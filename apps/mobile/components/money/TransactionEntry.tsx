@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Dimensions, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { ChevronRight, Trash2, X } from 'lucide-react-native'
 import { useNavigation } from 'expo-router'
@@ -90,7 +90,6 @@ export default function TransactionEntry({ snapshot, transaction, onClose, onSav
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [typingNotes, setTypingNotes] = useState(false)
   const [keyboardOverlap, setKeyboardOverlap] = useState(0)
-  const formScroll = useRef<ScrollView>(null)
 
   useEffect(() => {
     navigation.setOptions({ tabBarStyle: { ...tabBarStyle, display: 'none' } })
@@ -103,7 +102,6 @@ export default function TransactionEntry({ snapshot, transaction, onClose, onSav
       setKeyboardOverlap(windowHeight <= event.endCoordinates.screenY
         ? 0
         : Math.max(0, Dimensions.get('screen').height - event.endCoordinates.screenY))
-      formScroll.current?.scrollToEnd({ animated: true })
     })
     const hidden = Keyboard.addListener('keyboardDidHide', () => { setKeyboardOverlap(0); setTypingNotes(false) })
     return () => { shown.remove(); hidden.remove() }
@@ -157,26 +155,26 @@ export default function TransactionEntry({ snapshot, transaction, onClose, onSav
           accessibilityState={{ selected: kind === item }}
           key={item}
           onPress={() => changeKind(item)}
-          style={{ minHeight: 44 }}
-          className={`flex-1 items-center justify-center rounded-xl ${kind === item ? 'bg-surface-800' : 'bg-surface-900/60'}`}
+          style={{
+            minHeight: 46,
+            backgroundColor: kind === item ? `${KIND_COLORS[item]}26` : '#1d1d21',
+            borderColor: kind === item ? KIND_COLORS[item] : 'transparent',
+            borderWidth: 1
+          }}
+          className="flex-1 items-center justify-center rounded-2xl"
         >
-          <Text className="text-[14px] font-semibold capitalize" style={{ color: kind === item ? KIND_COLORS[item] : '#8a8a92' }}>{item}</Text>
+          <Text className="text-[15px] font-semibold capitalize" style={{ color: kind === item ? KIND_COLORS[item] : '#8a8a92' }}>{item}</Text>
         </Pressable>)}</View>
 
-        <ScrollView
-          ref={formScroll}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-          contentContainerStyle={{ paddingBottom: 20 }}
-        >
         {!typingNotes && <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Amount ${formatAmountExpression(expression)}`}
           accessibilityHint="Hold to clear the amount"
           onLongPress={() => setExpression('')}
-          className="items-center px-4 pb-5 pt-7"
+          className="flex-1 items-center justify-center px-4"
+          style={{ minHeight: 96 }}
         >
-          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} className="text-[52px] font-bold" style={{ color, fontVariant: ['tabular-nums'] }}>$ {formatAmountExpression(expression)}</Text>
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} className="text-[56px] font-bold" style={{ color, fontVariant: ['tabular-nums'] }}>${formatAmountExpression(expression)}</Text>
         </Pressable>}
 
         {!typingNotes && <View className="gap-2 px-4">
@@ -203,14 +201,16 @@ export default function TransactionEntry({ snapshot, transaction, onClose, onSav
         {typingNotes && <Text className="mx-3 mt-3 text-[14px] font-semibold text-surface-400">Transaction note</Text>}
         <TextInput
           value={notes} onChangeText={setNotes} multiline maxLength={500}
-          onFocus={() => { setTypingNotes(true); requestAnimationFrame(() => formScroll.current?.scrollToEnd({ animated: true })) }} onBlur={() => setTypingNotes(false)}
+          onFocus={() => setTypingNotes(true)} onBlur={() => setTypingNotes(false)}
           placeholder="Notes..." placeholderTextColor="#909099"
-          className={`mx-4 mb-3 mt-3 rounded-xl border border-surface-800 bg-surface-900/60 px-4 py-3 text-[16px] text-surface-100 ${typingNotes ? 'min-h-24' : 'min-h-12'}`}
+          className={`mx-4 mb-2 mt-3 rounded-2xl border border-surface-800 bg-surface-900/60 px-4 py-3 text-[16px] text-surface-100 ${typingNotes ? 'min-h-24' : 'min-h-12'}`}
         />
 
         {typingNotes
-          ? <Pressable onPress={() => Keyboard.dismiss()} className="items-center py-2.5"><Text className="text-[16px] font-semibold" style={{ color }}>Done</Text></Pressable>
-          : <>
+          ? <Pressable onPress={() => Keyboard.dismiss()} style={{ minHeight: 48 }} className="items-center justify-center">
+            <Text className="text-[16px] font-semibold" style={{ color }}>Done</Text>
+          </Pressable>
+          : <View style={{ flex: 2, minHeight: 260, paddingBottom: Math.max(insets.bottom, 8) + 6 }}>
             <AmountKeypad
               onKey={(key) => setExpression((current) => pressAmountKey(current, key))}
               onOpenDate={() => setDatePicking(true)}
@@ -219,8 +219,7 @@ export default function TransactionEntry({ snapshot, transaction, onClose, onSav
               confirmColor={color}
               busy={state.busy || busy}
             />
-          </>}
-        </ScrollView>
+          </View>}
       </View>
     </View>
     </KeyboardAvoidingView>
