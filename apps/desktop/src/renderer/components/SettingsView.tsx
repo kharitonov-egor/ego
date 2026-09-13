@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Power, Link, Trello, RefreshCw, ScanLine } from 'lucide-react'
 import HotkeyInput from './HotkeyInput'
 import MoneySyncSettings from './money/MoneySyncSettings'
+import T3Settings from './T3Settings'
 import type {
   QuickAddListShortcut,
   TrelloBoardSummary,
@@ -223,6 +224,9 @@ export default function SettingsView(): React.ReactElement {
 
       <div className="flex-1 overflow-y-auto p-5">
         <MoneySyncSettings />
+        <div className="mb-4 rounded-lg border border-surface-800 bg-surface-900/50 p-4">
+          <T3Settings />
+        </div>
         <div className="mb-4 rounded-lg border border-surface-800 bg-surface-900/50 p-4">
           <div className="mb-1 flex items-center gap-2"><ScanLine size={14} /><h3 className="text-sm font-medium text-surface-300">Transaction image analysis</h3></div>
           <p className="mb-4 text-xs text-surface-500">OpenRouter reads one temporary image. Ego does not save it.</p>
