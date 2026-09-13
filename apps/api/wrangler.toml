@@ -4,6 +4,6 @@ compatibility_date = "2026-09-01"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "ego-money"
-database_id = "replace-with-the-d1-database-id"
+database_name = "ego"
+database_id = "efd88bbb-8dca-4164-b3e5-b8040572551e"
 migrations_dir = "migrations"
