@@ -139,6 +139,16 @@ export default function LocalActivity(): React.ReactElement {
   const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.includes(id))
   const openAccounts = editorSnapshot.accounts.filter((account) => !account.archivedAt)
 
+  if (ledger.error) {
+    return <View className="flex-1 items-center justify-center bg-surface-950 px-8">
+      <Text className="text-center text-[18px] font-semibold text-surface-100">This device cannot open its ledger</Text>
+      <Text className="mt-2 text-center text-[16px] leading-5 text-surface-400">{ledger.error}. Turn off local Activity storage in Settings to use the previous connection.</Text>
+      <Pressable accessibilityRole="button" onPress={() => router.push('/settings')} className="mt-4 min-h-11 justify-center rounded-lg bg-accent-600 px-4">
+        <Text className="text-[16px] font-semibold text-white">Open settings</Text>
+      </Pressable>
+    </View>
+  }
+
   if (!ledger.ready && loading) {
     return <View className="flex-1 items-center justify-center bg-surface-950"><ActivityIndicator color="#91c4ff" /></View>
   }
