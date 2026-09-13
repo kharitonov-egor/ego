@@ -1,0 +1,22 @@
+{
+  "name": "@ego/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "deploy": "wrangler deploy",
+    "migrate:local": "wrangler d1 migrations apply ego-money --local",
+    "migrate:remote": "wrangler d1 migrations apply ego-money --remote"
+  },
+  "dependencies": {
+    "@ego/api-contracts": "*",
+    "@ego/core": "*"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260702.1",
+    "@types/node": "^22.20.2",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.11"
+  }
+}

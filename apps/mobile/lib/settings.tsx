@@ -13,7 +13,13 @@ export interface EgoSettings {
   d1ApiToken: string
   openRouterApiKey: string
   receiptModel: string
+  moneyApiUrl: string
+  moneyDeviceToken: string
+  moneyStorage: MoneyStorageMode
 }
+
+/** Which writer owns the ledger on this device. Never both at once for the same action. */
+export type MoneyStorageMode = 'legacy' | 'local'
 
 const EMPTY: EgoSettings = {
   trelloApiKey: '',
@@ -25,7 +31,10 @@ const EMPTY: EgoSettings = {
   d1DatabaseId: '',
   d1ApiToken: '',
   openRouterApiKey: '',
-  receiptModel: 'openai/gpt-5.6-terra'
+  receiptModel: 'openai/gpt-5.6-terra',
+  moneyApiUrl: '',
+  moneyDeviceToken: '',
+  moneyStorage: 'legacy'
 }
 
 const STORE_KEY = 'ego.settings'
@@ -52,7 +61,10 @@ function parse(raw: string | null): EgoSettings {
       d1DatabaseId: parsed.d1DatabaseId ?? '',
       d1ApiToken: parsed.d1ApiToken ?? '',
       openRouterApiKey: parsed.openRouterApiKey ?? '',
-      receiptModel: parsed.receiptModel ?? 'openai/gpt-5.6-terra'
+      receiptModel: parsed.receiptModel ?? 'openai/gpt-5.6-terra',
+      moneyApiUrl: parsed.moneyApiUrl ?? '',
+      moneyDeviceToken: parsed.moneyDeviceToken ?? '',
+      moneyStorage: parsed.moneyStorage === 'local' ? 'local' : 'legacy'
     }
   } catch {
     return EMPTY
@@ -96,4 +108,12 @@ export function isConfigured(settings: EgoSettings): boolean {
 
 export function isMoneyConfigured(settings: EgoSettings): boolean {
   return Boolean(settings.cloudflareAccountId && settings.d1DatabaseId && settings.d1ApiToken)
+}
+
+export function isLedgerConfigured(settings: EgoSettings): boolean {
+  return Boolean(settings.moneyApiUrl.trim() && settings.moneyDeviceToken.trim())
+}
+
+export function usesLocalLedger(settings: EgoSettings): boolean {
+  return settings.moneyStorage === 'local' && isLedgerConfigured(settings)
 }

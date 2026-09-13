@@ -93,7 +93,34 @@ export interface DesktopTransactionImageInput {
   categories: import('@ego/core').ImageAnalysisCategory[]
 }
 
+export interface T3Status {
+  paired: boolean
+  origin: string
+  enabled: boolean
+  watching: boolean
+  threadCount: number
+  expiresAt: number | null
+  expired: boolean
+  lastError: string | null
+}
+
+export type T3PairResult =
+  | { ok: true; origin: string; expiresAt: number }
+  | { ok: false; detail: string }
+
+export interface LedgerConfig {
+  url: string
+  hasToken: boolean
+}
+
+export interface LedgerConfigInput {
+  url: string
+  token?: string
+}
+
 export interface IpcApi {
+  moneyGetLedgerConfig: () => Promise<LedgerConfig>
+  moneySetLedgerConfig: (input: LedgerConfigInput) => Promise<MoneyResult<{ connected: true }>>
   moneyGetSyncStatus: () => Promise<MoneySyncStatus>
   moneySetSyncConfig: (input: MoneySyncConfigInput) => Promise<MoneyResult<{ connected: true }>>
   moneyTestConnection: () => Promise<MoneyResult<{ connected: true }>>
@@ -116,6 +143,11 @@ export interface IpcApi {
   setTransactionImageSettings: (input: TransactionImageSettingsInput) => Promise<TransactionImageSettings>
   analyzeTransactionImage: (input: DesktopTransactionImageInput) => Promise<TransactionImageAnalysisResult>
 
+  t3GetStatus: () => Promise<T3Status>
+  t3Pair: (pairingUrl: string) => Promise<T3PairResult>
+  t3Unpair: () => Promise<T3Status>
+  t3SetEnabled: (enabled: boolean) => Promise<T3Status>
+
   getAutoStart: () => Promise<boolean>
   setAutoStart: (enabled: boolean) => Promise<void>
 
@@ -135,6 +167,8 @@ export interface IpcApi {
 
   getQuickAddListShortcuts: () => Promise<ListShortcut[]>
   setQuickAddListShortcuts: (shortcuts: ListShortcut[]) => Promise<void>
+
+  resizeNotification: (height: number) => void
 
   submitQuickAdd: (payload: QuickAddPayload) => Promise<QuickAddResult>
   cancelQuickAdd: () => void
