@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 import { createHash, randomBytes } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
+import { rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
-const DATABASE = 'ego-money'
+const DATABASE = process.env.EGO_D1_NAME ?? 'ego'
 
 function usage() {
   console.log(`Usage:
@@ -14,10 +17,20 @@ Without --apply the command prints the SQL instead of running it.
 The device token is shown once. Store it in the app, never in the repository.`)
 }
 
+/**
+ * The statement travels as a file. Passing SQL through a Windows shell as one argument loses
+ * its quoting.
+ */
 function runWrangler(sql, remote) {
-  const args = ['wrangler', 'd1', 'execute', DATABASE, remote ? '--remote' : '--local', '--command', sql]
-  const result = spawnSync('npx', args, { stdio: 'inherit', shell: process.platform === 'win32' })
-  if (result.status !== 0) process.exitCode = result.status ?? 1
+  const file = join(tmpdir(), `ego-device-${randomBytes(6).toString('hex')}.sql`)
+  writeFileSync(file, sql)
+  try {
+    const args = ['wrangler', 'd1', 'execute', DATABASE, remote ? '--remote' : '--local', '--file', file, '--yes']
+    const result = spawnSync('npx', args, { stdio: 'inherit', shell: process.platform === 'win32' })
+    if (result.status !== 0) process.exitCode = result.status ?? 1
+  } finally {
+    rmSync(file, { force: true })
+  }
 }
 
 function emit(sql, options) {

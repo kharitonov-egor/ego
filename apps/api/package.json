@@ -6,8 +6,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "deploy": "wrangler deploy",
-    "migrate:local": "wrangler d1 migrations apply ego-money --local",
-    "migrate:remote": "wrangler d1 migrations apply ego-money --remote"
+    "migrate:local": "wrangler d1 migrations apply ego --local",
+    "migrate:remote": "wrangler d1 migrations apply ego --remote"
   },
   "dependencies": {
     "@ego/api-contracts": "*",
