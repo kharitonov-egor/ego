@@ -51,6 +51,7 @@ interface TransactionEntryProps {
 export default function TransactionEntry({ snapshot, transaction, onClose, onSave, onDelete, busy = false }: TransactionEntryProps): React.ReactElement {
   const state = useMoney()
   const navigation = useNavigation()
+  const [saveFailed, setSaveFailed] = useState(false)
   const tabBarStyle = useMoneyTabBarStyle()
   const accounts = snapshot.accounts.filter((item) => !item.archivedAt || item.id === transaction?.accountId || item.id === transaction?.destinationAccountId)
   const openAccounts = accounts.filter((item) => !item.archivedAt)
@@ -105,6 +106,7 @@ export default function TransactionEntry({ snapshot, transaction, onClose, onSav
 
   const changeKind = (value: TransactionKind): void => { setKind(value); setDestinationId(''); setCategoryId(lastUsedCategory(value)) }
   const save = async (): Promise<void> => {
+    setSaveFailed(false)
     const input: TransactionInput = {
       kind, accountId, destinationAccountId: kind === 'transfer' ? destinationId : null,
       categoryId: kind === 'transfer' ? null : categoryId, amountCents: cents, date, notes: notes.trim()
@@ -113,6 +115,7 @@ export default function TransactionEntry({ snapshot, transaction, onClose, onSav
       ? await onSave(input)
       : transaction ? await state.updateTransaction(transaction.id, input) : await state.createTransaction(input)
     if (saved) onClose()
+    else setSaveFailed(true)
   }
   const remove = async (): Promise<void> => {
     if (!transaction) return
@@ -157,6 +160,9 @@ export default function TransactionEntry({ snapshot, transaction, onClose, onSav
           <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.65} className="mt-0.5 px-4 text-[38px] font-bold" style={{ color, fontVariant: ['tabular-nums'] }}>$ {formatAmountExpression(expression)}</Text>
         </Pressable>}
 
+        {saveFailed && <Text accessibilityLiveRegion="polite" className="mx-3 mb-1 text-center text-[14px] leading-5 text-amber-300">
+          Not saved yet. Your entry is kept here, so you can try again.
+        </Text>}
         {typingNotes && <Text className="mx-3 mt-3 text-[14px] font-semibold text-surface-400">Transaction note</Text>}
         <TextInput
           value={notes} onChangeText={setNotes} multiline maxLength={500}

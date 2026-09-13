@@ -39,7 +39,11 @@ Phases 3 and 4 now exist as well. The phone has its own SQLite database (`apps/m
 
 221 tests cover the repository now, including ten that run the real Worker against the real device sync code over `node:sqlite`: one operation delivered twice creates one transaction, a transfer moves both balances and agrees with the server, a receipt and its items save as one command, another device's edit and deletion arrive on the next sync, a stale edit comes back as a conflict, and the local and remote feeds return the same order. That integration test also caught a real defect: the device kept its own `created_at` after the server acknowledged a write, which would have desynchronised the feed's sort key between devices.
 
-Phases 5 and 6 are not started, and neither gate is met. Nothing has run on the phone: Expo SQLite needs a development build, `node:sqlite` is not Expo SQLite, and no Worker has been deployed or pointed at the real ledger.
+Phase 5 replaced the page buttons with a virtualized SectionList, added a transaction detail screen with Edit, Delete, and View items, a filter sheet with removable chips, Activity's own period independent from Overview and Budget, restored query, filters, loaded pages, and scroll position when returning from a detail screen, a draft that survives a failed save, and one primary Add action beside Scan receipt. Selection has an explicit Select control rather than only a long press.
+
+Phase 6 exists as tooling rather than a completed migration. `scripts/ego-migrate.mjs` exports the legacy database and compares row counts, every account balance, and the income and expense totals across both sides without writing to either. Settings offers Remove the old connection, which deletes the Cloudflare account token and the cached snapshot chunks from the phone, and stays disabled while any local change is still undelivered. The runbook, the restore procedure, and the rollback are in [the setup guide](ledger-setup.md).
+
+229 tests pass. What is still missing is the part that needs your hardware and your account: no Worker is deployed, the migration scripts have never contacted Cloudflare, and nothing has run on a phone. Expo SQLite needs a development build, and `node:sqlite` is not Expo SQLite. The Phase 5 gate is a device test, and the Phase 6 gate is a verified cutover; neither has happened.
 
 ## What the current code does
 

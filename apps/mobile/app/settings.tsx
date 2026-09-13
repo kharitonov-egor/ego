@@ -8,16 +8,18 @@ import {
   type TrelloBoardSummary,
   type TrelloListSummary
 } from '@ego/core'
-import { isLedgerConfigured, useSettings } from '../lib/settings'
+import { isLedgerConfigured, isMoneyConfigured, useSettings } from '../lib/settings'
 import { trelloClientFor } from '../lib/trello'
-import { moneyClientFor } from '../lib/money'
+import { clearCachedSnapshot, datasetKeyFor, moneyClientFor } from '../lib/money'
 import { moneyApiFor } from '../lib/api-client'
+import { useLedger } from '../lib/ledger-context'
 
 const inputClass =
   'rounded-lg border border-surface-700 bg-surface-900/50 px-3 py-2.5 text-[16px] text-surface-100'
 
 export default function Settings(): React.ReactElement {
   const { settings, update } = useSettings()
+  const ledger = useLedger()
   const router = useRouter()
   const client = useMemo(() => trelloClientFor(settings), [settings])
 
@@ -35,8 +37,16 @@ export default function Settings(): React.ReactElement {
   const [deviceToken, setDeviceToken] = useState(settings.moneyDeviceToken)
   const [ledgerStatus, setLedgerStatus] = useState<string | null>(null)
   const [savingLedger, setSavingLedger] = useState(false)
+  const [retiring, setRetiring] = useState(false)
 
   const credsReady = Boolean(settings.trelloApiKey && settings.trelloToken)
+  const pendingWrites = (ledger.status?.pendingCount ?? 0) + (ledger.status?.conflictCount ?? 0)
+  const retireReady = ledger.status?.state === 'synced' && pendingWrites === 0
+  const retireReason = retireReady
+    ? 'Everything on this device has reached the server.'
+    : pendingWrites > 0
+      ? `${pendingWrites} ${pendingWrites === 1 ? 'change has' : 'changes have'} not reached the server yet.`
+      : 'Sync Activity once with the ledger service before removing this.'
 
   useEffect(() => {
     setAccountId(settings.cloudflareAccountId)
@@ -104,6 +114,17 @@ export default function Settings(): React.ReactElement {
   }
 
   const tokenLooksWrong = Boolean(settings.trelloToken) && !looksLikeTrelloToken(settings.trelloToken)
+
+  const retireLegacy = async (): Promise<void> => {
+    setRetiring(true)
+    await clearCachedSnapshot(datasetKeyFor(settings))
+    await update({ cloudflareAccountId: '', d1DatabaseId: '', d1ApiToken: '' })
+    setAccountId('')
+    setDatabaseId('')
+    setApiToken('')
+    setMoneyStatus('Removed. This device no longer holds a Cloudflare account token.')
+    setRetiring(false)
+  }
 
   const saveLedger = async (): Promise<void> => {
     setSavingLedger(true)
@@ -179,6 +200,20 @@ export default function Settings(): React.ReactElement {
           </Pressable>
         </View>
       </View>
+
+      {settings.moneyStorage === 'local' && isMoneyConfigured(settings) && <View className="mt-3 rounded-xl border border-surface-800 bg-surface-900/50 p-3">
+        <Text className="text-[16px] font-bold text-surface-100">Retire the old connection</Text>
+        <Text className="mt-1.5 text-[14px] leading-5 text-surface-400">Removes the Cloudflare account token and the cached ledger from this phone. Available once everything this device wrote has reached the server.</Text>
+        <Text className={`mt-2 text-[14px] ${retireReady ? 'text-emerald-400' : 'text-amber-300'}`}>{retireReason}</Text>
+        <Pressable
+          accessibilityRole="button"
+          disabled={!retireReady || retiring}
+          onPress={() => void retireLegacy()}
+          className={`mt-3 rounded-lg px-3 py-2.5 ${!retireReady || retiring ? 'bg-surface-800' : 'bg-rose-600'}`}
+        >
+          <Text className={`text-center text-[16px] font-semibold ${!retireReady || retiring ? 'text-surface-400' : 'text-white'}`}>{retiring ? 'Removing...' : 'Remove the old connection'}</Text>
+        </Pressable>
+      </View>}
 
       <View className="mt-3 rounded-xl border border-surface-800 bg-surface-900/50 p-3">
         <View className="flex-row items-center"><ScanLine color="#91c4ff" size={15} /><Text className="ml-1.5 text-[16px] font-bold text-surface-100">Money agent</Text></View>

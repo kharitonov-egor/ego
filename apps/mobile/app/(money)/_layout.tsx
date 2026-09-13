@@ -48,6 +48,7 @@ export default function MoneyTabs(): React.ReactElement {
     <Tabs.Screen name="categories" options={{ title: 'Categories', headerLeft: () => <HeaderButton label="Add transaction" onPress={() => router.push({ pathname: '/(money)/transactions', params: { new: 'true' } })}><CirclePlus color="#91c4ff" size={22} strokeWidth={2.2} /></HeaderButton>, tabBarIcon: ({ color }) => <PieChart color={color} size={22} /> }} />
     <Tabs.Screen name="accounts" options={{ title: 'Accounts', headerLeft: () => <HeaderButton label="Add transaction" onPress={() => router.push({ pathname: '/(money)/transactions', params: { new: 'true' } })}><CirclePlus color="#91c4ff" size={22} strokeWidth={2.2} /></HeaderButton>, tabBarIcon: ({ color }) => <Landmark color={color} size={22} /> }} />
     <Tabs.Screen name="budget" options={{ href: null, title: 'Budget' }} />
+    <Tabs.Screen name="transaction" options={{ href: null, title: 'Transaction', headerLeft: () => <HeaderButton label="Go back" onPress={() => router.canGoBack() ? router.back() : router.replace('/(money)/transactions')}><ArrowLeft color="#b5b5bc" size={21} /></HeaderButton> }} />
     <Tabs.Screen name="purchases" options={{ href: null, title: 'Purchase details', headerLeft: () => <HeaderButton label="Go back" onPress={() => router.canGoBack() ? router.back() : router.replace('/(money)/transactions')}><ArrowLeft color="#b5b5bc" size={21} /></HeaderButton> }} />
   </Tabs>
 }

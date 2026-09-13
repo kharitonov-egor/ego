@@ -62,6 +62,37 @@ through the old direct D1 path do not, because they never reach the change log.
 The bootstrap writes its starting sequence last, so an interrupted first download restarts
 instead of leaving the device believing it is current.
 
+## 5. Cutover
+
+Run this once both apps have been on the Worker long enough to trust it.
+
+```sh
+set CF_ACCOUNT_ID=...        # the legacy direct connection
+set CF_DATABASE_ID=...
+set CF_API_TOKEN=...
+set EGO_API_URL=https://ego-money.workers.dev
+set EGO_DEVICE_TOKEN=...     # a device token, not a Cloudflare token
+
+node scripts/ego-migrate.mjs backup ./ego-backup.json
+node scripts/ego-migrate.mjs compare
+```
+
+`backup` exports every table to a JSON file. `compare` reads both sides and prints row counts,
+each account balance, and the income and expense totals, marking any line that disagrees. It only
+reads. Neither command writes to either database.
+
+Keep the backup off this repository. To exercise the restore, create a second D1 database, load
+the backup into it with `wrangler d1 execute`, point `CF_DATABASE_ID` at that copy, and run
+`compare` again. A restore you have not tested is not a restore.
+
+Once `compare` agrees and Activity has synced clean, Settings offers **Remove the old connection**
+on the phone. It deletes the Cloudflare account token and the cached ledger chunks from the
+device. It stays disabled while any local change is still undelivered, because those changes exist
+nowhere else. On desktop, clear the D1 fields in Settings after the same check.
+
+After that, revoke the D1 API token in the Cloudflare dashboard. The device tokens stay; revoke
+those individually with `ego-device revoke`.
+
 ## Rollback
 
 Turn the Activity switch off and clear the desktop token. Both fall back to the direct D1 path.
@@ -74,3 +105,4 @@ stored on the phone.
 - The device tests use `node:sqlite`, not Expo SQLite. Nothing has run on the phone yet.
 - Expo SQLite needs a development build; a plain Expo Go session will not open the database.
 - SQLCipher is not configured. The local ledger is a plain SQLite file for now.
+- The cutover above has not been run. The scripts have not touched a real Cloudflare account.
