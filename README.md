@@ -34,6 +34,20 @@ When D1 cannot be reached, the app opens the last encrypted snapshot in read-onl
 the Cloudflare account ID, D1 database ID, and a token limited to D1 Read and D1 Write under
 Settings. The app creates its tables and indexes when the connection first succeeds.
 
+### Ledger service
+
+A Cloudflare Worker in `apps/api` can own the money database instead of each device talking to D1
+itself. It holds the migrations, the domain commands, paginated reads, and a change log, and each
+device authenticates with its own revocable token rather than a Cloudflare account token.
+
+With it configured, the phone keeps its own SQLite copy of the ledger: Activity reads and searches
+without the network, a saved transaction is durable before it is delivered, and conflicts offer
+Keep mine or Use saved version. The desktop app can route its writes through the same Worker while
+keeping its current screens.
+
+Both are off until configured, and both fall back to the direct D1 connection. `docs/ledger-setup.md`
+covers deployment, device enrolment, the cutover, and the rollback.
+
 The repo is public so I can point people at it. The credentials are not in it.
 
 ## Quick add

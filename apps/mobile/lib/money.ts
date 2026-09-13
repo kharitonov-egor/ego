@@ -141,6 +141,25 @@ export function cacheKeyFor(datasetId: string): string {
   return `ego.money.snapshot.${hash.toString(36)}`
 }
 
+/** Removes the stored snapshot chunks for one connection after its data lives elsewhere. */
+export async function clearCachedSnapshot(datasetId: string): Promise<void> {
+  const key = cacheKeyFor(datasetId)
+  const metaRaw = await SecureStore.getItemAsync(`${key}.meta`)
+  let chunks = 0
+  try {
+    const meta: unknown = metaRaw ? JSON.parse(metaRaw) : null
+    if (isRecord(meta) && Number.isSafeInteger(meta.chunks)) chunks = Number(meta.chunks)
+  } catch {
+    chunks = 0
+  }
+  await Promise.all(Array.from({ length: chunks }, (_, index) => SecureStore.deleteItemAsync(`${key}.${index}`)))
+  await SecureStore.deleteItemAsync(`${key}.meta`)
+}
+
+export function datasetKeyFor(settings: Pick<EgoSettings, 'cloudflareAccountId' | 'd1DatabaseId'>): string {
+  return `${settings.cloudflareAccountId}:${settings.d1DatabaseId}`
+}
+
 async function readCache(key: string): Promise<MoneySnapshot | null> {
   const metaRaw = await SecureStore.getItemAsync(`${key}.meta`)
   if (!metaRaw) return null
