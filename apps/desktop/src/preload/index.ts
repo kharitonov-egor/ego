@@ -7,6 +7,8 @@ import type {
 } from '../shared/types'
 
 const api: IpcApi = {
+  moneyGetLedgerConfig: () => ipcRenderer.invoke('money-get-ledger-config'),
+  moneySetLedgerConfig: (input) => ipcRenderer.invoke('money-set-ledger-config', input),
   moneyGetSyncStatus: () => ipcRenderer.invoke('money-get-sync-status'),
   moneySetSyncConfig: (input) => ipcRenderer.invoke('money-set-sync-config', input),
   moneyTestConnection: () => ipcRenderer.invoke('money-test-connection'),
@@ -29,6 +31,11 @@ const api: IpcApi = {
   setTransactionImageSettings: (input) => ipcRenderer.invoke('transaction-image-set-settings', input),
   analyzeTransactionImage: (input) => ipcRenderer.invoke('transaction-image-analyze', input),
 
+  t3GetStatus: () => ipcRenderer.invoke('t3-get-status'),
+  t3Pair: (pairingUrl: string) => ipcRenderer.invoke('t3-pair', pairingUrl),
+  t3Unpair: () => ipcRenderer.invoke('t3-unpair'),
+  t3SetEnabled: (enabled: boolean) => ipcRenderer.invoke('t3-set-enabled', enabled),
+
   getAutoStart: () => ipcRenderer.invoke('get-auto-start'),
   setAutoStart: (enabled: boolean) => ipcRenderer.invoke('set-auto-start', enabled),
 
@@ -49,6 +56,8 @@ const api: IpcApi = {
   getQuickAddListShortcuts: () => ipcRenderer.invoke('get-quick-add-list-shortcuts'),
   setQuickAddListShortcuts: (shortcuts: QuickAddListShortcut[]) =>
     ipcRenderer.invoke('set-quick-add-list-shortcuts', shortcuts),
+
+  resizeNotification: (height: number) => ipcRenderer.send('notification-resize', height),
 
   submitQuickAdd: (payload: QuickAddPayload) => ipcRenderer.invoke('quick-add-submit', payload),
   cancelQuickAdd: () => ipcRenderer.send('quick-add-cancel'),

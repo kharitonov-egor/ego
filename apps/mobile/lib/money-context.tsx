@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import {
   budgetBreachMessage, budgetBreaches,
   type AccountInput, type BudgetInput, type CategoryInput, type MoneyResult, type MoneySnapshot,
@@ -58,49 +58,70 @@ export function MoneyProvider({ children }: { children: React.ReactNode }): Reac
     return false
   }, [])
 
+  const generation = useRef(0)
+  const busyRef = useRef(false)
+
   const refresh = useCallback(async (): Promise<void> => {
     if (settingsLoading) return
+    generation.current += 1
+    const started = generation.current
     setLoading(true)
-    apply(await client.getSnapshot())
-    setLoading(false)
+    try {
+      const result = await client.getSnapshot()
+      if (started === generation.current) apply(result)
+    } finally {
+      setLoading(false)
+    }
   }, [apply, client, settingsLoading])
 
   useEffect(() => {
     if (!settingsLoading) void refresh()
   }, [refresh, settingsLoading])
 
-  const run = async (request: Promise<MoneyResult<MoneySnapshot>>): Promise<boolean> => {
-    if (readOnly || !isMoneyConfigured(settings)) return false
+  /**
+   * The request only starts once the read-only, configuration, and busy checks pass, and a
+   * response from a superseded request never replaces a newer snapshot.
+   */
+  const run = async (request: () => Promise<MoneyResult<MoneySnapshot>>): Promise<boolean> => {
+    if (readOnly || busyRef.current || !isMoneyConfigured(settings)) return false
+    busyRef.current = true
+    generation.current += 1
+    const started = generation.current
     setBusy(true)
-    const before = snapshot
-    const result = await request
-    const saved = apply(result)
-    if (result.ok) {
-      const breaches = budgetBreaches(before, result.data)
-      if (breaches.length > 0) setAlert(breaches.map((breach) => budgetBreachMessage(breach)).join('\n'))
+    try {
+      const before = snapshot
+      const result = await request()
+      if (started !== generation.current) return result.ok
+      const saved = apply(result)
+      if (result.ok) {
+        const breaches = budgetBreaches(before, result.data)
+        if (breaches.length > 0) setAlert(breaches.map((breach) => budgetBreachMessage(breach)).join('\n'))
+      }
+      return saved
+    } finally {
+      busyRef.current = false
+      setBusy(false)
     }
-    setBusy(false)
-    return saved
   }
 
   const value: MoneyContextValue = {
     snapshot, loading, busy, readOnly, error, refresh,
     alert, dismissAlert: () => setAlert(null),
-    createAccount: (input) => run(client.createAccount(input)),
-    updateAccount: (id, input) => run(client.updateAccount(id, input)),
-    archiveAccount: (id, archived) => run(client.archiveAccount(id, { archived })),
-    createCategory: (input) => run(client.createCategory(input)),
-    updateCategory: (id, input) => run(client.updateCategory(id, input)),
-    archiveCategory: (id, archived) => run(client.archiveCategory(id, { archived })),
-    createTransaction: (input) => run(client.createTransaction(input)),
-    updateTransaction: (id, input) => run(client.updateTransaction(id, input)),
-    deleteTransaction: (id) => run(client.deleteTransaction(id)),
-    deleteTransactions: (ids) => run(client.deleteTransactions(ids)),
-    saveBudget: (input) => run(client.saveBudget(input)),
-    deleteBudget: (month) => run(client.deleteBudget(month)),
-    createPurchase: (input) => run(client.createPurchase(input)),
-    updatePurchase: (id, input) => run(client.updatePurchase(id, input)),
-    deletePurchase: (id) => run(client.deletePurchase(id))
+    createAccount: (input) => run(() => client.createAccount(input)),
+    updateAccount: (id, input) => run(() => client.updateAccount(id, input)),
+    archiveAccount: (id, archived) => run(() => client.archiveAccount(id, { archived })),
+    createCategory: (input) => run(() => client.createCategory(input)),
+    updateCategory: (id, input) => run(() => client.updateCategory(id, input)),
+    archiveCategory: (id, archived) => run(() => client.archiveCategory(id, { archived })),
+    createTransaction: (input) => run(() => client.createTransaction(input)),
+    updateTransaction: (id, input) => run(() => client.updateTransaction(id, input)),
+    deleteTransaction: (id) => run(() => client.deleteTransaction(id)),
+    deleteTransactions: (ids) => run(() => client.deleteTransactions(ids)),
+    saveBudget: (input) => run(() => client.saveBudget(input)),
+    deleteBudget: (month) => run(() => client.deleteBudget(month)),
+    createPurchase: (input) => run(() => client.createPurchase(input)),
+    updatePurchase: (id, input) => run(() => client.updatePurchase(id, input)),
+    deletePurchase: (id) => run(() => client.deletePurchase(id))
   }
 
   return <MoneyContext.Provider value={value}>{children}</MoneyContext.Provider>

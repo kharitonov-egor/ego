@@ -11,6 +11,7 @@
     "dist": "electron-vite build && electron-builder"
   },
   "dependencies": {
+    "@ego/api-contracts": "^0.1.0",
     "@ego/core": "*",
     "electron-store": "^8.2.0",
     "lucide-react": "^0.462.0",
