@@ -2,6 +2,12 @@ import type { ApiResult, DeviceIdentity } from '@ego/api-contracts'
 
 export interface Env {
   DB: D1Database
+  OPENAI_API_KEY?: string
+  CONNECTOR_TOKEN_KEY?: string
+  CONNECTOR_TOKEN_KEY_PREVIOUS?: string
+  GOOGLE_CLIENT_ID?: string
+  GOOGLE_CLIENT_SECRET?: string
+  PUBLIC_BASE_URL?: string
 }
 
 interface DeviceRow {

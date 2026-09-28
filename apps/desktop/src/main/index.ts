@@ -5,19 +5,23 @@ import { readdirSync } from 'fs'
 import { registerHotkey, unregisterHotkey, unregisterAll } from './hotkeys'
 import { getAppIconPath, getTrayIcon } from './icon'
 import {
+  getLivePreferences,
   getLedgerConfig,
   getMoneyCache,
   getOpenRouterApiKey,
   getQuickAddHotkey,
   getQuickAddListShortcuts,
+  getToolPaletteHotkey,
   getTransactionImageSettings,
   getTrelloApiKey,
   getTrelloBoardId,
   getTrelloListId,
   getTrelloToken,
   setLedgerConfig,
+  setLivePreferences,
   setQuickAddHotkey as saveQuickAddHotkey,
   setQuickAddListShortcuts as saveQuickAddListShortcuts,
+  setToolPaletteHotkey as saveToolPaletteHotkey,
   setT3NotifyEnabled,
   setTransactionImageSettings,
   setTrelloApiKey as saveTrelloApiKey,
@@ -30,8 +34,17 @@ import { trello } from './trello'
 import { showQuickAddWindow, setupQuickAddIpc, showNotification } from './quickAdd'
 import { money } from './money'
 import { isLedgerConfigured, ledgerMoney } from './moneyLedger'
-import { analyzeTransactionImage, budgetBreachMessage, budgetBreaches, type MoneyResult, type MoneySnapshot } from '@ego/core'
-import type { DesktopTransactionImageInput, QuickAddListShortcut, TransactionImageSettingsInput } from '../shared/types'
+import { analyzeTransactionImage, budgetBreachMessage, budgetBreaches, isLivePreferences, type MoneyResult, type MoneySnapshot } from '@ego/core'
+import type { DesktopTransactionImageInput, LivePreferences, QuickAddListShortcut, TransactionImageSettingsInput } from '../shared/types'
+import {
+  connectorStatus,
+  createLiveSession,
+  disconnectConnector,
+  executeLiveTool,
+  startGoogleConnector,
+  startWisprConnector
+} from './live'
+import { setupToolPaletteIpc, showToolPalette } from './toolPalette'
 
 async function withBudgetAlerts(request: Promise<MoneyResult<MoneySnapshot>>): Promise<MoneyResult<MoneySnapshot>> {
   const before = getMoneyCache()
@@ -46,6 +59,12 @@ let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 const MAIN_WINDOW_ZOOM = 1.25
 const PACKAGED_RENDERER_ENTRY = join(__dirname, '../renderer/index.html')
+
+function requestLiveSessionStop(): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('live-session-stop-requested')
+  }
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -69,10 +88,18 @@ function createWindow(): void {
     mainWindow?.webContents.setZoomFactor(MAIN_WINDOW_ZOOM)
   )
 
+  mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback, details) => {
+    const mediaTypes = 'mediaTypes' in details ? details.mediaTypes ?? [] : []
+    const microphoneOnly = permission === 'media' && mediaTypes.includes('audio') && !mediaTypes.includes('video')
+    callback(Boolean(mainWindow && !mainWindow.isDestroyed() && webContents.id === mainWindow.webContents.id && microphoneOnly))
+  })
+
   mainWindow.on('close', (e) => {
     e.preventDefault()
+    requestLiveSessionStop()
     mainWindow?.hide()
   })
+  mainWindow.on('hide', requestLiveSessionStop)
 
   if (process.env.ELECTRON_RENDERER_URL) {
     mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
@@ -95,11 +122,13 @@ function createTray(): void {
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: 'Quick add card', click: showQuickAddWindow },
+      { label: 'Quick tools', click: showToolPalette },
       { label: 'Open settings', click: showSettings },
       { type: 'separator' },
       {
         label: 'Quit',
         click: () => {
+          requestLiveSessionStop()
           mainWindow?.destroy()
           app.quit()
         }
@@ -115,6 +144,11 @@ function registerQuickAddHotkey(): void {
   if (hotkey) {
     registerHotkey(hotkey, '__quick_add__', showQuickAddWindow)
   }
+}
+
+function registerToolPaletteHotkey(): void {
+  const hotkey = getToolPaletteHotkey()
+  if (hotkey) registerHotkey(hotkey, '__tool_palette__', showToolPalette)
 }
 
 function runCommand(command: string, cwd: string): Promise<string> {
@@ -136,6 +170,26 @@ function setupIpcHandlers(): void {
   ipcMain.handle('money-set-ledger-config', (_event, input) => {
     setLedgerConfig(input)
     return ledgerMoney.testConnection()
+  })
+  ipcMain.handle('live-create-session', (event, sdp: string) => {
+    if (!mainWindow || mainWindow.isDestroyed() || event.sender.id !== mainWindow.webContents.id) {
+      return { ok: false, code: 'NOT_ALLOWED', message: 'Voice calls can only start from the main Ego window.' }
+    }
+    return createLiveSession(sdp)
+  })
+  ipcMain.handle('live-execute-tool', (event, input) => {
+    if (!mainWindow || mainWindow.isDestroyed() || event.sender.id !== mainWindow.webContents.id) {
+      return { ok: false, code: 'NOT_ALLOWED', message: 'AI tools can only run from the main Ego window.' }
+    }
+    return executeLiveTool(input)
+  })
+  ipcMain.handle('connector-get-status', (_event, provider: 'google' | 'wispr') => connectorStatus(provider))
+  ipcMain.handle('connector-start-google', () => startGoogleConnector())
+  ipcMain.handle('connector-start-wispr', (_event, serverUrl: string) => startWisprConnector(serverUrl))
+  ipcMain.handle('connector-disconnect', (_event, provider: 'google' | 'wispr') => disconnectConnector(provider))
+  ipcMain.handle('live-get-preferences', () => getLivePreferences())
+  ipcMain.handle('live-set-preferences', (_event, preferences: LivePreferences) => {
+    return isLivePreferences(preferences) ? setLivePreferences(preferences) : getLivePreferences()
   })
   ipcMain.handle('money-get-sync-status', () => money.getSyncStatus())
   ipcMain.handle('money-set-sync-config', (_event, input) => money.setSyncConfig(input))
@@ -203,6 +257,15 @@ function setupIpcHandlers(): void {
     }
   })
 
+  ipcMain.handle('get-tool-palette-hotkey', () => getToolPaletteHotkey())
+
+  ipcMain.handle('set-tool-palette-hotkey', (_event, hotkey: string) => {
+    const previous = getToolPaletteHotkey()
+    if (previous) unregisterHotkey(previous)
+    saveToolPaletteHotkey(hotkey)
+    if (hotkey) registerHotkey(hotkey, '__tool_palette__', showToolPalette)
+  })
+
   ipcMain.handle('get-trello-api-key', () => getTrelloApiKey())
   ipcMain.handle('set-trello-api-key', (_event, value: string) => saveTrelloApiKey(value))
   ipcMain.handle('get-trello-token', () => getTrelloToken())
@@ -261,7 +324,10 @@ function setupIpcHandlers(): void {
       mainWindow?.maximize()
     }
   })
-  ipcMain.on('window-close', () => mainWindow?.hide())
+  ipcMain.on('window-close', () => {
+    requestLiveSessionStop()
+    mainWindow?.hide()
+  })
 }
 
 const gotSingleInstanceLock = app.requestSingleInstanceLock()
@@ -274,13 +340,16 @@ if (!gotSingleInstanceLock) {
   app.whenReady().then(() => {
     setupIpcHandlers()
     setupQuickAddIpc()
+    setupToolPaletteIpc()
     createTray()
     createWindow()
     registerQuickAddHotkey()
+    registerToolPaletteHotkey()
     startT3Watcher()
   })
 
   app.on('will-quit', () => {
+    requestLiveSessionStop()
     unregisterAll()
   })
 

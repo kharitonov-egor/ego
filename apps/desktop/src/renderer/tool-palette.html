@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quick tools</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --line: rgba(255, 255, 255, 0.08);
+        --muted: rgba(148, 163, 184, 0.62);
+        --text: #e2e8f0;
+        --blue: #60a5fa;
+        --cyan: #67e8f9;
+        --green: #86efac;
+        --orange: #f5a66b;
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body { width: 100%; height: 100%; margin: 0; }
+
+      body {
+        overflow: hidden;
+        background: transparent;
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -webkit-app-region: no-drag;
+      }
+
+      button, input { font: inherit; }
+      button { color: inherit; }
+
+      .shell {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        padding: 8px;
+      }
+
+      .panel {
+        flex: 1;
+        height: 100%;
+        overflow: hidden;
+        border: 1px solid rgba(96, 165, 250, 0.25);
+        border-radius: 14px;
+        background: rgba(12, 16, 30, 0.97);
+        box-shadow: 0 18px 55px rgba(0, 0, 0, 0.42);
+      }
+
+      .panel::before { display: none; }
+
+      .view {
+        display: none;
+        height: 100%;
+        padding: 0;
+      }
+
+      .view.active { display: flex; flex-direction: column; }
+
+      .topline {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 40px;
+        margin: 0;
+        padding: 10px 14px 6px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+      }
+
+      .header-icon {
+        display: flex;
+        color: rgba(96, 165, 250, 0.72);
+      }
+
+      .header-icon svg { width: 16px; height: 16px; }
+
+      h1, h2, p { margin: 0; }
+
+      h1 {
+        color: rgba(148, 163, 184, 0.68);
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .eyebrow {
+        display: none;
+      }
+
+      kbd {
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.07);
+        color: rgba(226, 232, 240, 0.8);
+        padding: 1px 5px;
+        font-family: inherit;
+        font-size: 10px;
+      }
+
+      .choices {
+        display: grid;
+        flex: 1;
+        min-height: 0;
+        gap: 8px;
+        padding: 10px 14px 0;
+      }
+
+      .choice {
+        display: grid;
+        grid-template-columns: 36px minmax(0, 1fr) auto;
+        align-items: center;
+        min-height: 0;
+        width: 100%;
+        padding: 9px 12px 9px 10px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.02);
+        text-align: left;
+        cursor: pointer;
+        transition: border-color 100ms ease, background 100ms ease;
+      }
+
+      .choice:hover,
+      .choice.selected {
+        border-color: rgba(96, 165, 250, 0.38);
+        background: rgba(96, 165, 250, 0.1);
+      }
+
+      .choice:focus-visible, .button:focus-visible, input:focus-visible {
+        outline: 1px solid rgba(96, 165, 250, 0.8);
+        outline-offset: 1px;
+      }
+
+      .number {
+        color: rgba(148, 163, 184, 0.52);
+        font-size: 11px;
+      }
+
+      .choice-name {
+        display: block;
+        margin-bottom: 4px;
+        color: #f1f5f9;
+        font-size: 14px;
+        font-weight: 500;
+      }
+
+      .choice-detail { color: rgba(148, 163, 184, 0.56); font-size: 11px; }
+
+      .tag {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        color: rgba(148, 163, 184, 0.6);
+        font-size: 10px;
+      }
+
+      .dot { width: 6px; height: 6px; border-radius: 50%; }
+      .claude .dot { background: var(--orange); }
+      .ocr .dot { background: var(--cyan); }
+      .download .dot { background: var(--green); }
+
+      .foot {
+        display: flex;
+        justify-content: space-between;
+        margin-top: auto;
+        padding: 8px 14px 10px;
+        color: rgba(148, 163, 184, 0.5);
+        font-size: 11px;
+      }
+
+      .foot span { display: flex; align-items: center; gap: 6px; }
+
+      .subhead {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+      }
+
+      .back {
+        display: grid;
+        width: 24px;
+        height: 24px;
+        place-items: center;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.035);
+        cursor: pointer;
+      }
+
+      h2 {
+        color: rgba(148, 163, 184, 0.72);
+        font-size: 11px;
+        font-weight: 500;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .description {
+        display: none;
+      }
+
+      .action-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin: 12px 14px 0;
+      }
+
+      .button {
+        min-height: 38px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.035);
+        font-size: 12px;
+        cursor: pointer;
+        transition: background 120ms ease, border-color 120ms ease;
+      }
+
+      .button:hover { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.14); }
+      .button.primary, .button.green { border-color: rgba(96, 165, 250, 0.3); background: rgba(96, 165, 250, 0.12); }
+      .button:disabled { cursor: not-allowed; opacity: 0.45; }
+
+      .status {
+        min-height: 18px;
+        margin: 12px 14px 0;
+        color: rgba(148, 163, 184, 0.7);
+        font-size: 11px;
+      }
+
+      .status.error { color: #fda4af; }
+      .status.success { color: var(--green); }
+
+      .result {
+        display: none;
+        flex: 1;
+        min-height: 0;
+        margin: 10px 14px 0;
+        padding: 8px 10px;
+        overflow: auto;
+        white-space: pre-wrap;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.02);
+        color: #e2e8f0;
+        font: 12px/1.5 "Cascadia Mono", Consolas, monospace;
+        user-select: text;
+      }
+
+      .result.visible { display: block; }
+
+      .field-label {
+        display: block;
+        margin: 12px 14px 6px;
+        color: rgba(148, 163, 184, 0.68);
+        font-size: 11px;
+      }
+
+      .url-input {
+        width: calc(100% - 28px);
+        height: 38px;
+        margin: 0 14px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.02);
+        color: var(--text);
+        padding: 0 13px;
+        outline: none;
+      }
+
+      .url-input::placeholder { color: #5f6b81; }
+
+      .download-row {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 12px;
+        margin: 10px 14px 0;
+      }
+
+      .segments {
+        display: flex;
+        padding: 3px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .segment {
+        min-width: 78px;
+        border: 0;
+        border-radius: 7px;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+      }
+
+      .segment.active { background: rgba(255, 255, 255, 0.08); color: var(--text); }
+
+      .download-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+      .download-log {
+        height: 76px;
+        margin: 10px 14px 0;
+        padding: 8px 10px;
+        overflow: auto;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: rgba(255, 255, 255, 0.02);
+        color: rgba(148, 163, 184, 0.62);
+        font: 10px/1.45 Consolas, monospace;
+      }
+
+      .setup-link {
+        color: var(--cyan);
+        text-decoration: none;
+        cursor: pointer;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        * { transition: none !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="panel">
+        <div class="view active" id="home-view">
+          <div class="topline">
+            <div class="brand">
+              <span class="header-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="2" y="2" width="20" height="20" rx="3" fill="none" stroke="currentColor" stroke-width="1.5" />
+                  <rect x="5" y="5" width="5.5" height="5.5" rx="1" />
+                  <rect x="13.5" y="5" width="5.5" height="5.5" rx="1" />
+                  <rect x="5" y="13.5" width="5.5" height="5.5" rx="1" />
+                  <rect x="13.5" y="13.5" width="5.5" height="5.5" rx="1" />
+                </svg>
+              </span>
+              <h1>Quick tools</h1>
+              <span class="eyebrow">Ego switchboard</span>
+            </div>
+            <kbd>Alt+S</kbd>
+          </div>
+
+          <div class="choices" role="listbox" aria-label="Choose a tool">
+            <button class="choice claude selected" data-action="claude" role="option" aria-selected="true">
+              <span class="number">01</span>
+              <span><span class="choice-name">Ask Claude</span><span class="choice-detail">Open claude.ai in your browser</span></span>
+              <span class="tag"><span class="dot"></span>WEB</span>
+            </button>
+            <button class="choice ocr" data-action="ocr" role="option" aria-selected="false">
+              <span class="number">02</span>
+              <span><span class="choice-name">Read text from image</span><span class="choice-detail">Clipboard or file, processed by Windows</span></span>
+              <span class="tag"><span class="dot"></span>LOCAL</span>
+            </button>
+            <button class="choice download" data-action="download" role="option" aria-selected="false">
+              <span class="number">03</span>
+              <span><span class="choice-name">Save video or audio</span><span class="choice-detail">Download one link with yt-dlp</span></span>
+              <span class="tag"><span class="dot"></span>DOWNLOADS</span>
+            </button>
+          </div>
+
+          <div class="foot">
+            <span><kbd>↑</kbd><kbd>↓</kbd> choose</span>
+            <span><kbd>Enter</kbd> open</span>
+            <span><kbd>Esc</kbd> close</span>
+          </div>
+        </div>
+
+        <div class="view" id="ocr-view">
+          <div class="topline">
+            <div class="subhead"><button class="back" aria-label="Back">←</button><div><h2>Read text from image</h2><p class="description">Windows reads the image locally. Ego copies recognized text to your clipboard.</p></div></div>
+            <span class="tag"><span class="dot" style="background: var(--cyan)"></span>LOCAL OCR</span>
+          </div>
+          <div class="action-grid">
+            <button class="button primary" id="ocr-clipboard">Use clipboard image</button>
+            <button class="button" id="ocr-file">Choose image file</button>
+          </div>
+          <p class="status" id="ocr-status">Copy a screenshot, then choose "Use clipboard image."</p>
+          <pre class="result" id="ocr-result"></pre>
+          <div class="foot"><span><kbd>Esc</kbd> back</span><span id="ocr-copy-note"></span></div>
+        </div>
+
+        <div class="view" id="download-view">
+          <div class="topline">
+            <div class="subhead"><button class="back" aria-label="Back">←</button><div><h2>Save video or audio</h2><p class="description">Paste a supported link. One item is saved to Downloads\Ego.</p></div></div>
+            <span class="tag"><span class="dot" style="background: var(--green)"></span>YT-DLP</span>
+          </div>
+          <label class="field-label" for="media-url">Video or post URL</label>
+          <input class="url-input" id="media-url" type="url" placeholder="https://www.youtube.com/watch?v=..." spellcheck="false" />
+          <div class="download-row">
+            <div class="segments" aria-label="Download format">
+              <button class="segment active" data-format="video">Video</button>
+              <button class="segment" data-format="audio">MP3</button>
+            </div>
+            <div class="download-actions">
+              <button class="button" id="open-downloads" style="padding: 0 14px">Open folder</button>
+              <button class="button green" id="download-button" style="padding: 0 20px">Save</button>
+            </div>
+          </div>
+          <p class="status" id="download-status">Checking yt-dlp...</p>
+          <div class="download-log" id="download-log">Ready.</div>
+          <div class="foot"><span><kbd>Esc</kbd> back</span><span>Only save media you have permission to download.</span></div>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const views = {
+        home: document.getElementById('home-view'),
+        ocr: document.getElementById('ocr-view'),
+        download: document.getElementById('download-view')
+      }
+      const choices = Array.from(document.querySelectorAll('.choice'))
+      const ocrStatus = document.getElementById('ocr-status')
+      const ocrResult = document.getElementById('ocr-result')
+      const ocrCopyNote = document.getElementById('ocr-copy-note')
+      const mediaUrl = document.getElementById('media-url')
+      const downloadStatus = document.getElementById('download-status')
+      const downloadLog = document.getElementById('download-log')
+      const downloadButton = document.getElementById('download-button')
+      let currentView = 'home'
+      let selected = 0
+      let downloadFormat = 'video'
+      let downloadRunning = false
+      let lastSavedFile = ''
+
+      function setView(name) {
+        currentView = name
+        Object.entries(views).forEach(([key, view]) => view.classList.toggle('active', key === name))
+      }
+
+      function selectChoice(index) {
+        selected = (index + choices.length) % choices.length
+        choices.forEach((choice, position) => {
+          const active = position === selected
+          choice.classList.toggle('selected', active)
+          choice.setAttribute('aria-selected', String(active))
+        })
+      }
+
+      async function activate(action) {
+        if (action === 'claude') {
+          await window.api.openClaude()
+        } else if (action === 'ocr') {
+          setView('ocr')
+        } else {
+          setView('download')
+          mediaUrl.focus()
+          await updateDownloaderStatus()
+        }
+      }
+
+      choices.forEach((choice, index) => {
+        choice.addEventListener('mouseenter', () => selectChoice(index))
+        choice.addEventListener('click', () => void activate(choice.dataset.action))
+      })
+
+      document.querySelectorAll('.back').forEach((button) => {
+        button.addEventListener('click', () => setView('home'))
+      })
+
+      async function runOcr(source) {
+        ocrStatus.className = 'status'
+        ocrStatus.textContent = 'Reading image...'
+        ocrResult.classList.remove('visible')
+        ocrCopyNote.textContent = ''
+        document.getElementById('ocr-clipboard').disabled = true
+        document.getElementById('ocr-file').disabled = true
+        const result = source === 'clipboard'
+          ? await window.api.ocrClipboardImage()
+          : await window.api.ocrImageFile()
+        document.getElementById('ocr-clipboard').disabled = false
+        document.getElementById('ocr-file').disabled = false
+        if (!result.ok) {
+          ocrStatus.className = 'status error'
+          ocrStatus.textContent = result.detail
+          return
+        }
+        ocrResult.textContent = result.text
+        ocrResult.classList.add('visible')
+        ocrStatus.className = 'status success'
+        ocrStatus.textContent = 'Text copied to clipboard.'
+        ocrCopyNote.textContent = `${result.text.length.toLocaleString()} characters`
+        await window.api.copyToolText(result.text)
+      }
+
+      document.getElementById('ocr-clipboard').addEventListener('click', () => void runOcr('clipboard'))
+      document.getElementById('ocr-file').addEventListener('click', () => void runOcr('file'))
+
+      document.querySelectorAll('.segment').forEach((button) => {
+        button.addEventListener('click', () => {
+          downloadFormat = button.dataset.format
+          document.querySelectorAll('.segment').forEach((item) => item.classList.toggle('active', item === button))
+        })
+      })
+
+      async function updateDownloaderStatus() {
+        const status = await window.api.getMediaDownloaderStatus()
+        if (!status.available) {
+          downloadStatus.className = 'status error'
+          downloadStatus.innerHTML = 'yt-dlp is missing. <a class="setup-link" id="yt-setup">Open setup instructions</a>.'
+          document.getElementById('yt-setup').addEventListener('click', () => {
+            void window.api.openExternalUrl('https://github.com/yt-dlp/yt-dlp#installation')
+          })
+          return
+        }
+        downloadStatus.className = 'status success'
+        downloadStatus.textContent = `yt-dlp ${status.version} ready${status.ffmpegAvailable ? ', ffmpeg ready' : ', ffmpeg missing'}`
+      }
+
+      function appendDownloadLine(line) {
+        const lines = `${downloadLog.textContent}\n${line}`.trim().split('\n').slice(-8)
+        downloadLog.textContent = lines.join('\n')
+        downloadLog.scrollTop = downloadLog.scrollHeight
+      }
+
+      async function startDownload() {
+        if (downloadRunning) return
+        downloadRunning = true
+        lastSavedFile = ''
+        downloadButton.disabled = true
+        downloadButton.textContent = 'Saving...'
+        downloadLog.textContent = 'Starting yt-dlp...'
+        downloadStatus.className = 'status'
+        downloadStatus.textContent = 'Download in progress. You can keep working after closing this window.'
+        const result = await window.api.downloadMedia({ url: mediaUrl.value, format: downloadFormat })
+        downloadRunning = false
+        downloadButton.disabled = false
+        downloadButton.textContent = 'Save'
+        if (result.ok) {
+          lastSavedFile = result.savedFile || ''
+          downloadStatus.className = 'status success'
+          downloadStatus.textContent = 'Saved to Downloads\\Ego.'
+          appendDownloadLine('Done.')
+        } else {
+          downloadStatus.className = 'status error'
+          downloadStatus.textContent = result.detail
+        }
+      }
+
+      downloadButton.addEventListener('click', () => void startDownload())
+      document.getElementById('open-downloads').addEventListener('click', () => {
+        void window.api.openMediaDownloads(lastSavedFile || undefined)
+      })
+      mediaUrl.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault()
+          void startDownload()
+        }
+      })
+
+      window.api.onMediaDownloadProgress(appendDownloadLine)
+      window.api.onToolPaletteFocus((clipboardText) => {
+        if (!downloadRunning) setView('home')
+        if (/^https?:\/\//i.test(clipboardText)) mediaUrl.value = clipboardText
+        selectChoice(0)
+      })
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          if (currentView === 'home') window.api.hideToolPalette()
+          else setView('home')
+          return
+        }
+        if (currentView !== 'home') return
+        if (event.key === 'ArrowDown') {
+          event.preventDefault()
+          selectChoice(selected + 1)
+        } else if (event.key === 'ArrowUp') {
+          event.preventDefault()
+          selectChoice(selected - 1)
+        } else if (event.key === 'Enter') {
+          event.preventDefault()
+          void activate(choices[selected].dataset.action)
+        } else if (/^[1-3]$/.test(event.key)) {
+          event.preventDefault()
+          const index = Number(event.key) - 1
+          selectChoice(index)
+          void activate(choices[index].dataset.action)
+        }
+      })
+    </script>
+  </body>
+</html>

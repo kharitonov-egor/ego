@@ -1,15 +1,17 @@
 # @ego/api
 
 The Cloudflare Worker that owns the money database. The phone and the desktop app talk to this
-Worker over HTTPS with a device credential. Neither of them needs a Cloudflare account API token
-on this path, because the Worker reaches D1 through its binding.
+Worker over HTTPS with a device credential. Neither needs a Cloudflare account API token on this
+path, because the Worker reaches D1 through its binding. The Worker also creates desktop Talk to
+AI sessions without sending its OpenAI key to Electron.
 
 Phase 2 of `docs/mobile-transactions-overhaul.md`, with the device side in
 `apps/mobile/lib/sync`. Nothing here is deployed yet. See `docs/ledger-setup.md` to run it.
 
 ## Endpoints
 
-All routes except `/v1/health` need `Authorization: Bearer <device token>`.
+All routes except `/v1/health` and the two OAuth callbacks need
+`Authorization: Bearer <device token>`.
 
 | Route | Returns |
 | --- | --- |
@@ -22,6 +24,15 @@ All routes except `/v1/health` need `Authorization: Bearer <device token>`.
 | `GET /v1/summary` | Income, expenses, transfers, and budget totals for a date range |
 | `GET /v1/changes` | Committed changes after a server sequence |
 | `POST /v1/operations` | Applies up to 25 sync operations in order |
+| `POST /v1/live/sessions` | Exchanges a WebRTC SDP offer for a GPT-Live session ID and answer |
+| `POST /v1/live/tools/execute` | Runs one schema-checked Gmail or Ego tool for the current device and session |
+| `POST /v1/live/tools/audit-local` | Records a confirmed Trello call that Electron runs with its existing credentials |
+| `POST /v1/connectors/google/start` | Starts Google OAuth with Gmail and Drive read-only scopes |
+| `GET /v1/connectors/google/status` | Returns the connected Google account without a token |
+| `DELETE /v1/connectors/google` | Removes the saved Google refresh token |
+| `POST /v1/connectors/wispr/start` | Discovers and starts OAuth for an allowlisted Wispr Flow MCP URL |
+| `GET /v1/connectors/wispr/status` | Returns the Wispr connection state without a token |
+| `DELETE /v1/connectors/wispr` | Removes the saved Wispr refresh token |
 | `GET /v1/legacy/snapshot` | The whole ledger, for desktop until it moves to pages |
 | `GET /v1/legacy/revisions` | Revisions by entity ID, so a snapshot client can still send a revision check |
 
@@ -52,6 +63,43 @@ npm run deploy --workspace @ego/api
 
 Migrations are additive so the current desktop and mobile clients keep working against the same
 tables during the migration.
+
+## Talk to AI
+
+The Worker needs an OpenAI project API key with access to `gpt-live-1`, `gpt-5.6-terra`, Responses
+delegation, and hosted web search. Store a replacement key as a Worker secret:
+
+```sh
+cd apps/api
+npx wrangler secret put OPENAI_API_KEY
+```
+
+Never put this key in `wrangler.toml`, an app setting, or the repository. Revoke any key pasted
+into chat before adding its replacement.
+
+The Worker accepts an SDP offer and validated user preferences. Users can choose voice or text
+chat, answer detail, reasoning effort, web search policy, delegated response limit, connected
+read tools, and two confirmed write tools. The Worker fixes the models, schemas, host allowlists,
+result limits, and tool policy. Successful session responses contain only `sessionId` and the
+WebRTC answer SDP. Errors do not include OpenAI or provider response bodies.
+
+Gmail calls use the Gmail API with `gmail.readonly`. Google Drive uses OpenAI's hosted connector
+with `drive.readonly`. Wispr MCP URLs must use `https://api.wisprflow.ai`; OAuth discovery can only use
+Wispr's `https://mcp-auth.wisprflow.com` authorization server and cannot send
+the Worker to another host. The Worker filters the discovered Wispr tool list to read operations
+before it gives those names to OpenAI. It stores refresh tokens with AES-GCM and never returns an
+access or refresh token to Electron.
+
+`ego_record_transaction` and `trello_create_card` stop until Electron sends the result of a visible
+Confirm or Reject button. Call IDs are idempotency keys. The audit rows contain the tool name,
+approval result, outcome, and time. They do not contain arguments, email text, documents,
+transcripts, or audio.
+
+GPT-Live voice time costs $0.05 per minute, billed per second. Delegated model tokens and web
+search calls cost extra. Creating a WebRTC session reserves 15 seconds. OpenAI credits that amount
+against the running session rather than adding 15 seconds to it. Check the current
+[GPT-Live model page](https://developers.openai.com/api/docs/models/gpt-live-1) and
+[WebRTC guide](https://developers.openai.com/api/docs/guides/voice-webrtc?api=live) before deployment.
 
 ## Enrolling a device
 

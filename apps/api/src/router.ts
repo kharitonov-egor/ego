@@ -10,6 +10,16 @@ import {
   pageSizeFrom, readBalances, readChanges, readLegacySnapshot, readReceiptDetail, readReference,
   readLegacyRevisions, readSummary, readTransactionDetail, readTransactionPage
 } from './reads'
+import { createLiveSession } from './live'
+import {
+  completeGoogleConnector,
+  completeWisprConnector,
+  connectorStatus,
+  disconnectConnector,
+  startGoogleConnector,
+  startWisprConnector
+} from './connectors'
+import { auditLocalLiveTool, executeLiveTool } from './live-tools'
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -77,11 +87,47 @@ export async function handle(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url)
   const path = url.pathname.replace(/\/+$/, '')
   if (path === '/v1/health') return ok({ version: API_VERSION })
+  if (request.method === 'GET' && path === '/v1/connectors/google/callback') {
+    return completeGoogleConnector(request, env)
+  }
+  if (request.method === 'GET' && path === '/v1/connectors/wispr/callback') {
+    return completeWisprConnector(request, env)
+  }
 
   const device = await authorize(request, env.DB)
   if (!device.ok) return failure(device.error)
   const now = new Date().toISOString()
   void touchDevice(env.DB, device.data.deviceId, now).catch(() => undefined)
+
+  if (request.method === 'POST' && path === '/v1/live/sessions') {
+    return createLiveSession(request, env, device.data)
+  }
+  if (request.method === 'POST' && path === '/v1/live/tools/execute') {
+    return executeLiveTool(request, env, device.data, now)
+  }
+  if (request.method === 'POST' && path === '/v1/live/tools/audit-local') {
+    return auditLocalLiveTool(request, env, device.data, now)
+  }
+  if (request.method === 'POST' && path === '/v1/connectors/google/start') {
+    return startGoogleConnector(request, env, device.data)
+  }
+  if (request.method === 'GET' && path === '/v1/connectors/google/status') {
+    return ok(await connectorStatus(env, device.data.datasetId, 'google'))
+  }
+  if (request.method === 'DELETE' && path === '/v1/connectors/google') {
+    await disconnectConnector(env, device.data.datasetId, 'google')
+    return ok({ disconnected: true })
+  }
+  if (request.method === 'POST' && path === '/v1/connectors/wispr/start') {
+    return startWisprConnector(request, env, device.data)
+  }
+  if (request.method === 'GET' && path === '/v1/connectors/wispr/status') {
+    return ok(await connectorStatus(env, device.data.datasetId, 'wispr'))
+  }
+  if (request.method === 'DELETE' && path === '/v1/connectors/wispr') {
+    await disconnectConnector(env, device.data.datasetId, 'wispr')
+    return ok({ disconnected: true })
+  }
 
   if (request.method === 'GET') {
     if (path === '/v1/reference') return ok(await readReference(env.DB))

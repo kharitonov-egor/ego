@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
-import { CloudCog, Database, ListPlus, ScanLine } from 'lucide-react-native'
+import { CloudCog, Database, Info, ListPlus, ScanLine } from 'lucide-react-native'
+import Constants from 'expo-constants'
 import { useRouter } from 'expo-router'
 import {
   looksLikeTrelloToken,
@@ -22,6 +23,9 @@ export default function Settings(): React.ReactElement {
   const ledger = useLedger()
   const router = useRouter()
   const client = useMemo(() => trelloClientFor(settings), [settings])
+  const commitHash = typeof Constants.expoConfig?.extra?.commitHash === 'string'
+    ? Constants.expoConfig.extra.commitHash.slice(0, 8)
+    : 'unknown'
 
   const [boards, setBoards] = useState<TrelloBoardSummary[]>([])
   const [lists, setLists] = useState<TrelloListSummary[]>([])
@@ -352,6 +356,21 @@ export default function Settings(): React.ReactElement {
       )}
 
       {error && <Text className="mt-3 text-[14px] leading-5 text-red-400">{error}</Text>}
+
+      <View className="mt-5 rounded-xl border border-surface-800 bg-surface-900/50 p-3">
+        <View className="flex-row items-center">
+          <Info color="#91c4ff" size={15} />
+          <Text className="ml-1.5 text-[16px] font-bold text-surface-100">About</Text>
+        </View>
+        <View className="mt-3 flex-row items-center justify-between">
+          <Text className="text-[14px] text-surface-400">Version</Text>
+          <Text className="font-mono text-[14px] text-surface-200">{Constants.expoConfig?.version ?? 'unknown'}</Text>
+        </View>
+        <View className="mt-2 flex-row items-center justify-between">
+          <Text className="text-[14px] text-surface-400">Commit</Text>
+          <Text selectable className="font-mono text-[14px] text-surface-200">{commitHash}</Text>
+        </View>
+      </View>
 
       <View className="h-8" />
       </View>

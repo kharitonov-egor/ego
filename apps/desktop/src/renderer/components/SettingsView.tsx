@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Power, Link, Trello, RefreshCw, ScanLine } from 'lucide-react'
+import { Power, Link, Trello, RefreshCw, ScanLine, Command } from 'lucide-react'
 import HotkeyInput from './HotkeyInput'
 import MoneySyncSettings from './money/MoneySyncSettings'
+import LiveSettings from './LiveSettings'
 import T3Settings from './T3Settings'
 import type {
   QuickAddListShortcut,
@@ -32,6 +33,7 @@ const TRELLO_TOKEN_DOCS = 'https://trello.com/power-ups/admin'
 export default function SettingsView(): React.ReactElement {
   const [autoStart, setAutoStart] = useState(false)
   const [quickAddHotkey, setQuickAddHotkey] = useState('')
+  const [toolPaletteHotkey, setToolPaletteHotkey] = useState('')
   const [trelloApiKey, setTrelloApiKey] = useState('')
   const [trelloToken, setTrelloToken] = useState('')
   const [trelloBoardId, setTrelloBoardId] = useState('')
@@ -56,6 +58,7 @@ export default function SettingsView(): React.ReactElement {
   useEffect(() => {
     window.api.getAutoStart().then(setAutoStart)
     window.api.getQuickAddHotkey().then(setQuickAddHotkey)
+    window.api.getToolPaletteHotkey().then(setToolPaletteHotkey)
     window.api.getTrelloApiKey().then(setTrelloApiKey)
     window.api.getTrelloToken().then(setTrelloToken)
     window.api.getTrelloBoardId().then(setTrelloBoardId)
@@ -162,6 +165,11 @@ export default function SettingsView(): React.ReactElement {
     await window.api.setQuickAddHotkey(hotkey)
   }
 
+  const handleToolPaletteHotkeyChange = async (hotkey: string): Promise<void> => {
+    setToolPaletteHotkey(hotkey)
+    await window.api.setToolPaletteHotkey(hotkey)
+  }
+
   const handleApiKeyChange = (value: string): void => {
     setTrelloApiKey(value)
     if (apiKeyTimerRef.current) clearTimeout(apiKeyTimerRef.current)
@@ -224,6 +232,7 @@ export default function SettingsView(): React.ReactElement {
 
       <div className="flex-1 overflow-y-auto p-5">
         <MoneySyncSettings />
+        <LiveSettings />
         <div className="mb-4 rounded-lg border border-surface-800 bg-surface-900/50 p-4">
           <T3Settings />
         </div>
@@ -235,6 +244,20 @@ export default function SettingsView(): React.ReactElement {
             <label className="text-xs text-surface-400">Analysis model<input value={transactionImageModel} onChange={(event) => { setTransactionImageModel(event.target.value); setImageSettingsSaved(false) }} placeholder="openai/gpt-5.6-terra" className={`${inputClass} mt-1.5`} /></label>
           </div>
           <div className="mt-3 flex items-center justify-between"><span className={`text-[11px] ${hasOpenRouterApiKey ? 'text-emerald-400' : 'text-surface-500'}`}>{hasOpenRouterApiKey ? 'API key saved' : 'API key needed'}</span><div className="flex items-center gap-3">{imageSettingsSaved && <span className="text-[11px] text-emerald-400">Saved</span>}<button type="button" disabled={!transactionImageModel.trim() || (!hasOpenRouterApiKey && !openRouterApiKey.trim())} onClick={() => void saveImageSettings()} className="rounded-lg bg-accent-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-40">Save analyzer settings</button></div></div>
+        </div>
+        <div className="mb-4 rounded-lg border border-surface-800 bg-surface-900/50 p-4">
+          <div className="mb-1 flex items-center gap-2">
+            <Command size={14} />
+            <h3 className="text-sm font-medium text-surface-300">Quick tools</h3>
+          </div>
+          <p className="mb-4 text-xs text-surface-500">
+            Open Claude, read text from an image, or save online media from one chooser.
+          </p>
+          <label className="block text-xs text-surface-400 mb-1.5">Global hotkey</label>
+          <HotkeyInput
+            value={toolPaletteHotkey}
+            onChange={handleToolPaletteHotkeyChange}
+          />
         </div>
         <div className="bg-surface-900/50 border border-surface-800 rounded-lg p-4">
           <div className="flex items-start justify-between gap-3 mb-1">

@@ -9,6 +9,19 @@ import type {
 const api: IpcApi = {
   moneyGetLedgerConfig: () => ipcRenderer.invoke('money-get-ledger-config'),
   moneySetLedgerConfig: (input) => ipcRenderer.invoke('money-set-ledger-config', input),
+  liveCreateSession: (sdp) => ipcRenderer.invoke('live-create-session', sdp),
+  liveExecuteTool: (input) => ipcRenderer.invoke('live-execute-tool', input),
+  connectorGetStatus: (provider) => ipcRenderer.invoke('connector-get-status', provider),
+  connectorStartGoogle: () => ipcRenderer.invoke('connector-start-google'),
+  connectorStartWispr: (serverUrl) => ipcRenderer.invoke('connector-start-wispr', serverUrl),
+  connectorDisconnect: (provider) => ipcRenderer.invoke('connector-disconnect', provider),
+  onLiveSessionStopRequested: (callback) => {
+    const handler = (): void => callback()
+    ipcRenderer.on('live-session-stop-requested', handler)
+    return () => ipcRenderer.removeListener('live-session-stop-requested', handler)
+  },
+  getLivePreferences: () => ipcRenderer.invoke('live-get-preferences'),
+  setLivePreferences: (preferences) => ipcRenderer.invoke('live-set-preferences', preferences),
   moneyGetSyncStatus: () => ipcRenderer.invoke('money-get-sync-status'),
   moneySetSyncConfig: (input) => ipcRenderer.invoke('money-set-sync-config', input),
   moneyTestConnection: () => ipcRenderer.invoke('money-test-connection'),
@@ -41,6 +54,8 @@ const api: IpcApi = {
 
   getQuickAddHotkey: () => ipcRenderer.invoke('get-quick-add-hotkey'),
   setQuickAddHotkey: (hotkey: string) => ipcRenderer.invoke('set-quick-add-hotkey', hotkey),
+  getToolPaletteHotkey: () => ipcRenderer.invoke('get-tool-palette-hotkey'),
+  setToolPaletteHotkey: (hotkey: string) => ipcRenderer.invoke('set-tool-palette-hotkey', hotkey),
 
   getTrelloApiKey: () => ipcRenderer.invoke('get-trello-api-key'),
   setTrelloApiKey: (value: string) => ipcRenderer.invoke('set-trello-api-key', value),
@@ -68,6 +83,27 @@ const api: IpcApi = {
       callback(shortcuts ?? [])
     ipcRenderer.on('quick-add-focus', handler)
     return () => ipcRenderer.removeListener('quick-add-focus', handler)
+  },
+
+  hideToolPalette: () => ipcRenderer.send('tool-palette-hide'),
+  openClaude: () => ipcRenderer.invoke('tool-open-claude'),
+  ocrClipboardImage: () => ipcRenderer.invoke('tool-ocr-clipboard'),
+  ocrImageFile: () => ipcRenderer.invoke('tool-ocr-file'),
+  copyToolText: (text: string) => ipcRenderer.invoke('tool-copy-text', text),
+  getMediaDownloaderStatus: () => ipcRenderer.invoke('media-downloader-status'),
+  downloadMedia: (input) => ipcRenderer.invoke('media-download', input),
+  openMediaDownloads: (savedFile?: string) =>
+    ipcRenderer.invoke('media-open-downloads', savedFile),
+  onToolPaletteFocus: (callback: (clipboardText: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, clipboardText: string): void =>
+      callback(clipboardText ?? '')
+    ipcRenderer.on('tool-palette-focus', handler)
+    return () => ipcRenderer.removeListener('tool-palette-focus', handler)
+  },
+  onMediaDownloadProgress: (callback: (line: string) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, line: string): void => callback(line)
+    ipcRenderer.on('media-download-progress', handler)
+    return () => ipcRenderer.removeListener('media-download-progress', handler)
   },
 
   buildAndInstall: () => ipcRenderer.invoke('build-and-install'),

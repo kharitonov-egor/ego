@@ -35,8 +35,8 @@ function LedgerServiceSettings(): React.ReactElement {
   return <section className={`${panelClass} mb-4 p-4`}>
     <div className="flex items-start justify-between gap-3">
       <div>
-        <h3 className="flex items-center gap-2 text-sm font-medium text-surface-200"><CloudCog size={15} />Ledger service</h3>
-        <p className="mt-1 text-xs text-surface-500">While this is set, every money write goes through the Worker with a revision check. Clear the token to fall back to the direct D1 connection.</p>
+        <h3 className="flex items-center gap-2 text-sm font-medium text-surface-200"><CloudCog size={15} />Ego service</h3>
+        <p className="mt-1 text-xs text-surface-500">The Worker handles money sync and starts Talk to AI sessions. Clear the token to fall back to the direct D1 connection. Talk to AI requires this service.</p>
       </div>
       <span className={`rounded-full border px-2 py-0.5 text-[11px] ${state === 'connected' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400' : state === 'error' ? 'border-red-500/30 bg-red-500/10 text-red-400' : active ? 'border-surface-700 text-surface-400' : 'border-surface-700 text-surface-500'}`}>{state === 'connected' ? 'Connected' : state === 'error' ? 'Connection failed' : active ? 'Active' : 'Not in use'}</span>
     </div>
