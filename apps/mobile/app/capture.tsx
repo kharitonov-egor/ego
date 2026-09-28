@@ -97,7 +97,7 @@ export default function Capture(): React.ReactElement {
           value={title}
           onChangeText={setTitle}
           placeholder="Card title…"
-          placeholderTextColor="#909099"
+          placeholderTextColor="#a3a3a3"
           autoFocus
           className="text-[16px] font-medium text-surface-100"
         />
@@ -106,7 +106,7 @@ export default function Capture(): React.ReactElement {
           value={description}
           onChangeText={setDescription}
           placeholder="Description (optional)"
-          placeholderTextColor="#909099"
+          placeholderTextColor="#a3a3a3"
           multiline
           textAlignVertical="top"
           className="mt-3 min-h-[130px] rounded-lg border border-surface-700 bg-surface-900/50 p-3 text-[16px] text-surface-100"
@@ -182,10 +182,10 @@ export default function Capture(): React.ReactElement {
           accessibilityRole="button"
           onPress={() => ready ? void submit() : router.push('/settings')}
           disabled={sending}
-          className={`rounded-2xl px-5 py-4 ${sending ? 'bg-surface-800' : 'bg-accent-600 active:bg-accent-500'}`}
+          className={`rounded-2xl px-5 py-4 ${sending ? 'bg-surface-800' : 'bg-primary active:bg-primary/90'}`}
         >
           <Text
-            className={`text-center text-[16px] font-semibold ${sending ? 'text-surface-400' : 'text-white'}`}
+            className={`text-center text-[16px] font-semibold ${sending ? 'text-surface-400' : 'text-primary-foreground'}`}
           >
             {sending ? 'Sending…' : ready ? 'Add card' : 'Choose a Trello list in Settings'}
           </Text>

@@ -13,7 +13,7 @@ function Key({ label, onPress }: { label: string; onPress: () => void }): React.
     android_ripple={{ color: 'rgba(255, 255, 255, 0.10)', borderless: false }}
     className="flex-1 items-center justify-center rounded-2xl bg-surface-900 active:bg-surface-800"
   >
-    <Text className="text-[26px] font-semibold text-surface-100">{label}</Text>
+    <Text className="text-[28px] font-semibold text-foreground">{label}</Text>
   </Pressable>
 }
 
@@ -34,12 +34,11 @@ function SideKey({ children, onPress, onLongPress, accessibilityLabel, className
   >{children}</Pressable>
 }
 
-export function AmountKeypad({ onKey, onOpenDate, onConfirm, confirmDisabled, confirmColor, busy = false }: {
+export function AmountKeypad({ onKey, onOpenDate, onConfirm, confirmDisabled, busy = false }: {
   onKey: (key: string) => void
   onOpenDate?: () => void
   onConfirm: () => void
   confirmDisabled: boolean
-  confirmColor: string
   busy?: boolean
 }): React.ReactElement {
   return <View className="flex-1 flex-row gap-2.5 px-4">
@@ -52,10 +51,10 @@ export function AmountKeypad({ onKey, onOpenDate, onConfirm, confirmDisabled, co
         onPress={() => onKey('back')}
         onLongPress={() => onKey('clear')}
         className="flex-1 bg-surface-900 active:bg-surface-800"
-      ><Delete color="#b5b5bc" size={22} /></SideKey>
+      ><Delete color="#fafafa" size={24} /></SideKey>
       {onOpenDate
         ? <SideKey accessibilityLabel="Choose a date" onPress={onOpenDate} className="flex-1 bg-surface-900 active:bg-surface-800">
-          <CalendarDays color="#b5b5bc" size={22} />
+          <CalendarDays color="#fafafa" size={24} />
         </SideKey>
         : <SideKey accessibilityLabel="Clear the amount" onPress={() => onKey('clear')} className="flex-1 bg-surface-900 active:bg-surface-800">
           <Text className="text-[22px] font-semibold text-surface-300">C</Text>
@@ -66,10 +65,10 @@ export function AmountKeypad({ onKey, onOpenDate, onConfirm, confirmDisabled, co
         accessibilityState={{ disabled: confirmDisabled }}
         disabled={confirmDisabled}
         onPress={onConfirm}
-        style={{ flex: 2, backgroundColor: confirmDisabled ? '#232426' : confirmColor }}
-        className="items-center justify-center rounded-2xl"
+        style={{ flex: 2 }}
+        className={`items-center justify-center rounded-2xl ${confirmDisabled ? 'bg-surface-900' : 'bg-primary active:bg-primary/85'}`}
       >
-        {busy ? <ActivityIndicator color="#e6e6e8" /> : <Check color={confirmDisabled ? '#707078' : '#fff'} size={30} strokeWidth={2.5} />}
+        {busy ? <ActivityIndicator color="#0a0a0a" /> : <Check color={confirmDisabled ? '#525252' : '#0a0a0a'} size={32} strokeWidth={2.75} />}
       </Pressable>
     </View>
   </View>

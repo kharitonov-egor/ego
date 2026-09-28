@@ -1,11 +1,21 @@
-import React from 'react'
-import { Pressable, ScrollView, Text, View } from 'react-native'
+import React, { useMemo, useState } from 'react'
+import { Pressable, ScrollView, View } from 'react-native'
 import { useRouter } from 'expo-router'
-import { ChevronRight, PiggyBank } from 'lucide-react-native'
-import type { MoneySnapshot } from '@ego/core'
-import { MoneyIcon, MoneyScreen, PeriodChips, filteredTransactions, money, today } from '../../components/money/Common'
-import { CARD, CARD_PADDING, HERO_AMOUNT, SECTION_TITLE, TOUCH, tabular } from '../../components/money/tokens'
-import { usePeriod } from '../../lib/period-context'
+import { ArrowDownRight, ArrowUpRight, ChevronRight, PiggyBank } from 'lucide-react-native'
+import type { MoneySnapshot, MoneyTransaction } from '@ego/core'
+import { MoneyIcon, MoneyScreen, money } from '../../components/money/Common'
+import { CashFlowChart, SERIES_COLOR, type SeriesVisibility } from '../../components/money/CashFlowChart'
+import { PeriodBar } from '../../components/money/PeriodBar'
+import { PeriodSwipe } from '../../components/money/PeriodSwipe'
+import { HERO_AMOUNT, amountColor, amountSign, tabular } from '../../components/money/tokens'
+import { Badge } from '../../components/ui/badge'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../../components/ui/card'
+import { Text } from '../../components/ui/text'
+import { averagesFor, balanceAt, bucketFlows, elapsedDays, flowOf, projectedSpend } from '../../lib/cash-flow'
+import { formatIso, isoToday } from '../../lib/dates'
+import { bucketSizeFor, chartBuckets, comparisonSpan, isStepped, type Span } from '../../lib/periods'
+import { transactionsInRange, usePeriod } from '../../lib/period-context'
+import { transactionDetail, transactionTitle } from '../../lib/transaction-title'
 
 /** Transactions arrive newest first, so the earliest date is the last row, not a sort away. */
 function earliestDate(snapshot: MoneySnapshot): string | undefined {
@@ -17,135 +27,228 @@ function earliestDate(snapshot: MoneySnapshot): string | undefined {
 }
 
 export default function Overview(): React.ReactElement {
-  const { range, label } = usePeriod()
+  return <MoneyScreen>{(snapshot) => <OverviewBody snapshot={snapshot} />}</MoneyScreen>
+}
+
+function OverviewBody({ snapshot }: { snapshot: MoneySnapshot }): React.ReactElement {
   const router = useRouter()
-  return <MoneyScreen>{(snapshot) => {
-    const transactions = filteredTransactions(snapshot, range)
-    const income = transactions.filter((item) => item.kind === 'income').reduce((sum, item) => sum + item.amountCents, 0)
-    const expenses = transactions.filter((item) => item.kind === 'expense').reduce((sum, item) => sum + item.amountCents, 0)
-    const closing = snapshot.accounts.filter((item) => !item.archivedAt).reduce((sum, item) => sum + item.balanceCents, 0)
-    const net = income - expenses
-    const categoryTotals = new Map<string, number>()
-    transactions.filter((item) => item.kind === 'expense' && item.categoryId).forEach((item) => categoryTotals.set(item.categoryId!, (categoryTotals.get(item.categoryId!) ?? 0) + item.amountCents))
-    const ranked = snapshot.categories.map((category) => ({ category, amount: categoryTotals.get(category.id) ?? 0 })).filter((item) => item.amount > 0).sort((a, b) => b.amount - a.amount)
-    const months = new Map<string, { income: number; expense: number }>()
-    transactions.filter((item) => item.kind !== 'transfer').forEach((item) => { const key = item.date.slice(0, 7); const value = months.get(key) ?? { income: 0, expense: 0 }; value[item.kind === 'income' ? 'income' : 'expense'] += item.amountCents; months.set(key, value) })
-    const monthEntries = Array.from(months.entries()).sort().slice(-6)
-    const max = Math.max(1, ...monthEntries.flatMap(([, value]) => [value.income, value.expense]))
-    const first = range.from ?? earliestDate(snapshot) ?? today()
-    const last = range.to ?? today()
-    const days = Math.max(1, Math.floor((new Date(`${last}T00:00:00`).getTime() - new Date(`${first}T00:00:00`).getTime()) / 86400000) + 1)
-    const accountCount = snapshot.accounts.filter((item) => !item.archivedAt).length
+  const period = usePeriod()
+  const [scrubbing, setScrubbing] = useState(false)
+  const [series, setSeries] = useState<SeriesVisibility>({ expense: true, income: true })
+  const today = isoToday()
+  const first = useMemo(() => earliestDate(snapshot) ?? today, [snapshot, today])
+  const latest = snapshot.transactions[0]?.date ?? today
+  const from = period.range.from ?? first
+  const to = period.range.to ?? (latest > today ? latest : today)
+  const span: Span = from <= to ? { from, to } : { from: to, to: from }
 
-    return <View className="flex-1">
-      <PeriodChips />
-      <ScrollView className="flex-1 px-4" contentContainerStyle={{ paddingBottom: 32 }}>
-        <View className="overflow-hidden rounded-3xl bg-accent-600 px-5 pb-5 pt-6">
-          <Text className="text-[14px] font-semibold uppercase tracking-wider text-white/70">Total balance</Text>
-          <Text
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.6}
-            className={`mt-1.5 ${HERO_AMOUNT} text-white`}
-            style={tabular}
-          >{money(closing)}</Text>
-          <View className="mt-5 flex-row items-center justify-between">
-            <View className="rounded-full bg-black/20 px-3.5 py-2">
-              <Text className="text-[14px] font-semibold text-white" style={tabular}>{money(net, true)} {label.toLowerCase()}</Text>
-            </View>
-            <Text className="text-[14px] font-medium text-white/70">{accountCount} {accountCount === 1 ? 'account' : 'accounts'}</Text>
-          </View>
+  const transactions = useMemo(() => transactionsInRange(snapshot, period.range), [snapshot, period.range])
+  const flow = useMemo(() => flowOf(transactions), [transactions])
+  const buckets = useMemo(() => chartBuckets({ from: span.from, to: span.to }), [span.from, span.to])
+  const flows = useMemo(
+    () => bucketFlows(transactions, buckets, bucketSizeFor({ from: span.from, to: span.to })),
+    [transactions, buckets, span.from, span.to]
+  )
+
+  const preset = period.period
+  const comparison = isStepped(preset) ? comparisonSpan(preset, period.anchor, today) : null
+  const previous = useMemo(
+    () => comparison ? flowOf(snapshot.transactions, comparison) : null,
+    [snapshot.transactions, comparison?.from, comparison?.to]
+  )
+  const past = span.to < today
+  const balance = useMemo(() => past
+    ? balanceAt(snapshot, span.to)
+    : snapshot.accounts.reduce((sum, account) => account.archivedAt ? sum : sum + account.balanceCents, 0), [past, snapshot, span.to])
+  const accountCount = snapshot.accounts.filter((account) => !account.archivedAt).length
+  const net = flow.incomeCents - flow.expenseCents
+  const days = Math.max(1, elapsedDays(span, today))
+  const projection = isStepped(preset) && preset !== 'today' && period.current
+    ? projectedSpend(flow.expenseCents, span, today)
+    : null
+
+
+  return <View className="flex-1">
+    <PeriodBar since={preset === 'all' ? formatIso(first) : undefined} />
+    <PeriodSwipe>
+    <ScrollView scrollEnabled={!scrubbing} className="flex-1" contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32, gap: 12 }}>
+      <Card className="p-5">
+        <Text className="text-[14px] font-medium text-muted-foreground">{past ? `Balance on ${formatIso(span.to)}` : 'Total balance'}</Text>
+        <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} className={`mt-1 ${HERO_AMOUNT}`}>{money(balance)}</Text>
+        <View className="mt-4 flex-row items-center justify-between">
+          <Badge variant={net >= 0 ? 'positive' : 'secondary'}><Text style={tabular}>{money(net, true)} net</Text></Badge>
+          <Text className="text-[14px] text-muted-foreground">{accountCount} {accountCount === 1 ? 'account' : 'accounts'}</Text>
         </View>
+      </Card>
 
-        <View className="mt-3 flex-row gap-3">
-          <Summary label="Spent" cents={expenses} tone="expense" />
-          <Summary label="Received" cents={income} tone="income" />
+      <View className="flex-row gap-3">
+        <FlowStat label="Spent" color={SERIES_COLOR.expense} cents={flow.expenseCents} previous={previous?.expenseCents} against={comparison?.label} />
+        <FlowStat label="Received" color={SERIES_COLOR.income} cents={flow.incomeCents} previous={previous?.incomeCents} against={comparison?.label} />
+      </View>
+
+      {preset === 'today'
+        ? <DayCard snapshot={snapshot} transactions={transactions} onOpen={(id) => router.push({ pathname: '/(money)/transaction', params: { id } })} />
+        : <Card className="overflow-hidden pt-2">
+          <CashFlowChart
+            title="Cash flow"
+            buckets={buckets}
+            flows={flows}
+            today={today}
+            series={series}
+            onSeriesChange={setSeries}
+            onScrubbingChange={setScrubbing}
+            onOpen={(bucket) => period.showPeriod(bucket.drill.period, bucket.drill.anchor)}
+          />
+        </Card>}
+
+      {preset !== 'today' && <Card>
+        <CardHeader>
+          <CardTitle>Average spending</CardTitle>
+          <CardDescription>{period.current && !past ? `Across the ${days} days so far` : `Across ${days} days`}</CardDescription>
+        </CardHeader>
+        <CardContent className="flex-row">
+          {averagesFor(flow.expenseCents, days).map((average) => <View key={average.label} className="flex-1">
+            <Text className="text-[14px] text-muted-foreground">{average.label}</Text>
+            <Text numberOfLines={1} adjustsFontSizeToFit className="mt-1 text-[20px] font-bold">{money(Math.round(average.cents))}</Text>
+          </View>)}
+        </CardContent>
+        {projection !== null && <CardFooter>
+          <Text className="text-[14px] leading-5 text-muted-foreground">At this pace, spending reaches about <Text className="text-[14px] font-semibold">{money(projection)}</Text> by {formatIso(span.to)}.</Text>
+        </CardFooter>}
+      </Card>}
+
+      <TopCategories snapshot={snapshot} transactions={transactions} expenseCents={flow.expenseCents} onOpen={(categoryId) => router.push({ pathname: '/(money)/transactions', params: { categoryId } })} />
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push({ pathname: '/(money)/budget', params: preset === 'month' ? { month: period.anchor.slice(0, 7) } : {} })}
+        className="min-h-16 flex-row items-center rounded-3xl border border-border bg-card px-5 active:bg-surface-900"
+      >
+        <PiggyBank color="#fafafa" size={20} />
+        <View className="ml-3 flex-1">
+          <Text className="font-semibold">Monthly budget</Text>
+          {preset === 'month' && <Text className="text-[14px] text-muted-foreground">{period.label}</Text>}
         </View>
+        <ChevronRight color="#a3a3a3" size={18} />
+      </Pressable>
+    </ScrollView>
+    </PeriodSwipe>
+  </View>
+}
 
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.push('/(money)/budget')}
-          style={{ minHeight: TOUCH + 8 }}
-          className={`mt-3 flex-row items-center px-5 ${CARD}`}
-        >
-          <PiggyBank color="#91c4ff" size={20} />
-          <Text className="ml-3 flex-1 text-[16px] font-semibold text-surface-100">Monthly budget</Text>
-          <ChevronRight color="#8a8a92" size={18} />
-        </Pressable>
-
-        <View className={`mt-3 ${CARD} ${CARD_PADDING}`}>
-          <View className="flex-row items-center justify-between">
-            <Text className={SECTION_TITLE}>Cash flow</Text>
-            <View className="flex-row items-center gap-3">
-              <Legend color="#34d399" label="In" />
-              <Legend color="#8a8a92" label="Out" />
-            </View>
-          </View>
-          {monthEntries.length === 0
-            ? <Text className="py-8 text-center text-[16px] text-surface-500">Record a transaction to see the chart.</Text>
-            : <View className="mt-5 h-32 flex-row items-end gap-2.5">{monthEntries.map(([month, value]) => <View key={month} className="flex-1 items-center">
-              <View className="h-24 w-full flex-row items-end justify-center gap-1">
-                <View className="w-2/5 rounded-full bg-positive" style={{ height: `${Math.max(value.income ? 5 : 0, value.income / max * 100)}%` }} />
-                <View className="w-2/5 rounded-full bg-surface-600" style={{ height: `${Math.max(value.expense ? 5 : 0, value.expense / max * 100)}%` }} />
-              </View>
-              <Text className="mt-2 text-[14px] font-semibold text-surface-500">{new Date(`${month}-01T00:00:00`).toLocaleDateString('en-US', { month: 'short' })}</Text>
-            </View>)}</View>}
-        </View>
-
-        <View className={`mt-3 ${CARD} ${CARD_PADDING}`}>
-          <Text className={SECTION_TITLE}>Average spending</Text>
-          <View className="mt-4 flex-row">
-            <Average label="Daily" cents={expenses / days} />
-            <Average label="Weekly" cents={expenses / days * 7} />
-            <Average label="Monthly" cents={expenses / days * 30.44} />
-          </View>
-        </View>
-
-        <View className={`mt-3 ${CARD} ${CARD_PADDING}`}>
-          <Text className={SECTION_TITLE}>Top categories</Text>
-          {ranked.length === 0
-            ? <Text className="py-7 text-center text-[16px] text-surface-500">No expenses in this period.</Text>
-            : <View className="mt-4 gap-4">{ranked.slice(0, 6).map(({ category, amount }) => <View key={category.id}>
-              <View className="flex-row items-center">
-                <View className="h-11 w-11 items-center justify-center rounded-full" style={{ backgroundColor: category.color }}>
-                  <MoneyIcon name={category.icon} size={18} />
-                </View>
-                <Text numberOfLines={1} className="ml-3 flex-1 text-[16px] font-semibold text-surface-100">{category.name}</Text>
-                <Text className="text-[16px] font-semibold text-surface-100" style={tabular}>{money(amount)}</Text>
-              </View>
-              <View className="ml-14 mt-2 h-1.5 overflow-hidden rounded-full bg-surface-800">
-                <View className="h-full rounded-full" style={{ width: `${expenses ? amount / expenses * 100 : 0}%`, backgroundColor: category.color }} />
-              </View>
-            </View>)}</View>}
-        </View>
-      </ScrollView>
+function FlowStat({ label, color, cents, previous, against }: {
+  label: string
+  color: string
+  cents: number
+  previous?: number
+  against?: string
+}): React.ReactElement {
+  const change = previous === undefined || !against ? null
+    : previous === 0 ? (cents === 0 ? `Same as ${against}` : `Nothing in ${against}`)
+      : Math.round((cents - previous) / previous * 100)
+  return <Card className="flex-1 p-4">
+    <View className="flex-row items-center gap-2">
+      <View className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: color }} />
+      <Text className="text-[14px] font-medium text-muted-foreground">{label}</Text>
     </View>
-  }}</MoneyScreen>
+    <Text numberOfLines={1} adjustsFontSizeToFit className="mt-1.5 text-[24px] font-bold">{money(cents)}</Text>
+    {typeof change === 'string' && <Text numberOfLines={2} className="mt-1 text-[13px] text-muted-foreground">{change}</Text>}
+    {typeof change === 'number' && <View className="mt-1 flex-row items-start">
+      {change > 0 && <ArrowUpRight color="#d4d4d4" size={15} style={{ marginTop: 1 }} />}
+      {change < 0 && <ArrowDownRight color="#d4d4d4" size={15} style={{ marginTop: 1 }} />}
+      <Text numberOfLines={2} className="ml-0.5 flex-1 text-[13px] text-muted-foreground">
+        <Text className="text-[13px] font-semibold text-surface-300">{change === 0 ? 'Same' : `${Math.abs(change)}%`}</Text> vs {against}
+      </Text>
+    </View>}
+  </Card>
 }
 
-function Average({ label, cents }: { label: string; cents: number }): React.ReactElement {
-  return <View className="flex-1 items-center px-1">
-    <Text className="text-[14px] font-medium text-surface-500">{label}</Text>
-    <Text numberOfLines={1} adjustsFontSizeToFit className="mt-1 text-[20px] font-bold text-surface-100" style={tabular}>{money(Math.round(cents))}</Text>
-  </View>
+function TopCategories({ snapshot, transactions, expenseCents, onOpen }: {
+  snapshot: MoneySnapshot
+  transactions: readonly MoneyTransaction[]
+  expenseCents: number
+  onOpen: (categoryId: string) => void
+}): React.ReactElement {
+  const ranked = useMemo(() => {
+    const totals = new Map<string, number>()
+    for (const item of transactions) {
+      if (item.kind === 'expense' && item.categoryId) totals.set(item.categoryId, (totals.get(item.categoryId) ?? 0) + item.amountCents)
+    }
+    return snapshot.categories
+      .map((category) => ({ category, amount: totals.get(category.id) ?? 0 }))
+      .filter((item) => item.amount > 0)
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 6)
+  }, [snapshot.categories, transactions])
+  return <Card>
+    <CardHeader><CardTitle>Top categories</CardTitle></CardHeader>
+    {ranked.length === 0
+      ? <CardContent><Text className="py-4 text-center text-muted-foreground">No expenses in this period.</Text></CardContent>
+      : <CardContent className="gap-1 px-2 pt-3">{ranked.map(({ category, amount }) => <Pressable
+        key={category.id}
+        accessibilityRole="button"
+        accessibilityLabel={`${category.name}, ${money(amount)}`}
+        accessibilityHint="Opens these transactions in Activity"
+        onPress={() => onOpen(category.id)}
+        className="rounded-2xl px-3 py-2.5 active:bg-surface-900"
+      >
+        <View className="flex-row items-center">
+          <View className="h-10 w-10 items-center justify-center rounded-full" style={{ backgroundColor: category.color }}>
+            <MoneyIcon name={category.icon} size={17} />
+          </View>
+          <Text numberOfLines={1} className="ml-3 flex-1 font-semibold">{category.name}</Text>
+          <Text className="font-semibold" style={tabular}>{money(amount)}</Text>
+        </View>
+        <View className="ml-[52px] mt-2 h-1.5 overflow-hidden rounded-full bg-surface-800">
+          <View className="h-full rounded-full" style={{ width: `${expenseCents ? amount / expenseCents * 100 : 0}%`, backgroundColor: category.color }} />
+        </View>
+      </Pressable>)}</CardContent>}
+  </Card>
 }
 
-function Summary({ label, cents, tone }: { label: string; cents: number; tone: 'expense' | 'income' }): React.ReactElement {
-  const expense = tone === 'expense'
-  return <View className={`flex-1 rounded-3xl border p-5 ${expense ? 'border-surface-800 bg-surface-900/80' : 'border-positive/25 bg-positive/10'}`}>
-    <Text className="text-[14px] font-semibold uppercase tracking-wider text-surface-500">{label}</Text>
-    <Text
-      numberOfLines={1}
-      adjustsFontSizeToFit
-      className={`mt-1.5 text-[24px] font-bold ${expense ? 'text-surface-100' : 'text-positive'}`}
-      style={tabular}
-    >{money(cents)}</Text>
-  </View>
-}
-
-function Legend({ color, label }: { color: string; label: string }): React.ReactElement {
-  return <View className="flex-row items-center">
-    <View className="mr-1.5 h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
-    <Text className="text-[14px] font-medium text-surface-500">{label}</Text>
-  </View>
+function DayCard({ snapshot, transactions, onOpen }: {
+  snapshot: MoneySnapshot
+  transactions: readonly MoneyTransaction[]
+  onOpen: (id: string) => void
+}): React.ReactElement {
+  const categories = useMemo(() => new Map(snapshot.categories.map((category) => [category.id, category])), [snapshot.categories])
+  const accounts = useMemo(() => new Map(snapshot.accounts.map((account) => [account.id, account])), [snapshot.accounts])
+  const merchants = useMemo(() => new Map(snapshot.purchases.map((purchase) => [purchase.transactionId, purchase.merchant])), [snapshot.purchases])
+  return <Card>
+    <CardHeader>
+      <CardTitle>{transactions.length === 0 ? 'Nothing recorded' : `${transactions.length} ${transactions.length === 1 ? 'transaction' : 'transactions'}`}</CardTitle>
+      {transactions.length === 0 && <CardDescription>Step back a day, or add one with the plus button.</CardDescription>}
+    </CardHeader>
+    <CardContent className="px-2 pt-3">{transactions.map((item) => {
+      const category = item.categoryId ? categories.get(item.categoryId) : undefined
+      const account = accounts.get(item.accountId)
+      const destination = item.destinationAccountId ? accounts.get(item.destinationAccountId) : undefined
+      const source = {
+        kind: item.kind,
+        notes: item.notes,
+        merchant: merchants.get(item.id),
+        categoryName: category?.name ?? null,
+        accountName: account?.name ?? 'Archived account',
+        destinationAccountName: destination?.name ?? null
+      }
+      const title = transactionTitle(source)
+      const detail = item.kind === 'transfer' ? `${source.accountName} to ${destination?.name ?? 'another account'}` : transactionDetail(source)
+      return <Pressable
+        key={item.id}
+        accessibilityRole="button"
+        accessibilityLabel={`${title}, ${amountSign(item.kind)}${money(item.amountCents)}`}
+        onPress={() => onOpen(item.id)}
+        className="min-h-16 flex-row items-center rounded-2xl px-3 py-2 active:bg-surface-900"
+      >
+        <View className="h-11 w-11 items-center justify-center rounded-full" style={{ backgroundColor: category?.color ?? '#404040' }}>
+          <MoneyIcon name={category?.icon ?? (item.kind === 'transfer' ? 'ArrowRight' : 'Tag')} size={19} />
+        </View>
+        <View className="ml-3 flex-1">
+          <Text numberOfLines={1} className="text-[17px] font-semibold">{title}</Text>
+          <Text numberOfLines={1} className="text-[14px] text-muted-foreground">{detail}</Text>
+        </View>
+        <Text className="ml-3 font-semibold" style={{ ...tabular, color: amountColor(item.kind) }}>{amountSign(item.kind)}{money(item.amountCents)}</Text>
+      </Pressable>
+    })}</CardContent>
+  </Card>
 }

@@ -5,12 +5,19 @@ import Svg, { Circle } from 'react-native-svg'
 import type { CategoryInput, CategoryKind, MoneyCategory } from '@ego/core'
 import { useMoney } from '../../lib/money-context'
 import {
-  Chips, COLORS, ConfirmDialog, ICON_OPTIONS, Label, MoneyIcon, MoneyScreen, PeriodChips,
+  COLORS, ColorPicker, ConfirmDialog, EntityPreview, IconPicker, Label, MoneyIcon, MoneyScreen,
   PrimaryButton, Sheet, filteredTransactions, inputClass, money
 } from '../../components/money/Common'
+import { Button } from '../../components/ui/button'
+import { SegmentedControl } from '../../components/ui/segmented-control'
+import { Text as UiText } from '../../components/ui/text'
+import { PeriodBar } from '../../components/money/PeriodBar'
+import { PeriodSwipe } from '../../components/money/PeriodSwipe'
 import { usePeriod } from '../../lib/period-context'
 import { useRouter } from 'expo-router'
 import { tabular } from '../../components/money/tokens'
+
+const KIND_OPTIONS = [{ value: 'expense', label: 'Expense' }, { value: 'income', label: 'Income' }] as const
 
 function CategoryForm({ category, defaultKind, onClose, onArchive }: {
   category?: MoneyCategory
@@ -29,17 +36,15 @@ function CategoryForm({ category, defaultKind, onClose, onArchive }: {
     if (saved) onClose()
   }
   return <View>
-    <Label text="Name"><TextInput autoFocus value={name} onChangeText={setName} placeholder="Food" placeholderTextColor="#909099" className={inputClass} /></Label>
-    <Label text="Type"><Chips values={['expense', 'income'] as const} value={kind} onChange={setKind} /></Label>
-    <Label text="Icon"><View className="flex-row flex-wrap gap-2">{ICON_OPTIONS.map((item) => <Pressable accessibilityRole="button" accessibilityLabel={`Use ${item} icon`} accessibilityState={{ selected: icon === item }} key={item} onPress={() => setIcon(item)} className={`h-11 w-11 items-center justify-center rounded-lg border ${icon === item ? 'border-accent-500 bg-accent-500/15' : 'border-surface-800 bg-surface-900'}`}><MoneyIcon name={item} color={icon === item ? '#91c4ff' : '#b5b5bc'} size={17} /></Pressable>)}</View></Label>
-    <Label text="Color"><View className="flex-row flex-wrap gap-2">{COLORS.map((item) => <Pressable accessibilityRole="button" accessibilityLabel={`Use color ${item}`} accessibilityState={{ selected: color === item }} key={item} onPress={() => setColor(item)} className={`h-11 w-11 rounded-full border-2 ${color === item ? 'border-white' : 'border-transparent'}`} style={{ backgroundColor: item }} />)}</View></Label>
+    <EntityPreview shape="circle" name={name} placeholder="New category" icon={icon} color={color} detail={kind === 'income' ? 'Income category' : 'Expense category'} />
+    <Label text="Name"><TextInput autoFocus={!category} value={name} onChangeText={setName} placeholder={kind === 'income' ? 'Salary' : 'Groceries'} placeholderTextColor="#737373" className={inputClass} /></Label>
+    <Label text="Type"><SegmentedControl options={KIND_OPTIONS} value={kind} onValueChange={setKind} /></Label>
+    <Label text="Icon"><IconPicker value={icon} color={color} onChange={setIcon} /></Label>
+    <Label text="Color"><ColorPicker value={color} onChange={setColor} /></Label>
     <PrimaryButton label={category ? 'Save category' : 'Create category'} disabled={!name.trim() || moneyState.busy} onPress={() => void save()} />
-    {category && <Pressable
-      accessibilityRole="button"
-      onPress={() => onArchive(category)}
-      style={{ minHeight: 48 }}
-      className="mt-3 items-center justify-center rounded-xl border border-surface-600"
-    ><Text className="text-[16px] font-semibold text-surface-200">{category.archivedAt ? 'Restore category' : 'Archive category'}</Text></Pressable>}
+    {category && <Button variant="outline" size="lg" onPress={() => onArchive(category)} className="mt-3">
+      <UiText>{category.archivedAt ? 'Restore category' : 'Archive category'}</UiText>
+    </Button>}
   </View>
 }
 
@@ -123,7 +128,7 @@ function CategoryDonut({ mode, categories, totals, total, oppositeTotal, onToggl
     onPress={onToggle}
     className="h-[172px] w-[172px] items-center justify-center rounded-full"
   >
-    <Svg width={172} height={172} viewBox="0 0 172 172" className="absolute"><Circle cx="86" cy="86" r={radius} fill="none" stroke="#34343a" strokeWidth="11" />{segments}</Svg>
+    <Svg width={172} height={172} viewBox="0 0 172 172" className="absolute"><Circle cx="86" cy="86" r={radius} fill="none" stroke="#262626" strokeWidth="11" />{segments}</Svg>
     <Text className="text-[14px] font-semibold capitalize text-surface-300">{mode}</Text>
     <Text className={`mt-0.5 text-[24px] font-bold ${income ? 'text-positive' : 'text-surface-50'}`} style={tabular}>{money(total)}</Text>
     <Text className="mt-1 text-[14px] text-surface-400">{income ? 'Expenses' : 'Income'} {money(oppositeTotal)}</Text>
@@ -159,7 +164,8 @@ export default function Categories(): React.ReactElement {
     }
     const restRows = Array.from({ length: Math.ceil(rest.length / 4) }, (_, index) => rest.slice(index * 4, index * 4 + 4))
     return <View className="flex-1">
-      <PeriodChips />
+      <PeriodBar />
+      <PeriodSwipe>
       <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 72 }}>
         <View className="flex-row items-center justify-between px-4 pb-2 pt-1"><View><Text className={`text-[20px] font-semibold ${mode === 'expense' ? 'text-surface-100' : 'text-positive'}`}>{mode === 'expense' ? 'Expense categories' : 'Income categories'}</Text><Text className="mt-0.5 text-[14px] text-surface-400">Tap for transactions · Hold to edit</Text></View><Pressable onPress={() => setArchived((value) => !value)} style={{ minHeight: 44 }} className="justify-center rounded-full border border-surface-700 bg-surface-900 px-4"><Text className="text-[14px] font-semibold text-surface-300">{archived ? 'Show active' : 'Archived'}</Text></Pressable></View>
         <CategoryRow categories={top} totals={totals} total={total} onOpen={openCategory} onEdit={setEditing} />
@@ -173,7 +179,8 @@ export default function Categories(): React.ReactElement {
         {restRows.map((row, index) => <CategoryRow key={index} categories={row} totals={totals} total={total} onOpen={openCategory} onEdit={setEditing} />)}
         {categories.length === 0 && <Text className="px-8 pb-6 text-center text-[14px] leading-5 text-surface-400">No {archived ? 'archived' : 'active'} {mode} categories. Tap + to create one.</Text>}
       </ScrollView>
-      {!editing && !confirming && <Pressable accessibilityRole="button" accessibilityLabel="Add category" disabled={state.readOnly} onPress={() => setEditing('new')} style={{ minHeight: 48 }} className="absolute bottom-5 right-4 flex-row items-center rounded-2xl bg-accent-600 px-5"><Plus color="#fff" size={19} /><Text className="ml-1.5 text-[16px] font-semibold text-white">Category</Text></Pressable>}
+      </PeriodSwipe>
+      {!editing && !confirming && <Pressable accessibilityRole="button" accessibilityLabel="Add category" disabled={state.readOnly} onPress={() => setEditing('new')} style={{ minHeight: 48 }} className="absolute bottom-5 right-4 flex-row items-center rounded-2xl bg-primary px-5"><Plus color="#0a0a0a" size={19} /><Text className="ml-1.5 text-[16px] font-semibold text-primary-foreground">Category</Text></Pressable>}
       <Sheet visible={Boolean(editing)} title={editing === 'new' ? `New ${mode} category` : 'Edit category'} onClose={() => setEditing(null)}>{editing && <CategoryForm key={editing === 'new' ? `new-${mode}` : editing.id} category={editing === 'new' ? undefined : editing} defaultKind={mode} onClose={() => setEditing(null)} onArchive={(category) => { setEditing(null); archive(category) }} />}</Sheet>
       <ConfirmDialog visible={Boolean(confirming)} title={confirming?.archivedAt ? 'Restore category?' : 'Archive category?'} detail="Past transactions will keep this category." confirmLabel={confirming?.archivedAt ? 'Restore' : 'Archive'} busy={state.busy} onCancel={() => setConfirming(null)} onConfirm={() => void confirmArchive()} />
     </View>

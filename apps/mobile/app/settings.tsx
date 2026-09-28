@@ -184,17 +184,17 @@ export default function Settings(): React.ReactElement {
   return (
     <ScrollView className="flex-1 bg-surface-950 px-4" keyboardShouldPersistTaps="handled">
       <View className={CARD}>
-        <Heading icon={<CircleUserRound color="#91c4ff" size={17} />} title="Account" />
+        <Heading icon={<CircleUserRound color="#fafafa" size={17} />} title="Account" />
         {signedIn
           ? <>
             <Text className="mt-2 text-[16px] text-surface-100">{email ? `Signed in as ${email}` : 'Connected with a device token'}</Text>
             {device && <Text className="mt-0.5 text-[14px] text-surface-400">This device: {device}</Text>}
             {sessionError && <Text className="mt-2 text-[14px] leading-5 text-amber-300">{sessionError}</Text>}
-            {(sessionError || !email) && <Pressable accessibilityRole="button" disabled={signingIn} onPress={() => void signIn()} style={{ minHeight: TOUCH }} className="mt-3 flex-row items-center justify-center rounded-xl bg-accent-600 px-4">
-              <Text className="text-[16px] font-semibold text-white">{signingIn ? 'Opening Google...' : 'Sign in with Google'}</Text>
+            {(sessionError || !email) && <Pressable accessibilityRole="button" disabled={signingIn} onPress={() => void signIn()} style={{ minHeight: TOUCH }} className="mt-3 flex-row items-center justify-center rounded-xl bg-primary px-4">
+              <Text className="text-[16px] font-semibold text-primary-foreground">{signingIn ? 'Opening Google...' : 'Sign in with Google'}</Text>
             </Pressable>}
             <Pressable accessibilityRole="button" onPress={() => setConfirmingSignOut(true)} style={{ minHeight: TOUCH }} className="mt-3 flex-row items-center justify-center rounded-xl border border-surface-700 px-4">
-              <LogOut color="#b5b5bc" size={16} />
+              <LogOut color="#d4d4d4" size={16} />
               <Text className="ml-2 text-[16px] font-semibold text-surface-200">Sign out</Text>
             </Pressable>
           </>
@@ -202,22 +202,22 @@ export default function Settings(): React.ReactElement {
             <Text className="mt-2 text-[14px] leading-5 text-surface-400">Sign in with the Google account your Ego server allows. The server holds every API key, so there is nothing else to paste here.</Text>
             {buildApiUrl && !editingServer
               ? <Pressable accessibilityRole="button" accessibilityHint="Change the server address" onPress={() => setEditingServer(true)} style={{ minHeight: TOUCH }} className="mt-3 flex-row items-center">
-                <Server color="#8a8a92" size={14} />
+                <Server color="#a3a3a3" size={14} />
                 <Text numberOfLines={1} className="ml-2 flex-1 font-mono text-[14px] text-surface-400">{serverDraft}</Text>
                 <Text className="text-[14px] font-semibold text-accent-400">Change</Text>
               </Pressable>
               : <View className="mt-3">
                 <Text className="mb-1 text-[14px] font-semibold uppercase tracking-wide text-surface-400">Server address</Text>
-                <TextInput value={serverDraft} onChangeText={setServerDraft} autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="https://ego-money.example.workers.dev" placeholderTextColor="#707078" className={inputClass} />
+                <TextInput value={serverDraft} onChangeText={setServerDraft} autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="https://ego-money.example.workers.dev" placeholderTextColor="#737373" className={inputClass} />
               </View>}
-            <Pressable accessibilityRole="button" disabled={signingIn} onPress={() => void signIn()} style={{ minHeight: TOUCH }} className={`mt-3 flex-row items-center justify-center rounded-xl px-4 ${signingIn ? 'bg-surface-800' : 'bg-accent-600'}`}>
+            <Pressable accessibilityRole="button" disabled={signingIn} onPress={() => void signIn()} style={{ minHeight: TOUCH }} className={`mt-3 flex-row items-center justify-center rounded-xl px-4 ${signingIn ? 'bg-surface-800' : 'bg-primary'}`}>
               {signingIn && <ActivityIndicator color="#fff" size="small" />}
-              <Text className={`text-[16px] font-semibold text-white ${signingIn ? 'ml-2' : ''}`}>{signingIn ? 'Opening Google...' : 'Sign in with Google'}</Text>
+              <Text className={`text-[16px] font-semibold ${signingIn ? 'ml-2 text-surface-300' : 'text-primary-foreground'}`}>{signingIn ? 'Opening Google...' : 'Sign in with Google'}</Text>
             </Pressable>
             {enteringToken
               ? <View className="mt-3">
                 <Text className="mb-1 text-[14px] font-semibold uppercase tracking-wide text-surface-400">Device token</Text>
-                <TextInput value={tokenDraft} onChangeText={setTokenDraft} secureTextEntry autoCapitalize="none" autoCorrect={false} placeholder="From ego-device enroll" placeholderTextColor="#707078" className={inputClass} />
+                <TextInput value={tokenDraft} onChangeText={setTokenDraft} secureTextEntry autoCapitalize="none" autoCorrect={false} placeholder="From ego-device enroll" placeholderTextColor="#737373" className={inputClass} />
                 <Pressable accessibilityRole="button" onPress={() => void useDeviceToken()} style={{ minHeight: TOUCH }} className="mt-2 items-center justify-center rounded-xl border border-surface-700 px-4">
                   <Text className="text-[16px] font-semibold text-surface-200">Connect with this token</Text>
                 </Pressable>
@@ -230,7 +230,7 @@ export default function Settings(): React.ReactElement {
       </View>
 
       {signedIn && <View className={CARD}>
-        <Heading icon={<RefreshCw color="#91c4ff" size={16} />} title="Sync" />
+        <Heading icon={<RefreshCw color="#fafafa" size={16} />} title="Sync" />
         <Text className="mt-2 text-[16px] text-surface-100">{ledger.syncing ? 'Syncing...' : syncLabel(ledger.status)}</Text>
         {ledger.status?.message && ledger.status.state !== 'synced' && <Text className="mt-1 text-[14px] leading-5 text-surface-400">{ledger.status.message}</Text>}
         <Text className="mt-1 text-[14px] leading-5 text-surface-400">Changes save on this phone first and reach the server when it is reachable.</Text>
@@ -240,12 +240,12 @@ export default function Settings(): React.ReactElement {
       </View>}
 
       {signedIn && session && <View className={CARD}>
-        <Heading icon={<KeyRound color="#91c4ff" size={16} />} title="Server keys" />
+        <Heading icon={<KeyRound color="#fafafa" size={16} />} title="Server keys" />
         <Text className="mt-2 text-[14px] leading-5 text-surface-400">The Worker keeps these as secrets and calls each service for this phone. Add a missing one with npx wrangler secret put.</Text>
         {SERVICES.map((service) => {
           const ready = session.services[service.key]
           return <View key={service.key} style={{ minHeight: TOUCH }} className="mt-1 flex-row items-center border-t border-surface-800 pt-2">
-            {ready ? <Check color="#34d399" size={16} /> : <X color="#8a8a92" size={16} />}
+            {ready ? <Check color="#34d399" size={16} /> : <X color="#a3a3a3" size={16} />}
             <View className="ml-2.5 flex-1">
               <Text className="text-[16px] text-surface-100">{service.label}</Text>
               {!ready && <Text className="text-[14px] text-surface-400">{service.secret}</Text>}
@@ -257,8 +257,8 @@ export default function Settings(): React.ReactElement {
 
       {signedIn && trelloAvailable && <View className={CARD}>
         <View className="flex-row items-center justify-between">
-          <Heading icon={<ListPlus color="#91c4ff" size={16} />} title="Trello" />
-          {loadingTrello && <ActivityIndicator size="small" color="#91c4ff" />}
+          <Heading icon={<ListPlus color="#fafafa" size={16} />} title="Trello" />
+          {loadingTrello && <ActivityIndicator size="small" color="#fafafa" />}
         </View>
         <Text className="mt-3 text-[14px] font-semibold uppercase tracking-wide text-surface-400">Board</Text>
         <View className="mt-1.5 gap-2">
@@ -288,8 +288,8 @@ export default function Settings(): React.ReactElement {
           <Text className="mt-2 text-[14px] leading-5 text-surface-400">Pinned lists show as buttons on the capture screen.</Text>
         </>}
         {trelloError && <Text className="mt-2 text-[14px] leading-5 text-red-400">{trelloError}</Text>}
-        <Pressable accessibilityRole="button" disabled={!settings.trelloListId} onPress={() => router.push('/capture')} style={{ minHeight: TOUCH }} className={`mt-4 items-center justify-center rounded-xl px-4 ${settings.trelloListId ? 'bg-accent-600' : 'bg-surface-800'}`}>
-          <Text className={`text-[16px] font-semibold ${settings.trelloListId ? 'text-white' : 'text-surface-400'}`}>{settings.trelloListId ? 'Add Trello card' : 'Choose a default list first'}</Text>
+        <Pressable accessibilityRole="button" disabled={!settings.trelloListId} onPress={() => router.push('/capture')} style={{ minHeight: TOUCH }} className={`mt-4 items-center justify-center rounded-xl px-4 ${settings.trelloListId ? 'bg-primary' : 'bg-surface-800'}`}>
+          <Text className={`text-[16px] font-semibold ${settings.trelloListId ? 'text-primary-foreground' : 'text-surface-400'}`}>{settings.trelloListId ? 'Add Trello card' : 'Choose a default list first'}</Text>
         </Pressable>
       </View>}
 
@@ -302,7 +302,7 @@ export default function Settings(): React.ReactElement {
       </View>}
 
       <View className={CARD}>
-        <Heading icon={<Info color="#91c4ff" size={16} />} title="About" />
+        <Heading icon={<Info color="#fafafa" size={16} />} title="About" />
         <View className="mt-3 flex-row items-center justify-between">
           <Text className="text-[14px] text-surface-400">Version</Text>
           <Text className="font-mono text-[14px] text-surface-200">{Constants.expoConfig?.version ?? 'unknown'}</Text>

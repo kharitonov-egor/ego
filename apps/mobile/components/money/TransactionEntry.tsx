@@ -1,54 +1,81 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Dimensions, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
-import { ChevronRight, Trash2, X } from 'lucide-react-native'
+import { Dimensions, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, TextInput, View } from 'react-native'
+import { CalendarDays, Check, ChevronDown, Trash2, X } from 'lucide-react-native'
 import { useNavigation } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import type { MoneyAccount, MoneyCategory, MoneySnapshot, MoneyTransaction, TransactionInput, TransactionKind } from '@ego/core'
 import { useMoney } from '../../lib/money-context'
 import { amountToExpression, evaluateAmount, formatAmountExpression, pressAmountKey } from '../../lib/amount-input'
 import { isoToday, relativeDayLabel } from '../../lib/dates'
+import { SegmentedControl, type SegmentedOption } from '../ui/segmented-control'
+import { Text } from '../ui/text'
 import { AmountKeypad } from './AmountKeypad'
 import { DateSheet } from './DatePicker'
-import { ConfirmDialog, MoneyIcon } from './Common'
+import { BottomSheet, ConfirmDialog, MoneyIcon, money } from './Common'
 import { useMoneyTabBarStyle } from './navigation'
+import { color as palette } from './tokens'
 
-const KIND_COLORS: Record<TransactionKind, string> = { expense: '#e84d8a', income: '#2bb3a9', transfer: '#5b6ee1' }
-const KINDS: TransactionKind[] = ['expense', 'income', 'transfer']
+const KIND_OPTIONS: SegmentedOption<TransactionKind>[] = [
+  { value: 'expense', label: 'Expense' },
+  { value: 'income', label: 'Income' },
+  { value: 'transfer', label: 'Transfer' }
+]
 
-function Field({ label, name, icon, color, onPress }: {
+const AMOUNT_COLOR: Record<TransactionKind, string> = { expense: palette.expense, income: palette.positive, transfer: palette.text }
+
+function Field({ label, name, icon, color, placeholder, onPress }: {
   label: string
-  name: string
+  name?: string
   icon?: string
   color?: string
+  placeholder: string
   onPress: () => void
 }): React.ReactElement {
   return <Pressable
     accessibilityRole="button"
-    accessibilityLabel={`${label}: ${name}`}
+    accessibilityLabel={`${label}: ${name ?? placeholder}`}
     onPress={onPress}
-    style={{ minHeight: 60 }}
-    className="flex-row items-center rounded-2xl border border-surface-800 bg-surface-900/60 px-4"
+    className="min-h-[68px] flex-1 flex-row items-center rounded-2xl border border-border bg-card px-3 active:bg-surface-900"
   >
-    {icon && <View className="mr-3 h-9 w-9 items-center justify-center rounded-full" style={{ backgroundColor: color ?? '#38383d' }}>
-      <MoneyIcon name={icon} size={15} />
-    </View>}
-    <View className="flex-1">
-      <Text className="text-[14px] text-surface-500">{label}</Text>
-      <Text numberOfLines={1} className="mt-0.5 text-[16px] font-semibold text-surface-100">{name}</Text>
+    <View className="h-10 w-10 items-center justify-center rounded-full" style={{ backgroundColor: color ?? '#262626' }}>
+      <MoneyIcon name={icon ?? 'Tag'} color={icon ? '#ffffff' : '#737373'} size={18} />
     </View>
-    <ChevronRight color="#8a8a92" size={18} />
+    <View className="ml-2.5 flex-1">
+      <Text className="text-[13px] text-muted-foreground">{label}</Text>
+      <Text numberOfLines={1} className={`text-[16px] font-semibold ${name ? 'text-foreground' : 'text-surface-500'}`}>{name ?? placeholder}</Text>
+    </View>
   </Pressable>
 }
 
-function OptionSheet({ visible, title, onClose, children }: { visible: boolean; title: string; onClose: () => void; children: React.ReactNode }): React.ReactElement {
-  return <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
-    <Pressable onPress={onClose} className="flex-1 justify-end bg-black/70">
-      <Pressable onPress={(event) => event.stopPropagation()} className="max-h-[70%] rounded-t-2xl border-t border-surface-700 bg-surface-950 px-4 pb-8 pt-4">
-        <Text className="mb-3 text-center text-[18px] font-bold text-surface-100">{title}</Text>
-        <ScrollView>{children}</ScrollView>
-      </Pressable>
-    </Pressable>
-  </Modal>
+function AccountOption({ account, selected, onPress }: { account: MoneyAccount; selected: boolean; onPress: () => void }): React.ReactElement {
+  return <Pressable
+    accessibilityRole="button"
+    accessibilityState={{ selected }}
+    onPress={onPress}
+    className={`mb-2 min-h-[68px] flex-row items-center rounded-2xl border px-3 ${selected ? 'border-surface-500 bg-surface-900' : 'border-border bg-card active:bg-surface-900'}`}
+  >
+    <View className="h-12 w-12 items-center justify-center rounded-2xl" style={{ backgroundColor: account.color }}><MoneyIcon name={account.icon} size={21} /></View>
+    <View className="ml-3 flex-1">
+      <Text numberOfLines={1} className="text-[17px] font-semibold">{account.name}</Text>
+      <Text className="text-[14px] text-muted-foreground">{money(account.balanceCents)}</Text>
+    </View>
+    {selected && <Check color="#fafafa" size={22} />}
+  </Pressable>
+}
+
+function CategoryOption({ category, selected, onPress }: { category: MoneyCategory; selected: boolean; onPress: () => void }): React.ReactElement {
+  return <Pressable
+    accessibilityRole="button"
+    accessibilityLabel={category.name}
+    accessibilityState={{ selected }}
+    onPress={onPress}
+    className="mb-4 w-1/4 items-center px-1"
+  >
+    <View className={`h-16 w-16 items-center justify-center rounded-full ${selected ? 'border-[3px] border-white' : ''}`} style={{ backgroundColor: category.color }}>
+      <MoneyIcon name={category.icon} size={26} />
+    </View>
+    <Text numberOfLines={2} className={`mt-1.5 text-center text-[14px] leading-[18px] ${selected ? 'font-semibold text-foreground' : 'text-surface-300'}`}>{category.name}</Text>
+  </Pressable>
 }
 
 interface TransactionEntryProps {
@@ -114,9 +141,13 @@ export default function TransactionEntry({ snapshot, transaction, onClose, onSav
   const target: MoneyAccount | MoneyCategory | undefined = kind === 'transfer' ? destination : category
   const cents = evaluateAmount(expression) ?? 0
   const valid = Boolean(accountId && cents > 0 && date && (kind === 'transfer' ? destinationId && destinationId !== accountId : categoryId))
-  const color = KIND_COLORS[kind]
 
-  const changeKind = (value: TransactionKind): void => { setKind(value); setDestinationId(''); setCategoryId(lastUsedCategory(value)) }
+  const changeKind = (value: TransactionKind): void => {
+    if (value === kind) return
+    setKind(value)
+    setDestinationId('')
+    setCategoryId(lastUsedCategory(value))
+  }
   const save = async (): Promise<void> => {
     if (saving.current) return
     saving.current = true
@@ -143,86 +174,85 @@ export default function TransactionEntry({ snapshot, transaction, onClose, onSav
 
   return <Modal visible transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
     <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-    <View className="flex-1 bg-surface-950">
+    <View className="flex-1 bg-background">
       <View
         className="flex-1"
         style={typingNotes && Platform.OS === 'android' ? { marginBottom: keyboardOverlap } : undefined}
       >
-        <View style={{ paddingTop: insets.top + 8 }} className="flex-row items-center justify-between px-4 pb-1">
-          <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} hitSlop={12} className="h-12 w-12 items-start justify-center"><X color="#b5b5bc" size={24} /></Pressable>
-          <Text className="text-[16px] font-semibold text-surface-300">{transaction ? 'Edit transaction' : 'New transaction'}</Text>
-          <View className="h-12 w-12 items-end justify-center">
-            {transaction && <Pressable accessibilityRole="button" accessibilityLabel="Delete transaction" onPress={() => setConfirmingDelete(true)} hitSlop={12} className="h-12 w-12 items-end justify-center"><Trash2 color="#fb7185" size={21} /></Pressable>}
+        <View style={{ paddingTop: insets.top + 6 }} className="flex-row items-center justify-between px-4 pb-2">
+          <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} hitSlop={6} className="h-11 w-11 items-center justify-center rounded-full bg-surface-900 active:bg-surface-800"><X color="#fafafa" size={22} /></Pressable>
+          <Text accessibilityRole="header" className="text-[18px] font-semibold">{transaction ? 'Edit transaction' : 'New transaction'}</Text>
+          <View className="h-11 w-11">
+            {transaction && <Pressable accessibilityRole="button" accessibilityLabel="Delete transaction" onPress={() => setConfirmingDelete(true)} hitSlop={6} className="h-11 w-11 items-center justify-center rounded-full bg-surface-900 active:bg-surface-800"><Trash2 color="#fb7185" size={20} /></Pressable>}
           </View>
         </View>
 
-        <View className="flex-row gap-2 px-4 pb-1 pt-2">{KINDS.map((item) => <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ selected: kind === item }}
-          key={item}
-          onPress={() => changeKind(item)}
-          style={{
-            minHeight: 46,
-            backgroundColor: kind === item ? `${KIND_COLORS[item]}26` : '#1d1d21',
-            borderColor: kind === item ? KIND_COLORS[item] : 'transparent',
-            borderWidth: 1
-          }}
-          className="flex-1 items-center justify-center rounded-2xl"
-        >
-          <Text className="text-[15px] font-semibold capitalize" style={{ color: kind === item ? KIND_COLORS[item] : '#8a8a92' }}>{item}</Text>
-        </Pressable>)}</View>
+        <SegmentedControl options={KIND_OPTIONS} value={kind} onValueChange={changeKind} className="mx-4 mt-1" />
 
-        {!typingNotes && <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Amount ${formatAmountExpression(expression)}`}
-          accessibilityHint="Hold to clear the amount"
-          onLongPress={() => setExpression('')}
-          className="flex-1 items-center justify-center px-4"
-          style={{ minHeight: 96 }}
-        >
-          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} className="text-[56px] font-bold" style={{ color, fontVariant: ['tabular-nums'] }}>${formatAmountExpression(expression)}</Text>
-        </Pressable>}
+        {!typingNotes && <View className="flex-1 items-center justify-center px-4" style={{ minHeight: 120 }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Amount ${formatAmountExpression(expression)}`}
+            accessibilityHint="Hold to clear the amount"
+            onLongPress={() => setExpression('')}
+            className="w-full items-center"
+          >
+            <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.5} className="text-[60px] font-bold tracking-tight" style={{ color: AMOUNT_COLOR[kind] }}>${formatAmountExpression(expression)}</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Date: ${relativeDayLabel(date)}`}
+            onPress={() => setDatePicking(true)}
+            className="mt-2 min-h-10 flex-row items-center gap-2 rounded-full border border-input bg-surface-900 px-4 active:bg-surface-800"
+          >
+            <CalendarDays color="#d4d4d4" size={16} />
+            <Text className="text-[15px] font-medium text-surface-200">{relativeDayLabel(date)}</Text>
+            <ChevronDown color="#a3a3a3" size={16} />
+          </Pressable>
+        </View>}
 
-        {!typingNotes && <View className="gap-2 px-4">
+        {!typingNotes && <View className="flex-row gap-2.5 px-4">
           <Field
             label={kind === 'transfer' ? 'From' : 'Account'}
-            name={account?.name ?? 'Choose an account'}
+            name={account?.name}
             icon={account?.icon}
             color={account?.color}
+            placeholder="Choose"
             onPress={() => setPicking('account')}
           />
           <Field
             label={kind === 'transfer' ? 'To' : 'Category'}
-            name={target?.name ?? (kind === 'transfer' ? 'Choose an account' : 'Choose a category')}
+            name={target?.name}
             icon={target?.icon}
             color={target?.color}
+            placeholder="Choose"
             onPress={() => setPicking('target')}
           />
-          <Field label="Date" name={relativeDayLabel(date)} onPress={() => setDatePicking(true)} />
         </View>}
 
-        {saveFailed && <Text accessibilityLiveRegion="polite" className="mx-3 mb-1 text-center text-[14px] leading-5 text-amber-300">
+        {saveFailed && <Text accessibilityLiveRegion="polite" className="mx-4 mt-2 text-center text-[14px] leading-5 text-amber-300">
           Not saved yet. Your entry is kept here, so you can try again.
         </Text>}
-        {typingNotes && <Text className="mx-3 mt-3 text-[14px] font-semibold text-surface-400">Transaction note</Text>}
+        {typingNotes && <Text className="mx-4 mt-4 text-[15px] font-medium text-surface-200">Note</Text>}
         <TextInput
           value={notes} onChangeText={setNotes} multiline maxLength={500}
           onFocus={() => setTypingNotes(true)} onBlur={() => setTypingNotes(false)}
-          placeholder="Notes..." placeholderTextColor="#909099"
-          className={`mx-4 mb-2 mt-3 rounded-2xl border border-surface-800 bg-surface-900/60 px-4 py-3 text-[16px] text-surface-100 ${typingNotes ? 'min-h-24' : 'min-h-12'}`}
+          accessibilityLabel="Note"
+          placeholder="Add a note, like Publix"
+          placeholderTextColor="#737373"
+          className={`mx-4 mb-3 mt-2.5 rounded-2xl border border-border bg-card px-4 py-3.5 text-[17px] text-foreground ${typingNotes ? 'min-h-28' : 'min-h-[52px]'}`}
         />
 
         {typingNotes
-          ? <Pressable onPress={() => Keyboard.dismiss()} style={{ minHeight: 48 }} className="items-center justify-center">
-            <Text className="text-[16px] font-semibold" style={{ color }}>Done</Text>
+          ? <Pressable onPress={() => Keyboard.dismiss()} className="mx-4 min-h-12 items-center justify-center rounded-xl bg-primary">
+            <Text className="font-semibold text-primary-foreground">Done</Text>
           </Pressable>
-          : <View style={{ flex: 2, minHeight: 260, paddingBottom: Math.max(insets.bottom, 8) + 6 }}>
+          : <View style={{ flex: 2, minHeight: 272, paddingBottom: Math.max(insets.bottom, 8) + 6 }}>
             <AmountKeypad
               onKey={(key) => setExpression((current) => pressAmountKey(current, key))}
               onOpenDate={() => setDatePicking(true)}
               onConfirm={() => void save()}
               confirmDisabled={!valid || state.busy || busy}
-              confirmColor={color}
               busy={state.busy || busy}
             />
           </View>}
@@ -230,25 +260,31 @@ export default function TransactionEntry({ snapshot, transaction, onClose, onSav
     </View>
     </KeyboardAvoidingView>
 
-    <OptionSheet visible={picking === 'account'} title="From account" onClose={() => setPicking(null)}>
-      {accounts.map((item) => <Pressable key={item.id} onPress={() => { setAccountId(item.id); if (item.id === destinationId) setDestinationId(''); setPicking(null) }} className={`mb-1.5 flex-row items-center rounded-xl border px-2.5 py-2 ${accountId === item.id ? 'border-accent-500 bg-accent-500/15' : 'border-surface-800 bg-surface-900'}`}>
-        <View className="h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: item.color }}><MoneyIcon name={item.icon} size={15} /></View>
-        <Text className={`ml-2 text-[16px] font-semibold ${accountId === item.id ? 'text-accent-300' : 'text-surface-200'}`}>{item.name}</Text>
-      </Pressable>)}
-    </OptionSheet>
+    <BottomSheet visible={picking === 'account'} title={kind === 'transfer' ? 'From account' : 'Account'} onClose={() => setPicking(null)} dismissOnBackdrop>
+      {accounts.map((item) => <AccountOption
+        key={item.id}
+        account={item}
+        selected={accountId === item.id}
+        onPress={() => { setAccountId(item.id); if (item.id === destinationId) setDestinationId(''); setPicking(null) }}
+      />)}
+    </BottomSheet>
 
-    <OptionSheet visible={picking === 'target'} title={kind === 'transfer' ? 'To account' : 'To category'} onClose={() => setPicking(null)}>
+    <BottomSheet visible={picking === 'target'} title={kind === 'transfer' ? 'To account' : kind === 'income' ? 'Income category' : 'Expense category'} onClose={() => setPicking(null)} dismissOnBackdrop>
       {kind === 'transfer'
-        ? accounts.filter((item) => item.id !== accountId).map((item) => <Pressable key={item.id} onPress={() => { setDestinationId(item.id); setPicking(null) }} className={`mb-1.5 flex-row items-center rounded-xl border px-2.5 py-2 ${destinationId === item.id ? 'border-accent-500 bg-accent-500/15' : 'border-surface-800 bg-surface-900'}`}>
-            <View className="h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: item.color }}><MoneyIcon name={item.icon} size={15} /></View>
-            <Text className={`ml-2 text-[16px] font-semibold ${destinationId === item.id ? 'text-accent-300' : 'text-surface-200'}`}>{item.name}</Text>
-          </Pressable>)
-        : <View className="flex-row flex-wrap gap-1.5">{categories.map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityState={{ selected: categoryId === item.id }} onPress={() => { setCategoryId(item.id); setPicking(null) }} style={{ minHeight: 44 }} className={`flex-row items-center rounded-full border px-3 py-2 ${categoryId === item.id ? 'border-accent-500 bg-accent-500/15' : 'border-surface-800 bg-surface-900'}`}>
-            <MoneyIcon name={item.icon} color={item.color} size={12} />
-            <Text className={`ml-1.5 text-[14px] ${categoryId === item.id ? 'font-semibold text-accent-300' : 'text-surface-300'}`}>{item.name}</Text>
-          </Pressable>)}</View>}
-      {kind !== 'transfer' && categories.length === 0 && <Text className="text-center text-[14px] text-amber-400">Create an active {kind} category first.</Text>}
-    </OptionSheet>
+        ? accounts.filter((item) => item.id !== accountId).map((item) => <AccountOption
+          key={item.id}
+          account={item}
+          selected={destinationId === item.id}
+          onPress={() => { setDestinationId(item.id); setPicking(null) }}
+        />)
+        : <View className="-mx-1 flex-row flex-wrap">{categories.map((item) => <CategoryOption
+          key={item.id}
+          category={item}
+          selected={categoryId === item.id}
+          onPress={() => { setCategoryId(item.id); setPicking(null) }}
+        />)}</View>}
+      {kind !== 'transfer' && categories.length === 0 && <Text className="py-6 text-center text-amber-400">Create an active {kind} category first.</Text>}
+    </BottomSheet>
 
     <DateSheet visible={datePicking} value={date} onClose={() => setDatePicking(false)} onChange={setDate} />
 
