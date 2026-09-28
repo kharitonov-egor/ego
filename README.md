@@ -53,15 +53,39 @@ network, a saved transaction is durable before it is delivered, and conflicts of
 Use saved version. The desktop app can route its writes through the same Worker while keeping its
 current screens.
 
-The phone signs in once with Google and gets its device token from the Worker. It keeps no API
-keys. The Worker holds the OpenRouter, Trello, and OpenAI keys as secrets and calls those services
-on the phone's behalf.
+The phone signs in once with Google on its start screen and gets its device token from the
+Worker. That one sign-in covers Finance and Gym, and neither opens until it is done. The phone
+keeps no API keys. The Worker holds the OpenRouter, Trello, and OpenAI keys as secrets and calls
+those services on the phone's behalf.
 
 Money sync and Talk to AI use the same Worker address and device token. Desktop money sync falls back to
 the direct D1 connection when the Worker is not configured. `docs/ledger-setup.md` covers Worker
 deployment, device enrolment, Live setup, the money cutover, and rollback.
 
 The repo is public so I can point people at it. The credentials are not in it.
+
+## Gym
+
+The Gym tile on the phone is a workout log laid out like FitNotes, in the Finance black theme.
+
+- The home screen shows one day with a card per exercise and its sets. Swipe sideways or use the
+  arrows to change days. The calendar marks each workout day with a dot per muscle group trained.
+- An exercise opens on Track, History, and Graph tabs. Track has weight and rep steppers, Save and
+  Clear, and turns into Update and Delete when you tap a logged set. Each set can carry a comment.
+- The trophy lists the best weight for each rep count and an estimated one-rep max (Epley). A
+  trophy icon marks the sets that hold a record.
+- The side panel lists the day's exercises. Hold one to reorder it, put it in a superset, or delete
+  that day's sets.
+- A rest timer starts after each saved set. It vibrates at zero, or sends a notification if the
+  app is in the background. The length and the auto start are in Settings.
+
+Weights are in pounds unless an exercise is set to kilograms. The library holds 116 standard
+exercises across Abs, Back, Biceps, Cardio, Chest, Legs, Shoulders, and Triceps.
+
+Gym data lives in the same phone database and Worker as money: categories, exercises, sets, and a
+per-day record for order and supersets. It syncs through the same outbox and change log, so it
+works offline. `scripts/gym-import.mjs` loads a FitNotes CSV export through the Worker; see
+`docs/ledger-setup.md`.
 
 ## Quick tools
 

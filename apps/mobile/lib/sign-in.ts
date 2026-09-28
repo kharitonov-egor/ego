@@ -58,7 +58,7 @@ export async function finishGoogleSignIn(code: string): Promise<SignInOutcome> {
   const pending = parsePending(await SecureStore.getItemAsync(PENDING_KEY).catch(() => null))
   await SecureStore.deleteItemAsync(PENDING_KEY).catch(() => undefined)
   if (!pending || pending.expiresAt <= new Date().toISOString()) {
-    return { ok: false, message: 'This sign-in started too long ago. Try again from Settings.' }
+    return { ok: false, message: 'This sign-in started too long ago. Try again from the start screen.' }
   }
   const exchanged = await exchangeSignIn(pending.apiUrl, code, pending.exchangeSecret)
   if (!exchanged.ok) return { ok: false, message: exchanged.error.message }

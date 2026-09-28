@@ -20,7 +20,7 @@ All routes except `/v1/health`, the two sign-in routes, and the two OAuth callba
 | `POST /v1/auth/exchange` | Trades the code from `ego://auth` and the secret for a new device token |
 | `GET /v1/session` | The signed-in account and which server keys exist, never their values |
 | `DELETE /v1/session` | Signs out by revoking this device's token |
-| `GET /v1/bootstrap` | Every live record, with receipt items and budget allocations, plus the sequence it was read after |
+| `GET /v1/bootstrap` | Every live money and gym record, with receipt items and budget allocations, plus the sequence it was read after |
 | `POST /v1/agent/money` | Runs the money agent with the Worker's OpenRouter key |
 | `GET /v1/trello/boards` | Trello boards, with the Worker's Trello key and token |
 | `GET /v1/trello/boards/:id/lists` | Lists on one board |
@@ -71,6 +71,12 @@ Every write arrives as an operation with a device-generated `operationId`, the `
 the revision the device expected. Repeating an operation returns its first result instead of
 writing again, and reusing an ID with a different payload is rejected. A stale revision returns
 409 with the current record so the app can offer Keep mine or Use saved version.
+
+Gym records use the same path: `gymCategory`, `gymExercise`, and `gymSet` take create, update, and
+delete; `gymWorkout`, keyed by its date, takes save. Deleting an exercise keeps its sets and hides
+them from every read, and a category with live exercises cannot be deleted. Migration `0005` adds
+the tables and rebuilds `changes` without the CHECK that listed entity names, so another app can
+join the change log without rebuilding it again.
 
 Each command runs as one D1 batch. The statements that carry out the command share one
 precondition and run before the primary write, so a command either commits with its change-log

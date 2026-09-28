@@ -1,7 +1,8 @@
 import {
-  isAccountInput, isBudgetInput, isCategoryInput, isMonthString, isPurchaseInput, isTransactionInput,
-  type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type PurchaseInput,
-  type TransactionInput
+  isAccountInput, isBudgetInput, isCategoryInput, isDateString, isGymCategoryInput, isGymExerciseInput,
+  isGymSetInput, isGymWorkoutInput, isMonthString, isPurchaseInput, isTransactionInput,
+  type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type GymCategoryInput,
+  type GymExerciseInput, type GymSetInput, type GymWorkoutInput, type PurchaseInput, type TransactionInput
 } from '@ego/core'
 import type { ApiError } from './errors'
 import type { SyncEntity } from './records'
@@ -21,6 +22,16 @@ export type SyncCommand =
   | { entity: 'purchase'; type: 'delete' }
   | { entity: 'budget'; type: 'save'; payload: BudgetInput }
   | { entity: 'budget'; type: 'delete' }
+  | { entity: 'gymCategory'; type: 'create'; payload: GymCategoryInput }
+  | { entity: 'gymCategory'; type: 'update'; payload: GymCategoryInput }
+  | { entity: 'gymCategory'; type: 'delete' }
+  | { entity: 'gymExercise'; type: 'create'; payload: GymExerciseInput }
+  | { entity: 'gymExercise'; type: 'update'; payload: GymExerciseInput }
+  | { entity: 'gymExercise'; type: 'delete' }
+  | { entity: 'gymSet'; type: 'create'; payload: GymSetInput }
+  | { entity: 'gymSet'; type: 'update'; payload: GymSetInput }
+  | { entity: 'gymSet'; type: 'delete' }
+  | { entity: 'gymWorkout'; type: 'save'; payload: GymWorkoutInput }
 
 /**
  * The device generates `operationId` and `entityId` once and reuses them on every retry,
@@ -90,9 +101,23 @@ function isCommand(value: unknown): value is SyncCommand {
       return isPurchaseInput(payload)
     case 'budget.save':
       return isBudgetInput(payload)
+    case 'gymCategory.create':
+    case 'gymCategory.update':
+      return isGymCategoryInput(payload)
+    case 'gymExercise.create':
+    case 'gymExercise.update':
+      return isGymExerciseInput(payload)
+    case 'gymSet.create':
+    case 'gymSet.update':
+      return isGymSetInput(payload)
+    case 'gymWorkout.save':
+      return isGymWorkoutInput(payload)
     case 'transaction.delete':
     case 'purchase.delete':
     case 'budget.delete':
+    case 'gymCategory.delete':
+    case 'gymExercise.delete':
+    case 'gymSet.delete':
       return payload === undefined
     default:
       return false
@@ -111,9 +136,11 @@ export function isSyncOperation(value: unknown): value is SyncOperation {
   if (typeof value.createdAt !== 'string' || value.createdAt.length === 0 || value.createdAt.length > 40) return false
   if (!isCommand(value.command)) return false
   if (value.command.entity === 'budget' && !isMonthString(value.entityId)) return false
-  const creates = value.command.type === 'create' || value.command.type === 'save'
-  if (creates && value.command.entity !== 'budget' && value.expectedRevision !== null) return false
-  if (!creates && value.expectedRevision === null) return false
+  if (value.command.entity === 'gymWorkout' &&
+    (!isDateString(value.entityId) || value.command.payload.date !== value.entityId)) return false
+  const type = value.command.type
+  if (type === 'create' && value.expectedRevision !== null) return false
+  if (type !== 'create' && type !== 'save' && value.expectedRevision === null) return false
   return true
 }
 

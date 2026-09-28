@@ -1,22 +1,23 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { ActivityIndicator, Linking, Pressable, ScrollView, Switch, TextInput, View } from 'react-native'
+import { ActivityIndicator, Linking, Pressable, ScrollView, Switch, View } from 'react-native'
 import {
-  BellRing, Check, ChevronRight, CircleUserRound, Info, KeyRound, Landmark, ListPlus, LogOut, RefreshCw, Server, Trash2, X,
+  AlarmClock, BellRing, Check, ChevronRight, CircleUserRound, Info, KeyRound, Landmark, ListPlus, LogOut, RefreshCw, Trash2, X,
   type LucideIcon
 } from 'lucide-react-native'
+import { formatSetDuration } from '@ego/core'
 import Constants from 'expo-constants'
 import { useRouter } from 'expo-router'
 import type { ServiceStatus, SessionInfo } from '@ego/api-contracts'
 import type { ListShortcut, TrelloBoardSummary, TrelloListSummary } from '@ego/core'
-import { apiUrlFor, isSignedIn, useSettings, type RetiredCredentials } from '../lib/settings'
+import { isSignedIn, useSettings, type RetiredCredentials } from '../lib/settings'
 import { syncLabel, useLedger } from '../lib/ledger-context'
-import { normalizeApiUrl } from '../lib/api-client'
-import { beginGoogleSignIn } from '../lib/sign-in'
 import { clearLegacySnapshot } from '../lib/retired'
+import { REST_PRESETS, useRestTimer } from '../lib/rest-timer'
+import { SignInPanel, useGoogleSignIn } from '../components/SignInPanel'
 import { useMoney } from '../lib/money-context'
 import { useReminder } from '../lib/reminder-context'
 import { REMINDER_HOURS, hourLabel } from '../lib/reminders'
-import { Chips, ConfirmDialog, MoneyIcon, inputClass, money } from '../components/money/Common'
+import { Chips, ConfirmDialog, MoneyIcon, money } from '../components/money/Common'
 import { tabular } from '../components/money/tokens'
 import { Button } from '../components/ui/button'
 import { Card } from '../components/ui/card'
@@ -31,6 +32,8 @@ const SERVICES: Array<{ key: keyof ServiceStatus; label: string; secret: string 
 
 const HOUR_VALUES = REMINDER_HOURS.map(String)
 const HOUR_LABELS = Object.fromEntries(REMINDER_HOURS.map((hour) => [String(hour), hourLabel(hour)]))
+const REST_VALUES = REST_PRESETS.map(String)
+const REST_LABELS = Object.fromEntries(REST_PRESETS.map((seconds) => [String(seconds), formatSetDuration(seconds)]))
 
 function retiredLabels(retired: RetiredCredentials): string[] {
   return [
@@ -76,18 +79,13 @@ function Choice({ label, active, onPress }: { label: string; active: boolean; on
 export default function Settings(): React.ReactElement {
   const { settings, update } = useSettings()
   const reminder = useReminder()
+  const rest = useRestTimer()
+  const google = useGoogleSignIn()
   const { snapshot } = useMoney()
   const openAccounts = snapshot?.accounts.filter((account) => !account.archivedAt) ?? []
   const ledger = useLedger()
   const router = useRouter()
   const signedIn = isSignedIn(settings)
-  const buildApiUrl = apiUrlFor({ apiUrl: '' })
-  const [serverDraft, setServerDraft] = useState(apiUrlFor(settings))
-  const [editingServer, setEditingServer] = useState(false)
-  const [signingIn, setSigningIn] = useState(false)
-  const [signInError, setSignInError] = useState<string | null>(null)
-  const [enteringToken, setEnteringToken] = useState(false)
-  const [tokenDraft, setTokenDraft] = useState('')
   const [session, setSession] = useState<SessionInfo | null>(null)
   const [sessionError, setSessionError] = useState<string | null>(null)
   const [confirmingSignOut, setConfirmingSignOut] = useState(false)
@@ -102,10 +100,6 @@ export default function Settings(): React.ReactElement {
   const trelloAvailable = session?.services.trello === true
   const pendingCount = (ledger.status?.pendingCount ?? 0) + (ledger.status?.conflictCount ?? 0)
   const retired = settings.retired ? retiredLabels(settings.retired) : []
-
-  useEffect(() => {
-    setServerDraft(apiUrlFor(settings))
-  }, [settings])
 
   useEffect(() => {
     if (!signedIn) {
@@ -160,39 +154,12 @@ export default function Settings(): React.ReactElement {
 
   const pinned = useMemo(() => new Set(settings.listShortcuts.map((item) => item.listId)), [settings.listShortcuts])
 
-  const signIn = async (): Promise<void> => {
-    const server = normalizeApiUrl(serverDraft)
-    if (!/^https:\/\//.test(server)) {
-      setSignInError('Enter the Worker address, starting with https://')
-      setEditingServer(true)
-      return
-    }
-    setSigningIn(true)
-    setSignInError(null)
-    if (server !== apiUrlFor(settings)) await update({ apiUrl: server })
-    const problem = await beginGoogleSignIn(server)
-    setSigningIn(false)
-    if (problem) setSignInError(problem)
-  }
-
-  const useDeviceToken = async (): Promise<void> => {
-    const server = normalizeApiUrl(serverDraft)
-    if (!/^https:\/\//.test(server) || tokenDraft.trim().length < 32) {
-      setSignInError('Enter the Worker address and the full token from ego-device enroll.')
-      setEditingServer(true)
-      return
-    }
-    setSignInError(null)
-    await update({ apiUrl: server, deviceToken: tokenDraft.trim(), account: null })
-    setTokenDraft('')
-    setEnteringToken(false)
-  }
-
   const signOut = async (): Promise<void> => {
     setConfirmingSignOut(false)
     await api.signOut()
     await update({ deviceToken: '', account: null })
     setSession(null)
+    router.dismissTo('/')
   }
 
   const removeRetired = async (): Promise<void> => {
@@ -218,41 +185,17 @@ export default function Settings(): React.ReactElement {
             <Text className="mt-3 text-[17px]">{email ? `Signed in as ${email}` : 'Connected with a device token'}</Text>
             {device && <Text className="mt-0.5 text-[15px] text-muted-foreground">This device: {device}</Text>}
             {sessionError && <Text className="mt-2 text-[15px] leading-5 text-attention">{sessionError}</Text>}
-            {(sessionError || !email) && <Button size="lg" disabled={signingIn} onPress={() => void signIn()} className="mt-4">
-              <Text>{signingIn ? 'Opening Google...' : 'Sign in with Google'}</Text>
+            <Text className="mt-1 text-[15px] leading-5 text-muted-foreground">This one sign-in covers Finance and Gym.</Text>
+            {(sessionError || !email) && <Button size="lg" disabled={google.signingIn} onPress={() => void google.signIn()} className="mt-4">
+              <Text>{google.signingIn ? 'Opening Google...' : 'Sign in with Google'}</Text>
             </Button>}
+            {google.error && <Text className="mt-3 text-[15px] leading-5 text-destructive">{google.error}</Text>}
             <Button variant="outline" size="lg" onPress={() => setConfirmingSignOut(true)} className="mt-4">
               <LogOut color="#d4d4d4" size={18} />
               <Text>Sign out</Text>
             </Button>
           </>
-          : <>
-            <Text className="mt-3 text-[15px] leading-6 text-muted-foreground">Sign in with the Google account your Ego server allows. The server holds every API key, so there is nothing else to paste here.</Text>
-            {buildApiUrl && !editingServer
-              ? <Pressable accessibilityRole="button" accessibilityHint="Change the server address" onPress={() => setEditingServer(true)} className="mt-3 min-h-12 flex-row items-center">
-                <Server color="#a3a3a3" size={16} />
-                <Text numberOfLines={1} className="ml-2 flex-1 font-mono text-[14px] text-muted-foreground">{serverDraft}</Text>
-                <Text className="text-[15px] font-semibold underline">Change</Text>
-              </Pressable>
-              : <View>
-                <FieldLabel>Server address</FieldLabel>
-                <TextInput value={serverDraft} onChangeText={setServerDraft} autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="https://ego-money.example.workers.dev" placeholderTextColor="#737373" className={inputClass} />
-              </View>}
-            <Button size="lg" disabled={signingIn} onPress={() => void signIn()} className="mt-4">
-              {signingIn && <ActivityIndicator color="#0a0a0a" size="small" />}
-              <Text>{signingIn ? 'Opening Google...' : 'Sign in with Google'}</Text>
-            </Button>
-            {enteringToken
-              ? <View>
-                <FieldLabel>Device token</FieldLabel>
-                <TextInput value={tokenDraft} onChangeText={setTokenDraft} secureTextEntry autoCapitalize="none" autoCorrect={false} placeholder="From ego-device enroll" placeholderTextColor="#737373" className={inputClass} />
-                <Button variant="outline" size="lg" onPress={() => void useDeviceToken()} className="mt-3"><Text>Connect with this token</Text></Button>
-              </View>
-              : <Button variant="ghost" onPress={() => setEnteringToken(true)} className="mt-2">
-                <Text className="text-[15px] font-medium text-muted-foreground">Use a device token instead</Text>
-              </Button>}
-          </>}
-        {signInError && <Text className="mt-3 text-[15px] leading-5 text-destructive">{signInError}</Text>}
+          : <View className="mt-3"><SignInPanel /></View>}
       </Section>
 
       <Section
@@ -281,6 +224,23 @@ export default function Settings(): React.ReactElement {
           <FieldLabel>Time</FieldLabel>
           <Chips values={HOUR_VALUES} value={String(reminder.preference.hour)} labels={HOUR_LABELS} onChange={(value) => reminder.setHour(Number(value))} />
         </>}
+      </Section>
+
+      <Section Icon={AlarmClock} title="Gym rest timer" right={<Switch
+        accessibilityLabel="Start the rest timer after each set"
+        value={rest.preference.autoStart}
+        onValueChange={rest.setAutoStart}
+        trackColor={{ false: '#404040', true: '#fafafa' }}
+        thumbColor={rest.preference.autoStart ? '#0a0a0a' : '#d4d4d4'}
+        ios_backgroundColor="#404040"
+      />}>
+        <Text className="mt-3 text-[15px] leading-6 text-muted-foreground">
+          {rest.preference.autoStart
+            ? `Starts a ${formatSetDuration(rest.preference.seconds)} countdown each time you save a new set, and buzzes when it ends.`
+            : 'Start the countdown yourself from the alarm clock on an exercise.'}
+        </Text>
+        <FieldLabel>Length</FieldLabel>
+        <Chips values={REST_VALUES} value={String(rest.preference.seconds)} labels={REST_LABELS} onChange={(value) => rest.setSeconds(Number(value))} />
       </Section>
 
       {signedIn && snapshot && <Section Icon={Landmark} title="Accounts">
