@@ -1,10 +1,11 @@
 import type {
-  AccountKind, CategoryKind, DistanceUnit, ExerciseType, ExerciseWeightUnit, MoneyPurchase, MoodLevel,
-  ReceiptItem, TransactionKind, WeightUnit
+  AccountKind, CategoryKind, DistanceUnit, ExerciseType, ExerciseWeightUnit, HabitEntryKind, HabitKind,
+  MoneyPurchase, MoodLevel, ReceiptItem, TransactionKind, WeightUnit
 } from '@ego/core'
 import type {
   AccountRecord, BudgetRecord, CategoryRecord, FeedTransaction, GymCategoryRecord, GymExerciseRecord,
-  GymSetRecord, GymWorkoutRecord, MoodRecord, PurchaseRecord, TransactionRecord
+  GymSetRecord, GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord, PurchaseRecord,
+  TransactionRecord
 } from '@ego/api-contracts'
 
 export interface AccountRow {
@@ -106,6 +107,28 @@ export interface MoodRow {
   date: string
   mood: MoodLevel
   note: string
+  created_at: string
+  updated_at: string
+  revision: number
+}
+
+export interface HabitRow {
+  id: string
+  name: string
+  icon: string
+  kind: HabitKind
+  start_date: string
+  position: number
+  created_at: string
+  updated_at: string
+  revision: number
+}
+
+export interface HabitEntryRow {
+  id: string
+  habit_id: string
+  date: string
+  kind: HabitEntryKind
   created_at: string
   updated_at: string
   revision: number
@@ -286,6 +309,20 @@ export function toGymWorkoutRecord(row: GymWorkoutRow): GymWorkoutRecord {
 export function toMoodRecord(row: MoodRow): MoodRecord {
   return {
     id: row.id, date: row.date, mood: row.mood, note: row.note,
+    createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
+  }
+}
+
+export function toHabitRecord(row: HabitRow): HabitRecord {
+  return {
+    id: row.id, name: row.name, icon: row.icon, kind: row.kind, startDate: row.start_date, position: row.position,
+    createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
+  }
+}
+
+export function toHabitEntryRecord(row: HabitEntryRow): HabitEntryRecord {
+  return {
+    id: row.id, habitId: row.habit_id, date: row.date, kind: row.kind,
     createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
   }
 }

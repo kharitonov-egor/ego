@@ -19,15 +19,16 @@ import { apiUrlFor, isSignedIn, useSettings } from './settings'
 export type LocalWrite = (db: LocalDatabase, now: string) => Promise<void>
 
 /** Which screens re-read after a write. A logged set should not rebuild the money snapshot. */
-export type WriteScope = 'money' | 'gym' | 'health'
+export type WriteScope = 'money' | 'gym' | 'health' | 'habits'
 
 interface RefreshScope {
   money: boolean
   gym: boolean
   health: boolean
+  habits: boolean
 }
 
-const EVERYTHING: RefreshScope = { money: true, gym: true, health: true }
+const EVERYTHING: RefreshScope = { money: true, gym: true, health: true, habits: true }
 
 interface LedgerContextValue {
   /** Signed in, so this device keeps and syncs its own copy of the ledger. */
@@ -52,6 +53,8 @@ interface LedgerContextValue {
   gymVersion: number
   /** The same for mood entries. */
   healthVersion: number
+  /** The same for habits and their check-ins. */
+  habitsVersion: number
   db: LocalDatabase | null
   api: EgoApi
   feed: (filters: TransactionFilters, cursor: FeedCursor | null, size: number) => Promise<LocalTransactionPage>
@@ -90,6 +93,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
   const [version, setVersion] = useState(0)
   const [gymVersion, setGymVersion] = useState(0)
   const [healthVersion, setHealthVersion] = useState(0)
+  const [habitsVersion, setHabitsVersion] = useState(0)
   const generation = useRef(0)
   const writingRef = useRef(false)
   const lastStatus = useRef<SyncOutcome | null>(null)
@@ -144,6 +148,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     }
     if (scope.gym) setGymVersion((current) => current + 1)
     if (scope.health) setHealthVersion((current) => current + 1)
+    if (scope.habits) setHabitsVersion((current) => current + 1)
   }, [])
 
   const sync = useCallback(async (): Promise<void> => {
@@ -159,9 +164,10 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
       const scope: RefreshScope = {
         money: downloaded || outcome.touched.money,
         gym: downloaded || outcome.touched.gym,
-        health: downloaded || outcome.touched.health
+        health: downloaded || outcome.touched.health,
+        habits: downloaded || outcome.touched.habits
       }
-      if (scope.money || scope.gym || scope.health || outcome.conflictCount !== previous?.conflictCount) await refreshLocal(db, scope)
+      if (scope.money || scope.gym || scope.health || scope.habits || outcome.conflictCount !== previous?.conflictCount) await refreshLocal(db, scope)
       if (await hasDownloaded(db)) setReady(true)
       setCurrent(await isBootstrapped(db))
     } finally {
@@ -195,7 +201,9 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     setWriting(true)
     try {
       await work(db, new Date().toISOString())
-      await refreshLocal(db, { money: scope === 'money', gym: scope === 'gym', health: scope === 'health' })
+      await refreshLocal(db, {
+        money: scope === 'money', gym: scope === 'gym', health: scope === 'health', habits: scope === 'habits'
+      })
       void sync()
       return true
     } catch {
@@ -235,6 +243,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     version,
     gymVersion,
     healthVersion,
+    habitsVersion,
     db,
     api,
     feed,
@@ -251,7 +260,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     resolveKeepMine: (entry) => resolve((database) =>
       keepMine(database, entry, newId(), new Date().toISOString()).then(() => undefined)),
     resolveUseSaved: (entry) => resolve((database) => useSavedVersion(database, entry, new Date().toISOString()))
-  }), [api, balances, conflicts, current, db, enabled, error, feed, gymVersion, healthVersion, purchasePage, ready, receipt, reference, resolve,
+  }), [api, balances, conflicts, current, db, enabled, error, feed, gymVersion, habitsVersion, healthVersion, purchasePage, ready, receipt, reference, resolve,
     status, sync, syncing, transaction, version, write, writing])
 
   return <LedgerContext.Provider value={value}>{children}</LedgerContext.Provider>

@@ -1,6 +1,6 @@
 import type {
-  GymCategory, GymExercise, GymSet, GymWorkout, MoneyAccount, MoneyCategory, MoneyPurchase,
-  MoneyTransaction, MonthlyBudget, MoodEntry, TransactionKind
+  GymCategory, GymExercise, GymSet, GymWorkout, Habit, HabitEntry, MoneyAccount, MoneyCategory,
+  MoneyPurchase, MoneyTransaction, MonthlyBudget, MoodEntry, TransactionKind
 } from '@ego/core'
 
 export const API_VERSION = 1
@@ -18,6 +18,8 @@ export type GymExerciseRecord = GymExercise & { revision: number }
 export type GymSetRecord = GymSet & { revision: number }
 export type GymWorkoutRecord = GymWorkout & { revision: number }
 export type MoodRecord = MoodEntry & { revision: number }
+export type HabitRecord = Habit & { revision: number }
+export type HabitEntryRecord = HabitEntry & { revision: number }
 
 export interface ReferenceData {
   accounts: AccountRecord[]
@@ -58,6 +60,8 @@ export interface BootstrapData {
   gymSets: GymSetRecord[]
   gymWorkouts: GymWorkoutRecord[]
   moods: MoodRecord[]
+  habits: HabitRecord[]
+  habitEntries: HabitEntryRecord[]
 }
 
 export interface TransactionDetail {
@@ -94,7 +98,8 @@ export type ChangeAction = 'upsert' | 'delete'
 export type MoneyEntity = 'account' | 'category' | 'transaction' | 'purchase' | 'budget'
 export type GymEntity = 'gymCategory' | 'gymExercise' | 'gymSet' | 'gymWorkout'
 export type HealthEntity = 'mood'
-export type SyncEntity = MoneyEntity | GymEntity | HealthEntity
+export type HabitEntity = 'habit' | 'habitEntry'
+export type SyncEntity = MoneyEntity | GymEntity | HealthEntity | HabitEntity
 
 export const GYM_ENTITIES: readonly GymEntity[] = ['gymCategory', 'gymExercise', 'gymSet', 'gymWorkout']
 
@@ -104,6 +109,10 @@ export function isGymEntity(entity: SyncEntity): entity is GymEntity {
 
 export function isHealthEntity(entity: SyncEntity): entity is HealthEntity {
   return entity === 'mood'
+}
+
+export function isHabitEntity(entity: SyncEntity): entity is HabitEntity {
+  return entity === 'habit' || entity === 'habitEntry'
 }
 
 interface ChangeBase {
@@ -126,6 +135,8 @@ export type ChangePayload =
   | { entity: 'gymSet'; record: GymSetRecord | null }
   | { entity: 'gymWorkout'; record: GymWorkoutRecord | null }
   | { entity: 'mood'; record: MoodRecord | null }
+  | { entity: 'habit'; record: HabitRecord | null }
+  | { entity: 'habitEntry'; record: HabitEntryRecord | null }
 
 export type ChangeRecord = ChangeBase & ChangePayload
 

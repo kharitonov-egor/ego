@@ -3,8 +3,9 @@ import type { LocalDatabase } from '../database/types'
 import { TABLES, writeRecord, writeTombstone } from '../database/writes'
 import {
   accountRecordFrom, budgetIdFor, budgetRecordFrom, categoryRecordFrom, gymCategoryRecordFrom,
-  gymExerciseRecordFrom, gymSetRecordFrom, gymWorkoutRecordFrom, moodIdFor, moodRecordFrom,
-  purchaseRecordFrom, purchaseTransactionInput, receiptTransactionIdFor, transactionRecordFrom
+  gymExerciseRecordFrom, gymSetRecordFrom, gymWorkoutRecordFrom, habitEntryRecordFrom, habitRecordFrom,
+  moodIdFor, moodRecordFrom, purchaseRecordFrom, purchaseTransactionInput, receiptTransactionIdFor,
+  transactionRecordFrom
 } from './records'
 
 interface Existing {
@@ -128,6 +129,24 @@ export async function applyCommandLocally(
       entity: 'gymWorkout',
       record: gymWorkoutRecordFrom(command.payload, current?.created_at ?? now, now, revision)
     })
+    return
+  }
+
+  if (command.entity === 'habit' || command.entity === 'habitEntry') {
+    if (command.type === 'delete') {
+      await writeTombstone(tx, command.entity, entityId, revision, now)
+      return
+    }
+    const current = await existing(tx, TABLES[command.entity], 'id', entityId)
+    const createdAt = current?.created_at ?? now
+    if (command.entity === 'habit') {
+      await writeRecord(tx, {
+        entity: 'habit',
+        record: habitRecordFrom(entityId, command.payload, createdAt, now, command.type === 'create' ? 1 : revision)
+      })
+    } else {
+      await writeRecord(tx, { entity: 'habitEntry', record: habitEntryRecordFrom(entityId, command.payload, createdAt, now, 1) })
+    }
     return
   }
 

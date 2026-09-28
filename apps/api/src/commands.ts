@@ -3,17 +3,19 @@ import {
   type ApiResult, type ChangePayload, type OperationOutcome, type OperationResponse,
   type SyncCommand, type SyncEntity, type SyncOperation
 } from '@ego/api-contracts'
-import type {
-  AccountInput, ArchiveInput, BudgetInput, CategoryInput, GymSetInput, MoodInput, PurchaseInput,
-  TransactionInput
+import {
+  entryKindFits,
+  type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type GymSetInput,
+  type HabitInput, type MoodInput, type PurchaseInput, type TransactionInput
 } from '@ego/core'
 import { query, readLatestChange, serverSequence } from './reads'
 import {
   toAccountRecord, toBudgetRecord, toCategoryRecord, toGymCategoryRecord, toGymExerciseRecord,
-  toGymSetRecord, toGymWorkoutRecord, toMoodRecord, toPurchaseRecord, toReceiptItem, toTransactionRecord,
+  toGymSetRecord, toGymWorkoutRecord, toHabitEntryRecord, toHabitRecord, toMoodRecord, toPurchaseRecord,
+  toReceiptItem, toTransactionRecord,
   type AccountRow, type BudgetAllocationRow, type BudgetRow, type CategoryRow, type GymCategoryRow,
-  type GymExerciseRow, type GymSetRow, type GymWorkoutRow, type MoodRow, type PurchaseRow,
-  type ReceiptItemRow, type TransactionRow
+  type GymExerciseRow, type GymSetRow, type GymWorkoutRow, type HabitEntryRow, type HabitRow, type MoodRow,
+  type PurchaseRow, type ReceiptItemRow, type TransactionRow
 } from './rows'
 
 interface Statement {
@@ -45,7 +47,9 @@ const TABLES: Record<SyncEntity, string> = {
   gymExercise: 'gym_exercises',
   gymSet: 'gym_sets',
   gymWorkout: 'gym_workouts',
-  mood: 'mood_entries'
+  mood: 'mood_entries',
+  habit: 'habits',
+  habitEntry: 'habit_entries'
 }
 
 /** Budgets are keyed by month and mood entries by date, so each has one row per period. */
@@ -59,7 +63,9 @@ const KEYS: Record<SyncEntity, string> = {
   gymExercise: 'id',
   gymSet: 'id',
   gymWorkout: 'id',
-  mood: 'date'
+  mood: 'date',
+  habit: 'id',
+  habitEntry: 'id'
 }
 
 function canonical(value: unknown): unknown {
@@ -952,6 +958,79 @@ async function planMood(
   }
 }
 
+function habitRowFrom(id: string, input: HabitInput, createdAt: string, updatedAt: string, revision: number): HabitRow {
+  return {
+    id, name: input.name.trim(), icon: input.icon.trim(), kind: input.kind, start_date: input.startDate,
+    position: input.position, created_at: createdAt, updated_at: updatedAt, revision
+  }
+}
+
+async function planHabit(
+  db: D1Database, operation: SyncOperation, command: Extract<SyncCommand, { entity: 'habit' }>, now: string
+): Promise<ApiResult<Plan>> {
+  const id = operation.entityId
+  if (command.type === 'create') {
+    const row = habitRowFrom(id, command.payload, now, now, 1)
+    return {
+      ok: true,
+      data: upsertPlan('habit', id, 1, { entity: 'habit', record: toHabitRecord(row) }, {
+        sql: `INSERT INTO habits (id, name, icon, kind, start_date, position, created_at, updated_at, revision)
+          SELECT ?, ?, ?, ?, ?, ?, ?, ?, 1`,
+        params: [id, row.name, row.icon, row.kind, row.start_date, row.position, now, now]
+      }, null)
+    }
+  }
+  const current = await liveRow<HabitRow>(db, 'habit', id)
+  if (!current) return notFound('That habit was not found')
+  const expected = operation.expectedRevision ?? 0
+  const guard = guardFor('habit', id, expected)
+  if (command.type === 'delete') {
+    return { ok: true, data: deletePlan('habit', id, expected, now, guard, { entity: 'habit', record: null }) }
+  }
+  if (command.payload.kind !== current.kind) return invalid('A habit cannot switch between building and breaking')
+  const revision = expected + 1
+  const row = habitRowFrom(id, command.payload, current.created_at, now, revision)
+  return {
+    ok: true,
+    data: upsertPlan('habit', id, revision, { entity: 'habit', record: toHabitRecord(row) }, {
+      sql: `UPDATE habits SET name = ?, icon = ?, start_date = ?, position = ?, updated_at = ?, revision = revision + 1
+        WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+      params: [row.name, row.icon, row.start_date, row.position, now, id, expected]
+    }, guard)
+  }
+}
+
+/** Entries are only ever added or removed. Unchecking a day deletes its `done` entry. */
+async function planHabitEntry(
+  db: D1Database, operation: SyncOperation, command: Extract<SyncCommand, { entity: 'habitEntry' }>, now: string
+): Promise<ApiResult<Plan>> {
+  const id = operation.entityId
+  if (command.type === 'delete') {
+    if (!await liveRow<HabitEntryRow>(db, 'habitEntry', id)) return notFound('That entry was not found')
+    const expected = operation.expectedRevision ?? 0
+    return {
+      ok: true,
+      data: deletePlan('habitEntry', id, expected, now, guardFor('habitEntry', id, expected), { entity: 'habitEntry', record: null })
+    }
+  }
+  const input = command.payload
+  const habit = await liveRow<HabitRow>(db, 'habit', input.habitId)
+  if (!habit) return conflict('That habit was deleted on another device')
+  if (!entryKindFits(habit.kind, input.kind)) return invalid(`A habit to ${habit.kind} cannot log ${input.kind}`)
+  const parent = liveGuard('habit', input.habitId)
+  const row: HabitEntryRow = {
+    id, habit_id: input.habitId, date: input.date, kind: input.kind, created_at: now, updated_at: now, revision: 1
+  }
+  return {
+    ok: true,
+    data: upsertPlan('habitEntry', id, 1, { entity: 'habitEntry', record: toHabitEntryRecord(row) }, guarded({
+      sql: `INSERT INTO habit_entries (id, habit_id, date, kind, created_at, updated_at, revision)
+        SELECT ?, ?, ?, ?, ?, ?, 1`,
+      params: [id, row.habit_id, row.date, row.kind, now, now]
+    }, parent), parent)
+  }
+}
+
 function planFor(db: D1Database, operation: SyncOperation, now: string): Promise<ApiResult<Plan>> {
   switch (operation.command.entity) {
     case 'account': return planAccount(db, operation, operation.command, now)
@@ -964,6 +1043,8 @@ function planFor(db: D1Database, operation: SyncOperation, now: string): Promise
     case 'gymSet': return planGymSet(db, operation, operation.command, now)
     case 'gymWorkout': return planGymWorkout(db, operation, operation.command, now)
     case 'mood': return planMood(db, operation, operation.command, now)
+    case 'habit': return planHabit(db, operation, operation.command, now)
+    case 'habitEntry': return planHabitEntry(db, operation, operation.command, now)
   }
 }
 
