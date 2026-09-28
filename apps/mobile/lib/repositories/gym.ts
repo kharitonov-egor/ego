@@ -56,6 +56,17 @@ export interface CalendarDay {
   colors: string[]
 }
 
+export interface ExerciseTrackSets {
+  today: GymSetView[]
+  previous: GymSetView | null
+}
+
+export interface ExerciseSetPage {
+  items: GymSetView[]
+  hasMore: boolean
+  nextOffset: number | null
+}
+
 interface CategoryRow {
   id: string
   name: string
@@ -99,6 +110,13 @@ interface WorkoutRow {
   supersets: string
   notes: string
 }
+
+interface HistoryCache {
+  version: number
+  exercises: Map<string, Promise<GymSetView[]>>
+}
+
+const historyCaches = new WeakMap<LocalDatabase, HistoryCache>()
 
 const EXERCISE_COLUMNS = `e.id, e.name, e.category_id, c.name AS category_name, c.color AS category_color,
   e.type, e.weight_unit, e.notes, e.revision,
@@ -235,6 +253,54 @@ export async function exerciseSets(db: LocalDatabase, exerciseId: string): Promi
     WHERE exercise_id = ? AND deleted_at IS NULL
     ORDER BY date DESC, position, created_at, id`, [exerciseId])
   return rows.map(toSet)
+}
+
+/** Shares the lifetime read between record badges, Records, and Graph until gym data changes. */
+export function cachedExerciseSets(
+  db: LocalDatabase, exerciseId: string, version: number
+): Promise<GymSetView[]> {
+  let cache = historyCaches.get(db)
+  if (!cache || cache.version !== version) {
+    cache = { version, exercises: new Map() }
+    historyCaches.set(db, cache)
+  }
+  let pending = cache.exercises.get(exerciseId)
+  if (!pending) {
+    pending = exerciseSets(db, exerciseId)
+    cache.exercises.set(exerciseId, pending)
+  }
+  return pending
+}
+
+/** The rows needed by Track before History or Graph opens. */
+export async function exerciseTrackSets(
+  db: LocalDatabase, exerciseId: string, date: string
+): Promise<ExerciseTrackSets> {
+  const [todayRows, previousRows] = await Promise.all([
+    db.all<SetRow>(`SELECT * FROM gym_sets
+      WHERE exercise_id = ? AND date = ? AND deleted_at IS NULL
+      ORDER BY position, created_at, id`, [exerciseId, date]),
+    db.all<SetRow>(`SELECT * FROM gym_sets
+      WHERE exercise_id = ? AND date < ? AND deleted_at IS NULL
+      ORDER BY date DESC, position, created_at, id LIMIT 1`, [exerciseId, date])
+  ])
+  return {
+    today: todayRows.map(toSet),
+    previous: previousRows[0] ? toSet(previousRows[0]) : null
+  }
+}
+
+/** A bounded slice for History. Graph and record calculations use their own reads. */
+export async function exerciseSetsPage(
+  db: LocalDatabase, exerciseId: string, pageSize: number, offset = 0
+): Promise<ExerciseSetPage> {
+  const rows = await db.all<SetRow>(`SELECT * FROM gym_sets
+    WHERE exercise_id = ? AND deleted_at IS NULL
+    ORDER BY date DESC, position, created_at, id
+    LIMIT ? OFFSET ?`, [exerciseId, pageSize + 1, offset])
+  const hasMore = rows.length > pageSize
+  const items = rows.slice(0, pageSize).map(toSet)
+  return { items, hasMore, nextOffset: hasMore ? offset + items.length : null }
 }
 
 export async function gymExercise(db: LocalDatabase, id: string): Promise<GymExerciseView | null> {

@@ -7,8 +7,8 @@ import { moneyApiFor, type EgoApi } from './api-client'
 import { datasetIdFor, openLocalDatabase } from './database'
 import type { LocalDatabase } from './database/types'
 import {
-  localBalances, localReceipt, localReference, localTransaction, localTransactionPage,
-  type LocalReceipt, type LocalFeedTransaction, type LocalTransactionPage
+  localBalances, localPurchasePage, localReceipt, localReference, localTransaction, localTransactionPage,
+  type LocalPurchasePage, type LocalReceipt, type LocalFeedTransaction, type LocalTransactionPage
 } from './repositories/transactions'
 import { keepMine, useSavedVersion } from './sync/conflicts'
 import { deleteTransaction, newId } from './sync/commands'
@@ -57,6 +57,7 @@ interface LedgerContextValue {
   feed: (filters: TransactionFilters, cursor: FeedCursor | null, size: number) => Promise<LocalTransactionPage>
   transaction: (id: string) => Promise<LocalFeedTransaction | null>
   receipt: (purchaseId: string) => Promise<LocalReceipt | null>
+  purchasePage: (size: number, offset?: number) => Promise<LocalPurchasePage>
   sync: () => Promise<void>
   /** Commits one local change and its outbox entry, then delivers it in the background. */
   write: (work: LocalWrite, scope?: WriteScope) => Promise<boolean>
@@ -69,7 +70,7 @@ interface LedgerContextValue {
 const LedgerContext = createContext<LedgerContextValue | null>(null)
 
 const EMPTY_PAGE: LocalTransactionPage = {
-  items: [], nextCursor: null, hasMore: false, totalCount: 0, queryIdentity: 'unavailable'
+  items: [], nextCursor: null, hasMore: false, totalCount: null, queryIdentity: 'unavailable'
 }
 
 export function LedgerProvider({ children }: { children: React.ReactNode }): React.ReactElement {
@@ -209,6 +210,9 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     db ? localTransactionPage(db, filters, cursor, size) : EMPTY_PAGE, [db])
   const transaction = useCallback(async (id: string) => db ? localTransaction(db, id) : null, [db])
   const receipt = useCallback(async (purchaseId: string) => db ? localReceipt(db, purchaseId) : null, [db])
+  const purchasePage = useCallback(async (size: number, offset = 0) => db
+    ? localPurchasePage(db, size, offset)
+    : { items: [], nextOffset: null }, [db])
 
   const resolve = useCallback(async (work: (database: LocalDatabase) => Promise<void>): Promise<void> => {
     if (!db) return
@@ -236,6 +240,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     feed,
     transaction,
     receipt,
+    purchasePage,
     sync,
     write,
     removeTransaction: (row) => write((database, now) =>
@@ -246,7 +251,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     resolveKeepMine: (entry) => resolve((database) =>
       keepMine(database, entry, newId(), new Date().toISOString()).then(() => undefined)),
     resolveUseSaved: (entry) => resolve((database) => useSavedVersion(database, entry, new Date().toISOString()))
-  }), [api, balances, conflicts, current, db, enabled, error, feed, gymVersion, healthVersion, ready, receipt, reference, resolve,
+  }), [api, balances, conflicts, current, db, enabled, error, feed, gymVersion, healthVersion, purchasePage, ready, receipt, reference, resolve,
     status, sync, syncing, transaction, version, write, writing])
 
   return <LedgerContext.Provider value={value}>{children}</LedgerContext.Provider>

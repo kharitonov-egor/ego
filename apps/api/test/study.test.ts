@@ -84,6 +84,23 @@ describe('study assignments', () => {
     ])
   })
 
+  it('reuses the parsed feed while reading completion marks again', async () => {
+    const env = await environment({ CANVAS_CALENDAR_URL: FEED_URL })
+    const fetchMock = vi.fn(async () => new Response(FEED, { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const first = await handle(request('/v1/study/assignments'), env)
+    expect(first.status).toBe(200)
+    const firstData = (await payload<StudyAssignmentList>(first)).data
+    await handle(mark('event-assignment-1', true), env)
+    const second = await handle(request('/v1/study/assignments'), env)
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const data = (await payload<StudyAssignmentList>(second)).data
+    expect(data.fetchedAt).toBe(firstData.fetchedAt)
+    expect(data.assignments.find((item) => item.id === 'event-assignment-1')?.doneAt).not.toBeNull()
+  })
+
   it('says so when Canvas is down or sends a login page', async () => {
     const env = await environment({ CANVAS_CALENDAR_URL: FEED_URL })
     vi.stubGlobal('fetch', vi.fn(async () => new Response('nope', { status: 500 })))

@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react'
-import { Pressable, ScrollView, View } from 'react-native'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ActivityIndicator, Pressable, SectionList, View } from 'react-native'
 import { Pencil, Receipt, ScanLine, Trash2 } from 'lucide-react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import type { MoneyPurchase } from '@ego/core'
@@ -10,7 +10,16 @@ import { Button } from '../../components/ui/button'
 import { Card } from '../../components/ui/card'
 import { Text } from '../../components/ui/text'
 import { formatIso } from '../../lib/dates'
+import { useLedger } from '../../lib/ledger-context'
 import { useMoney } from '../../lib/money-context'
+import type { LocalFeedTransaction, LocalPurchaseHeader } from '../../lib/repositories/transactions'
+
+const PAGE_SIZE = 50
+
+interface PurchaseSection {
+  date: string
+  data: LocalPurchaseHeader[]
+}
 
 function Total({ label, cents, strong = false }: { label: string; cents: number; strong?: boolean }): React.ReactElement {
   return <View className="flex-row items-center justify-between py-1">
@@ -21,51 +30,111 @@ function Total({ label, cents, strong = false }: { label: string; cents: number;
 
 export default function Purchases(): React.ReactElement {
   const state = useMoney()
+  const ledger = useLedger()
   const router = useRouter()
   const params = useLocalSearchParams<{ purchaseId?: string }>()
+  const [headers, setHeaders] = useState<LocalPurchaseHeader[]>([])
+  const [nextOffset, setNextOffset] = useState<number | null>(0)
   const [selected, setSelected] = useState<MoneyPurchase | null>(null)
+  const [linked, setLinked] = useState<LocalFeedTransaction | null>(null)
+  const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const loadingMore = useRef(false)
+
+  const loadPage = useCallback(async (offset: number): Promise<void> => {
+    if (loadingMore.current) return
+    loadingMore.current = true
+    if (offset === 0) setLoading(true)
+    try {
+      const page = await ledger.purchasePage(PAGE_SIZE, offset)
+      setHeaders((current) => offset === 0 ? page.items : [...current, ...page.items])
+      setNextOffset(page.nextOffset)
+    } finally {
+      loadingMore.current = false
+      if (offset === 0) setLoading(false)
+    }
+  }, [ledger.purchasePage])
 
   useEffect(() => {
-    if (!params.purchaseId || !state.snapshot) return
-    const purchase = state.snapshot.purchases.find((item) => item.id === params.purchaseId)
-    if (purchase) setSelected(purchase)
+    void loadPage(0)
+  }, [ledger.version, loadPage])
+
+  useEffect(() => {
+    if (!params.purchaseId) return
+    void ledger.receipt(params.purchaseId).then(async (receipt) => {
+      setSelected(receipt?.purchase ?? null)
+      setLinked(receipt ? await ledger.transaction(receipt.purchase.transactionId) : null)
+    })
     router.setParams({ purchaseId: undefined })
-  }, [params.purchaseId, router, state.snapshot])
+  }, [ledger.receipt, params.purchaseId, router])
+
+  useEffect(() => {
+    if (!selected) return
+    void ledger.receipt(selected.id).then(async (receipt) => {
+      setSelected(receipt?.purchase ?? null)
+      setLinked(receipt ? await ledger.transaction(receipt.purchase.transactionId) : null)
+    })
+  // The selected receipt should refresh after a local write or pulled change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ledger.version])
+
+  const sections = useMemo(() => {
+    const grouped: PurchaseSection[] = []
+    for (const purchase of headers) {
+      const last = grouped[grouped.length - 1]
+      if (last?.date === purchase.purchaseDate) last.data.push(purchase)
+      else grouped.push({ date: purchase.purchaseDate, data: [purchase] })
+    }
+    return grouped
+  }, [headers])
+
+  const open = async (id: string): Promise<void> => {
+    const receipt = await ledger.receipt(id)
+    setSelected(receipt?.purchase ?? null)
+    setLinked(receipt ? await ledger.transaction(receipt.purchase.transactionId) : null)
+  }
 
   return <MoneyScreen>{(snapshot) => {
-    const groups = new Map<string, MoneyPurchase[]>()
-    snapshot.purchases.forEach((item) => groups.set(item.purchaseDate, [...(groups.get(item.purchaseDate) ?? []), item]))
-    const current = selected ? snapshot.purchases.find((item) => item.id === selected.id) ?? null : null
-    const close = (): void => { setSelected(null); setEditing(false) }
+    const current = selected
+    const editorSnapshot = linked ? { ...snapshot, transactions: [linked] } : snapshot
+    const close = (): void => { setSelected(null); setLinked(null); setEditing(false) }
     const remove = async (): Promise<void> => {
       if (!current) return
       if (await state.deletePurchase(current.id)) { setConfirmingDelete(false); setSelected(null) }
     }
 
     return <View className="flex-1">
-      <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: 110, gap: 20 }}>
-        {snapshot.purchases.length === 0
-          ? <Empty title="No itemized purchases" detail="Send a receipt to the money agent to save its expense and item list." />
-          : Array.from(groups.entries()).map(([date, purchases]) => <View key={date}>
-            <Text className="mb-2 text-[14px] font-semibold text-muted-foreground">{formatIso(date)}</Text>
-            <Card className="overflow-hidden">{purchases.map((purchase, index) => <Pressable
-              key={purchase.id}
-              accessibilityRole="button"
-              accessibilityLabel={`${purchase.merchant}, ${purchase.items.length} items, ${money(purchase.totalCents)}`}
-              onPress={() => setSelected(purchase)}
-              className={`min-h-[72px] flex-row items-center px-4 py-3 active:bg-surface-900 ${index ? 'border-t border-surface-800' : ''}`}
-            >
-              <View className="h-11 w-11 items-center justify-center rounded-full bg-surface-800"><Receipt color="#fafafa" size={19} /></View>
-              <View className="ml-3 flex-1">
-                <Text numberOfLines={1} className="text-[17px] font-semibold">{purchase.merchant}</Text>
-                <Text className="text-[14px] text-muted-foreground">{purchase.items.length} {purchase.items.length === 1 ? 'item' : 'items'}</Text>
-              </View>
-              <Text className="text-[17px] font-semibold" style={{ ...tabular, color: color.expense }}>-{money(purchase.totalCents)}</Text>
-            </Pressable>)}</Card>
-          </View>)}
-      </ScrollView>
+      <SectionList
+        sections={sections}
+        keyExtractor={(item) => item.id}
+        initialNumToRender={20}
+        windowSize={9}
+        removeClippedSubviews
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 110 }}
+        onEndReachedThreshold={0.6}
+        onEndReached={() => { if (nextOffset !== null) void loadPage(nextOffset) }}
+        ListEmptyComponent={loading
+          ? <ActivityIndicator color="#fafafa" className="pt-8" />
+          : <Empty title="No itemized purchases" detail="Send a receipt to the money agent to save its expense and item list." />}
+        renderSectionHeader={({ section }) => <Text className="bg-background pb-2 pt-5 text-[14px] font-semibold text-muted-foreground">{formatIso(section.date)}</Text>}
+        renderItem={({ item, index, section }) => <Card className={`overflow-hidden rounded-none ${index === 0 ? 'rounded-t-2xl' : ''} ${index === section.data.length - 1 ? 'rounded-b-2xl' : ''}`}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${item.merchant}, ${item.itemCount} items, ${money(item.totalCents)}`}
+            onPress={() => void open(item.id)}
+            className={`min-h-[72px] flex-row items-center px-4 py-3 active:bg-surface-900 ${index ? 'border-t border-surface-800' : ''}`}
+          >
+            <View className="h-11 w-11 items-center justify-center rounded-full bg-surface-800"><Receipt color="#fafafa" size={19} /></View>
+            <View className="ml-3 flex-1">
+              <Text numberOfLines={1} className="text-[17px] font-semibold">{item.merchant}</Text>
+              <Text className="text-[14px] text-muted-foreground">{item.itemCount} {item.itemCount === 1 ? 'item' : 'items'}</Text>
+            </View>
+            <Text className="text-[17px] font-semibold" style={{ ...tabular, color: color.expense }}>-{money(item.totalCents)}</Text>
+          </Pressable>
+        </Card>}
+        ListFooterComponent={loadingMore.current && headers.length > 0 ? <ActivityIndicator color="#fafafa" className="py-5" /> : null}
+      />
 
       <Button
         size="lg"
@@ -80,7 +149,7 @@ export default function Purchases(): React.ReactElement {
 
       <Sheet visible={Boolean(current)} title={editing ? 'Edit purchase' : current?.merchant ?? 'Purchase'} onClose={close}>
         {current && (editing
-          ? <PurchaseEditor snapshot={snapshot} purchase={current} draft={draftForPurchase(current)} busy={state.busy} onSave={async (input) => { if (await state.updatePurchase(current.id, input)) setEditing(false) }} />
+          ? <PurchaseEditor snapshot={editorSnapshot} purchase={current} draft={draftForPurchase(current)} busy={state.busy} onSave={async (input) => { if (await state.updatePurchase(current.id, input)) setEditing(false) }} />
           : <View>
             <Text className="text-[15px] text-muted-foreground">{formatIso(current.purchaseDate)} · {current.currency}</Text>
             <Text className="mt-1 text-[36px] font-bold tracking-tight">{money(current.totalCents)}</Text>

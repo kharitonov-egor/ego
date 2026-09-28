@@ -208,7 +208,7 @@ export default function LocalActivity(): React.ReactElement {
       const page = await feed(activityFilters(view, range), null, PAGE_SIZE)
       if (started !== query.current) return
       setRows(page.items)
-      setTotal(page.totalCount)
+      setTotal(page.totalCount ?? page.items.length)
       setCursor(page.nextCursor)
     } catch {
       if (started === query.current) setCursor(null)

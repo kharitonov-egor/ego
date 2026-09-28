@@ -208,6 +208,12 @@ export const LOCAL_MIGRATIONS: readonly string[][] = [
       id INTEGER PRIMARY KEY CHECK(id = 1),
       fetched_at TEXT
     )`
+  ],
+  [
+    `CREATE INDEX IF NOT EXISTS idx_local_purchases_feed
+      ON purchases(purchase_date DESC, created_at DESC, id DESC) WHERE deleted_at IS NULL`,
+    `CREATE INDEX IF NOT EXISTS idx_local_gym_sets_exercise_feed
+      ON gym_sets(exercise_id, date DESC, position, created_at, id) WHERE deleted_at IS NULL`
   ]
 ]
 

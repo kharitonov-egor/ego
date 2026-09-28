@@ -9,8 +9,27 @@ import { isCalendarText, parseCanvasCalendar } from '@ego/core'
 import type { Env } from './auth'
 
 const CANVAS_TIMEOUT_MS = 10000
+const FEED_CACHE_MS = 5 * 60 * 1000
 /** Canvas answers 403 to a request with no User-Agent, and a Worker's fetch sends none. */
 const USER_AGENT = 'Ego/1.0 (+https://github.com/kharitonov-egor/ego)'
+
+type FeedAssignment = Omit<StudyAssignment, 'doneAt'>
+
+interface FeedCache {
+  url: string
+  expiresAt: number
+  fetchedAt: string
+  assignments: FeedAssignment[]
+  etag: string | null
+  lastModified: string | null
+}
+
+const feedCaches = new WeakMap<Env, FeedCache>()
+const feedRequests = new WeakMap<Env, Promise<{
+  ok: true
+  assignments: FeedAssignment[]
+  fetchedAt: string
+} | { ok: false; response: Response }>>()
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -35,12 +54,23 @@ function isAssignmentId(value: string): boolean {
   return value.length > 0 && value.length <= MAX_STUDY_ID_LENGTH && !/[\u0000-\u001f]/.test(value)
 }
 
-async function fetchFeed(url: string): Promise<{ ok: true; text: string } | { ok: false; response: Response }> {
+async function fetchFeed(
+  url: string, previous: FeedCache | undefined, nowMs: number
+): Promise<{ ok: true; cache: FeedCache } | { ok: false; response: Response }> {
   let response: Response
   try {
-    response = await fetch(url, { headers: { accept: 'text/calendar', 'user-agent': USER_AGENT }, signal: AbortSignal.timeout(CANVAS_TIMEOUT_MS) })
+    const headers = new Headers({ accept: 'text/calendar', 'user-agent': USER_AGENT })
+    if (previous?.etag) headers.set('if-none-match', previous.etag)
+    if (previous?.lastModified) headers.set('if-modified-since', previous.lastModified)
+    response = await fetch(url, { headers, signal: AbortSignal.timeout(CANVAS_TIMEOUT_MS) })
   } catch {
     return { ok: false, response: failure(502, 'UPSTREAM_ERROR', 'Canvas did not answer') }
+  }
+  if (response.status === 304 && previous) {
+    return {
+      ok: true,
+      cache: { ...previous, expiresAt: nowMs + FEED_CACHE_MS, fetchedAt: new Date(nowMs).toISOString() }
+    }
   }
   if (!response.ok) {
     return { ok: false, response: failure(502, 'UPSTREAM_ERROR', `Canvas answered with HTTP ${response.status}`) }
@@ -49,22 +79,52 @@ async function fetchFeed(url: string): Promise<{ ok: true; text: string } | { ok
   if (!isCalendarText(text)) {
     return { ok: false, response: failure(502, 'UPSTREAM_ERROR', 'Canvas sent something other than a calendar. The feed link may have been reset.') }
   }
-  return { ok: true, text }
+  return {
+    ok: true,
+    cache: {
+      url,
+      expiresAt: nowMs + FEED_CACHE_MS,
+      fetchedAt: new Date(nowMs).toISOString(),
+      assignments: parseCanvasCalendar(text),
+      etag: response.headers.get('etag'),
+      lastModified: response.headers.get('last-modified')
+    }
+  }
+}
+
+async function assignmentsFromFeed(
+  env: Env, url: string, nowMs: number
+): Promise<{ ok: true; assignments: FeedAssignment[]; fetchedAt: string } | { ok: false; response: Response }> {
+  const stored = feedCaches.get(env)
+  const cached = stored?.url === url ? stored : undefined
+  if (cached && cached.expiresAt > nowMs) {
+    return { ok: true, assignments: cached.assignments, fetchedAt: cached.fetchedAt }
+  }
+  const active = feedRequests.get(env)
+  if (active) return active
+  const request = fetchFeed(url, cached, nowMs).then((result) => {
+    if (!result.ok) return result
+    feedCaches.set(env, result.cache)
+    return { ok: true as const, assignments: result.cache.assignments, fetchedAt: result.cache.fetchedAt }
+  }).finally(() => feedRequests.delete(env))
+  feedRequests.set(env, request)
+  return request
 }
 
 /** The feed link is a secret: anyone holding it can read the calendar, so it stays on the Worker. */
 export async function readStudyAssignments(env: Env, device: DeviceIdentity, now: string): Promise<Response> {
   const url = env.CANVAS_CALENDAR_URL?.trim()
   if (!url) return failure(503, 'NOT_CONFIGURED', 'The Canvas calendar is not set up on the server')
-  const feed = await fetchFeed(url)
-  if (!feed.ok) return feed.response
-  const marks = await env.DB.prepare('SELECT assignment_id, completed_at FROM study_completions WHERE dataset_id = ?')
+  const nowMs = Date.parse(now)
+  const marksRequest = env.DB.prepare('SELECT assignment_id, completed_at FROM study_completions WHERE dataset_id = ?')
     .bind(device.datasetId)
     .all<{ assignment_id: string; completed_at: string }>()
+  const [feed, marks] = await Promise.all([assignmentsFromFeed(env, url, Number.isFinite(nowMs) ? nowMs : Date.now()), marksRequest])
+  if (!feed.ok) return feed.response
   const doneAt = new Map((marks.results ?? []).map((row) => [row.assignment_id, row.completed_at]))
-  const assignments: StudyAssignment[] = parseCanvasCalendar(feed.text)
+  const assignments: StudyAssignment[] = feed.assignments
     .map((item) => ({ ...item, doneAt: doneAt.get(item.id) ?? null }))
-  const data: StudyAssignmentList = { assignments, fetchedAt: now }
+  const data: StudyAssignmentList = { assignments, fetchedAt: feed.fetchedAt }
   return ok(data)
 }
 

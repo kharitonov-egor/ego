@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  NO_TRANSACTION_FILTERS, decodeCursor, encodeCursor, escapeLikePattern, parseTransactionFilters,
+  NO_TRANSACTION_FILTERS, cursorCondition, decodeCursor, encodeCursor, escapeLikePattern, feedCountSql, parseTransactionFilters,
   transactionQueryIdentity, type TransactionFilters
 } from '../src'
 
@@ -9,6 +9,13 @@ const filters = (overrides: Partial<TransactionFilters> = {}): TransactionFilter
   ({ ...NO_TRANSACTION_FILTERS, ...overrides })
 
 describe('feed cursors', () => {
+  it('uses one row comparison that the feed index can seek', () => {
+    expect(cursorCondition(cursor)).toEqual({
+      clauses: ['(t.date, t.created_at, t.id) < (?, ?, ?)'],
+      params: [cursor.date, cursor.createdAt, cursor.id]
+    })
+  })
+
   it('round trips the tuple of the preceding row', () => {
     const decoded = decodeCursor(encodeCursor(cursor, filters()), filters())
     expect(decoded).toEqual({ ok: true, data: cursor })
@@ -40,6 +47,12 @@ describe('feed cursors', () => {
 })
 
 describe('transaction filters', () => {
+  it('counts from transactions alone unless text search needs display names', () => {
+    expect(feedCountSql(filters()).sql).toContain('FROM transactions t WHERE')
+    expect(feedCountSql(filters()).sql).not.toContain('JOIN accounts')
+    expect(feedCountSql(filters({ search: 'coffee' })).sql).toContain('JOIN accounts')
+  })
+
   it('parses a query string and normalizes it', () => {
     const parsed = parseTransactionFilters(new URLSearchParams(
       'from=2026-09-01&to=2026-09-30&accounts=b,a,a&kinds=transfer,income&search=%20cafe%20'))

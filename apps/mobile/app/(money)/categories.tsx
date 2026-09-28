@@ -1,9 +1,10 @@
 import React, { useState } from 'react'
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { Plus } from 'lucide-react-native'
 import Svg, { Circle } from 'react-native-svg'
 import type { CategoryInput, CategoryKind, MoneyCategory } from '@ego/core'
-import { useMoney } from '../../lib/money-context'
+import { useMoney, useMoneyQuery } from '../../lib/money-context'
+import { localSnapshot } from '../../lib/repositories/snapshot'
 import {
   COLORS, ColorPicker, ConfirmDialog, EntityPreview, IconPicker, Label, MoneyIcon, MoneyScreen,
   PrimaryButton, Sheet, filteredTransactions, inputClass, money
@@ -139,11 +140,20 @@ export default function Categories(): React.ReactElement {
   const state = useMoney()
   const router = useRouter()
   const { range } = usePeriod()
+  const periodData = useMoneyQuery((db) => localSnapshot(db, new Date().toISOString(), {
+    accounts: false,
+    budgets: false,
+    purchases: false,
+    transactionFrom: range.from,
+    transactionTo: range.to
+  }), [range.from, range.to])
   const [mode, setMode] = useState<CategoryKind>('expense')
   const [editing, setEditing] = useState<MoneyCategory | 'new' | null>(null)
   const [archived, setArchived] = useState(false)
   const [confirming, setConfirming] = useState<MoneyCategory | null>(null)
-  return <MoneyScreen>{(snapshot) => {
+  return <MoneyScreen>{(baseSnapshot) => {
+    if (!periodData) return <View className="flex-1 items-center justify-center"><ActivityIndicator color="#fafafa" /></View>
+    const snapshot = { ...baseSnapshot, transactions: periodData.transactions }
     const transactions = filteredTransactions(snapshot, range)
     const totals = new Map<string, number>()
     transactions.filter((item) => item.kind !== 'transfer' && item.categoryId).forEach((item) => totals.set(item.categoryId!, (totals.get(item.categoryId!) ?? 0) + item.amountCents))

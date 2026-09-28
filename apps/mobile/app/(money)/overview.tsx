@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react'
-import { Pressable, ScrollView, View } from 'react-native'
+import React, { useEffect, useMemo, useState } from 'react'
+import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { ArrowDownRight, ArrowUpRight, ChevronRight } from 'lucide-react-native'
 import type { MoneySnapshot, MoneyTransaction } from '@ego/core'
@@ -13,15 +13,19 @@ import { HERO_AMOUNT, amountColor, amountSign, tabular } from '../../components/
 import { Badge } from '../../components/ui/badge'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../../components/ui/card'
 import { Text } from '../../components/ui/text'
-import { averagesFor, balanceAt, bucketFlows, elapsedDays, flowOf, projectedSpend } from '../../lib/cash-flow'
-import { formatIso, isoToday } from '../../lib/dates'
+import { averagesFor, bucketFlows, elapsedDays, flowOf, projectedSpend } from '../../lib/cash-flow'
+import { formatIso, isoToday, shiftIso } from '../../lib/dates'
 import { bucketSizeFor, chartBuckets, comparisonSpan, isStepped, type Span } from '../../lib/periods'
-import { transactionsInRange, usePeriod } from '../../lib/period-context'
+import { usePeriod } from '../../lib/period-context'
+import { useLedger } from '../../lib/ledger-context'
+import { useMoneyQuery } from '../../lib/money-context'
+import { localBalanceAt, localTransactionBounds, localTransactionsInRange } from '../../lib/repositories/snapshot'
+import { localMerchantNames } from '../../lib/repositories/transactions'
 import { transactionDetail, transactionTitle } from '../../lib/transaction-title'
 
 /** Transactions arrive newest first, so the earliest date is the last row, not a sort away. */
-function earliestDate(snapshot: MoneySnapshot): string | undefined {
-  let earliest = snapshot.transactions[snapshot.transactions.length - 1]?.date
+function earliestDate(snapshot: MoneySnapshot, transactionDate: string | null): string | undefined {
+  let earliest = transactionDate ?? undefined
   for (const account of snapshot.accounts) {
     if (!earliest || account.openingDate < earliest) earliest = account.openingDate
   }
@@ -34,34 +38,60 @@ export default function Overview(): React.ReactElement {
 
 function OverviewBody({ snapshot }: { snapshot: MoneySnapshot }): React.ReactElement {
   const router = useRouter()
+  const ledger = useLedger()
   const period = usePeriod()
   const [scrubbing, setScrubbing] = useState(false)
   const [series, setSeries] = useState<SeriesVisibility>({ expense: true, income: true })
   const today = isoToday()
-  const first = useMemo(() => earliestDate(snapshot) ?? today, [snapshot, today])
-  const latest = snapshot.transactions[0]?.date ?? today
+  const bounds = useMoneyQuery(localTransactionBounds, [])
+  const first = useMemo(() => earliestDate(snapshot, bounds?.earliest ?? null) ?? today, [bounds?.earliest, snapshot, today])
+  const latest = bounds?.latest ?? today
   const from = period.range.from ?? first
   const to = period.range.to ?? (latest > today ? latest : today)
   const span: Span = from <= to ? { from, to } : { from: to, to: from }
+  const preset = period.period
+  const comparison = isStepped(preset) ? comparisonSpan(preset, period.anchor, today) : null
+  const transactions = useMoneyQuery(
+    (db) => localTransactionsInRange(db, span.from, span.to), [span.from, span.to])
+  const comparisonTransactions = useMoneyQuery(
+    (db) => comparison
+      ? localTransactionsInRange(db, comparison.from, comparison.to)
+      : Promise.resolve([]),
+    [comparison?.from, comparison?.to])
+  const recurringHistory = useMoneyQuery(
+    (db) => period.current
+      ? localTransactionsInRange(db, shiftIso(today, -180), today)
+      : Promise.resolve([]),
+    [period.current, today])
+  const balanceOnDay = useMoneyQuery((db) => localBalanceAt(db, span.to), [span.to])
 
-  const transactions = useMemo(() => transactionsInRange(snapshot, period.range), [snapshot, period.range])
-  const flow = useMemo(() => flowOf(transactions), [transactions])
+  const [merchants, setMerchants] = useState<Map<string, string>>(new Map())
+  useEffect(() => {
+    if (!ledger.db || period.period !== 'today' || !transactions) {
+      setMerchants(new Map())
+      return
+    }
+    let active = true
+    void localMerchantNames(ledger.db, transactions.map((item) => item.id))
+      .then((next) => { if (active) setMerchants(next) })
+      .catch(() => undefined)
+    return () => { active = false }
+  }, [ledger.db, ledger.version, period.period, transactions])
+  const flow = useMemo(() => flowOf(transactions ?? []), [transactions])
   const buckets = useMemo(() => chartBuckets({ from: span.from, to: span.to }), [span.from, span.to])
   const flows = useMemo(
-    () => bucketFlows(transactions, buckets, bucketSizeFor({ from: span.from, to: span.to })),
+    () => bucketFlows(transactions ?? [], buckets, bucketSizeFor({ from: span.from, to: span.to })),
     [transactions, buckets, span.from, span.to]
   )
 
-  const preset = period.period
-  const comparison = isStepped(preset) ? comparisonSpan(preset, period.anchor, today) : null
   const previous = useMemo(
-    () => comparison ? flowOf(snapshot.transactions, comparison) : null,
-    [snapshot.transactions, comparison?.from, comparison?.to]
+    () => comparison ? flowOf(comparisonTransactions ?? []) : null,
+    [comparison, comparisonTransactions]
   )
   const past = span.to < today
-  const balance = useMemo(() => past
-    ? balanceAt(snapshot, span.to)
-    : snapshot.accounts.reduce((sum, account) => account.archivedAt ? sum : sum + account.balanceCents, 0), [past, snapshot, span.to])
+  const balance = past
+    ? balanceOnDay ?? 0
+    : snapshot.accounts.reduce((sum, account) => account.archivedAt ? sum : sum + account.balanceCents, 0)
   const accountCount = snapshot.accounts.filter((account) => !account.archivedAt).length
   const net = flow.incomeCents - flow.expenseCents
   const days = Math.max(1, elapsedDays(span, today))
@@ -69,6 +99,9 @@ function OverviewBody({ snapshot }: { snapshot: MoneySnapshot }): React.ReactEle
     ? projectedSpend(flow.expenseCents, span, today)
     : null
 
+  if (!bounds || !transactions || !comparisonTransactions || !recurringHistory || balanceOnDay === null) {
+    return <View className="flex-1 items-center justify-center"><ActivityIndicator color="#fafafa" /></View>
+  }
 
   return <View className="flex-1">
     <PeriodBar since={preset === 'all' ? formatIso(first) : undefined} />
@@ -97,7 +130,7 @@ function OverviewBody({ snapshot }: { snapshot: MoneySnapshot }): React.ReactEle
       </View>
 
       {preset === 'today'
-        ? <DayCard snapshot={snapshot} transactions={transactions} onOpen={(id) => router.push({ pathname: '/(money)/transaction', params: { id } })} />
+        ? <DayCard snapshot={snapshot} transactions={transactions} merchants={merchants} onOpen={(id) => router.push({ pathname: '/(money)/transaction', params: { id } })} />
         : <Card className="overflow-hidden pt-2">
           <CashFlowChart
             title="Cash flow"
@@ -113,7 +146,7 @@ function OverviewBody({ snapshot }: { snapshot: MoneySnapshot }): React.ReactEle
 
       {preset === 'month' && <SpendingCalendar month={span} transactions={transactions} today={today} onOpenDay={(iso) => period.showPeriod('today', iso)} />}
 
-      {period.current && <UpcomingBills snapshot={snapshot} today={today} />}
+      {period.current && <UpcomingBills snapshot={{ ...snapshot, transactions: recurringHistory }} today={today} />}
 
       {preset !== 'today' && <Card>
         <CardHeader>
@@ -208,14 +241,14 @@ function TopCategories({ snapshot, transactions, expenseCents, onOpen }: {
   </Card>
 }
 
-function DayCard({ snapshot, transactions, onOpen }: {
+function DayCard({ snapshot, transactions, merchants, onOpen }: {
   snapshot: MoneySnapshot
   transactions: readonly MoneyTransaction[]
+  merchants: ReadonlyMap<string, string>
   onOpen: (id: string) => void
 }): React.ReactElement {
   const categories = useMemo(() => new Map(snapshot.categories.map((category) => [category.id, category])), [snapshot.categories])
   const accounts = useMemo(() => new Map(snapshot.accounts.map((account) => [account.id, account])), [snapshot.accounts])
-  const merchants = useMemo(() => new Map(snapshot.purchases.map((purchase) => [purchase.transactionId, purchase.merchant])), [snapshot.purchases])
   return <Card>
     <CardHeader>
       <CardTitle>{transactions.length === 0 ? 'Nothing recorded' : `${transactions.length} ${transactions.length === 1 ? 'transaction' : 'transactions'}`}</CardTitle>
