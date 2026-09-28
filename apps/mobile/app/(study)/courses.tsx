@@ -9,15 +9,17 @@ import { StudyGate, StudyMessage } from '../../components/study/StudyGate'
 import { useStudy } from '../../lib/study/context'
 import { courseSummaries, dueDay, shortDay, type CourseSummary } from '../../lib/study/schedule'
 
-function CourseCard({ summary, tint, onPress }: {
+function CourseCard({ summary, tint, showOverdue, onPress }: {
   summary: CourseSummary
   tint: string
+  showOverdue: boolean
   onPress: () => void
 }): React.ReactElement {
   const next = summary.next
+  const overdue = showOverdue && summary.overdue > 0
   return <Pressable
     accessibilityRole="button"
-    accessibilityLabel={`${summary.course}, ${summary.left} left${summary.overdue > 0 ? `, ${summary.overdue} overdue` : ''}`}
+    accessibilityLabel={`${summary.course}, ${summary.left} left${overdue ? `, ${summary.overdue} overdue` : ''}`}
     accessibilityHint="Shows this course's assignments"
     onPress={onPress}
     className="w-full rounded-3xl border border-border bg-card p-4 active:bg-surface-900"
@@ -36,7 +38,7 @@ function CourseCard({ summary, tint, onPress }: {
       {next
         ? <Text numberOfLines={1} className="text-[15px] text-surface-300">Next: <Text className="font-semibold text-surface-100">{next.title}</Text> · {shortDay(dueDay(next))}</Text>
         : <Text className="text-[15px] text-surface-400">Nothing coming up</Text>}
-      {summary.overdue > 0 && <Text className="mt-1 text-[14px] font-semibold" style={{ color: color.expense }}>{summary.overdue} overdue</Text>}
+      {overdue && <Text className="mt-1 text-[14px] font-semibold" style={{ color: color.expense }}>{summary.overdue} overdue</Text>}
     </View>
   </Pressable>
 }
@@ -62,6 +64,7 @@ function CourseList(): React.ReactElement {
       key={summary.course}
       summary={summary}
       tint={tintOf(summary.course)}
+      showOverdue={!study.hideOverdue}
       onPress={() => router.push({ pathname: '/(study)/assignments', params: { course: summary.course } })}
     />)}
   </ScrollView>

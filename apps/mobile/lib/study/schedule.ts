@@ -11,6 +11,12 @@ export interface StudySection {
   data: StudyItem[]
 }
 
+export interface StudyFilter {
+  course: string | null
+  /** Drops every unchecked item whose deadline has passed, in both views. */
+  hideOverdue: boolean
+}
+
 export interface CourseSummary {
   course: string
   left: number
@@ -60,13 +66,22 @@ function groupByDay(items: StudyItem[]): StudySection[] {
   return sections
 }
 
+function visible(items: StudyItem[], now: Date, filter: StudyFilter): StudyItem[] {
+  return items.filter((item) => (filter.course === null || item.course === filter.course) &&
+    !(filter.hideOverdue && isOverdue(item, now)))
+}
+
+export function overdueCount(items: StudyItem[], now: Date, course: string | null): number {
+  return visible(items, now, { course, hideOverdue: false }).filter((item) => isOverdue(item, now)).length
+}
+
 /**
  * Upcoming starts with anything from an earlier day still unchecked, then every day from today on.
  * Past lists earlier days, most recent first.
  */
-export function studySections(items: StudyItem[], view: StudyView, now: Date, course: string | null): StudySection[] {
+export function studySections(items: StudyItem[], view: StudyView, now: Date, filter: StudyFilter): StudySection[] {
   const today = localDay(now)
-  const sorted = items.filter((item) => course === null || item.course === course).sort(byDue)
+  const sorted = visible(items, now, filter).sort(byDue)
   if (view === 'past') return groupByDay(sorted.filter((item) => dueDay(item) < today)).reverse()
   const overdue = sorted.filter((item) => !isDone(item) && dueDay(item) < today)
   const ahead = groupByDay(sorted.filter((item) => dueDay(item) >= today))
