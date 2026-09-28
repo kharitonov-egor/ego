@@ -2,7 +2,9 @@ import React from 'react'
 import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { Dumbbell, GraduationCap, HeartPulse, Settings, Wallet, type LucideIcon } from 'lucide-react-native'
+import {
+  CircleCheckBig, Dumbbell, GraduationCap, HeartPulse, Settings, Wallet, type LucideIcon
+} from 'lucide-react-native'
 import appIcon from '../assets/app-icon.png'
 import { SignInPanel } from '../components/SignInPanel'
 import { isSignedIn, useSettings } from '../lib/settings'
@@ -20,8 +22,8 @@ function AppTile({ label, Icon, onPress }: { label: string; Icon: LucideIcon; on
 }
 
 /**
- * The start screen, and the only place that asks for sign-in. Finance, Gym, and Health open from
- * here once the phone holds a device token.
+ * The start screen, and the only place that asks for sign-in. Every app opens from here once the
+ * phone holds a device token.
  */
 export default function Launcher(): React.ReactElement {
   const router = useRouter()
@@ -54,6 +56,7 @@ export default function Launcher(): React.ReactElement {
           <AppTile label="Gym" Icon={Dumbbell} onPress={() => router.push('/gym')} />
           <AppTile label="Health" Icon={HeartPulse} onPress={() => router.push('/health')} />
           <AppTile label="Study" Icon={GraduationCap} onPress={() => router.push('/(study)/assignments')} />
+          <AppTile label="Habits" Icon={CircleCheckBig} onPress={() => router.push('/(habits)/home')} />
         </View>
         : <View className="mt-10 rounded-3xl border border-border bg-card p-5">
           <Text accessibilityRole="header" className="text-[20px] font-semibold text-white">Sign in</Text>

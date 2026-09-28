@@ -122,6 +122,28 @@ refresh.
 Canvas sends deadlines in UTC. The phone places each one on its own calendar, so a deadline at
 10:59 PM Eastern (02:59 UTC) shows on the evening it is due, not the next morning.
 
+## Habits
+
+The phone's start screen has a Habits tile with three tabs.
+
+- Home lists the habits to build, each with an emoji. Tap a habit to check it off for the selected
+  day, and tap it again to undo. Hold one to rename it, change its emoji or start date, move it, or
+  delete it. The week strip at the top has a ring on each day that fills as habits get done. Swipe
+  it or use the arrows to move a week at a time. Future days stay locked.
+- Progress shows one month: the share of check-offs done, a calendar where a day gets brighter as
+  more gets done and turns solid white when everything is, the current and best run of days with
+  every habit done, and each habit's rate. Tapping a habit narrows the calendar and the streaks to
+  it. Tapping a day opens it on Home.
+- Quit is for habits to break. Each card counts the days clean since the last slip, or since the
+  start date when nothing has slipped since. It also shows the best run, the urges resisted, and
+  the slips. Resisted logs an urge you did not act on. Slipped asks first, then restarts the count.
+  Both offer Undo for a few seconds. The edit sheet lists the full history and can log a past day.
+
+Every habit is due every day from its start date, so adding one never counts against earlier days.
+Habits use the same local database, outbox, and change log as the other apps. A check-off shows
+at once and reaches D1 in `habits` and `habit_entries` on the next sync. Deleting a habit hides its
+entries on every device.
+
 ## Quick tools
 
 Press `Alt+S` anywhere in Windows to open a three-item chooser. Use the arrow keys and Enter, or

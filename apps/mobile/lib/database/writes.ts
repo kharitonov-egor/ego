@@ -1,7 +1,7 @@
 import type {
   AccountRecord, BudgetRecord, CategoryRecord, ChangePayload, FeedTransaction, GymCategoryRecord,
-  GymExerciseRecord, GymSetRecord, GymWorkoutRecord, MoodRecord, PurchaseRecord, SyncEntity,
-  TransactionRecord
+  GymExerciseRecord, GymSetRecord, GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord,
+  PurchaseRecord, SyncEntity, TransactionRecord
 } from '@ego/api-contracts'
 import type { LocalDatabase } from './types'
 
@@ -15,7 +15,9 @@ export const TABLES: Record<SyncEntity, string> = {
   gymExercise: 'gym_exercises',
   gymSet: 'gym_sets',
   gymWorkout: 'gym_workouts',
-  mood: 'mood_entries'
+  mood: 'mood_entries',
+  habit: 'habits',
+  habitEntry: 'habit_entries'
 }
 
 /** Budgets are keyed by month and mood entries by date; every other record by its ID. */
@@ -174,6 +176,29 @@ async function writeMood(tx: LocalDatabase, record: MoodRecord): Promise<void> {
   [record.id, record.date, record.mood, record.note, record.createdAt, record.updatedAt, record.revision])
 }
 
+async function writeHabit(tx: LocalDatabase, record: HabitRecord): Promise<void> {
+  await tx.run(`INSERT INTO habits (id, name, icon, kind, start_date, position, created_at, updated_at,
+    revision, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+    ON CONFLICT(id) DO UPDATE SET name = excluded.name, icon = excluded.icon, kind = excluded.kind,
+      start_date = excluded.start_date, position = excluded.position,
+      created_at = excluded.created_at, updated_at = excluded.updated_at,
+      revision = excluded.revision, deleted_at = NULL
+    WHERE excluded.revision >= habits.revision`,
+  [record.id, record.name, record.icon, record.kind, record.startDate, record.position,
+    record.createdAt, record.updatedAt, record.revision])
+}
+
+async function writeHabitEntry(tx: LocalDatabase, record: HabitEntryRecord): Promise<void> {
+  await tx.run(`INSERT INTO habit_entries (id, habit_id, date, kind, created_at, updated_at, revision, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
+    ON CONFLICT(id) DO UPDATE SET habit_id = excluded.habit_id, date = excluded.date, kind = excluded.kind,
+      created_at = excluded.created_at, updated_at = excluded.updated_at,
+      revision = excluded.revision, deleted_at = NULL
+    WHERE excluded.revision >= habit_entries.revision`,
+  [record.id, record.habitId, record.date, record.kind, record.createdAt, record.updatedAt, record.revision])
+}
+
 /** Applies a record only when it is at least as new as the stored revision. */
 export async function writeRecord(tx: LocalDatabase, payload: ChangePayload): Promise<void> {
   if (payload.record === null) return
@@ -188,6 +213,8 @@ export async function writeRecord(tx: LocalDatabase, payload: ChangePayload): Pr
     case 'gymSet': return writeGymSet(tx, payload.record)
     case 'gymWorkout': return writeGymWorkout(tx, payload.record)
     case 'mood': return writeMood(tx, payload.record)
+    case 'habit': return writeHabit(tx, payload.record)
+    case 'habitEntry': return writeHabitEntry(tx, payload.record)
   }
 }
 
