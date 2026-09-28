@@ -62,11 +62,11 @@ export default function Auth(): React.ReactElement {
     <Text className="mt-2 text-center text-[16px] leading-6 text-surface-400">{message}</Text>
     <Pressable
       accessibilityRole="button"
-      onPress={() => router.replace('/settings')}
+      onPress={() => router.replace('/')}
       style={{ minHeight: TOUCH }}
       className="mt-6 justify-center rounded-xl bg-primary px-5"
     >
-      <Text className="text-[16px] font-semibold text-primary-foreground">Back to Settings</Text>
+      <Text className="text-[16px] font-semibold text-primary-foreground">Back to sign in</Text>
     </Pressable>
   </View>
 }

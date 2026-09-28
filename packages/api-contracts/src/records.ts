@@ -1,5 +1,6 @@
 import type {
-  MoneyAccount, MoneyCategory, MoneyPurchase, MoneyTransaction, MonthlyBudget, TransactionKind
+  GymCategory, GymExercise, GymSet, GymWorkout, MoneyAccount, MoneyCategory, MoneyPurchase,
+  MoneyTransaction, MonthlyBudget, TransactionKind
 } from '@ego/core'
 
 export const API_VERSION = 1
@@ -12,6 +13,10 @@ export type CategoryRecord = MoneyCategory & { revision: number }
 export type TransactionRecord = MoneyTransaction & { revision: number }
 export type PurchaseRecord = MoneyPurchase & { revision: number }
 export type BudgetRecord = MonthlyBudget & { revision: number }
+export type GymCategoryRecord = GymCategory & { revision: number }
+export type GymExerciseRecord = GymExercise & { revision: number }
+export type GymSetRecord = GymSet & { revision: number }
+export type GymWorkoutRecord = GymWorkout & { revision: number }
 
 export interface ReferenceData {
   accounts: AccountRecord[]
@@ -47,6 +52,10 @@ export interface BootstrapData {
   transactions: TransactionRecord[]
   purchases: PurchaseRecord[]
   budgets: BudgetRecord[]
+  gymCategories: GymCategoryRecord[]
+  gymExercises: GymExerciseRecord[]
+  gymSets: GymSetRecord[]
+  gymWorkouts: GymWorkoutRecord[]
 }
 
 export interface TransactionDetail {
@@ -80,7 +89,15 @@ export interface PeriodSummary {
 }
 
 export type ChangeAction = 'upsert' | 'delete'
-export type SyncEntity = 'account' | 'category' | 'transaction' | 'purchase' | 'budget'
+export type MoneyEntity = 'account' | 'category' | 'transaction' | 'purchase' | 'budget'
+export type GymEntity = 'gymCategory' | 'gymExercise' | 'gymSet' | 'gymWorkout'
+export type SyncEntity = MoneyEntity | GymEntity
+
+export const GYM_ENTITIES: readonly GymEntity[] = ['gymCategory', 'gymExercise', 'gymSet', 'gymWorkout']
+
+export function isGymEntity(entity: SyncEntity): entity is GymEntity {
+  return (GYM_ENTITIES as readonly string[]).includes(entity)
+}
 
 interface ChangeBase {
   seq: number
@@ -97,6 +114,10 @@ export type ChangePayload =
   | { entity: 'transaction'; record: TransactionRecord | null }
   | { entity: 'purchase'; record: PurchaseRecord | null }
   | { entity: 'budget'; record: BudgetRecord | null }
+  | { entity: 'gymCategory'; record: GymCategoryRecord | null }
+  | { entity: 'gymExercise'; record: GymExerciseRecord | null }
+  | { entity: 'gymSet'; record: GymSetRecord | null }
+  | { entity: 'gymWorkout'; record: GymWorkoutRecord | null }
 
 export type ChangeRecord = ChangeBase & ChangePayload
 

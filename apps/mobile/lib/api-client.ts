@@ -135,7 +135,7 @@ export function moneyApiFor(config: ApiConfig): EgoApi {
   const token = config.token.trim()
   const call = <T>(path: string, options?: SendOptions): Promise<ApiResult<T>> => {
     if (!isMoneyApiConfigured(config)) {
-      return Promise.resolve({ ok: false, error: { code: 'AUTH_REQUIRED', message: 'Sign in with Google in Settings' } })
+      return Promise.resolve({ ok: false, error: { code: 'AUTH_REQUIRED', message: 'Sign in with Google on the start screen' } })
     }
     return send<T>(base, token, path, options)
   }

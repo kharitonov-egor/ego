@@ -56,3 +56,37 @@ describe('sync operations', () => {
     expect(isOperationRequest({ operations: [operation()] })).toBe(true)
   })
 })
+
+describe('gym operations', () => {
+  const set = {
+    exerciseId: 'ge-barbell-squat', date: '2026-09-27', position: 0, weight: 25, weightUnit: 'lbs',
+    reps: 12, distance: null, distanceUnit: null, durationSeconds: null, comment: ''
+  }
+  const workout = { date: '2026-09-27', exerciseOrder: ['ge-barbell-squat'], supersets: [], notes: '' }
+
+  it('accepts set creates, updates, and deletes with the usual revision rules', () => {
+    expect(isSyncOperation(operation({ entityId: 'gs-1', command: { entity: 'gymSet', type: 'create', payload: set } }))).toBe(true)
+    expect(isSyncOperation(operation({ entityId: 'gs-1', command: { entity: 'gymSet', type: 'update', payload: set } }))).toBe(false)
+    expect(isSyncOperation(operation({ entityId: 'gs-1', expectedRevision: 2, command: { entity: 'gymSet', type: 'delete' } }))).toBe(true)
+    expect(isSyncOperation(operation({
+      entityId: 'gs-1', command: { entity: 'gymSet', type: 'create', payload: { ...set, reps: -1 } }
+    }))).toBe(false)
+  })
+
+  it('keys a workout by its date, with or without a revision', () => {
+    const save = { entity: 'gymWorkout', type: 'save', payload: workout } as const
+    expect(isSyncOperation(operation({ entityId: '2026-09-27', command: save }))).toBe(true)
+    expect(isSyncOperation(operation({ entityId: '2026-09-27', expectedRevision: 4, command: save }))).toBe(true)
+    expect(isSyncOperation(operation({ entityId: '2026-09-28', command: save }))).toBe(false)
+    expect(isSyncOperation(operation({ entityId: 'workout', command: save }))).toBe(false)
+  })
+
+  it('checks exercise and category payloads', () => {
+    expect(isSyncOperation(operation({
+      entityId: 'ge-x-1', command: { entity: 'gymExercise', type: 'create', payload: { name: 'Корова', categoryId: 'gc-triceps', type: 'weight_reps', weightUnit: 'default', notes: '' } }
+    }))).toBe(true)
+    expect(isSyncOperation(operation({
+      entityId: 'gc-x-1', command: { entity: 'gymCategory', type: 'create', payload: { name: '', color: '#3987e5' } }
+    }))).toBe(false)
+  })
+})

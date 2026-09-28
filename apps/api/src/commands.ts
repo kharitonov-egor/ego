@@ -4,14 +4,15 @@ import {
   type SyncCommand, type SyncEntity, type SyncOperation
 } from '@ego/api-contracts'
 import type {
-  AccountInput, ArchiveInput, BudgetInput, CategoryInput, PurchaseInput, TransactionInput
+  AccountInput, ArchiveInput, BudgetInput, CategoryInput, GymSetInput, PurchaseInput, TransactionInput
 } from '@ego/core'
 import { query, readLatestChange, serverSequence } from './reads'
 import {
-  toAccountRecord, toBudgetRecord, toCategoryRecord, toPurchaseRecord, toReceiptItem,
-  toTransactionRecord,
-  type AccountRow, type BudgetAllocationRow, type BudgetRow, type CategoryRow, type PurchaseRow,
-  type ReceiptItemRow, type TransactionRow
+  toAccountRecord, toBudgetRecord, toCategoryRecord, toGymCategoryRecord, toGymExerciseRecord,
+  toGymSetRecord, toGymWorkoutRecord, toPurchaseRecord, toReceiptItem, toTransactionRecord,
+  type AccountRow, type BudgetAllocationRow, type BudgetRow, type CategoryRow, type GymCategoryRow,
+  type GymExerciseRow, type GymSetRow, type GymWorkoutRow, type PurchaseRow, type ReceiptItemRow,
+  type TransactionRow
 } from './rows'
 
 interface Statement {
@@ -38,7 +39,11 @@ const TABLES: Record<SyncEntity, string> = {
   category: 'categories',
   transaction: 'transactions',
   purchase: 'purchases',
-  budget: 'budgets'
+  budget: 'budgets',
+  gymCategory: 'gym_categories',
+  gymExercise: 'gym_exercises',
+  gymSet: 'gym_sets',
+  gymWorkout: 'gym_workouts'
 }
 
 function canonical(value: unknown): unknown {
@@ -628,6 +633,233 @@ async function planBudget(
   }
 }
 
+async function liveRow<T>(db: D1Database, entity: SyncEntity, id: string): Promise<T | null> {
+  const rows = await query<T>(db, `SELECT * FROM ${TABLES[entity]} WHERE id = ? AND deleted_at IS NULL`, [id])
+  return rows[0] ?? null
+}
+
+function both(first: Guard, second: Guard): Guard {
+  return { sql: `${first.sql} AND ${second.sql}`, params: [...first.params, ...second.params] }
+}
+
+function liveGuard(entity: SyncEntity, id: string): Guard {
+  return { sql: `EXISTS (SELECT 1 FROM ${TABLES[entity]} WHERE id = ? AND deleted_at IS NULL)`, params: [id] }
+}
+
+/**
+ * A create carries a guard too when it depends on another row, so the parent disappearing between
+ * the check and the batch leaves nothing half-written: every statement shares the same condition.
+ */
+function upsertPlan(
+  entity: SyncEntity, id: string, revision: number, payload: ChangePayload, primary: Statement, guard: Guard | null
+): Plan {
+  return {
+    primary,
+    followUps: [],
+    guard,
+    changes: [{ action: 'upsert', entityId: id, revision, payload }],
+    outcome: { entity, entityId: id, revision }
+  }
+}
+
+function deletePlan(entity: SyncEntity, id: string, expected: number, now: string, guard: Guard, payload: ChangePayload): Plan {
+  const revision = expected + 1
+  return {
+    primary: {
+      sql: `UPDATE ${TABLES[entity]} SET deleted_at = ?, updated_at = ?, revision = revision + 1
+        WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+      params: [now, now, id, expected]
+    },
+    followUps: [],
+    guard,
+    changes: [{ action: 'delete', entityId: id, revision, payload }],
+    outcome: { entity, entityId: id, revision }
+  }
+}
+
+async function planGymCategory(
+  db: D1Database, operation: SyncOperation, command: Extract<SyncCommand, { entity: 'gymCategory' }>, now: string
+): Promise<ApiResult<Plan>> {
+  const id = operation.entityId
+  if (command.type === 'create') {
+    const input = command.payload
+    const row: GymCategoryRow = { id, name: input.name.trim(), color: input.color, created_at: now, updated_at: now, revision: 1 }
+    return {
+      ok: true,
+      data: upsertPlan('gymCategory', id, 1, { entity: 'gymCategory', record: toGymCategoryRecord(row) }, {
+        sql: 'INSERT INTO gym_categories (id, name, color, created_at, updated_at, revision) SELECT ?, ?, ?, ?, ?, 1',
+        params: [id, row.name, row.color, now, now]
+      }, null)
+    }
+  }
+  const current = await liveRow<GymCategoryRow>(db, 'gymCategory', id)
+  if (!current) return notFound('That category was not found')
+  const expected = operation.expectedRevision ?? 0
+  const guard = guardFor('gymCategory', id, expected)
+  if (command.type === 'delete') {
+    const used = await query<{ total: number }>(db,
+      'SELECT COUNT(*) AS total FROM gym_exercises WHERE category_id = ? AND deleted_at IS NULL', [id])
+    if ((used[0]?.total ?? 0) > 0) return conflict('Move or delete the exercises in this category first')
+    const empty: Guard = {
+      sql: 'NOT EXISTS (SELECT 1 FROM gym_exercises WHERE category_id = ? AND deleted_at IS NULL)',
+      params: [id]
+    }
+    const plan = deletePlan('gymCategory', id, expected, now, both(guard, empty), { entity: 'gymCategory', record: null })
+    return { ok: true, data: { ...plan, primary: { sql: `${plan.primary.sql} AND ${empty.sql}`, params: [...plan.primary.params, ...empty.params] } } }
+  }
+  const input = command.payload
+  const revision = expected + 1
+  const row: GymCategoryRow = { ...current, name: input.name.trim(), color: input.color, updated_at: now, revision }
+  return {
+    ok: true,
+    data: upsertPlan('gymCategory', id, revision, { entity: 'gymCategory', record: toGymCategoryRecord(row) }, {
+      sql: 'UPDATE gym_categories SET name = ?, color = ?, updated_at = ?, revision = revision + 1 WHERE id = ? AND revision = ? AND deleted_at IS NULL',
+      params: [row.name, row.color, now, id, expected]
+    }, guard)
+  }
+}
+
+/** Deleting an exercise keeps its sets. Every read joins on live exercises, so they stop showing. */
+async function planGymExercise(
+  db: D1Database, operation: SyncOperation, command: Extract<SyncCommand, { entity: 'gymExercise' }>, now: string
+): Promise<ApiResult<Plan>> {
+  const id = operation.entityId
+  if (command.type === 'delete') {
+    if (!await liveRow<GymExerciseRow>(db, 'gymExercise', id)) return notFound('That exercise was not found')
+    const expected = operation.expectedRevision ?? 0
+    return {
+      ok: true,
+      data: deletePlan('gymExercise', id, expected, now, guardFor('gymExercise', id, expected), { entity: 'gymExercise', record: null })
+    }
+  }
+  const input = command.payload
+  if (!await liveRow<GymCategoryRow>(db, 'gymCategory', input.categoryId)) return conflict('That category was deleted')
+  const category = liveGuard('gymCategory', input.categoryId)
+  if (command.type === 'create') {
+    const row: GymExerciseRow = {
+      id, name: input.name.trim(), category_id: input.categoryId, type: input.type, weight_unit: input.weightUnit,
+      notes: input.notes.trim(), created_at: now, updated_at: now, revision: 1
+    }
+    return {
+      ok: true,
+      data: upsertPlan('gymExercise', id, 1, { entity: 'gymExercise', record: toGymExerciseRecord(row) }, guarded({
+        sql: `INSERT INTO gym_exercises (id, name, category_id, type, weight_unit, notes, created_at, updated_at, revision)
+          SELECT ?, ?, ?, ?, ?, ?, ?, ?, 1`,
+        params: [id, row.name, row.category_id, row.type, row.weight_unit, row.notes, now, now]
+      }, category), category)
+    }
+  }
+  const current = await liveRow<GymExerciseRow>(db, 'gymExercise', id)
+  if (!current) return notFound('That exercise was not found')
+  const expected = operation.expectedRevision ?? 0
+  const revision = expected + 1
+  const row: GymExerciseRow = {
+    ...current, name: input.name.trim(), category_id: input.categoryId, type: input.type,
+    weight_unit: input.weightUnit, notes: input.notes.trim(), updated_at: now, revision
+  }
+  return {
+    ok: true,
+    data: upsertPlan('gymExercise', id, revision, { entity: 'gymExercise', record: toGymExerciseRecord(row) }, {
+      sql: `UPDATE gym_exercises SET name = ?, category_id = ?, type = ?, weight_unit = ?, notes = ?, updated_at = ?,
+        revision = revision + 1 WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+      params: [row.name, row.category_id, row.type, row.weight_unit, row.notes, now, id, expected]
+    }, both(guardFor('gymExercise', id, expected), category))
+  }
+}
+
+function gymSetRowFrom(id: string, input: GymSetInput, createdAt: string, updatedAt: string, revision: number): GymSetRow {
+  return {
+    id, exercise_id: input.exerciseId, date: input.date, position: input.position, weight: input.weight,
+    weight_unit: input.weightUnit, reps: input.reps, distance: input.distance, distance_unit: input.distanceUnit,
+    duration_seconds: input.durationSeconds, comment: input.comment.trim(), created_at: createdAt,
+    updated_at: updatedAt, revision
+  }
+}
+
+async function planGymSet(
+  db: D1Database, operation: SyncOperation, command: Extract<SyncCommand, { entity: 'gymSet' }>, now: string
+): Promise<ApiResult<Plan>> {
+  const id = operation.entityId
+  if (command.type === 'delete') {
+    if (!await liveRow<GymSetRow>(db, 'gymSet', id)) return notFound('That set was not found')
+    const expected = operation.expectedRevision ?? 0
+    return {
+      ok: true,
+      data: deletePlan('gymSet', id, expected, now, guardFor('gymSet', id, expected), { entity: 'gymSet', record: null })
+    }
+  }
+  const input = command.payload
+  if (!await liveRow<GymExerciseRow>(db, 'gymExercise', input.exerciseId)) {
+    return conflict('That exercise was deleted on another device')
+  }
+  const exercise = liveGuard('gymExercise', input.exerciseId)
+  if (command.type === 'create') {
+    const row = gymSetRowFrom(id, input, now, now, 1)
+    return {
+      ok: true,
+      data: upsertPlan('gymSet', id, 1, { entity: 'gymSet', record: toGymSetRecord(row) }, guarded({
+        sql: `INSERT INTO gym_sets (id, exercise_id, date, position, weight, weight_unit, reps, distance, distance_unit,
+          duration_seconds, comment, created_at, updated_at, revision) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1`,
+        params: [id, row.exercise_id, row.date, row.position, row.weight, row.weight_unit, row.reps, row.distance,
+          row.distance_unit, row.duration_seconds, row.comment, now, now]
+      }, exercise), exercise)
+    }
+  }
+  const current = await liveRow<GymSetRow>(db, 'gymSet', id)
+  if (!current) return notFound('That set was not found')
+  const expected = operation.expectedRevision ?? 0
+  const revision = expected + 1
+  const row = gymSetRowFrom(id, input, current.created_at, now, revision)
+  return {
+    ok: true,
+    data: upsertPlan('gymSet', id, revision, { entity: 'gymSet', record: toGymSetRecord(row) }, {
+      sql: `UPDATE gym_sets SET exercise_id = ?, date = ?, position = ?, weight = ?, weight_unit = ?, reps = ?,
+        distance = ?, distance_unit = ?, duration_seconds = ?, comment = ?, updated_at = ?, revision = revision + 1
+        WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+      params: [row.exercise_id, row.date, row.position, row.weight, row.weight_unit, row.reps, row.distance,
+        row.distance_unit, row.duration_seconds, row.comment, now, id, expected]
+    }, both(guardFor('gymSet', id, expected), exercise))
+  }
+}
+
+/** A day's record is created by its first save and updated by every later one. */
+async function planGymWorkout(
+  db: D1Database, operation: SyncOperation, command: Extract<SyncCommand, { entity: 'gymWorkout' }>, now: string
+): Promise<ApiResult<Plan>> {
+  const id = operation.entityId
+  const input = command.payload
+  const current = await liveRow<GymWorkoutRow>(db, 'gymWorkout', id)
+  const order = JSON.stringify(input.exerciseOrder)
+  const supersets = JSON.stringify(input.supersets)
+  const notes = input.notes.trim()
+  if (!current) {
+    if (operation.expectedRevision !== null) return notFound('That workout was not found')
+    const row: GymWorkoutRow = { id, exercise_order: order, supersets, notes, created_at: now, updated_at: now, revision: 1 }
+    return {
+      ok: true,
+      data: upsertPlan('gymWorkout', id, 1, { entity: 'gymWorkout', record: toGymWorkoutRecord(row) }, {
+        sql: `INSERT INTO gym_workouts (id, exercise_order, supersets, notes, created_at, updated_at, revision)
+          SELECT ?, ?, ?, ?, ?, ?, 1`,
+        params: [id, order, supersets, notes, now, now]
+      }, null)
+    }
+  }
+  if (operation.expectedRevision === null) {
+    return conflict('This day was arranged on another device', await readLatestChange(db, 'gymWorkout', id))
+  }
+  const expected = operation.expectedRevision
+  const revision = expected + 1
+  const row: GymWorkoutRow = { ...current, exercise_order: order, supersets, notes, updated_at: now, revision }
+  return {
+    ok: true,
+    data: upsertPlan('gymWorkout', id, revision, { entity: 'gymWorkout', record: toGymWorkoutRecord(row) }, {
+      sql: `UPDATE gym_workouts SET exercise_order = ?, supersets = ?, notes = ?, updated_at = ?, revision = revision + 1
+        WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+      params: [order, supersets, notes, now, id, expected]
+    }, guardFor('gymWorkout', id, expected))
+  }
+}
+
 function planFor(db: D1Database, operation: SyncOperation, now: string): Promise<ApiResult<Plan>> {
   switch (operation.command.entity) {
     case 'account': return planAccount(db, operation, operation.command, now)
@@ -635,6 +867,10 @@ function planFor(db: D1Database, operation: SyncOperation, now: string): Promise
     case 'transaction': return planTransaction(db, operation, operation.command, now)
     case 'purchase': return planPurchase(db, operation, operation.command, now)
     case 'budget': return planBudget(db, operation, operation.command, now)
+    case 'gymCategory': return planGymCategory(db, operation, operation.command, now)
+    case 'gymExercise': return planGymExercise(db, operation, operation.command, now)
+    case 'gymSet': return planGymSet(db, operation, operation.command, now)
+    case 'gymWorkout': return planGymWorkout(db, operation, operation.command, now)
   }
 }
 

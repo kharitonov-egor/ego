@@ -1,6 +1,7 @@
 import type { SyncCommand, SyncOperation } from '@ego/api-contracts'
 import type {
-  AccountInput, BudgetInput, CategoryInput, PurchaseInput, TransactionInput
+  AccountInput, BudgetInput, CategoryInput, GymCategoryInput, GymExerciseInput, GymSetInput,
+  GymWorkoutInput, PurchaseInput, TransactionInput
 } from '@ego/core'
 import type { LocalDatabase } from '../database/types'
 import { applyCommandLocally } from './local-apply'
@@ -77,3 +78,37 @@ export const saveBudget = (
 
 export const deleteBudget = (db: LocalDatabase, month: string, revision: number, now: string) =>
   submit(db, month, revision, { entity: 'budget', type: 'delete' }, now)
+
+export const createGymCategory = (db: LocalDatabase, input: GymCategoryInput, now: string, id = newId()) =>
+  submit(db, id, null, { entity: 'gymCategory', type: 'create', payload: input }, now)
+
+export const updateGymCategory = (
+  db: LocalDatabase, id: string, revision: number, input: GymCategoryInput, now: string
+) => submit(db, id, revision, { entity: 'gymCategory', type: 'update', payload: input }, now)
+
+export const deleteGymCategory = (db: LocalDatabase, id: string, revision: number, now: string) =>
+  submit(db, id, revision, { entity: 'gymCategory', type: 'delete' }, now)
+
+export const createGymExercise = (db: LocalDatabase, input: GymExerciseInput, now: string, id = newId()) =>
+  submit(db, id, null, { entity: 'gymExercise', type: 'create', payload: input }, now)
+
+export const updateGymExercise = (
+  db: LocalDatabase, id: string, revision: number, input: GymExerciseInput, now: string
+) => submit(db, id, revision, { entity: 'gymExercise', type: 'update', payload: input }, now)
+
+export const deleteGymExercise = (db: LocalDatabase, id: string, revision: number, now: string) =>
+  submit(db, id, revision, { entity: 'gymExercise', type: 'delete' }, now)
+
+export const createGymSet = (db: LocalDatabase, input: GymSetInput, now: string, id = newId()) =>
+  submit(db, id, null, { entity: 'gymSet', type: 'create', payload: input }, now)
+
+export const updateGymSet = (
+  db: LocalDatabase, id: string, revision: number, input: GymSetInput, now: string
+) => submit(db, id, revision, { entity: 'gymSet', type: 'update', payload: input }, now)
+
+export const deleteGymSet = (db: LocalDatabase, id: string, revision: number, now: string) =>
+  submit(db, id, revision, { entity: 'gymSet', type: 'delete' }, now)
+
+export const saveGymWorkout = (
+  db: LocalDatabase, input: GymWorkoutInput, revision: number | null, now: string
+) => submit(db, input.date, revision, { entity: 'gymWorkout', type: 'save', payload: input }, now)

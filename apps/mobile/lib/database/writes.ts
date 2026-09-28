@@ -1,15 +1,24 @@
 import type {
-  AccountRecord, BudgetRecord, CategoryRecord, ChangePayload, FeedTransaction, PurchaseRecord,
-  SyncEntity, TransactionRecord
+  AccountRecord, BudgetRecord, CategoryRecord, ChangePayload, FeedTransaction, GymCategoryRecord,
+  GymExerciseRecord, GymSetRecord, GymWorkoutRecord, PurchaseRecord, SyncEntity, TransactionRecord
 } from '@ego/api-contracts'
 import type { LocalDatabase } from './types'
 
-const TABLES: Record<SyncEntity, string> = {
+export const TABLES: Record<SyncEntity, string> = {
   account: 'accounts',
   category: 'categories',
   transaction: 'transactions',
   purchase: 'purchases',
-  budget: 'budgets'
+  budget: 'budgets',
+  gymCategory: 'gym_categories',
+  gymExercise: 'gym_exercises',
+  gymSet: 'gym_sets',
+  gymWorkout: 'gym_workouts'
+}
+
+/** Budgets are keyed by month; every other record by its ID. */
+export function keyColumn(entity: SyncEntity): 'month' | 'id' {
+  return entity === 'budget' ? 'month' : 'id'
 }
 
 async function writeAccount(tx: LocalDatabase, record: AccountRecord): Promise<void> {
@@ -101,6 +110,58 @@ async function writeBudget(tx: LocalDatabase, record: BudgetRecord): Promise<voi
   }
 }
 
+async function writeGymCategory(tx: LocalDatabase, record: GymCategoryRecord): Promise<void> {
+  await tx.run(`INSERT INTO gym_categories (id, name, color, created_at, updated_at, revision, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, NULL)
+    ON CONFLICT(id) DO UPDATE SET name = excluded.name, color = excluded.color,
+      created_at = excluded.created_at, updated_at = excluded.updated_at,
+      revision = excluded.revision, deleted_at = NULL
+    WHERE excluded.revision >= gym_categories.revision`,
+  [record.id, record.name, record.color, record.createdAt, record.updatedAt, record.revision])
+}
+
+async function writeGymExercise(tx: LocalDatabase, record: GymExerciseRecord): Promise<void> {
+  await tx.run(`INSERT INTO gym_exercises (id, name, category_id, type, weight_unit, notes, created_at,
+    updated_at, revision, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+    ON CONFLICT(id) DO UPDATE SET name = excluded.name, category_id = excluded.category_id,
+      type = excluded.type, weight_unit = excluded.weight_unit, notes = excluded.notes,
+      created_at = excluded.created_at, updated_at = excluded.updated_at,
+      revision = excluded.revision, deleted_at = NULL
+    WHERE excluded.revision >= gym_exercises.revision`,
+  [record.id, record.name, record.categoryId, record.type, record.weightUnit, record.notes,
+    record.createdAt, record.updatedAt, record.revision])
+}
+
+async function writeGymSet(tx: LocalDatabase, record: GymSetRecord): Promise<void> {
+  await tx.run(`INSERT INTO gym_sets (id, exercise_id, date, position, weight, weight_unit, reps, distance,
+    distance_unit, duration_seconds, comment, created_at, updated_at, revision, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+    ON CONFLICT(id) DO UPDATE SET exercise_id = excluded.exercise_id, date = excluded.date,
+      position = excluded.position, weight = excluded.weight, weight_unit = excluded.weight_unit,
+      reps = excluded.reps, distance = excluded.distance, distance_unit = excluded.distance_unit,
+      duration_seconds = excluded.duration_seconds, comment = excluded.comment,
+      created_at = excluded.created_at, updated_at = excluded.updated_at,
+      revision = excluded.revision, deleted_at = NULL
+    WHERE excluded.revision >= gym_sets.revision`,
+  [record.id, record.exerciseId, record.date, record.position, record.weight, record.weightUnit,
+    record.reps, record.distance, record.distanceUnit, record.durationSeconds, record.comment,
+    record.createdAt, record.updatedAt, record.revision])
+}
+
+async function writeGymWorkout(tx: LocalDatabase, record: GymWorkoutRecord): Promise<void> {
+  await tx.run(`INSERT INTO gym_workouts (id, exercise_order, supersets, notes, created_at, updated_at,
+    revision, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
+    ON CONFLICT(id) DO UPDATE SET exercise_order = excluded.exercise_order,
+      supersets = excluded.supersets, notes = excluded.notes,
+      created_at = excluded.created_at, updated_at = excluded.updated_at,
+      revision = excluded.revision, deleted_at = NULL
+    WHERE excluded.revision >= gym_workouts.revision`,
+  [record.id, JSON.stringify(record.exerciseOrder), JSON.stringify(record.supersets), record.notes,
+    record.createdAt, record.updatedAt, record.revision])
+}
+
 /** Applies a record only when it is at least as new as the stored revision. */
 export async function writeRecord(tx: LocalDatabase, payload: ChangePayload): Promise<void> {
   if (payload.record === null) return
@@ -110,6 +171,10 @@ export async function writeRecord(tx: LocalDatabase, payload: ChangePayload): Pr
     case 'transaction': return writeTransaction(tx, payload.record)
     case 'purchase': return writePurchase(tx, payload.record)
     case 'budget': return writeBudget(tx, payload.record)
+    case 'gymCategory': return writeGymCategory(tx, payload.record)
+    case 'gymExercise': return writeGymExercise(tx, payload.record)
+    case 'gymSet': return writeGymSet(tx, payload.record)
+    case 'gymWorkout': return writeGymWorkout(tx, payload.record)
   }
 }
 
@@ -117,9 +182,11 @@ export async function writeRecord(tx: LocalDatabase, payload: ChangePayload): Pr
 export async function writeTombstone(
   tx: LocalDatabase, entity: SyncEntity, entityId: string, revision: number, deletedAt: string
 ): Promise<void> {
-  const column = entity === 'budget' ? 'month' : 'id'
+  const table: string | undefined = TABLES[entity]
+  // A newer server may log entities this build has no table for.
+  if (!table) return
   await tx.run(
-    `UPDATE ${TABLES[entity]} SET deleted_at = ?, revision = ? WHERE ${column} = ? AND revision <= ?`,
+    `UPDATE ${table} SET deleted_at = ?, revision = ? WHERE ${keyColumn(entity)} = ? AND revision <= ?`,
     [deletedAt, revision, entityId, revision])
 }
 
