@@ -1,16 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Pressable, RefreshControl, ScrollView, SectionList, Text, View } from 'react-native'
+import { Pressable, RefreshControl, SectionList, Text, View } from 'react-native'
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { CalendarCheck, TriangleAlert } from 'lucide-react-native'
 import { Sheet } from '../../components/money/Common'
 import { color } from '../../components/money/tokens'
+import { Checkbox } from '../../components/ui/checkbox'
 import { SegmentedControl } from '../../components/ui/segmented-control'
 import { AssignmentDetail, AssignmentRow, useCourseColors } from '../../components/study/Assignment'
 import { StudyGate } from '../../components/study/StudyGate'
 import { useStudy } from '../../lib/study/context'
 import {
-  courseList, dayHeading, dueWithin, isDone, isOverdue, localDay, studySections, type StudySection, type StudyView
+  courseList, dayHeading, dueWithin, isDone, isOverdue, localDay, overdueCount, studySections, type StudySection,
+  type StudyView
 } from '../../lib/study/schedule'
 import type { StudyItem } from '../../lib/study/store'
 
@@ -63,7 +65,11 @@ function AssignmentList(): React.ReactElement {
 
   const tintOf = useCourseColors(study.items)
   const courses = useMemo(() => courseList(study.items), [study.items])
-  const sections = useMemo(() => studySections(study.items, view, now, course), [course, now, study.items, view])
+  const { hideOverdue, setHideOverdue } = study
+  const sections = useMemo(
+    () => studySections(study.items, view, now, { course, hideOverdue }),
+    [course, hideOverdue, now, study.items, view])
+  const overdue = overdueCount(study.items, now, course)
   const today = localDay(now)
   const thisWeek = dueWithin(study.items, now, 7)
   const waiting = study.items.filter((item) => item.pending).length
@@ -91,10 +97,17 @@ function AssignmentList(): React.ReactElement {
     <View className="px-4 pt-2">
       <SegmentedControl options={VIEW_OPTIONS} value={view} onValueChange={setView} />
     </View>
-    {courses.length > 1 && <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 8, paddingHorizontal: 16, paddingTop: 10 }}>
+    {courses.length > 1 && <View className="flex-row flex-wrap gap-2 px-4 pt-2.5">
       <CourseChip label="All" selected={course === null} onPress={() => setCourse(null)} />
       {courses.map((code) => <CourseChip key={code} label={code} tint={tintOf(code)} selected={course === code} onPress={() => setCourse(course === code ? null : code)} />)}
-    </ScrollView>}
+    </View>}
+    <View className="flex-row px-4 pt-1">
+      <Checkbox
+        checked={hideOverdue}
+        onCheckedChange={setHideOverdue}
+        label={overdue > 0 ? `Hide overdue (${overdue})` : 'Hide overdue'}
+      />
+    </View>
     <SectionList
       sections={sections}
       keyExtractor={(item) => item.id}
@@ -110,7 +123,7 @@ function AssignmentList(): React.ReactElement {
         <Text className="mt-4 text-center text-[20px] font-semibold text-surface-100">{view === 'upcoming' ? 'Nothing due' : 'Nothing earlier'}</Text>
         <Text className="mt-2 text-center text-[16px] leading-6 text-surface-400">{view === 'upcoming'
           ? course ? `${course} has nothing coming up in Canvas.` : 'Canvas has no upcoming assignments. Pull down to check again.'
-          : 'Assignments show up here once their day has passed.'}</Text>
+          : hideOverdue ? 'Unchecked past assignments are hidden. Clear Hide overdue to see them.' : 'Assignments show up here once their day has passed.'}</Text>
       </View>}
       renderSectionHeader={({ section }) => <View className="flex-row items-end justify-between bg-surface-950 pb-2 pt-5">
         <Text className="text-[14px] font-semibold uppercase tracking-wider" style={{ color: section.day === null ? color.expense : section.day === today ? color.text : color.textMuted }}>
