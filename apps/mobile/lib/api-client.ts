@@ -1,8 +1,8 @@
 import type {
   AccountBalances, ApiError, ApiErrorCode, ApiResult, BootstrapData, ChangePage, FeedCursor,
   MoneyAgentRequest, MoneyAgentResponse, OperationResponse, ReceiptDetail, ReferenceData,
-  SessionInfo, SignInResult, SignInStartResult, SyncOperation, TransactionFilters,
-  TransactionPage, TrelloCardRequest, TrelloCardResponse
+  SessionInfo, SignInResult, SignInStartResult, StudyAssignmentList, StudyMark, SyncOperation,
+  TransactionFilters, TransactionPage, TrelloCardRequest, TrelloCardResponse
 } from '@ego/api-contracts'
 import { encodeCursor } from '@ego/api-contracts'
 import type { TrelloBoardSummary, TrelloListSummary } from '@ego/core'
@@ -25,7 +25,12 @@ export interface AttachmentFile {
   mimeType: string
 }
 
-export interface EgoApi extends MoneyApi {
+export interface StudyApi {
+  studyAssignments: () => Promise<ApiResult<StudyAssignmentList>>
+  markStudyAssignment: (id: string, done: boolean) => Promise<ApiResult<StudyMark>>
+}
+
+export interface EgoApi extends MoneyApi, StudyApi {
   session: () => Promise<ApiResult<SessionInfo>>
   signOut: () => Promise<ApiResult<{ signedOut: true }>>
   moneyAgent: (request: MoneyAgentRequest) => Promise<ApiResult<MoneyAgentResponse>>
@@ -158,6 +163,11 @@ export function moneyApiFor(config: ApiConfig): EgoApi {
       method: 'POST',
       body: JSON.stringify(request),
       timeoutMs: SLOW_REQUEST_TIMEOUT_MS
+    }),
+    studyAssignments: () => call<StudyAssignmentList>('/v1/study/assignments'),
+    markStudyAssignment: (id, done) => call<StudyMark>(`/v1/study/assignments/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ done })
     }),
     trelloBoards: () => call<TrelloBoardSummary[]>('/v1/trello/boards'),
     trelloLists: (boardId) => call<TrelloListSummary[]>(`/v1/trello/boards/${encodeURIComponent(boardId)}/lists`),

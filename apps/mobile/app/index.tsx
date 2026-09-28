@@ -2,7 +2,7 @@ import React from 'react'
 import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { Dumbbell, HeartPulse, Settings, Wallet, type LucideIcon } from 'lucide-react-native'
+import { Dumbbell, GraduationCap, HeartPulse, Settings, Wallet, type LucideIcon } from 'lucide-react-native'
 import appIcon from '../assets/app-icon.png'
 import { SignInPanel } from '../components/SignInPanel'
 import { isSignedIn, useSettings } from '../lib/settings'
@@ -53,6 +53,7 @@ export default function Launcher(): React.ReactElement {
           <AppTile label="Finance" Icon={Wallet} onPress={() => router.push('/(money)/overview')} />
           <AppTile label="Gym" Icon={Dumbbell} onPress={() => router.push('/gym')} />
           <AppTile label="Health" Icon={HeartPulse} onPress={() => router.push('/health')} />
+          <AppTile label="Study" Icon={GraduationCap} onPress={() => router.push('/(study)/assignments')} />
         </View>
         : <View className="mt-10 rounded-3xl border border-border bg-card p-5">
           <Text accessibilityRole="header" className="text-[20px] font-semibold text-white">Sign in</Text>
