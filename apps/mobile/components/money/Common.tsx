@@ -68,9 +68,9 @@ export function SignInPrompt(): React.ReactElement {
   const router = useRouter()
   return <CenteredMessage
     title="Sign in to see your money"
-    detail="Sign in once with Google. The ledger downloads to this phone and keeps working offline."
-    action="Open settings"
-    onAction={() => router.push('/settings')}
+    detail="Sign in once with Google on the start screen. The ledger downloads to this phone and keeps working offline."
+    action="Go to sign in"
+    onAction={() => router.dismissTo('/')}
   />
 }
 

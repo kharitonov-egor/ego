@@ -1,8 +1,10 @@
 import type {
-  AccountKind, CategoryKind, MoneyPurchase, ReceiptItem, TransactionKind
+  AccountKind, CategoryKind, DistanceUnit, ExerciseType, ExerciseWeightUnit, MoneyPurchase, ReceiptItem,
+  TransactionKind, WeightUnit
 } from '@ego/core'
 import type {
-  AccountRecord, BudgetRecord, CategoryRecord, FeedTransaction, PurchaseRecord, TransactionRecord
+  AccountRecord, BudgetRecord, CategoryRecord, FeedTransaction, GymCategoryRecord, GymExerciseRecord,
+  GymSetRecord, GymWorkoutRecord, PurchaseRecord, TransactionRecord
 } from '@ego/api-contracts'
 
 export interface AccountRow {
@@ -170,5 +172,104 @@ export function toBudgetRecord(row: BudgetRow, allocations: BudgetAllocationRow[
         id: allocation.id, budgetId: allocation.budget_id,
         categoryId: allocation.category_id, amountCents: allocation.amount_cents
       }))
+  }
+}
+
+export interface GymCategoryRow {
+  id: string
+  name: string
+  color: string
+  created_at: string
+  updated_at: string
+  revision: number
+}
+
+export interface GymExerciseRow {
+  id: string
+  name: string
+  category_id: string
+  type: ExerciseType
+  weight_unit: ExerciseWeightUnit
+  notes: string
+  created_at: string
+  updated_at: string
+  revision: number
+}
+
+export interface GymSetRow {
+  id: string
+  exercise_id: string
+  date: string
+  position: number
+  weight: number | null
+  weight_unit: WeightUnit | null
+  reps: number | null
+  distance: number | null
+  distance_unit: DistanceUnit | null
+  duration_seconds: number | null
+  comment: string
+  created_at: string
+  updated_at: string
+  revision: number
+}
+
+export interface GymWorkoutRow {
+  id: string
+  exercise_order: string
+  supersets: string
+  notes: string
+  created_at: string
+  updated_at: string
+  revision: number
+}
+
+export function toGymCategoryRecord(row: GymCategoryRow): GymCategoryRecord {
+  return {
+    id: row.id, name: row.name, color: row.color, createdAt: row.created_at,
+    updatedAt: row.updated_at, revision: row.revision
+  }
+}
+
+export function toGymExerciseRecord(row: GymExerciseRow): GymExerciseRecord {
+  return {
+    id: row.id, name: row.name, categoryId: row.category_id, type: row.type, weightUnit: row.weight_unit,
+    notes: row.notes, createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
+  }
+}
+
+export function toGymSetRecord(row: GymSetRow): GymSetRecord {
+  return {
+    id: row.id, exerciseId: row.exercise_id, date: row.date, position: row.position,
+    weight: row.weight, weightUnit: row.weight_unit, reps: row.reps, distance: row.distance,
+    distanceUnit: row.distance_unit, durationSeconds: row.duration_seconds, comment: row.comment,
+    createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
+  }
+}
+
+function stringList(raw: string): string[] {
+  try {
+    const value: unknown = JSON.parse(raw)
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+function groups(raw: string): string[][] {
+  try {
+    const value: unknown = JSON.parse(raw)
+    if (!Array.isArray(value)) return []
+    return value
+      .filter((group): group is unknown[] => Array.isArray(group))
+      .map((group) => group.filter((item): item is string => typeof item === 'string'))
+  } catch {
+    return []
+  }
+}
+
+export function toGymWorkoutRecord(row: GymWorkoutRow): GymWorkoutRecord {
+  return {
+    id: row.id, date: row.id, exerciseOrder: stringList(row.exercise_order), supersets: groups(row.supersets),
+    notes: row.notes, createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
   }
 }

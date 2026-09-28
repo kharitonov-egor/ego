@@ -124,6 +124,33 @@ node scripts/ego-device.mjs list --remote
 node scripts/ego-device.mjs revoke <device-id> --apply --remote
 ```
 
+## Gym
+
+Migration `0005_gym.sql` adds the gym tables. It is additive for money, and it copies the change
+log into a new table with every sequence number kept. Apply it and deploy before any phone gets
+the gym screens, because those phones download the gym log on their next sync:
+
+```sh
+npm run migrate:remote --workspace @ego/api
+npm run deploy --workspace @ego/api
+```
+
+To load a FitNotes history, export it from FitNotes (Settings, Spreadsheet export) and run the
+import with a device token. Without `--apply` it prints the plan: categories, exercise types, and
+set counts.
+
+```sh
+npm run typecheck                         # builds the core package the script reads
+node scripts/gym-import.mjs FitNotes_Export.csv
+EGO_API_URL=https://... EGO_DEVICE_TOKEN=... node scripts/gym-import.mjs FitNotes_Export.csv --apply
+```
+
+Every record goes through `POST /v1/operations`, so each phone receives it through the change log.
+Operation IDs come from the data, so a second run reports every operation as already there. The
+script's `CLEANUP` constant holds the fixes for my own export (test entries dropped, Пресс merged
+into Abs, four misfiled exercises moved); `--as-exported` skips them. Enrol a throwaway device for
+the token and revoke it afterwards.
+
 ## 3. Point the desktop app at it
 
 The desktop Settings screen calls this the Ego service. It takes the Worker address and a token

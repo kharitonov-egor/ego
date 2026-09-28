@@ -1,21 +1,13 @@
 import {
-  MAX_OPERATIONS_PER_REQUEST,
+  MAX_OPERATIONS_PER_REQUEST, isGymEntity,
   type ApiError, type ChangeRecord, type OperationOutcome, type SyncEntity
 } from '@ego/api-contracts'
 import type { MoneyApi } from '../api-client'
 import type { LocalDatabase } from '../database/types'
-import { writeRecord, writeTombstone } from '../database/writes'
+import { TABLES, keyColumn, writeRecord, writeTombstone } from '../database/writes'
 import {
   markConflict, markFailed, readyOperations, scheduleRetry, toOperation
 } from './outbox'
-
-const TABLES: Record<SyncEntity, string> = {
-  account: 'accounts',
-  category: 'categories',
-  transaction: 'transactions',
-  purchase: 'purchases',
-  budget: 'budgets'
-}
 
 export interface SyncDeps {
   db: LocalDatabase
@@ -26,6 +18,12 @@ export interface SyncDeps {
 
 export type SyncState = 'synced' | 'pending' | 'attention' | 'paused' | 'offline'
 
+/** Which screens have something new to read after a run. */
+export interface Touched {
+  money: boolean
+  gym: boolean
+}
+
 export interface SyncOutcome {
   state: SyncState
   delivered: number
@@ -34,6 +32,14 @@ export interface SyncOutcome {
   conflictCount: number
   serverSequence: number
   message: string | null
+  touched: Touched
+}
+
+const NOTHING_TOUCHED: Touched = { money: false, gym: false }
+
+function touch(touched: Touched, entity: SyncEntity): void {
+  if (isGymEntity(entity)) touched.gym = true
+  else touched.money = true
 }
 
 interface SyncStateRow {
@@ -44,9 +50,10 @@ interface SyncStateRow {
 
 /**
  * Version 1 downloaded accounts, categories, and transaction pages only, so a device that
- * bootstrapped then has no budgets and no receipt items. Version 2 downloads every record.
+ * bootstrapped then has no budgets and no receipt items. Version 2 downloads every money record.
+ * Version 3 adds the gym log.
  */
-export const BOOTSTRAP_VERSION = 2
+export const BOOTSTRAP_VERSION = 3
 
 async function syncStateRow(db: LocalDatabase): Promise<SyncStateRow> {
   const rows = await db.all<SyncStateRow>(
@@ -86,12 +93,20 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
   const pending = await pendingKeys(db)
   const queued = await pendingKeys(db, 'any')
   const skip = (entity: SyncEntity, id: string): boolean => pending.has(`${entity}:${id}`)
+  const gymCategories = data.gymCategories ?? []
+  const gymExercises = data.gymExercises ?? []
+  const gymSets = data.gymSets ?? []
+  const gymWorkouts = data.gymWorkouts ?? []
   const live: Record<SyncEntity, Set<string>> = {
     account: new Set(data.accounts.map((record) => record.id)),
     category: new Set(data.categories.map((record) => record.id)),
     transaction: new Set(data.transactions.map((record) => record.id)),
     purchase: new Set(data.purchases.map((record) => record.id)),
-    budget: new Set(data.budgets.map((record) => record.month))
+    budget: new Set(data.budgets.map((record) => record.month)),
+    gymCategory: new Set(gymCategories.map((record) => record.id)),
+    gymExercise: new Set(gymExercises.map((record) => record.id)),
+    gymSet: new Set(gymSets.map((record) => record.id)),
+    gymWorkout: new Set(gymWorkouts.map((record) => record.id))
   }
   const deletedAt = now()
   await db.transaction(async (tx) => {
@@ -100,8 +115,12 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
     for (const record of data.transactions) if (!skip('transaction', record.id)) await writeRecord(tx, { entity: 'transaction', record })
     for (const record of data.purchases) if (!skip('purchase', record.id)) await writeRecord(tx, { entity: 'purchase', record })
     for (const record of data.budgets) if (!skip('budget', record.month)) await writeRecord(tx, { entity: 'budget', record })
+    for (const record of gymCategories) if (!skip('gymCategory', record.id)) await writeRecord(tx, { entity: 'gymCategory', record })
+    for (const record of gymExercises) if (!skip('gymExercise', record.id)) await writeRecord(tx, { entity: 'gymExercise', record })
+    for (const record of gymSets) if (!skip('gymSet', record.id)) await writeRecord(tx, { entity: 'gymSet', record })
+    for (const record of gymWorkouts) if (!skip('gymWorkout', record.id)) await writeRecord(tx, { entity: 'gymWorkout', record })
     for (const entity of Object.keys(TABLES) as SyncEntity[]) {
-      const key = entity === 'budget' ? 'month' : 'id'
+      const key = keyColumn(entity)
       const local = await tx.all<{ key: string }>(`SELECT ${key} AS key FROM ${TABLES[entity]} WHERE deleted_at IS NULL`)
       for (const row of local) {
         if (live[entity].has(row.key) || queued.has(`${entity}:${row.key}`)) continue
@@ -114,13 +133,13 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
   return null
 }
 
-async function applyOutcomes(db: LocalDatabase, outcomes: OperationOutcome[]): Promise<void> {
+async function applyOutcomes(db: LocalDatabase, outcomes: OperationOutcome[], touched: Touched): Promise<void> {
   if (outcomes.length === 0) return
   await db.transaction(async (tx) => {
     for (const outcome of outcomes) {
-      const column = outcome.entity === 'budget' ? 'month' : 'id'
+      touch(touched, outcome.entity)
       await tx.run(
-        `UPDATE ${TABLES[outcome.entity]} SET revision = ? WHERE ${column} = ? AND revision < ?`,
+        `UPDATE ${TABLES[outcome.entity]} SET revision = ? WHERE ${keyColumn(outcome.entity)} = ? AND revision < ?`,
         [outcome.revision, outcome.entityId, outcome.revision])
       await tx.run('DELETE FROM outbox WHERE operation_id = ?', [outcome.operationId])
     }
@@ -136,7 +155,7 @@ async function applyChange(db: LocalDatabase, change: ChangeRecord, deletedAt: s
   await writeRecord(db, change)
 }
 
-async function pullChanges(deps: SyncDeps): Promise<{ error: ApiError | null; applied: number; sequence: number }> {
+async function pullChanges(deps: SyncDeps, touched: Touched): Promise<{ error: ApiError | null; applied: number; sequence: number }> {
   const { db, api } = deps
   let sequence = (await syncStateRow(db)).server_sequence
   let applied = 0
@@ -148,6 +167,7 @@ async function pullChanges(deps: SyncDeps): Promise<{ error: ApiError | null; ap
     await db.transaction(async (tx) => {
       for (const change of page.data.changes) {
         await applyChange(tx, change, change.committedAt, pending)
+        touch(touched, change.entity)
         applied += 1
       }
       await tx.run('UPDATE sync_state SET server_sequence = ? WHERE id = 1', [page.data.cursor])
@@ -157,7 +177,7 @@ async function pullChanges(deps: SyncDeps): Promise<{ error: ApiError | null; ap
   }
 }
 
-async function deliver(deps: SyncDeps): Promise<{ error: ApiError | null; delivered: number; paused: boolean }> {
+async function deliver(deps: SyncDeps, touched: Touched): Promise<{ error: ApiError | null; delivered: number; paused: boolean }> {
   const { db, api, now, random = Math.random } = deps
   let delivered = 0
   for (;;) {
@@ -171,7 +191,7 @@ async function deliver(deps: SyncDeps): Promise<{ error: ApiError | null; delive
       }
       return { error: response.error, delivered, paused: false }
     }
-    await applyOutcomes(db, response.data.results)
+    await applyOutcomes(db, response.data.results, touched)
     delivered += response.data.results.length
     const failure = response.data.failed
     if (!failure) continue
@@ -191,7 +211,8 @@ async function deliver(deps: SyncDeps): Promise<{ error: ApiError | null; delive
 }
 
 async function outcomeFor(
-  db: LocalDatabase, error: ApiError | null, paused: boolean, delivered: number, applied: number
+  db: LocalDatabase, error: ApiError | null, paused: boolean, delivered: number, applied: number,
+  touched: Touched = NOTHING_TOUCHED
 ): Promise<SyncOutcome> {
   const counts = await db.all<{ status: string; total: number }>(
     'SELECT status, COUNT(*) AS total FROM outbox GROUP BY status')
@@ -212,7 +233,8 @@ async function outcomeFor(
     pendingCount,
     conflictCount,
     serverSequence: (await syncStateRow(db)).server_sequence,
-    message: error ? error.message : null
+    message: error ? error.message : null,
+    touched: { ...touched }
   }
 }
 
@@ -232,16 +254,19 @@ export function createSyncCoordinator(deps: SyncDeps): SyncCoordinator {
 
   const run = async (): Promise<SyncOutcome> => {
     const { db, now } = deps
+    const touched: Touched = { money: false, gym: false }
     if (!(await isBootstrapped(db))) {
       const error = await bootstrap(deps)
       if (error) return outcomeFor(db, error, error.code === 'AUTH_REQUIRED', 0, 0)
+      touched.money = true
+      touched.gym = true
     }
-    const delivery = await deliver(deps)
-    if (delivery.paused) return outcomeFor(db, delivery.error, true, delivery.delivered, 0)
-    const pull = await pullChanges(deps)
+    const delivery = await deliver(deps, touched)
+    if (delivery.paused) return outcomeFor(db, delivery.error, true, delivery.delivered, 0, touched)
+    const pull = await pullChanges(deps, touched)
     const error = pull.error ?? delivery.error
     if (!error) await db.run('UPDATE sync_state SET last_synced_at = ? WHERE id = 1', [now()])
-    return outcomeFor(db, error, false, delivery.delivered, pull.applied)
+    return outcomeFor(db, error, false, delivery.delivered, pull.applied, touched)
   }
 
   return {
@@ -252,11 +277,14 @@ export function createSyncCoordinator(deps: SyncDeps): SyncCoordinator {
       }
       inFlight = (async () => {
         let outcome: SyncOutcome
+        const touched: Touched = { money: false, gym: false }
         do {
           again = false
           outcome = await run()
+          touched.money ||= outcome.touched.money
+          touched.gym ||= outcome.touched.gym
         } while (again)
-        return outcome
+        return { ...outcome, touched }
       })().finally(() => {
         inFlight = null
       })

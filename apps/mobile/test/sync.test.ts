@@ -5,7 +5,7 @@ import { writeFeedTransaction, writeRecord } from '../lib/database/writes'
 import { localTransaction, localTransactionPage } from '../lib/repositories/transactions'
 import { NO_TRANSACTION_FILTERS, type BootstrapData } from '@ego/api-contracts'
 import { localSnapshot } from '../lib/repositories/snapshot'
-import { bootstrap, createSyncCoordinator, isBootstrapped } from '../lib/sync/coordinator'
+import { BOOTSTRAP_VERSION, bootstrap, createSyncCoordinator, isBootstrapped } from '../lib/sync/coordinator'
 import { keepMine, useSavedVersion } from '../lib/sync/conflicts'
 import {
   createTransaction, deleteTransaction, updateTransaction
@@ -187,7 +187,7 @@ describe('bootstrap', () => {
 describe('delivery', () => {
   async function bootstrapped(): Promise<LocalDatabase & { raw: unknown }> {
     const database = await ledger()
-    await database.run('UPDATE sync_state SET bootstrapped_at = ?, bootstrap_version = 2 WHERE id = 1', [NOW])
+    await database.run('UPDATE sync_state SET bootstrapped_at = ?, bootstrap_version = ? WHERE id = 1', [NOW, BOOTSTRAP_VERSION])
     return database
   }
 
@@ -275,7 +275,7 @@ describe('delivery', () => {
 describe('applying remote changes', () => {
   async function bootstrapped(): Promise<LocalDatabase & { raw: unknown }> {
     const database = await ledger()
-    await database.run('UPDATE sync_state SET bootstrapped_at = ?, bootstrap_version = 2 WHERE id = 1', [NOW])
+    await database.run('UPDATE sync_state SET bootstrapped_at = ?, bootstrap_version = ? WHERE id = 1', [NOW, BOOTSTRAP_VERSION])
     return database
   }
 
@@ -349,7 +349,7 @@ describe('conflict resolution', () => {
 
   async function conflicted(): Promise<LocalDatabase & { raw: unknown }> {
     const database = await ledger()
-    await database.run('UPDATE sync_state SET bootstrapped_at = ?, bootstrap_version = 2 WHERE id = 1', [NOW])
+    await database.run('UPDATE sync_state SET bootstrapped_at = ?, bootstrap_version = ? WHERE id = 1', [NOW, BOOTSTRAP_VERSION])
     await createTransaction(database, input(), NOW, 'tx-1')
     await createSyncCoordinator({ db: database, api: fakeApi(), now: () => NOW }).sync()
     const edit = await updateTransaction(database, 'tx-1', 1, input({ amountCents: 8000 }), NOW)
@@ -401,7 +401,7 @@ describe('conflict resolution', () => {
 describe('working without a network', () => {
   it('serves stored history and accepts a new transaction while every request fails', async () => {
     const database = await ledger()
-    await database.run('UPDATE sync_state SET bootstrapped_at = ?, bootstrap_version = 2 WHERE id = 1', [NOW])
+    await database.run('UPDATE sync_state SET bootstrapped_at = ?, bootstrap_version = ? WHERE id = 1', [NOW, BOOTSTRAP_VERSION])
     db = database
     await writeFeedTransaction(database, feedRow({ id: 'tx-old', date: '2026-09-01' }))
     const offline = { ok: false as const, error: { code: 'OFFLINE' as const, message: 'No network' } }
@@ -425,7 +425,7 @@ describe('working without a network', () => {
 
   it('accepts acknowledgements that come back out of order', async () => {
     const database = await ledger()
-    await database.run('UPDATE sync_state SET bootstrapped_at = ?, bootstrap_version = 2 WHERE id = 1', [NOW])
+    await database.run('UPDATE sync_state SET bootstrapped_at = ?, bootstrap_version = ? WHERE id = 1', [NOW, BOOTSTRAP_VERSION])
     db = database
     const create = await createTransaction(database, input(), NOW, 'tx-1')
     const edit = await updateTransaction(database, 'tx-1', 1, input({ amountCents: 8000 }), NOW)

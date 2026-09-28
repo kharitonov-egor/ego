@@ -16,6 +16,7 @@ import {
 } from '../../lib/activity-view'
 import { usePeriod } from '../../lib/period-context'
 import { transactionDetail, transactionTitle } from '../../lib/transaction-title'
+import { ConflictEntries } from '../ConflictEntries'
 import { ConfirmDialog, Empty, MoneyIcon, Sheet, money } from './Common'
 import FilterSheet from './FilterSheet'
 import { PeriodBar } from './PeriodBar'
@@ -128,22 +129,7 @@ function ConflictReview({ entries, onKeepMine, onUseSaved, onClose }: {
   onClose: () => void
 }): React.ReactElement {
   return <Sheet visible title="Needs attention" onClose={onClose}>
-    {entries.map((entry) => <View key={entry.operationId} className="mb-4 rounded-2xl border border-surface-700 bg-surface-900 p-4">
-      <Text className="text-[16px] font-semibold text-surface-100">{entry.lastError ?? 'This record changed on another device'}</Text>
-      <Text className="mt-1 text-[14px] text-surface-400">{entry.entity} · {entry.commandType}</Text>
-      {entry.status === 'conflict'
-        ? <View className="mt-4 flex-row gap-2">
-          <Pressable accessibilityRole="button" onPress={() => onKeepMine(entry)} style={{ minHeight: TOUCH }} className="flex-1 items-center justify-center rounded-xl bg-primary px-3">
-            <Text className="text-[16px] font-semibold text-primary-foreground">Keep mine</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" onPress={() => onUseSaved(entry)} style={{ minHeight: TOUCH }} className="flex-1 items-center justify-center rounded-xl border border-surface-600 px-3">
-            <Text className="text-[16px] font-semibold text-surface-200">Use saved version</Text>
-          </Pressable>
-        </View>
-        : <Pressable accessibilityRole="button" onPress={() => onUseSaved(entry)} style={{ minHeight: TOUCH }} className="mt-4 items-center justify-center rounded-xl border border-surface-600 px-3">
-          <Text className="text-[16px] font-semibold text-surface-200">Discard this change</Text>
-        </Pressable>}
-    </View>)}
+    <ConflictEntries entries={entries} onKeepMine={onKeepMine} onUseSaved={onUseSaved} />
   </Sheet>
 }
 

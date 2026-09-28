@@ -81,7 +81,7 @@ export default function TransactionImage(): React.ReactElement {
   const accounts = snapshot?.accounts.filter((item) => !item.archivedAt) ?? []
   const categories = snapshot?.categories.filter((item) => !item.archivedAt) ?? []
   const missing = !ledger.enabled
-    ? 'Sign in with Google in Settings to use the money agent.'
+    ? 'Sign in with Google on the start screen to use the money agent.'
     : !snapshot
       ? 'Your ledger is still downloading. Try again in a moment.'
       : accounts.length === 0
