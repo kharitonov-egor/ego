@@ -50,6 +50,25 @@ describe('sync operations', () => {
     }))).toBe(false)
   })
 
+  it('requires a date as the mood entity ID and a mood from 1 to 5', () => {
+    const mood = { date: '2026-09-28', mood: 4, note: 'Long walk' }
+    const save = (entityId: string, payload: unknown): unknown => ({
+      ...(operation() as object), entityId, command: { entity: 'mood', type: 'save', payload }
+    })
+    expect(isSyncOperation(save('2026-09-28', mood))).toBe(true)
+    expect(isSyncOperation({ ...(save('2026-09-28', mood) as object), expectedRevision: 2 })).toBe(true)
+    expect(isSyncOperation(save('mood-1', mood))).toBe(false)
+    expect(isSyncOperation(save('2026-09-28', { ...mood, mood: 6 }))).toBe(false)
+    expect(isSyncOperation(save('2026-09-28', { ...mood, mood: 2.5 }))).toBe(false)
+    expect(isSyncOperation(save('2026-09-28', { ...mood, note: 'x'.repeat(2001) }))).toBe(false)
+    expect(isSyncOperation(operation({
+      entityId: '2026-09-28', command: { entity: 'mood', type: 'delete' }
+    }))).toBe(false)
+    expect(isSyncOperation(operation({
+      entityId: '2026-09-28', expectedRevision: 1, command: { entity: 'mood', type: 'delete' }
+    }))).toBe(true)
+  })
+
   it('bounds the batch size', () => {
     expect(isOperationRequest({ operations: [] })).toBe(false)
     expect(isOperationRequest({ operations: Array.from({ length: 26 }, () => operation()) })).toBe(false)

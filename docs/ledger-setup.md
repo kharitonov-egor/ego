@@ -151,6 +151,19 @@ script's `CLEANUP` constant holds the fixes for my own export (test entries drop
 into Abs, four misfiled exercises moved); `--as-exported` skips them. Enrol a throwaway device for
 the token and revoke it afterwards.
 
+## Health
+
+Migration `0006_mood_entries.sql` adds the `mood_entries` table for the mood journal. It is
+additive. Apply it and deploy before publishing a phone update that has the Health screen:
+
+```sh
+npm run migrate:remote --workspace @ego/api
+npm run deploy --workspace @ego/api
+```
+
+An older Worker rejects any batch that contains a mood entry. Money and gym changes queued in the
+same batch then wait until the Worker is updated.
+
 ## 3. Point the desktop app at it
 
 The desktop Settings screen calls this the Ego service. It takes the Worker address and a token

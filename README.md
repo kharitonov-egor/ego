@@ -87,6 +87,17 @@ per-day record for order and supersets. It syncs through the same outbox and cha
 works offline. `scripts/gym-import.mjs` loads a FitNotes CSV export through the Worker; see
 `docs/ledger-setup.md`.
 
+## Health
+
+The phone's start screen has a Health tile. It opens a mood journal with one entry per day: a mood
+from Awful to Great and an optional note of up to 2,000 characters. The arrows and the calendar
+reach earlier days, but not future ones. Past entries appear below the editor. Tapping one opens
+that day.
+
+Entries use the same local database, outbox, and change log as money and gym. A saved day is on
+the phone before it syncs. It lands in the `mood_entries` table in D1, and Clear this day deletes
+it on every device.
+
 ## Quick tools
 
 Press `Alt+S` anywhere in Windows to open a three-item chooser. Use the arrow keys and Enter, or
