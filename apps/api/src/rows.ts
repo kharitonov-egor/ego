@@ -1,10 +1,10 @@
 import type {
-  AccountKind, CategoryKind, DistanceUnit, ExerciseType, ExerciseWeightUnit, MoneyPurchase, ReceiptItem,
-  TransactionKind, WeightUnit
+  AccountKind, CategoryKind, DistanceUnit, ExerciseType, ExerciseWeightUnit, MoneyPurchase, MoodLevel,
+  ReceiptItem, TransactionKind, WeightUnit
 } from '@ego/core'
 import type {
   AccountRecord, BudgetRecord, CategoryRecord, FeedTransaction, GymCategoryRecord, GymExerciseRecord,
-  GymSetRecord, GymWorkoutRecord, PurchaseRecord, TransactionRecord
+  GymSetRecord, GymWorkoutRecord, MoodRecord, PurchaseRecord, TransactionRecord
 } from '@ego/api-contracts'
 
 export interface AccountRow {
@@ -99,6 +99,16 @@ export interface BudgetAllocationRow {
   budget_id: string
   category_id: string
   amount_cents: number
+}
+
+export interface MoodRow {
+  id: string
+  date: string
+  mood: MoodLevel
+  note: string
+  created_at: string
+  updated_at: string
+  revision: number
 }
 
 export function toAccountRecord(row: AccountRow): AccountRecord {
@@ -271,5 +281,11 @@ export function toGymWorkoutRecord(row: GymWorkoutRow): GymWorkoutRecord {
   return {
     id: row.id, date: row.id, exerciseOrder: stringList(row.exercise_order), supersets: groups(row.supersets),
     notes: row.notes, createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
+  }
+}
+export function toMoodRecord(row: MoodRow): MoodRecord {
+  return {
+    id: row.id, date: row.date, mood: row.mood, note: row.note,
+    createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
   }
 }

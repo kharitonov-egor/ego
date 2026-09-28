@@ -19,14 +19,15 @@ import { apiUrlFor, isSignedIn, useSettings } from './settings'
 export type LocalWrite = (db: LocalDatabase, now: string) => Promise<void>
 
 /** Which screens re-read after a write. A logged set should not rebuild the money snapshot. */
-export type WriteScope = 'money' | 'gym'
+export type WriteScope = 'money' | 'gym' | 'health'
 
 interface RefreshScope {
   money: boolean
   gym: boolean
+  health: boolean
 }
 
-const EVERYTHING: RefreshScope = { money: true, gym: true }
+const EVERYTHING: RefreshScope = { money: true, gym: true, health: true }
 
 interface LedgerContextValue {
   /** Signed in, so this device keeps and syncs its own copy of the ledger. */
@@ -49,6 +50,8 @@ interface LedgerContextValue {
   version: number
   /** The same for the gym log. */
   gymVersion: number
+  /** The same for mood entries. */
+  healthVersion: number
   db: LocalDatabase | null
   api: EgoApi
   feed: (filters: TransactionFilters, cursor: FeedCursor | null, size: number) => Promise<LocalTransactionPage>
@@ -85,6 +88,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
   const [conflicts, setConflicts] = useState<OutboxEntry[]>([])
   const [version, setVersion] = useState(0)
   const [gymVersion, setGymVersion] = useState(0)
+  const [healthVersion, setHealthVersion] = useState(0)
   const generation = useRef(0)
   const writingRef = useRef(false)
   const lastStatus = useRef<SyncOutcome | null>(null)
@@ -138,6 +142,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
       setVersion((current) => current + 1)
     }
     if (scope.gym) setGymVersion((current) => current + 1)
+    if (scope.health) setHealthVersion((current) => current + 1)
   }, [])
 
   const sync = useCallback(async (): Promise<void> => {
@@ -152,9 +157,10 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
       const downloaded = !wasBootstrapped && await isBootstrapped(db)
       const scope: RefreshScope = {
         money: downloaded || outcome.touched.money,
-        gym: downloaded || outcome.touched.gym
+        gym: downloaded || outcome.touched.gym,
+        health: downloaded || outcome.touched.health
       }
-      if (scope.money || scope.gym || outcome.conflictCount !== previous?.conflictCount) await refreshLocal(db, scope)
+      if (scope.money || scope.gym || scope.health || outcome.conflictCount !== previous?.conflictCount) await refreshLocal(db, scope)
       if (await hasDownloaded(db)) setReady(true)
       setCurrent(await isBootstrapped(db))
     } finally {
@@ -188,7 +194,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     setWriting(true)
     try {
       await work(db, new Date().toISOString())
-      await refreshLocal(db, { money: scope === 'money', gym: scope === 'gym' })
+      await refreshLocal(db, { money: scope === 'money', gym: scope === 'gym', health: scope === 'health' })
       void sync()
       return true
     } catch {
@@ -224,6 +230,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     conflicts,
     version,
     gymVersion,
+    healthVersion,
     db,
     api,
     feed,
@@ -239,7 +246,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     resolveKeepMine: (entry) => resolve((database) =>
       keepMine(database, entry, newId(), new Date().toISOString()).then(() => undefined)),
     resolveUseSaved: (entry) => resolve((database) => useSavedVersion(database, entry, new Date().toISOString()))
-  }), [api, balances, conflicts, current, db, enabled, error, feed, gymVersion, ready, receipt, reference, resolve,
+  }), [api, balances, conflicts, current, db, enabled, error, feed, gymVersion, healthVersion, ready, receipt, reference, resolve,
     status, sync, syncing, transaction, version, write, writing])
 
   return <LedgerContext.Provider value={value}>{children}</LedgerContext.Provider>

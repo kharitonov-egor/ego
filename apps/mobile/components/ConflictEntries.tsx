@@ -14,7 +14,8 @@ const ENTITY_LABELS: Record<SyncEntity, string> = {
   gymCategory: 'Gym category',
   gymExercise: 'Exercise',
   gymSet: 'Set',
-  gymWorkout: 'Workout order'
+  gymWorkout: 'Workout order',
+  mood: 'Mood entry'
 }
 
 const COMMAND_LABELS: Record<string, string> = {

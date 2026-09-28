@@ -1,7 +1,7 @@
 import type { SyncCommand, SyncOperation } from '@ego/api-contracts'
 import type {
   AccountInput, BudgetInput, CategoryInput, GymCategoryInput, GymExerciseInput, GymSetInput,
-  GymWorkoutInput, PurchaseInput, TransactionInput
+  GymWorkoutInput, MoodInput, PurchaseInput, TransactionInput
 } from '@ego/core'
 import type { LocalDatabase } from '../database/types'
 import { applyCommandLocally } from './local-apply'
@@ -112,3 +112,10 @@ export const deleteGymSet = (db: LocalDatabase, id: string, revision: number, no
 export const saveGymWorkout = (
   db: LocalDatabase, input: GymWorkoutInput, revision: number | null, now: string
 ) => submit(db, input.date, revision, { entity: 'gymWorkout', type: 'save', payload: input }, now)
+
+export const saveMood = (
+  db: LocalDatabase, input: MoodInput, revision: number | null, now: string
+) => submit(db, input.date, revision, { entity: 'mood', type: 'save', payload: input }, now)
+
+export const deleteMood = (db: LocalDatabase, date: string, revision: number, now: string) =>
+  submit(db, date, revision, { entity: 'mood', type: 'delete' }, now)
