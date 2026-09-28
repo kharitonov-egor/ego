@@ -7,6 +7,9 @@ export type ApiErrorCode =
   | 'NOT_FOUND'
   | 'CONFLICT'
   | 'SERVER_ERROR'
+  | 'NOT_CONFIGURED'
+  | 'RATE_LIMITED'
+  | 'UPSTREAM_ERROR'
 
 export interface ApiError {
   code: ApiErrorCode
@@ -23,7 +26,10 @@ export const HTTP_STATUS: Record<ApiErrorCode, number> = {
   INVALID_REQUEST: 400,
   NOT_FOUND: 404,
   CONFLICT: 409,
-  SERVER_ERROR: 500
+  SERVER_ERROR: 500,
+  NOT_CONFIGURED: 503,
+  RATE_LIMITED: 429,
+  UPSTREAM_ERROR: 502
 }
 
 export function invalid<T>(message: string): ApiResult<T> {

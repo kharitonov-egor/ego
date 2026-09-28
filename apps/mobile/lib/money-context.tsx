@@ -1,12 +1,18 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { AppState } from 'react-native'
 import {
-  budgetBreachMessage, budgetBreaches,
-  type AccountInput, type BudgetInput, type CategoryInput, type MoneyResult, type MoneySnapshot,
-  type PurchaseInput, type TransactionInput
+  budgetBreachMessage, budgetBreaches, isAccountInput, isBudgetInput, isCategoryInput,
+  isPurchaseInput, isTransactionInput,
+  type AccountInput, type BudgetInput, type CategoryInput, type MoneySnapshot, type PurchaseInput,
+  type TransactionInput
 } from '@ego/core'
-import { flushSnapshotCache, moneyClientFor } from './money'
-import { isMoneyConfigured, useSettings } from './settings'
+import { useLedger, type LocalWrite } from './ledger-context'
+import { localRevision, localSnapshot, type RevisionTable } from './repositories/snapshot'
+import {
+  archiveAccount, archiveCategory, createAccount, createCategory, createPurchase, createTransaction,
+  deleteBudget, deletePurchase, deleteTransaction, newId, saveBudget, updateAccount, updateCategory,
+  updatePurchase, updateTransaction
+} from './sync/commands'
+import type { LocalDatabase } from './database/types'
 
 interface MoneyContextValue {
   snapshot: MoneySnapshot | null
@@ -16,6 +22,7 @@ interface MoneyContextValue {
   error: string | null
   alert: string | null
   dismissAlert: () => void
+  dismissError: () => void
   refresh: () => Promise<void>
   createAccount: (input: AccountInput) => Promise<boolean>
   updateAccount: (id: string, input: AccountInput) => Promise<boolean>
@@ -36,101 +43,188 @@ interface MoneyContextValue {
 
 const MoneyContext = createContext<MoneyContextValue | null>(null)
 
+class RejectedWrite extends Error {}
+
+async function revisionOf(db: LocalDatabase, table: RevisionTable, key: string, label: string): Promise<number> {
+  const revision = await localRevision(db, table, key)
+  if (revision === null) throw new RejectedWrite(`${label} was not found. It may have been deleted on another device.`)
+  return revision
+}
+
+function transactionProblem(snapshot: MoneySnapshot, input: TransactionInput): string | null {
+  const source = snapshot.accounts.find((item) => item.id === input.accountId)
+  if (!source) return 'Choose an account'
+  if (source.archivedAt) return 'That account is archived'
+  if (input.kind === 'transfer') {
+    const destination = snapshot.accounts.find((item) => item.id === input.destinationAccountId)
+    if (!destination) return 'Choose the account the money goes to'
+    if (destination.archivedAt) return 'The destination account is archived'
+    return null
+  }
+  const category = snapshot.categories.find((item) => item.id === input.categoryId)
+  if (!category) return 'Choose a category'
+  if (category.archivedAt || category.kind !== input.kind) return `Choose an active ${input.kind} category`
+  return null
+}
+
+function purchaseProblem(snapshot: MoneySnapshot, input: PurchaseInput): string | null {
+  const account = snapshot.accounts.find((item) => item.id === input.accountId)
+  const category = snapshot.categories.find((item) => item.id === input.categoryId)
+  if (!account) return 'Choose an account'
+  if (account.archivedAt) return 'That account is archived'
+  if (!category || category.archivedAt || category.kind !== 'expense') return 'Choose an active expense category'
+  return null
+}
+
+function budgetProblem(snapshot: MoneySnapshot, input: BudgetInput): string | null {
+  for (const allocation of input.allocations) {
+    const category = snapshot.categories.find((item) => item.id === allocation.categoryId)
+    if (!category || category.archivedAt || category.kind !== 'expense') {
+      return 'A budget only covers active expense categories'
+    }
+  }
+  return null
+}
+
+/**
+ * Every money screen reads the phone's own database and every change goes through the outbox,
+ * so nothing here waits on the network. A saved change is on disk before this resolves.
+ */
 export function MoneyProvider({ children }: { children: React.ReactNode }): React.ReactElement {
-  const { settings, loading: settingsLoading } = useSettings()
+  const ledger = useLedger()
   const [snapshot, setSnapshot] = useState<MoneySnapshot | null>(null)
   const [loading, setLoading] = useState(true)
-  const [busy, setBusy] = useState(false)
-  const [readOnly, setReadOnly] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [alert, setAlert] = useState<string | null>(null)
-  const client = useMemo(() => moneyClientFor(settings), [settings.cloudflareAccountId, settings.d1DatabaseId, settings.d1ApiToken])
-
-  const apply = useCallback((result: MoneyResult<MoneySnapshot>): boolean => {
-    if (result.ok) {
-      setSnapshot(result.data)
-      setReadOnly(false)
-      setError(null)
-      return true
-    }
-    if (result.cachedData) setSnapshot(result.cachedData)
-    setReadOnly(Boolean(result.cachedData))
-    setError(result.message)
-    return false
-  }, [])
-
+  const snapshotRef = useRef<MoneySnapshot | null>(null)
+  const beforeWrite = useRef<MoneySnapshot | null>(null)
   const generation = useRef(0)
-  const busyRef = useRef(false)
+  const { db, ready, version, write, sync } = ledger
 
-  const refresh = useCallback(async (): Promise<void> => {
-    if (settingsLoading) return
-    generation.current += 1
-    const started = generation.current
-    setLoading(true)
-    try {
-      const result = await client.getSnapshot()
-      if (started === generation.current) apply(result)
-    } finally {
-      setLoading(false)
+  useEffect(() => {
+    if (!db || !ready) {
+      snapshotRef.current = null
+      setSnapshot(null)
+      setLoading(ledger.enabled && !ledger.error)
+      return
     }
-  }, [apply, client, settingsLoading])
-
-  useEffect(() => {
-    if (!settingsLoading) void refresh()
-  }, [refresh, settingsLoading])
-
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (next) => {
-      if (next !== 'active') void flushSnapshotCache()
-    })
-    return () => subscription.remove()
-  }, [])
-
-  /**
-   * The request only starts once the read-only, configuration, and busy checks pass, and a
-   * response from a superseded request never replaces a newer snapshot.
-   */
-  const run = async (request: () => Promise<MoneyResult<MoneySnapshot>>): Promise<boolean> => {
-    if (readOnly || busyRef.current || !isMoneyConfigured(settings)) return false
-    busyRef.current = true
     generation.current += 1
     const started = generation.current
-    setBusy(true)
-    try {
-      const before = snapshot
-      const result = await request()
-      if (started !== generation.current) return result.ok
-      const saved = apply(result)
-      if (result.ok) {
-        const breaches = budgetBreaches(before, result.data)
+    void localSnapshot(db, new Date().toISOString()).then((next) => {
+      if (started !== generation.current) return
+      const before = beforeWrite.current
+      beforeWrite.current = null
+      if (before) {
+        const breaches = budgetBreaches(before, next)
         if (breaches.length > 0) setAlert(breaches.map((breach) => budgetBreachMessage(breach)).join('\n'))
       }
-      return saved
-    } finally {
-      busyRef.current = false
-      setBusy(false)
-    }
-  }
+      snapshotRef.current = next
+      setSnapshot(next)
+      setLoading(false)
+    }).catch((failure: unknown) => {
+      if (started !== generation.current) return
+      setError(failure instanceof Error ? failure.message : 'This device could not read its ledger')
+      setLoading(false)
+    })
+  }, [db, ready, version, ledger.enabled, ledger.error])
 
-  const value: MoneyContextValue = {
-    snapshot, loading, busy, readOnly, error, refresh,
-    alert, dismissAlert: () => setAlert(null),
-    createAccount: (input) => run(() => client.createAccount(input)),
-    updateAccount: (id, input) => run(() => client.updateAccount(id, input)),
-    archiveAccount: (id, archived) => run(() => client.archiveAccount(id, { archived })),
-    createCategory: (input) => run(() => client.createCategory(input)),
-    updateCategory: (id, input) => run(() => client.updateCategory(id, input)),
-    archiveCategory: (id, archived) => run(() => client.archiveCategory(id, { archived })),
-    createTransaction: (input) => run(() => client.createTransaction(input)),
-    updateTransaction: (id, input) => run(() => client.updateTransaction(id, input)),
-    deleteTransaction: (id) => run(() => client.deleteTransaction(id)),
-    deleteTransactions: (ids) => run(() => client.deleteTransactions(ids)),
-    saveBudget: (input) => run(() => client.saveBudget(input)),
-    deleteBudget: (month) => run(() => client.deleteBudget(month)),
-    createPurchase: (input) => run(() => client.createPurchase(input)),
-    updatePurchase: (id, input) => run(() => client.updatePurchase(id, input)),
-    deletePurchase: (id) => run(() => client.deletePurchase(id))
-  }
+  const run = useCallback(async (
+    check: (current: MoneySnapshot) => string | null,
+    work: LocalWrite
+  ): Promise<boolean> => {
+    const current = snapshotRef.current
+    if (!current) return false
+    const problem = check(current)
+    if (problem) {
+      setError(problem)
+      return false
+    }
+    beforeWrite.current = current
+    let rejected: string | null = null
+    const saved = await write(async (database, now) => {
+      try {
+        await work(database, now)
+      } catch (failure: unknown) {
+        if (failure instanceof RejectedWrite) rejected = failure.message
+        throw failure
+      }
+    })
+    if (!saved) beforeWrite.current = null
+    setError(saved ? null : rejected ?? 'This device could not save that change')
+    return saved
+  }, [write])
+
+  const value = useMemo((): MoneyContextValue => {
+    const invalid = (message: string): (() => string) => () => message
+    return {
+      snapshot,
+      loading,
+      busy: ledger.writing,
+      readOnly: false,
+      error,
+      alert,
+      dismissAlert: () => setAlert(null),
+      dismissError: () => setError(null),
+      refresh: sync,
+      createAccount: (input) => run(isAccountInput(input) ? () => null : invalid('Check the account fields'),
+        (database, now) => createAccount(database, input, now, newId()).then(() => undefined)),
+      updateAccount: (id, input) => run(isAccountInput(input) ? () => null : invalid('Check the account fields'),
+        async (database, now) => {
+          await updateAccount(database, id, await revisionOf(database, 'accounts', id, 'That account'), input, now)
+        }),
+      archiveAccount: (id, archived) => run(() => null, async (database, now) => {
+        await archiveAccount(database, id, await revisionOf(database, 'accounts', id, 'That account'), archived, now)
+      }),
+      createCategory: (input) => run(isCategoryInput(input) ? () => null : invalid('Check the category fields'),
+        (database, now) => createCategory(database, input, now, newId()).then(() => undefined)),
+      updateCategory: (id, input) => run((current) => {
+        if (!isCategoryInput(input)) return 'Check the category fields'
+        return current.transactions.some((item) => item.categoryId === id && item.kind !== input.kind)
+          ? 'A category that has transactions cannot change type'
+          : null
+      }, async (database, now) => {
+        await updateCategory(database, id, await revisionOf(database, 'categories', id, 'That category'), input, now)
+      }),
+      archiveCategory: (id, archived) => run(() => null, async (database, now) => {
+        await archiveCategory(database, id, await revisionOf(database, 'categories', id, 'That category'), archived, now)
+      }),
+      createTransaction: (input) => run(
+        (current) => isTransactionInput(input) ? transactionProblem(current, input) : 'Check the transaction fields',
+        (database, now) => createTransaction(database, input, now, newId()).then(() => undefined)),
+      updateTransaction: (id, input) => run(
+        (current) => isTransactionInput(input) ? transactionProblem(current, input) : 'Check the transaction fields',
+        async (database, now) => {
+          await updateTransaction(database, id, await revisionOf(database, 'transactions', id, 'That transaction'), input, now)
+        }),
+      deleteTransaction: (id) => run(() => null, async (database, now) => {
+        await deleteTransaction(database, id, await revisionOf(database, 'transactions', id, 'That transaction'), now)
+      }),
+      deleteTransactions: (ids) => run(() => null, (database, now) => database.transaction(async (tx) => {
+        for (const id of ids) {
+          await deleteTransaction(tx, id, await revisionOf(tx, 'transactions', id, 'A selected transaction'), now)
+        }
+      })),
+      saveBudget: (input) => run(
+        (current) => isBudgetInput(input) ? budgetProblem(current, input) : 'Check the budget amounts',
+        async (database, now) => {
+          await saveBudget(database, input, await localRevision(database, 'budgets', input.month), now)
+        }),
+      deleteBudget: (month) => run(() => null, async (database, now) => {
+        await deleteBudget(database, month, await revisionOf(database, 'budgets', month, 'That budget'), now)
+      }),
+      createPurchase: (input) => run(
+        (current) => isPurchaseInput(input) ? purchaseProblem(current, input) : 'Check the purchase fields',
+        (database, now) => createPurchase(database, input, now, newId()).then(() => undefined)),
+      updatePurchase: (id, input) => run(
+        (current) => isPurchaseInput(input) ? purchaseProblem(current, input) : 'Check the purchase fields',
+        async (database, now) => {
+          await updatePurchase(database, id, await revisionOf(database, 'purchases', id, 'That purchase'), input, now)
+        }),
+      deletePurchase: (id) => run(() => null, async (database, now) => {
+        await deletePurchase(database, id, await revisionOf(database, 'purchases', id, 'That purchase'), now)
+      })
+    }
+  }, [alert, error, ledger.writing, loading, run, snapshot, sync])
 
   return <MoneyContext.Provider value={value}>{children}</MoneyContext.Provider>
 }

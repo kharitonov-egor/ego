@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Pressable, SectionList, Text, TextInput, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as SecureStore from 'expo-secure-store'
@@ -56,13 +56,15 @@ function netOf(items: LocalFeedTransaction[]): number {
     sum + (item.kind === 'income' ? item.amountCents : item.kind === 'expense' ? -item.amountCents : 0), 0)
 }
 
-function TransactionRow({ item, selecting, checked, onOpen, onToggle, onSelect }: {
+const SEARCH_DELAY_MS = 250
+
+const TransactionRow = memo(function TransactionRow({ item, selecting, checked, onOpen, onToggle, onSelect }: {
   item: LocalFeedTransaction
   selecting: boolean
   checked: boolean
-  onOpen: () => void
-  onToggle: () => void
-  onSelect: () => void
+  onOpen: (id: string) => void
+  onToggle: (id: string) => void
+  onSelect: (id: string) => void
 }): React.ReactElement {
   const state = pendingLabel(item.pending)
   const sign = amountSign(item.kind)
@@ -74,8 +76,8 @@ function TransactionRow({ item, selecting, checked, onOpen, onToggle, onSelect }
     accessibilityState={selecting ? { selected: checked } : undefined}
     accessibilityLabel={`${item.kind} ${sign}${money(item.amountCents)}, ${title(item)}, ${item.accountName}${state ? `, ${state}` : ''}`}
     accessibilityHint={selecting ? undefined : 'Opens this transaction'}
-    onPress={selecting ? onToggle : onOpen}
-    onLongPress={selecting ? onToggle : onSelect}
+    onPress={() => selecting ? onToggle(item.id) : onOpen(item.id)}
+    onLongPress={() => selecting ? onToggle(item.id) : onSelect(item.id)}
     delayLongPress={350}
     android_ripple={{ color: 'rgba(145, 196, 255, 0.12)' }}
     style={{ minHeight: ROW_MIN_HEIGHT }}
@@ -105,7 +107,7 @@ function TransactionRow({ item, selecting, checked, onOpen, onToggle, onSelect }
       {sign}{money(item.amountCents)}
     </Text>
   </Pressable>
-}
+})
 
 function ConflictReview({ entries, onKeepMine, onUseSaved, onClose }: {
   entries: OutboxEntry[]
@@ -137,7 +139,7 @@ export default function LocalActivity(): React.ReactElement {
   const ledger = useLedger()
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const params = useLocalSearchParams<{ categoryId?: string }>()
+  const params = useLocalSearchParams<{ categoryId?: string; new?: string }>()
   const [view, setView] = useState<ActivityView>(DEFAULT_ACTIVITY_VIEW)
   const [restored, setRestored] = useState(false)
   const [rows, setRows] = useState<LocalFeedTransaction[]>(session?.rows ?? [])
@@ -154,11 +156,15 @@ export default function LocalActivity(): React.ReactElement {
   const listRef = useRef<SectionList<LocalFeedTransaction, Section>>(null)
   const offset = useRef(session?.offset ?? 0)
   const loadingOlder = useRef(false)
+  const query = useRef(0)
+  const [search, setSearch] = useState(DEFAULT_ACTIVITY_VIEW.search)
 
   useEffect(() => {
     void (async () => {
       const stored = await SecureStore.getItemAsync(PREFERENCES_KEY).catch(() => null)
-      setView(parsePreferences(stored))
+      const preferences = parsePreferences(stored)
+      setView(preferences)
+      setSearch(preferences.search)
       setRestored(true)
     })()
   }, [])
@@ -172,17 +178,38 @@ export default function LocalActivity(): React.ReactElement {
     router.setParams({ categoryId: undefined })
   }, [params.categoryId, router])
 
+  useEffect(() => {
+    if (params.new !== 'true') return
+    setCreating(true)
+    router.setParams({ new: undefined })
+  }, [params.new, router])
+
+  useEffect(() => {
+    if (search === view.search) return
+    const timer = setTimeout(() => setView((current) => ({ ...current, search })), SEARCH_DELAY_MS)
+    return () => clearTimeout(timer)
+  }, [search, view.search])
+
   const identity = viewIdentity(view)
 
+  const { feed, version } = ledger
   const loadFirstPage = useCallback(async (): Promise<void> => {
+    query.current += 1
+    const started = query.current
     setLoading(true)
-    const page = await ledger.feed(activityFilters(view), null, PAGE_SIZE)
-    setRows(page.items)
-    setTotal(page.totalCount)
-    setCursor(page.nextCursor)
-    setLoading(false)
+    try {
+      const page = await feed(activityFilters(view), null, PAGE_SIZE)
+      if (started !== query.current) return
+      setRows(page.items)
+      setTotal(page.totalCount)
+      setCursor(page.nextCursor)
+    } catch {
+      if (started === query.current) setCursor(null)
+    } finally {
+      if (started === query.current) setLoading(false)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [identity, ledger.version, ledger.feed])
+  }, [identity, version, feed])
 
   useEffect(() => {
     if (!restored) return
@@ -191,10 +218,11 @@ export default function LocalActivity(): React.ReactElement {
     void loadFirstPage()
   }, [loadFirstPage, restored])
 
+  const preferences = storedPreferences(view)
   useEffect(() => {
     if (!restored) return
-    void SecureStore.setItemAsync(PREFERENCES_KEY, storedPreferences(view)).catch(() => undefined)
-  }, [restored, view])
+    void SecureStore.setItemAsync(PREFERENCES_KEY, preferences).catch(() => undefined)
+  }, [restored, preferences])
 
   useEffect(() => {
     session = { identity, rows, cursor, total, offset: offset.current }
@@ -204,17 +232,25 @@ export default function LocalActivity(): React.ReactElement {
     const last = rows[rows.length - 1]
     if (!cursor || !last || loadingOlder.current) return
     loadingOlder.current = true
-    const page = await ledger.feed(activityFilters(view), {
-      date: last.date, createdAt: last.createdAt, id: last.id
-    }, PAGE_SIZE)
-    const seen = new Set(rows.map((row) => row.id))
-    setRows((current) => [...current, ...page.items.filter((item) => !seen.has(item.id))])
-    setCursor(page.nextCursor)
-    loadingOlder.current = false
+    const started = query.current
+    try {
+      const page = await feed(activityFilters(view), {
+        date: last.date, createdAt: last.createdAt, id: last.id
+      }, PAGE_SIZE)
+      if (started !== query.current) return
+      const seen = new Set(rows.map((row) => row.id))
+      setRows((current) => [...current, ...page.items.filter((item) => !seen.has(item.id))])
+      setCursor(page.nextCursor)
+    } catch {
+      setCursor(null)
+    } finally {
+      loadingOlder.current = false
+    }
   }
 
   const changeView = (next: ActivityView): void => {
     setView(next)
+    setSearch(next.search)
     setSelecting(false)
     setSelected([])
     offset.current = 0
@@ -224,44 +260,58 @@ export default function LocalActivity(): React.ReactElement {
     setSelecting(false)
     setSelected([])
   }
-  const toggle = (id: string): void => setSelected((current) =>
-    current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
+  const toggle = useCallback((id: string): void => setSelected((current) =>
+    current.includes(id) ? current.filter((item) => item !== id) : [...current, id]), [])
+  const open = useCallback((id: string): void => {
+    router.push({ pathname: '/(money)/transaction', params: { id } })
+  }, [router])
+  const startSelection = useCallback((id: string): void => {
+    setSelecting(true)
+    setSelected([id])
+  }, [])
+  const selectedIds = useMemo(() => new Set(selected), [selected])
 
   const removeSelected = async (): Promise<void> => {
-    await ledger.removeTransactions(rows.filter((row) => selected.includes(row.id)))
+    await ledger.removeTransactions(rows.filter((row) => selectedIds.has(row.id)))
     setConfirmingBulk(false)
     exitSelection()
   }
 
-  const reference = ledger.reference
-  const accounts = reference?.accounts ?? []
-  const categories = reference?.categories ?? []
-  const editorSnapshot: MoneySnapshot = {
-    accounts: accounts.map((account) => ({
-      ...account,
-      balanceCents: ledger.balances.find((balance) => balance.accountId === account.id)?.balanceCents
-        ?? account.openingBalanceCents
-    })),
-    categories,
-    transactions: rows,
-    purchases: [],
-    budgets: [],
-    syncedAt: new Date().toISOString()
-  }
+  const { reference, balances } = ledger
+  const accounts = useMemo(() => reference?.accounts ?? [], [reference])
+  const categories = useMemo(() => reference?.categories ?? [], [reference])
+  const editorSnapshot = useMemo((): MoneySnapshot => {
+    const balanceById = new Map(balances.map((balance) => [balance.accountId, balance.balanceCents]))
+    return {
+      accounts: accounts.map((account) => ({
+        ...account,
+        balanceCents: balanceById.get(account.id) ?? account.openingBalanceCents
+      })),
+      categories,
+      transactions: rows,
+      purchases: [],
+      budgets: [],
+      syncedAt: ''
+    }
+  }, [accounts, balances, categories, rows])
   const chips = activityChips(view, {
     account: (id) => accounts.find((account) => account.id === id)?.name ?? 'Account',
     category: (id) => categories.find((category) => category.id === id)?.name ?? 'Category'
   })
 
-  const sections: Section[] = []
-  rows.forEach((row) => {
-    const current = sections[sections.length - 1]
-    if (current && current.date === row.date) current.data.push(row)
-    else sections.push({ date: row.date, data: [row] })
-  })
+  const sections = useMemo(() => {
+    const grouped: Section[] = []
+    rows.forEach((row) => {
+      const current = grouped[grouped.length - 1]
+      if (current && current.date === row.date) current.data.push(row)
+      else grouped.push({ date: row.date, data: [row] })
+    })
+    return grouped
+  }, [rows])
   const partial = rows.length < total
   const visibleIds = rows.map((row) => row.id)
-  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.includes(id))
+  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
+  const paused = ledger.status?.state === 'paused'
   const openAccounts = accounts.filter((account) => !account.archivedAt)
   const filtered = view.search.trim().length > 0 || hasFilters(view)
   const attention = ledger.conflicts.length > 0
@@ -269,23 +319,40 @@ export default function LocalActivity(): React.ReactElement {
   if (ledger.error) {
     return <View className="flex-1 items-center justify-center bg-surface-950 px-8">
       <Text className="text-center text-[20px] font-semibold text-surface-100">This device cannot open its ledger</Text>
-      <Text className="mt-2 text-center text-[16px] leading-6 text-surface-400">{ledger.error}. Turn off local Activity storage in Settings to use the previous connection.</Text>
+      <Text className="mt-2 text-center text-[16px] leading-6 text-surface-400">{ledger.error}</Text>
       <Pressable accessibilityRole="button" onPress={() => router.push('/settings')} style={{ minHeight: TOUCH }} className="mt-5 justify-center rounded-xl bg-accent-600 px-5">
         <Text className="text-[16px] font-semibold text-white">Open settings</Text>
       </Pressable>
     </View>
   }
 
-  if (!restored || (!ledger.ready && loading && rows.length === 0)) {
-    return <View className="flex-1 items-center justify-center bg-surface-950"><ActivityIndicator color="#91c4ff" /></View>
+  if (!restored || (!ledger.ready && rows.length === 0)) {
+    const stopped = Boolean(ledger.status) && !ledger.syncing
+    const offline = ledger.status?.state === 'offline'
+    return <View className="flex-1 items-center justify-center bg-surface-950 px-8">
+      {stopped
+        ? <>
+          <Text className="text-center text-[20px] font-semibold text-surface-100">{offline ? 'Waiting for a connection' : 'The download did not finish'}</Text>
+          <Text className="mt-2 text-center text-[16px] leading-6 text-surface-400">{offline
+            ? 'The first download needs the internet. After that, Activity works offline.'
+            : ledger.status?.message ?? 'Try again in a moment.'}</Text>
+          <Pressable accessibilityRole="button" onPress={() => void ledger.sync()} style={{ minHeight: TOUCH }} className="mt-5 justify-center rounded-xl bg-accent-600 px-5">
+            <Text className="text-[16px] font-semibold text-white">Try again</Text>
+          </Pressable>
+        </>
+        : <>
+          <ActivityIndicator color="#91c4ff" />
+          {restored && <Text className="mt-3 text-[14px] text-surface-400">Downloading your ledger</Text>}
+        </>}
+    </View>
   }
 
   return <View className="flex-1 bg-surface-950">
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Sync status: ${syncLabel(ledger.status)}`}
-      accessibilityHint={attention ? 'Opens the changes that need a decision' : 'Syncs with the ledger service'}
-      onPress={() => attention ? setReviewing(true) : void ledger.sync()}
+      accessibilityHint={attention ? 'Opens the changes that need a decision' : paused ? 'Opens Settings to sign in' : 'Syncs with the server'}
+      onPress={() => attention ? setReviewing(true) : paused ? router.push('/settings') : void ledger.sync()}
       style={{ minHeight: 44 }}
       className={`flex-row items-center justify-between px-4 ${attention ? 'bg-attention/15' : 'bg-surface-900'}`}
     >
@@ -293,7 +360,7 @@ export default function LocalActivity(): React.ReactElement {
         <View className={`mr-2 h-1.5 w-1.5 rounded-full ${attention ? 'bg-attention' : ledger.status?.state === 'synced' ? 'bg-positive' : 'bg-surface-500'}`} />
         <Text className={`text-[14px] ${attention ? 'text-attention' : 'text-surface-400'}`}>{syncLabel(ledger.status)}</Text>
       </View>
-      <Text className="text-[14px] text-surface-500">{attention ? 'Review' : 'Sync now'}</Text>
+      <Text className="text-[14px] text-surface-500">{attention ? 'Review' : paused ? 'Sign in' : ledger.syncing ? 'Syncing...' : 'Sync now'}</Text>
     </Pressable>
 
     {selecting
@@ -320,18 +387,21 @@ export default function LocalActivity(): React.ReactElement {
       : <View className="mx-4 mt-3 flex-row items-center rounded-xl border border-surface-700 bg-surface-900 px-3">
         <Search color="#8a8a92" size={16} />
         <TextInput
-          value={view.search}
-          onChangeText={(value) => setView((current) => ({ ...current, search: value }))}
+          value={search}
+          onChangeText={setSearch}
           accessibilityLabel="Search activity"
           placeholder="Search activity"
           placeholderTextColor="#8a8a92"
           returnKeyType="search"
           className="ml-2 flex-1 py-2.5 text-[16px] text-surface-100"
         />
-        {view.search.length > 0 && <Pressable
+        {search.length > 0 && <Pressable
           accessibilityRole="button"
           accessibilityLabel="Clear search"
-          onPress={() => setView((current) => ({ ...current, search: '' }))}
+          onPress={() => {
+            setSearch('')
+            setView((current) => ({ ...current, search: '' }))
+          }}
           hitSlop={8}
           className="h-12 w-10 items-center justify-center"
         ><X color="#8a8a92" size={16} /></Pressable>}
@@ -419,13 +489,10 @@ export default function LocalActivity(): React.ReactElement {
         <TransactionRow
           item={item}
           selecting={selecting}
-          checked={selected.includes(item.id)}
-          onOpen={() => router.push({ pathname: '/(money)/transaction', params: { id: item.id } })}
-          onToggle={() => toggle(item.id)}
-          onSelect={() => {
-            setSelecting(true)
-            setSelected([item.id])
-          }}
+          checked={selectedIds.has(item.id)}
+          onOpen={open}
+          onToggle={toggle}
+          onSelect={startSelection}
         />
       </View>}
       ListFooterComponent={<View style={{ paddingBottom: 96 + insets.bottom }} className="pt-4">
@@ -495,7 +562,6 @@ export default function LocalActivity(): React.ReactElement {
     {creating && <TransactionEntry
       key="new"
       snapshot={editorSnapshot}
-      onSave={(input) => ledger.saveTransaction(input)}
       onClose={() => setCreating(false)}
     />}
 

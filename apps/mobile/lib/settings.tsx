@@ -1,40 +1,47 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import * as SecureStore from 'expo-secure-store'
 import type { ListShortcut } from '@ego/core'
+import { normalizeApiUrl } from './api-client'
 
-export interface EgoSettings {
-  trelloApiKey: string
-  trelloToken: string
-  trelloBoardId: string
-  trelloListId: string
-  listShortcuts: ListShortcut[]
+export interface SignedInAccount {
+  email: string | null
+  deviceId: string
+  deviceName: string
+}
+
+/**
+ * Keys this phone used before the server held them. Nothing reads them any more. They stay
+ * until the user removes them, so moving them into Worker secrets never depends on this phone.
+ */
+export interface RetiredCredentials {
   cloudflareAccountId: string
   d1DatabaseId: string
   d1ApiToken: string
   openRouterApiKey: string
-  receiptModel: string
-  moneyApiUrl: string
-  moneyDeviceToken: string
-  moneyStorage: MoneyStorageMode
+  trelloApiKey: string
+  trelloToken: string
 }
 
-/** Which writer owns the ledger on this device. Never both at once for the same action. */
-export type MoneyStorageMode = 'legacy' | 'local'
+export interface EgoSettings {
+  apiUrl: string
+  deviceToken: string
+  account: SignedInAccount | null
+  trelloBoardId: string
+  trelloListId: string
+  listShortcuts: ListShortcut[]
+  retired: RetiredCredentials | null
+}
+
+const BUILD_API_URL = normalizeApiUrl(process.env.EXPO_PUBLIC_EGO_API_URL ?? '')
 
 const EMPTY: EgoSettings = {
-  trelloApiKey: '',
-  trelloToken: '',
+  apiUrl: '',
+  deviceToken: '',
+  account: null,
   trelloBoardId: '',
   trelloListId: '',
   listShortcuts: [],
-  cloudflareAccountId: '',
-  d1DatabaseId: '',
-  d1ApiToken: '',
-  openRouterApiKey: '',
-  receiptModel: 'openai/gpt-5.6-terra',
-  moneyApiUrl: '',
-  moneyDeviceToken: '',
-  moneyStorage: 'legacy'
+  retired: null
 }
 
 const STORE_KEY = 'ego.settings'
@@ -47,48 +54,73 @@ interface SettingsContextValue {
 
 const SettingsContext = createContext<SettingsContextValue | null>(null)
 
-function parse(raw: string | null): EgoSettings {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function text(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
+function parseAccount(value: unknown): SignedInAccount | null {
+  if (!isRecord(value) || typeof value.deviceId !== 'string' || typeof value.deviceName !== 'string') return null
+  return { email: typeof value.email === 'string' ? value.email : null, deviceId: value.deviceId, deviceName: value.deviceName }
+}
+
+function parseShortcuts(value: unknown): ListShortcut[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is ListShortcut =>
+    isRecord(item) && typeof item.listId === 'string' && typeof item.listName === 'string')
+}
+
+function parseRetired(parsed: Record<string, unknown>): RetiredCredentials | null {
+  const source = isRecord(parsed.retired) ? parsed.retired : parsed
+  const retired: RetiredCredentials = {
+    cloudflareAccountId: text(source.cloudflareAccountId),
+    d1DatabaseId: text(source.d1DatabaseId),
+    d1ApiToken: text(source.d1ApiToken),
+    openRouterApiKey: text(source.openRouterApiKey),
+    trelloApiKey: text(source.trelloApiKey),
+    trelloToken: text(source.trelloToken)
+  }
+  return Object.values(retired).some(Boolean) ? retired : null
+}
+
+/** Reads both this shape and the one that stored every key on the phone. */
+export function parseSettings(raw: string | null): EgoSettings {
   if (!raw) return EMPTY
-  try {
-    const parsed = JSON.parse(raw) as Partial<EgoSettings>
-    return {
-      trelloApiKey: parsed.trelloApiKey ?? '',
-      trelloToken: parsed.trelloToken ?? '',
-      trelloBoardId: parsed.trelloBoardId ?? '',
-      trelloListId: parsed.trelloListId ?? '',
-      listShortcuts: Array.isArray(parsed.listShortcuts) ? parsed.listShortcuts : [],
-      cloudflareAccountId: parsed.cloudflareAccountId ?? '',
-      d1DatabaseId: parsed.d1DatabaseId ?? '',
-      d1ApiToken: parsed.d1ApiToken ?? '',
-      openRouterApiKey: parsed.openRouterApiKey ?? '',
-      receiptModel: parsed.receiptModel ?? 'openai/gpt-5.6-terra',
-      moneyApiUrl: parsed.moneyApiUrl ?? '',
-      moneyDeviceToken: parsed.moneyDeviceToken ?? '',
-      moneyStorage: parsed.moneyStorage === 'local' ? 'local' : 'legacy'
-    }
-  } catch {
-    return EMPTY
+  let parsed: unknown
+  try { parsed = JSON.parse(raw) } catch { return EMPTY }
+  if (!isRecord(parsed)) return EMPTY
+  return {
+    apiUrl: text(parsed.apiUrl) || text(parsed.moneyApiUrl),
+    deviceToken: text(parsed.deviceToken) || text(parsed.moneyDeviceToken),
+    account: parseAccount(parsed.account),
+    trelloBoardId: text(parsed.trelloBoardId),
+    trelloListId: text(parsed.trelloListId),
+    listShortcuts: parseShortcuts(parsed.listShortcuts),
+    retired: parseRetired(parsed)
   }
 }
 
 export function SettingsProvider({ children }: { children: React.ReactNode }): React.ReactElement {
   const [settings, setSettings] = useState<EgoSettings>(EMPTY)
   const [loading, setLoading] = useState(true)
+  const latest = useRef<EgoSettings>(EMPTY)
 
   useEffect(() => {
     void (async () => {
-      const raw = await SecureStore.getItemAsync(STORE_KEY)
-      setSettings(parse(raw))
+      const raw = await SecureStore.getItemAsync(STORE_KEY).catch(() => null)
+      latest.current = parseSettings(raw)
+      setSettings(latest.current)
       setLoading(false)
     })()
   }, [])
 
-  const update = useCallback(async (patch: Partial<EgoSettings>) => {
-    setSettings((current) => {
-      const next = { ...current, ...patch }
-      void SecureStore.setItemAsync(STORE_KEY, JSON.stringify(next))
-      return next
-    })
+  const update = useCallback(async (patch: Partial<EgoSettings>): Promise<void> => {
+    latest.current = { ...latest.current, ...patch }
+    setSettings(latest.current)
+    await SecureStore.setItemAsync(STORE_KEY, JSON.stringify(latest.current))
   }, [])
 
   const value = useMemo(() => ({ settings, loading, update }), [settings, loading, update])
@@ -102,18 +134,15 @@ export function useSettings(): SettingsContextValue {
   return context
 }
 
-export function isConfigured(settings: EgoSettings): boolean {
-  return Boolean(settings.trelloApiKey && settings.trelloToken && settings.trelloListId)
+/** A build can carry the server address, so a fresh install needs only the sign-in button. */
+export function apiUrlFor(settings: Pick<EgoSettings, 'apiUrl'>): string {
+  return normalizeApiUrl(settings.apiUrl) || BUILD_API_URL
 }
 
-export function isMoneyConfigured(settings: EgoSettings): boolean {
-  return Boolean(settings.cloudflareAccountId && settings.d1DatabaseId && settings.d1ApiToken)
+export function isSignedIn(settings: EgoSettings): boolean {
+  return Boolean(apiUrlFor(settings) && settings.deviceToken.trim())
 }
 
-export function isLedgerConfigured(settings: EgoSettings): boolean {
-  return Boolean(settings.moneyApiUrl.trim() && settings.moneyDeviceToken.trim())
-}
-
-export function usesLocalLedger(settings: EgoSettings): boolean {
-  return settings.moneyStorage === 'local' && isLedgerConfigured(settings)
+export function isTrelloReady(settings: EgoSettings): boolean {
+  return isSignedIn(settings) && Boolean(settings.trelloListId)
 }

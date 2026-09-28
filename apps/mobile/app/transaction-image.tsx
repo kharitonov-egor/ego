@@ -27,9 +27,8 @@ import {
 } from '@ego/core'
 import AnalyzedTransactionEditor from '../components/money/AnalyzedTransactionEditor'
 import { isoToday } from '../lib/dates'
-import { askMoneyAgent } from '../lib/money-agent'
+import { useLedger } from '../lib/ledger-context'
 import { useMoney } from '../lib/money-context'
-import { useSettings } from '../lib/settings'
 
 interface Attachment {
   base64: string
@@ -45,8 +44,10 @@ interface ChatMessage {
   error?: boolean
 }
 
+const USD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
+
 function dollars(cents: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
+  return USD.format(cents / 100)
 }
 
 function transactionNotes(draft: MoneyAgentDraft): string {
@@ -57,7 +58,7 @@ export default function TransactionImage(): React.ReactElement {
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const money = useMoney()
-  const { settings } = useSettings()
+  const ledger = useLedger()
   const scroll = useRef<ScrollView>(null)
   const nextId = useRef(2)
   const [messages, setMessages] = useState<ChatMessage[]>([{
@@ -75,9 +76,11 @@ export default function TransactionImage(): React.ReactElement {
   const snapshot = money.snapshot
   const accounts = snapshot?.accounts.filter((item) => !item.archivedAt) ?? []
   const categories = snapshot?.categories.filter((item) => !item.archivedAt) ?? []
-  const missing = !snapshot
-    ? 'Connect Cloudflare D1 in Settings before using the money agent.'
-    : accounts.length === 0
+  const missing = !ledger.enabled
+    ? 'Sign in with Google in Settings to use the money agent.'
+    : !snapshot
+      ? 'Your ledger is still downloading. Try again in a moment.'
+      : accounts.length === 0
       ? 'Add an account before using the money agent.'
       : categories.length === 0
         ? 'Add an active income or expense category first.'
@@ -153,30 +156,31 @@ export default function TransactionImage(): React.ReactElement {
     setText('')
     setAttachment(null)
     setThinking(true)
-    const result = await askMoneyAgent({
+    const result = await ledger.api.moneyAgent({
       message,
       image: image ? { base64: image.base64, mimeType: image.mimeType } : undefined,
-      apiKey: settings.openRouterApiKey,
-      model: settings.receiptModel,
       today: isoToday(),
       accounts: accounts.map(({ id, name }) => ({ id, name })),
       categories: categories.map(({ id, name, kind }) => ({ id, name, kind }))
     })
     setThinking(false)
     if (!result.ok) {
-      addMessage({ role: 'agent', text: result.message, error: true })
+      addMessage({ role: 'agent', text: result.error.message, error: true })
+      if (image) setAttachment(image)
+      if (message) setText(message)
       return
     }
-    setPending(result.data)
-    const preparedTotal = result.data.reduce((sum, draft) => sum + draft.amountCents, 0)
-    const itemCount = result.data.reduce((sum, draft) => sum + (draft.receipt?.items.length ?? 0), 0)
+    const drafts = result.data.drafts
+    setPending(drafts)
+    const preparedTotal = drafts.reduce((sum, draft) => sum + draft.amountCents, 0)
+    const itemCount = drafts.reduce((sum, draft) => sum + (draft.receipt?.items.length ?? 0), 0)
     addMessage({
       role: 'agent',
-      text: result.data.length > 1
-        ? `I prepared ${result.data.length} transactions totaling ${dollars(preparedTotal)}.`
+      text: drafts.length > 1
+        ? `I prepared ${drafts.length} transactions totaling ${dollars(preparedTotal)}.`
         : itemCount > 0
           ? `I read ${itemCount} ${itemCount === 1 ? 'item' : 'items'} from the receipt. Check the total, then add it.`
-          : `I prepared a ${dollars(preparedTotal)} ${result.data[0].kind}.`
+          : `I prepared a ${dollars(preparedTotal)} ${drafts[0].kind}.`
     })
   }
 
@@ -210,19 +214,19 @@ export default function TransactionImage(): React.ReactElement {
       savedCount += 1
     }
     if (savedCount === pending.length) {
-      addMessage({ role: 'agent', text: `Added ${savedCount} ${savedCount === 1 ? 'transaction' : 'transactions'} to D1.` })
+      addMessage({ role: 'agent', text: `Added ${savedCount} ${savedCount === 1 ? 'transaction' : 'transactions'}.` })
       setPending(null)
     } else {
       setPending(pending.slice(savedCount))
       addMessage({ role: 'agent', text: savedCount > 0
-        ? `Added ${savedCount}, then D1 stopped. The remaining ${pending.length - savedCount} are still ready to add.`
-        : 'D1 did not save these transactions. Check the connection banner, then try again.', error: true })
+        ? `Added ${savedCount}, then one was refused. Open Review on the remaining ${pending.length - savedCount} to check the account and category.`
+        : 'These were not saved. Open Review to check the account and category.', error: true })
     }
     setEditingIndex(null)
   }
 
   const savedReviewedDraft = (index: number, draft: MoneyAgentDraft): void => {
-    addMessage({ role: 'agent', text: `Added ${dollars(draft.amountCents)} to D1.` })
+    addMessage({ role: 'agent', text: `Added ${dollars(draft.amountCents)}.` })
     setPending((current) => {
       if (!current) return null
       const next = current.filter((_, itemIndex) => itemIndex !== index)
@@ -254,7 +258,7 @@ export default function TransactionImage(): React.ReactElement {
     >
       <View className="mb-3 flex-row items-center">
         <View className="h-8 w-8 items-center justify-center rounded-full border border-accent-500/40 bg-accent-500/15"><Bot color="#91c4ff" size={16} /></View>
-        <View className="ml-2"><Text className="text-[16px] font-bold text-surface-100">Ego money agent</Text><Text className="text-[14px] text-emerald-400">Ready to write to D1</Text></View>
+        <View className="ml-2"><Text className="text-[16px] font-bold text-surface-100">Ego money agent</Text><Text className="text-[14px] text-emerald-400">{ledger.enabled ? 'Saves to this phone, then syncs' : 'Sign in to use the agent'}</Text></View>
       </View>
 
       {messages.map((message) => <View key={message.id} className={`mb-2.5 ${message.role === 'user' ? 'items-end' : 'items-start'}`}>
@@ -264,10 +268,10 @@ export default function TransactionImage(): React.ReactElement {
         </View>
       </View>)}
 
-      {thinking && <View className="mb-2.5 flex-row items-center self-start rounded-2xl rounded-bl-md border border-surface-800 bg-surface-900 px-3 py-2"><ActivityIndicator size="small" color="#91c4ff" /><Text className="ml-2 text-[14px] text-surface-300">Preparing tool call...</Text></View>}
+      {thinking && <View className="mb-2.5 flex-row items-center self-start rounded-2xl rounded-bl-md border border-surface-800 bg-surface-900 px-3 py-2"><ActivityIndicator size="small" color="#91c4ff" /><Text className="ml-2 text-[14px] text-surface-300">Reading...</Text></View>}
 
       {pending && <View className="mb-4 overflow-hidden rounded-2xl border border-accent-500/35 bg-surface-900">
-        <View className="flex-row items-center border-b border-surface-800 px-3 py-2"><View className="rounded bg-accent-500/15 px-1.5 py-0.5"><Text className="text-[14px] font-bold uppercase tracking-wider text-accent-400">record_transactions</Text></View><Text className="ml-auto text-[14px] text-surface-400">{pending.length} {pending.length === 1 ? 'entry' : 'entries'} ready</Text></View>
+        <View className="flex-row items-center border-b border-surface-800 px-3 py-2"><View className="rounded bg-accent-500/15 px-1.5 py-0.5"><Text className="text-[14px] font-bold uppercase tracking-wider text-accent-400">Review</Text></View><Text className="ml-auto text-[14px] text-surface-400">{pending.length} {pending.length === 1 ? 'entry' : 'entries'} ready</Text></View>
         <View className="border-l-2 border-accent-500 px-2.5 py-2.5">
           {pending.map((draft, index) => {
             const accountName = accounts.find((item) => item.id === draft.accountId)?.name
@@ -280,7 +284,7 @@ export default function TransactionImage(): React.ReactElement {
                 : editingIndex === null && <View className="mt-3 flex-row gap-2"><Pressable onPress={() => setEditingIndex(index)} className="flex-1 flex-row items-center justify-center rounded-lg border border-surface-700 px-3 py-2"><SlidersHorizontal color="#b5b5bc" size={13} /><Text className="ml-1.5 text-[14px] font-semibold text-surface-300">Review</Text></Pressable><Pressable accessibilityLabel={`Discard ${draft.counterparty}`} onPress={() => removePending(index)} className="rounded-lg border border-surface-700 px-2.5 py-2"><X color="#b5b5bc" size={14} /></Pressable></View>}
             </View>
           })}
-          {editingIndex === null && <Pressable disabled={money.busy} onPress={() => void savePending()} className={`mt-3 flex-row items-center justify-center rounded-lg px-3 py-2.5 ${money.busy ? 'bg-surface-700' : 'bg-accent-600'}`}><Check color="#fff" size={15} /><Text className="ml-1.5 text-[16px] font-bold text-white">{money.busy ? 'Adding...' : `Add ${pending.length} to D1`}</Text></Pressable>}
+          {editingIndex === null && <Pressable disabled={money.busy} onPress={() => void savePending()} className={`mt-3 flex-row items-center justify-center rounded-lg px-3 py-2.5 ${money.busy ? 'bg-surface-700' : 'bg-accent-600'}`}><Check color="#fff" size={15} /><Text className="ml-1.5 text-[16px] font-bold text-white">{money.busy ? 'Adding...' : `Add ${pending.length}`}</Text></Pressable>}
         </View>
       </View>}
 

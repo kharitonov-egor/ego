@@ -7,8 +7,9 @@ import {
   localBalances, localReceipt, localTransaction, localTransactionPage
 } from '../../mobile/lib/repositories/transactions'
 import {
-  createPurchase, createTransaction, deleteTransaction, updateTransaction
+  createPurchase, createTransaction, deleteBudget, deleteTransaction, saveBudget, updateTransaction
 } from '../../mobile/lib/sync/commands'
+import { localRevision, localSnapshot } from '../../mobile/lib/repositories/snapshot'
 import { createSyncCoordinator } from '../../mobile/lib/sync/coordinator'
 import { allOperations } from '../../mobile/lib/sync/outbox'
 import { openTestLedger } from '../../mobile/test/local-db'
@@ -52,6 +53,7 @@ function apiOver(db: D1Database, calls: { count: number }): MoneyApi {
   }
   return {
     reference: () => send('/v1/reference'),
+    bootstrap: () => send('/v1/bootstrap'),
     transactions: (filters, cursor, limit) => send(`/v1/transactions?${filterQuery(filters, cursor, limit)}`),
     receipt: (purchaseId) => send(`/v1/receipts/${encodeURIComponent(purchaseId)}`),
     balances: () => send('/v1/balances'),
@@ -268,5 +270,63 @@ describe('device and Worker together', () => {
     expect(await localTransaction(device!, 'tx-1')).toBeNull()
     await coordinator.sync()
     expect(await serverCount(server!.db, 'transactions')).toBe(0)
+  })
+})
+
+describe('a second device', () => {
+  it('downloads receipts, budgets, and balances another device saved', async () => {
+    const { coordinator } = await pair()
+    await coordinator.sync()
+    await createPurchase(device!, receipt(), NOW, 'p-1')
+    await saveBudget(device!, { month: '2026-09', plannedIncomeCents: 500000, allocations: [
+      { categoryId: 'cat-food', amountCents: 60000 }
+    ] }, null, NOW)
+    expect((await coordinator.sync()).state).toBe('synced')
+
+    const phone = await openTestLedger('second')
+    try {
+      const second = createSyncCoordinator({ db: phone, api: apiOver(server!.db, { count: 0 }), now: () => NOW })
+      expect((await second.sync()).state).toBe('synced')
+      const snapshot = await localSnapshot(phone, NOW)
+      expect(snapshot.purchases[0].items.map((item) => item.name)).toEqual(['Bananas', 'Coffee'])
+      expect(snapshot.budgets[0]).toMatchObject({ month: '2026-09', plannedIncomeCents: 500000 })
+      expect(snapshot.budgets[0].allocations[0]).toMatchObject({ categoryId: 'cat-food', amountCents: 60000 })
+      const serverBalances = await handle(new Request('https://ego.example/v1/balances', {
+        headers: { authorization: `Bearer ${TOKEN}` }
+      }), { DB: server!.db })
+      const payload = await serverBalances.json() as { data: { balances: Array<{ accountId: string; balanceCents: number }> } }
+      for (const balance of payload.data.balances) {
+        expect(snapshot.accounts.find((account) => account.id === balance.accountId)?.balanceCents).toBe(balance.balanceCents)
+      }
+    } finally {
+      await phone.close()
+    }
+  })
+})
+
+describe('a cleared budget month', () => {
+  it('can be planned again on the phone and on the server', async () => {
+    const { coordinator } = await pair()
+    await coordinator.sync()
+    const plan = (plannedIncomeCents: number) => ({ month: '2026-09', plannedIncomeCents, allocations: [
+      { categoryId: 'cat-food', amountCents: 60000 }
+    ] })
+    await saveBudget(device!, plan(500000), null, NOW)
+    expect((await coordinator.sync()).state).toBe('synced')
+    await deleteBudget(device!, '2026-09', (await localRevision(device!, 'budgets', '2026-09'))!, NOW)
+    expect((await coordinator.sync()).state).toBe('synced')
+    expect((await localSnapshot(device!, NOW)).budgets).toHaveLength(0)
+
+    await saveBudget(device!, plan(420000), await localRevision(device!, 'budgets', '2026-09'), NOW)
+    expect((await localSnapshot(device!, NOW)).budgets[0]).toMatchObject({ plannedIncomeCents: 420000 })
+    const outcome = await coordinator.sync()
+    expect(outcome.state).toBe('synced')
+    expect(outcome.conflictCount).toBe(0)
+    const stored = await server!.db.prepare(
+      'SELECT planned_income_cents, deleted_at, revision FROM budgets WHERE month = ?'
+    ).bind('2026-09').first<{ planned_income_cents: number; deleted_at: string | null; revision: number }>()
+    expect(stored).toMatchObject({ planned_income_cents: 420000, deleted_at: null, revision: 3 })
+    const local = await device!.all<{ revision: number }>("SELECT revision FROM budgets WHERE month = '2026-09'")
+    expect(local[0].revision).toBe(3)
   })
 })

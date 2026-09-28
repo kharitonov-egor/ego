@@ -10,12 +10,22 @@ Phase 2 of `docs/mobile-transactions-overhaul.md`, with the device side in
 
 ## Endpoints
 
-All routes except `/v1/health` and the two OAuth callbacks need
+All routes except `/v1/health`, the two sign-in routes, and the two OAuth callbacks need
 `Authorization: Bearer <device token>`.
 
 | Route | Returns |
 | --- | --- |
 | `GET /v1/health` | API version, no credential needed |
+| `POST /v1/auth/google/start` | Starts Google sign-in and returns the one-time exchange secret, no credential needed |
+| `POST /v1/auth/exchange` | Trades the code from `ego://auth` and the secret for a new device token |
+| `GET /v1/session` | The signed-in account and which server keys exist, never their values |
+| `DELETE /v1/session` | Signs out by revoking this device's token |
+| `GET /v1/bootstrap` | Every live record, with receipt items and budget allocations, plus the sequence it was read after |
+| `POST /v1/agent/money` | Runs the money agent with the Worker's OpenRouter key |
+| `GET /v1/trello/boards` | Trello boards, with the Worker's Trello key and token |
+| `GET /v1/trello/boards/:id/lists` | Lists on one board |
+| `POST /v1/trello/cards` | Creates a card |
+| `POST /v1/trello/cards/:id/attachments` | Forwards one file up to 10 MB to a card |
 | `GET /v1/reference` | Accounts and categories, including archived ones, plus the server sequence |
 | `GET /v1/transactions` | Up to 50 feed rows, a next cursor, the matching count, and the query identity |
 | `GET /v1/transactions/:id` | One transaction with its receipt linkage |
@@ -40,6 +50,20 @@ Feed parameters: `from`, `to`, `accounts`, `categories`, `kinds`, `search`, `lim
 `limit` is capped at 100. A cursor is bound to the filters that produced it and a mismatch is a
 400, not a silent restart from the first page. Percent and underscore are literal characters in
 `search`.
+
+## Sign-in and server keys
+
+The phone signs in with Google instead of receiving a token from the enrolment script. The Worker
+starts the flow, keeps the PKCE verifier, and hands the phone a one-time exchange secret over HTTPS.
+Google returns to the connector callback, the Worker checks the ID token's issuer, audience,
+expiry, and verified email against `ALLOWED_EMAILS`, then redirects to `ego://auth` with a
+one-time code. The code redeems once, with the matching secret, within ten minutes, and creates a
+device row with the account email.
+
+API keys for outside services are Worker secrets: `OPENROUTER_API_KEY` (and optional
+`OPENROUTER_MODEL`), `TRELLO_API_KEY`, `TRELLO_TOKEN`, and `OPENAI_API_KEY`. `GET /v1/session`
+reports which exist so the phone can say what is set up. A new service follows the same shape: a
+secret, a route that calls the service, and a flag in `ServiceStatus`.
 
 ## Writes
 

@@ -1,13 +1,12 @@
 import {
-  MAX_OPERATIONS_PER_REQUEST, MAX_PAGE_SIZE, NO_TRANSACTION_FILTERS,
-  type ApiError, type ChangeRecord, type FeedCursor, type OperationOutcome, type SyncEntity
+  MAX_OPERATIONS_PER_REQUEST,
+  type ApiError, type ChangeRecord, type OperationOutcome, type SyncEntity
 } from '@ego/api-contracts'
 import type { MoneyApi } from '../api-client'
 import type { LocalDatabase } from '../database/types'
-import { writeFeedTransaction, writeRecord, writeTombstone } from '../database/writes'
+import { writeRecord, writeTombstone } from '../database/writes'
 import {
-  hasPendingFor, markConflict, markFailed, readyOperations, removeOperation, scheduleRetry,
-  toOperation
+  markConflict, markFailed, readyOperations, scheduleRetry, toOperation
 } from './outbox'
 
 const TABLES: Record<SyncEntity, string> = {
@@ -40,61 +39,96 @@ export interface SyncOutcome {
 interface SyncStateRow {
   server_sequence: number
   bootstrapped_at: string | null
-}
-
-async function syncStateRow(db: LocalDatabase): Promise<SyncStateRow> {
-  const rows = await db.all<SyncStateRow>('SELECT server_sequence, bootstrapped_at FROM sync_state WHERE id = 1')
-  return rows[0] ?? { server_sequence: 0, bootstrapped_at: null }
-}
-
-export async function isBootstrapped(db: LocalDatabase): Promise<boolean> {
-  return (await syncStateRow(db)).bootstrapped_at !== null
+  bootstrap_version: number
 }
 
 /**
- * Downloads reference data and bounded transaction pages, then records the sequence the
- * download started from. The cursor is written last, so an interrupted bootstrap restarts
- * instead of leaving the device believing it is up to date.
+ * Version 1 downloaded accounts, categories, and transaction pages only, so a device that
+ * bootstrapped then has no budgets and no receipt items. Version 2 downloads every record.
+ */
+export const BOOTSTRAP_VERSION = 2
+
+async function syncStateRow(db: LocalDatabase): Promise<SyncStateRow> {
+  const rows = await db.all<SyncStateRow>(
+    'SELECT server_sequence, bootstrapped_at, bootstrap_version FROM sync_state WHERE id = 1')
+  return rows[0] ?? { server_sequence: 0, bootstrapped_at: null, bootstrap_version: 0 }
+}
+
+export async function isBootstrapped(db: LocalDatabase): Promise<boolean> {
+  const state = await syncStateRow(db)
+  return state.bootstrapped_at !== null && state.bootstrap_version >= BOOTSTRAP_VERSION
+}
+
+/** Any finished download, even an older version, is enough for screens to read offline. */
+export async function hasDownloaded(db: LocalDatabase): Promise<boolean> {
+  return (await syncStateRow(db)).bootstrapped_at !== null
+}
+
+async function pendingKeys(db: LocalDatabase, statuses: 'pending' | 'any' = 'pending'): Promise<Set<string>> {
+  const rows = await db.all<{ entity: string; entity_id: string }>(statuses === 'pending'
+    ? "SELECT entity, entity_id FROM outbox WHERE status = 'pending'"
+    : 'SELECT entity, entity_id FROM outbox')
+  return new Set(rows.map((row) => `${row.entity}:${row.entity_id}`))
+}
+
+/**
+ * Downloads every live record in one request and writes it in one transaction. A live local row
+ * the download does not contain was deleted on the server, possibly by a client that never wrote
+ * to the change log, so it becomes a tombstone here. With the tables matching the server, the
+ * sequence read before the download is a safe place to resume pulling changes. Rows with an
+ * undelivered local change are left alone, exactly as a pulled change would leave them.
  */
 export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
   const { db, api, now } = deps
-  const reference = await api.reference()
-  if (!reference.ok) return reference.error
-  const startedAt = reference.data.serverSequence
-  await db.transaction(async (tx) => {
-    for (const account of reference.data.accounts) await writeRecord(tx, { entity: 'account', record: account })
-    for (const category of reference.data.categories) await writeRecord(tx, { entity: 'category', record: category })
-  })
-  let cursor: FeedCursor | null = null
-  for (;;) {
-    const page = await api.transactions(NO_TRANSACTION_FILTERS, cursor, MAX_PAGE_SIZE)
-    if (!page.ok) return page.error
-    await db.transaction(async (tx) => {
-      for (const row of page.data.items) await writeFeedTransaction(tx, row)
-    })
-    const last = page.data.items[page.data.items.length - 1]
-    if (!page.data.hasMore || !last) break
-    cursor = { date: last.date, createdAt: last.createdAt, id: last.id }
+  const response = await api.bootstrap()
+  if (!response.ok) return response.error
+  const data = response.data
+  const pending = await pendingKeys(db)
+  const queued = await pendingKeys(db, 'any')
+  const skip = (entity: SyncEntity, id: string): boolean => pending.has(`${entity}:${id}`)
+  const live: Record<SyncEntity, Set<string>> = {
+    account: new Set(data.accounts.map((record) => record.id)),
+    category: new Set(data.categories.map((record) => record.id)),
+    transaction: new Set(data.transactions.map((record) => record.id)),
+    purchase: new Set(data.purchases.map((record) => record.id)),
+    budget: new Set(data.budgets.map((record) => record.month))
   }
+  const deletedAt = now()
   await db.transaction(async (tx) => {
-    await tx.run('UPDATE sync_state SET server_sequence = ?, bootstrapped_at = ? WHERE id = 1',
-      [startedAt, now()])
+    for (const record of data.accounts) if (!skip('account', record.id)) await writeRecord(tx, { entity: 'account', record })
+    for (const record of data.categories) if (!skip('category', record.id)) await writeRecord(tx, { entity: 'category', record })
+    for (const record of data.transactions) if (!skip('transaction', record.id)) await writeRecord(tx, { entity: 'transaction', record })
+    for (const record of data.purchases) if (!skip('purchase', record.id)) await writeRecord(tx, { entity: 'purchase', record })
+    for (const record of data.budgets) if (!skip('budget', record.month)) await writeRecord(tx, { entity: 'budget', record })
+    for (const entity of Object.keys(TABLES) as SyncEntity[]) {
+      const key = entity === 'budget' ? 'month' : 'id'
+      const local = await tx.all<{ key: string }>(`SELECT ${key} AS key FROM ${TABLES[entity]} WHERE deleted_at IS NULL`)
+      for (const row of local) {
+        if (live[entity].has(row.key) || queued.has(`${entity}:${row.key}`)) continue
+        await tx.run(`UPDATE ${TABLES[entity]} SET deleted_at = ? WHERE ${key} = ?`, [deletedAt, row.key])
+      }
+    }
+    await tx.run('UPDATE sync_state SET server_sequence = ?, bootstrapped_at = ?, bootstrap_version = ? WHERE id = 1',
+      [data.serverSequence, deletedAt, BOOTSTRAP_VERSION])
   })
   return null
 }
 
-async function applyOutcome(db: LocalDatabase, outcome: OperationOutcome): Promise<void> {
+async function applyOutcomes(db: LocalDatabase, outcomes: OperationOutcome[]): Promise<void> {
+  if (outcomes.length === 0) return
   await db.transaction(async (tx) => {
-    const column = outcome.entity === 'budget' ? 'month' : 'id'
-    await tx.run(
-      `UPDATE ${TABLES[outcome.entity]} SET revision = ? WHERE ${column} = ? AND revision < ?`,
-      [outcome.revision, outcome.entityId, outcome.revision])
-    await tx.run('DELETE FROM outbox WHERE operation_id = ?', [outcome.operationId])
+    for (const outcome of outcomes) {
+      const column = outcome.entity === 'budget' ? 'month' : 'id'
+      await tx.run(
+        `UPDATE ${TABLES[outcome.entity]} SET revision = ? WHERE ${column} = ? AND revision < ?`,
+        [outcome.revision, outcome.entityId, outcome.revision])
+      await tx.run('DELETE FROM outbox WHERE operation_id = ?', [outcome.operationId])
+    }
   })
 }
 
-async function applyChange(db: LocalDatabase, change: ChangeRecord, deletedAt: string): Promise<void> {
-  if (await hasPendingFor(db, change.entity, change.entityId)) return
+async function applyChange(db: LocalDatabase, change: ChangeRecord, deletedAt: string, pending: Set<string>): Promise<void> {
+  if (pending.has(`${change.entity}:${change.entityId}`)) return
   if (change.action === 'delete' || change.record === null) {
     await writeTombstone(db, change.entity, change.entityId, change.revision, deletedAt)
     return
@@ -110,9 +144,10 @@ async function pullChanges(deps: SyncDeps): Promise<{ error: ApiError | null; ap
     const page = await api.changes(sequence, 200)
     if (!page.ok) return { error: page.error, applied, sequence }
     if (page.data.changes.length === 0) return { error: null, applied, sequence }
+    const pending = await pendingKeys(db)
     await db.transaction(async (tx) => {
       for (const change of page.data.changes) {
-        await applyChange(tx, change, change.committedAt)
+        await applyChange(tx, change, change.committedAt, pending)
         applied += 1
       }
       await tx.run('UPDATE sync_state SET server_sequence = ? WHERE id = 1', [page.data.cursor])
@@ -136,10 +171,8 @@ async function deliver(deps: SyncDeps): Promise<{ error: ApiError | null; delive
       }
       return { error: response.error, delivered, paused: false }
     }
-    for (const outcome of response.data.results) {
-      await applyOutcome(db, outcome)
-      delivered += 1
-    }
+    await applyOutcomes(db, response.data.results)
+    delivered += response.data.results.length
     const failure = response.data.failed
     if (!failure) continue
     const entry = ready.find((item) => item.operationId === failure.operationId)
@@ -190,10 +223,12 @@ export interface SyncCoordinator {
 
 /**
  * One synchronisation runs at a time for a dataset. A second request joins the one in flight
- * rather than delivering the same operations twice.
+ * rather than delivering the same operations twice, and asks for one more run afterwards, so a
+ * change saved after delivery started is not left waiting for the next foreground.
  */
 export function createSyncCoordinator(deps: SyncDeps): SyncCoordinator {
   let inFlight: Promise<SyncOutcome> | null = null
+  let again = false
 
   const run = async (): Promise<SyncOutcome> => {
     const { db, now } = deps
@@ -211,11 +246,20 @@ export function createSyncCoordinator(deps: SyncDeps): SyncCoordinator {
 
   return {
     sync: () => {
-      if (!inFlight) {
-        inFlight = run().finally(() => {
-          inFlight = null
-        })
+      if (inFlight) {
+        again = true
+        return inFlight
       }
+      inFlight = (async () => {
+        let outcome: SyncOutcome
+        do {
+          again = false
+          outcome = await run()
+        } while (again)
+        return outcome
+      })().finally(() => {
+        inFlight = null
+      })
       return inFlight
     },
     status: () => outcomeFor(deps.db, null, false, 0, 0)

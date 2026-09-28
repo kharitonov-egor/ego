@@ -9,7 +9,7 @@
     "ios": "expo start --ios",
     "typecheck": "tsc --noEmit",
     "build:preview": "eas build --profile preview --platform android",
-    "update": "eas update --branch preview",
+    "update": "eas update --branch preview --environment preview",
     "test": "vitest run",
     "eas-build-post-install": "npm run build --workspace @ego/core && npm run build --workspace @ego/api-contracts"
   },

@@ -116,6 +116,16 @@ export const LOCAL_MIGRATIONS: readonly string[][] = [
     'CREATE INDEX IF NOT EXISTS idx_local_receipt_items_purchase ON receipt_items(purchase_id, position)',
     'CREATE INDEX IF NOT EXISTS idx_local_outbox_created ON outbox(created_at)',
     'CREATE INDEX IF NOT EXISTS idx_local_outbox_entity ON outbox(entity, entity_id)'
+  ],
+  [
+    'ALTER TABLE sync_state ADD COLUMN bootstrap_version INTEGER NOT NULL DEFAULT 0',
+    `CREATE INDEX IF NOT EXISTS idx_local_transactions_account
+      ON transactions(account_id) WHERE deleted_at IS NULL`,
+    `CREATE INDEX IF NOT EXISTS idx_local_transactions_destination
+      ON transactions(destination_account_id) WHERE deleted_at IS NULL`,
+    `CREATE INDEX IF NOT EXISTS idx_local_transactions_category
+      ON transactions(category_id) WHERE deleted_at IS NULL`,
+    'CREATE INDEX IF NOT EXISTS idx_local_budget_allocations_budget ON budget_allocations(budget_id)'
   ]
 ]
 

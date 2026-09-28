@@ -8,6 +8,13 @@ export interface Env {
   GOOGLE_CLIENT_ID?: string
   GOOGLE_CLIENT_SECRET?: string
   PUBLIC_BASE_URL?: string
+  /** Comma-separated Google accounts that may sign in. Sign-in stays off while this is empty. */
+  ALLOWED_EMAILS?: string
+  DATASET_ID?: string
+  OPENROUTER_API_KEY?: string
+  OPENROUTER_MODEL?: string
+  TRELLO_API_KEY?: string
+  TRELLO_TOKEN?: string
 }
 
 interface DeviceRow {

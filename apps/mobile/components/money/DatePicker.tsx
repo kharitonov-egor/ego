@@ -26,17 +26,17 @@ export function CalendarDialog({ visible, value, onCancel, onConfirm }: { visibl
         <View className="mt-3 flex-row items-center justify-between">
           <MonthName year={year} month={month} />
           <View className="flex-row gap-2">
-            <Pressable onPress={() => step(-1)} hitSlop={10} className="h-8 w-8 items-center justify-center rounded-full bg-surface-800"><ChevronLeft color="#e6e6e8" size={16} /></Pressable>
-            <Pressable onPress={() => step(1)} hitSlop={10} className="h-8 w-8 items-center justify-center rounded-full bg-surface-800"><ChevronRight color="#e6e6e8" size={16} /></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Previous month" onPress={() => step(-1)} hitSlop={10} className="h-11 w-11 items-center justify-center rounded-full bg-surface-800"><ChevronLeft color="#e6e6e8" size={16} /></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Next month" onPress={() => step(1)} hitSlop={10} className="h-11 w-11 items-center justify-center rounded-full bg-surface-800"><ChevronRight color="#e6e6e8" size={16} /></Pressable>
           </View>
         </View>
         <View className="mt-3 flex-row">{WEEKDAYS.map((day, index) => <Text key={index} className="flex-1 text-center text-[14px] font-medium text-surface-400">{day}</Text>)}</View>
         <View className="mt-1">{monthGrid(year, month).map((week, weekIndex) => <View key={weekIndex} className="flex-row">{week.map((day, dayIndex) => {
-          if (day === null) return <View key={dayIndex} className="h-9 flex-1" />
+          if (day === null) return <View key={dayIndex} className="h-11 flex-1" />
           const iso = isoFromParts(year, month, day)
           const selected = iso === draft
-          return <Pressable key={dayIndex} onPress={() => setDraft(iso)} className="h-9 flex-1 items-center justify-center">
-            <View className={`h-7 w-7 items-center justify-center rounded-full ${selected ? 'bg-accent-600' : iso === isoToday() ? 'border border-surface-600' : ''}`}>
+          return <Pressable key={dayIndex} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={new Date(`${iso}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} onPress={() => setDraft(iso)} className="h-11 flex-1 items-center justify-center">
+            <View className={`h-9 w-9 items-center justify-center rounded-full ${selected ? 'bg-accent-600' : iso === isoToday() ? 'border border-surface-600' : ''}`}>
               <Text className={selected ? 'text-[14px] font-semibold text-white' : 'text-[14px] text-surface-200'}>{day}</Text>
             </View>
           </Pressable>

@@ -10,8 +10,8 @@ import { PeriodProvider } from '../lib/period-context'
 export default function RootLayout(): React.ReactElement {
   return (
     <SettingsProvider>
-      <MoneyProvider>
-        <LedgerProvider>
+      <LedgerProvider>
+        <MoneyProvider>
           <PeriodProvider>
             <StatusBar style="light" />
             <Stack
@@ -26,11 +26,12 @@ export default function RootLayout(): React.ReactElement {
               <Stack.Screen name="(money)" options={{ headerShown: false }} />
               <Stack.Screen name="capture" options={{ title: 'New Trello card' }} />
               <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+              <Stack.Screen name="auth" options={{ title: 'Sign in', headerShown: false }} />
               <Stack.Screen name="transaction-image" options={{ title: 'Money agent' }} />
             </Stack>
           </PeriodProvider>
-        </LedgerProvider>
-      </MoneyProvider>
+        </MoneyProvider>
+      </LedgerProvider>
     </SettingsProvider>
   )
 }

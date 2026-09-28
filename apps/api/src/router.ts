@@ -7,8 +7,8 @@ import { isDateString } from '@ego/core'
 import { authorize, touchDevice, type Env } from './auth'
 import { applyOperations } from './commands'
 import {
-  pageSizeFrom, readBalances, readChanges, readLegacySnapshot, readReceiptDetail, readReference,
-  readLegacyRevisions, readSummary, readTransactionDetail, readTransactionPage
+  pageSizeFrom, readBalances, readBootstrap, readChanges, readLegacySnapshot, readReceiptDetail,
+  readReference, readLegacyRevisions, readSummary, readTransactionDetail, readTransactionPage
 } from './reads'
 import { createLiveSession } from './live'
 import {
@@ -20,6 +20,10 @@ import {
   startWisprConnector
 } from './connectors'
 import { auditLocalLiveTool, executeLiveTool } from './live-tools'
+import { completeSignIn, exchangeSignIn, readSession, signOut, startSignIn } from './sign-in'
+import {
+  runMoneyAgentRequest, trelloAddAttachment, trelloBoards, trelloCreateCard, trelloLists
+} from './services'
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -87,8 +91,10 @@ export async function handle(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url)
   const path = url.pathname.replace(/\/+$/, '')
   if (path === '/v1/health') return ok({ version: API_VERSION })
+  if (request.method === 'POST' && path === '/v1/auth/google/start') return startSignIn(request, env)
+  if (request.method === 'POST' && path === '/v1/auth/exchange') return exchangeSignIn(request, env)
   if (request.method === 'GET' && path === '/v1/connectors/google/callback') {
-    return completeGoogleConnector(request, env)
+    return await completeSignIn(request, env) ?? completeGoogleConnector(request, env)
   }
   if (request.method === 'GET' && path === '/v1/connectors/wispr/callback') {
     return completeWisprConnector(request, env)
@@ -99,6 +105,22 @@ export async function handle(request: Request, env: Env): Promise<Response> {
   const now = new Date().toISOString()
   void touchDevice(env.DB, device.data.deviceId, now).catch(() => undefined)
 
+  if (path === '/v1/session') {
+    if (request.method === 'GET') return ok(await readSession(env, device.data))
+    if (request.method === 'DELETE') {
+      await signOut(env, device.data, now)
+      return ok({ signedOut: true })
+    }
+  }
+  if (request.method === 'POST' && path === '/v1/agent/money') return runMoneyAgentRequest(request, env)
+  if (request.method === 'GET' && path === '/v1/trello/boards') return trelloBoards(env)
+  if (request.method === 'GET' && path.startsWith('/v1/trello/boards/') && path.endsWith('/lists')) {
+    return trelloLists(env, decodeURIComponent(path.slice('/v1/trello/boards/'.length, -'/lists'.length)))
+  }
+  if (request.method === 'POST' && path === '/v1/trello/cards') return trelloCreateCard(request, env)
+  if (request.method === 'POST' && path.startsWith('/v1/trello/cards/') && path.endsWith('/attachments')) {
+    return trelloAddAttachment(request, env, decodeURIComponent(path.slice('/v1/trello/cards/'.length, -'/attachments'.length)))
+  }
   if (request.method === 'POST' && path === '/v1/live/sessions') {
     return createLiveSession(request, env, device.data)
   }
@@ -131,6 +153,7 @@ export async function handle(request: Request, env: Env): Promise<Response> {
 
   if (request.method === 'GET') {
     if (path === '/v1/reference') return ok(await readReference(env.DB))
+    if (path === '/v1/bootstrap') return ok(await readBootstrap(env.DB))
     if (path === '/v1/transactions') return feedRequest(env.DB, url)
     if (path.startsWith('/v1/transactions/')) {
       return respond(await readTransactionDetail(env.DB, decodeURIComponent(path.slice('/v1/transactions/'.length))))

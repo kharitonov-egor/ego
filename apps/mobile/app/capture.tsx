@@ -12,7 +12,8 @@ import {
 import { useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { captureToTrello, type CardAttachment } from '@ego/core'
-import { useSettings } from '../lib/settings'
+import { isTrelloReady, useSettings } from '../lib/settings'
+import { useLedger } from '../lib/ledger-context'
 import { trelloClientFor } from '../lib/trello'
 
 interface PickedImage {
@@ -23,8 +24,10 @@ interface PickedImage {
 
 export default function Capture(): React.ReactElement {
   const { settings } = useSettings()
+  const { api } = useLedger()
   const router = useRouter()
-  const client = useMemo(() => trelloClientFor(settings), [settings])
+  const client = useMemo(() => trelloClientFor(api), [api])
+  const ready = isTrelloReady(settings)
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -176,14 +179,15 @@ export default function Capture(): React.ReactElement {
 
       <View className="border-t border-surface-800 px-5 py-4">
         <Pressable
-          onPress={() => void submit()}
+          accessibilityRole="button"
+          onPress={() => ready ? void submit() : router.push('/settings')}
           disabled={sending}
           className={`rounded-2xl px-5 py-4 ${sending ? 'bg-surface-800' : 'bg-accent-600 active:bg-accent-500'}`}
         >
           <Text
             className={`text-center text-[16px] font-semibold ${sending ? 'text-surface-400' : 'text-white'}`}
           >
-            {sending ? 'Sending…' : 'Add card'}
+            {sending ? 'Sending…' : ready ? 'Add card' : 'Choose a Trello list in Settings'}
           </Text>
         </Pressable>
       </View>

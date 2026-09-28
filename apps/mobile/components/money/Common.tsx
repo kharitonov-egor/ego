@@ -10,6 +10,7 @@ import {
 } from 'lucide-react-native'
 import type { DateRange, MoneySnapshot, MoneyTransaction, PeriodPreset } from '@ego/core'
 import { useMoney } from '../../lib/money-context'
+import { useLedger } from '../../lib/ledger-context'
 import { isoToday } from '../../lib/dates'
 import { PERIOD_PRESETS, transactionsInRange, usePeriod } from '../../lib/period-context'
 import { useNavigation, useRouter } from 'expo-router'
@@ -32,8 +33,12 @@ export function MoneyIcon({ name, color = '#fff', size = 16 }: { name: string; c
   return <Icon color={color} size={size} />
 }
 
+const USD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
+const SIGNED_USD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', signDisplay: 'always' })
+
+/** Hermes builds a formatter slowly, and list rows call this several times each. */
 export function money(cents: number, sign = false): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', signDisplay: sign ? 'always' : 'auto' }).format(cents / 100)
+  return (sign ? SIGNED_USD : USD).format(cents / 100)
 }
 
 export function today(): string {
@@ -44,12 +49,72 @@ export function filteredTransactions(snapshot: MoneySnapshot, range: DateRange):
   return transactionsInRange(snapshot, range)
 }
 
-export function MoneyScreen({ children }: { children: (snapshot: MoneySnapshot) => React.ReactNode }): React.ReactElement {
-  const { snapshot, loading, error, readOnly, refresh, alert, dismissAlert } = useMoney()
+function CenteredMessage({ title, detail, action, onAction }: {
+  title: string
+  detail: string
+  action?: string
+  onAction?: () => void
+}): React.ReactElement {
+  return <View className="flex-1 items-center justify-center bg-surface-950 px-8">
+    <CircleDollarSign color="#707078" size={34} />
+    <Text className="mt-3 text-center text-[20px] font-semibold text-surface-100">{title}</Text>
+    <Text className="mt-2 text-center text-[16px] leading-6 text-surface-400">{detail}</Text>
+    {action && onAction && <Pressable accessibilityRole="button" onPress={onAction} className="mt-5 min-h-12 justify-center rounded-xl bg-accent-600 px-5">
+      <Text className="text-[16px] font-semibold text-white">{action}</Text>
+    </Pressable>}
+  </View>
+}
+
+export function SignInPrompt(): React.ReactElement {
   const router = useRouter()
-  if (loading && !snapshot) return <View className="flex-1 items-center justify-center bg-surface-950"><ActivityIndicator color="#91c4ff" /></View>
-  if (!snapshot) return <View className="flex-1 items-center justify-center bg-surface-950 px-8"><CircleDollarSign color="#707078" size={34} /><Text className="mt-3 text-center text-[18px] font-semibold text-surface-100">Connect Cloudflare D1</Text><Text className="mt-2 text-center text-[16px] leading-5 text-surface-400">{error ?? 'Add the account ID, database ID, and API token in Settings.'}</Text><Pressable onPress={() => router.push('/settings')} className="mt-4 rounded-lg bg-accent-600 px-4 py-2.5"><Text className="text-[16px] font-semibold text-white">Open settings</Text></Pressable></View>
-  return <View className="flex-1 bg-surface-950">{(readOnly || error) && <Pressable onPress={() => void refresh()} className={`min-h-11 justify-center px-4 py-2 ${readOnly ? 'bg-amber-500/10' : 'bg-red-500/10'}`}><Text className={`text-center text-[14px] ${readOnly ? 'text-amber-300' : 'text-red-300'}`}>{error}. Tap to retry.</Text></Pressable>}{alert && <Pressable onPress={dismissAlert} className="min-h-11 flex-row items-start gap-2 border-b border-rose-500/30 bg-rose-500/15 px-4 py-2.5"><TriangleAlert color="#fb7185" size={15} style={{ marginTop: 2 }} /><Text className="flex-1 text-[14px] leading-5 text-rose-200">{alert}</Text><X color="#fb7185" size={17} /></Pressable>}{children(snapshot)}</View>
+  return <CenteredMessage
+    title="Sign in to see your money"
+    detail="Sign in once with Google. The ledger downloads to this phone and keeps working offline."
+    action="Open settings"
+    onAction={() => router.push('/settings')}
+  />
+}
+
+export function MoneyScreen({ children }: { children: (snapshot: MoneySnapshot) => React.ReactNode }): React.ReactElement {
+  const { snapshot, error, dismissError, alert, dismissAlert } = useMoney()
+  const ledger = useLedger()
+  const router = useRouter()
+  if (!ledger.enabled) return <SignInPrompt />
+  if (ledger.error) return <CenteredMessage title="This phone cannot open its ledger" detail={ledger.error} />
+  if (!snapshot) {
+    const stopped = !ledger.ready && Boolean(ledger.status) && !ledger.syncing
+    if (stopped && ledger.status?.state === 'paused') {
+      return <CenteredMessage title="Sign in again" detail="The server stopped accepting this device." action="Open settings" onAction={() => router.push('/settings')} />
+    }
+    if (stopped && ledger.status?.state === 'offline') {
+      return <CenteredMessage
+        title="Waiting for a connection"
+        detail="The first download needs the internet. After that, this screen works offline."
+        action="Try again"
+        onAction={() => void ledger.sync()}
+      />
+    }
+    if (stopped || (ledger.ready && error)) {
+      return <CenteredMessage
+        title={stopped ? 'The download did not finish' : 'This phone could not read its ledger'}
+        detail={error ?? ledger.status?.message ?? 'Try again in a moment.'}
+        action="Try again"
+        onAction={() => void ledger.sync()}
+      />
+    }
+    return <View className="flex-1 items-center justify-center bg-surface-950">
+      <ActivityIndicator color="#91c4ff" />
+      {!ledger.ready && <Text className="mt-3 text-[14px] text-surface-400">Downloading your ledger</Text>}
+    </View>
+  }
+  return <View className="flex-1 bg-surface-950">
+    {error && <Pressable accessibilityRole="button" accessibilityHint="Dismisses this message" onPress={dismissError} className="min-h-11 flex-row items-center gap-2 bg-red-500/10 px-4 py-2">
+      <Text className="flex-1 text-[14px] leading-5 text-red-300">{error}</Text>
+      <X color="#fca5a5" size={16} />
+    </Pressable>}
+    {alert && <Pressable onPress={dismissAlert} className="min-h-11 flex-row items-start gap-2 border-b border-rose-500/30 bg-rose-500/15 px-4 py-2.5"><TriangleAlert color="#fb7185" size={15} style={{ marginTop: 2 }} /><Text className="flex-1 text-[14px] leading-5 text-rose-200">{alert}</Text><X color="#fb7185" size={17} /></Pressable>}
+    {children(snapshot)}
+  </View>
 }
 
 export function Sheet({ visible, title, onClose, children }: { visible: boolean; title: string; onClose: () => void; children: React.ReactNode }): React.ReactElement {

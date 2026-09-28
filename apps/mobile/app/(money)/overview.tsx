@@ -1,11 +1,24 @@
 import React from 'react'
-import { ScrollView, Text, View } from 'react-native'
+import { Pressable, ScrollView, Text, View } from 'react-native'
+import { useRouter } from 'expo-router'
+import { ChevronRight, PiggyBank } from 'lucide-react-native'
+import type { MoneySnapshot } from '@ego/core'
 import { MoneyIcon, MoneyScreen, PeriodChips, filteredTransactions, money, today } from '../../components/money/Common'
-import { CARD, CARD_PADDING, HERO_AMOUNT, SECTION_TITLE, tabular } from '../../components/money/tokens'
+import { CARD, CARD_PADDING, HERO_AMOUNT, SECTION_TITLE, TOUCH, tabular } from '../../components/money/tokens'
 import { usePeriod } from '../../lib/period-context'
+
+/** Transactions arrive newest first, so the earliest date is the last row, not a sort away. */
+function earliestDate(snapshot: MoneySnapshot): string | undefined {
+  let earliest = snapshot.transactions[snapshot.transactions.length - 1]?.date
+  for (const account of snapshot.accounts) {
+    if (!earliest || account.openingDate < earliest) earliest = account.openingDate
+  }
+  return earliest
+}
 
 export default function Overview(): React.ReactElement {
   const { range, label } = usePeriod()
+  const router = useRouter()
   return <MoneyScreen>{(snapshot) => {
     const transactions = filteredTransactions(snapshot, range)
     const income = transactions.filter((item) => item.kind === 'income').reduce((sum, item) => sum + item.amountCents, 0)
@@ -19,7 +32,7 @@ export default function Overview(): React.ReactElement {
     transactions.filter((item) => item.kind !== 'transfer').forEach((item) => { const key = item.date.slice(0, 7); const value = months.get(key) ?? { income: 0, expense: 0 }; value[item.kind === 'income' ? 'income' : 'expense'] += item.amountCents; months.set(key, value) })
     const monthEntries = Array.from(months.entries()).sort().slice(-6)
     const max = Math.max(1, ...monthEntries.flatMap(([, value]) => [value.income, value.expense]))
-    const first = range.from ?? [...snapshot.transactions.map((item) => item.date), ...snapshot.accounts.map((item) => item.openingDate)].sort()[0] ?? today()
+    const first = range.from ?? earliestDate(snapshot) ?? today()
     const last = range.to ?? today()
     const days = Math.max(1, Math.floor((new Date(`${last}T00:00:00`).getTime() - new Date(`${first}T00:00:00`).getTime()) / 86400000) + 1)
     const accountCount = snapshot.accounts.filter((item) => !item.archivedAt).length
@@ -48,6 +61,17 @@ export default function Overview(): React.ReactElement {
           <Summary label="Spent" cents={expenses} tone="expense" />
           <Summary label="Received" cents={income} tone="income" />
         </View>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push('/(money)/budget')}
+          style={{ minHeight: TOUCH + 8 }}
+          className={`mt-3 flex-row items-center px-5 ${CARD}`}
+        >
+          <PiggyBank color="#91c4ff" size={20} />
+          <Text className="ml-3 flex-1 text-[16px] font-semibold text-surface-100">Monthly budget</Text>
+          <ChevronRight color="#8a8a92" size={18} />
+        </Pressable>
 
         <View className={`mt-3 ${CARD} ${CARD_PADDING}`}>
           <View className="flex-row items-center justify-between">

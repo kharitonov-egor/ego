@@ -107,11 +107,13 @@ export async function applyCommandLocally(
     await writeTombstone(tx, 'budget', entityId, revision, now)
     return
   }
-  const current = await existing(tx, 'budgets', 'month', entityId)
-  const rows = await tx.all<{ id: string }>('SELECT id FROM budgets WHERE month = ?', [entityId])
+  const rows = await tx.all<Existing & { id: string; deleted_at: string | null }>(
+    'SELECT id, created_at, revision, deleted_at FROM budgets WHERE month = ?', [entityId])
+  const current = rows[0]
+  const nextRevision = !current ? 1 : current.deleted_at ? current.revision + 1 : revision
   await writeRecord(tx, {
     entity: 'budget',
-    record: budgetRecordFrom(rows[0]?.id ?? budgetIdFor(entityId), command.payload,
-      current?.created_at ?? now, now, current ? revision : 1)
+    record: budgetRecordFrom(current?.id ?? budgetIdFor(entityId), command.payload,
+      current?.created_at ?? now, now, nextRevision)
   })
 }
