@@ -1,4 +1,4 @@
-# Running the ledger service
+# Running the Ego service
 
 How to move the phone and the desktop app off the direct D1 connection and onto the Worker.
 Phases 2 through 4 of [the transactions plan](mobile-transactions-overhaul.md). Nothing here has
@@ -12,7 +12,43 @@ npm run migrate:remote --workspace @ego/api
 npm run deploy --workspace @ego/api
 ```
 
-Migration `0002` is additive. The existing desktop and mobile clients keep working against the
+For Talk to AI, add an OpenAI project key with access to `gpt-live-1`, `gpt-5.6-terra`, Responses
+delegation, and hosted web search:
+
+```sh
+cd apps/api
+npx wrangler secret put OPENAI_API_KEY
+```
+
+Tool connections need a versioned 32-byte AES key. Generate the value once, save it in your
+password manager, then add it as a Worker secret. Keep the old key in
+`CONNECTOR_TOKEN_KEY_PREVIOUS` during rotation until every connector has reconnected.
+
+```sh
+node -e "console.log('v1:' + require('crypto').randomBytes(32).toString('base64'))"
+npx wrangler secret put CONNECTOR_TOKEN_KEY
+```
+
+For Google, create a Web OAuth client and add
+`https://YOUR-WORKER/v1/connectors/google/callback` as an authorized redirect URI. Then set:
+
+```sh
+npx wrangler secret put GOOGLE_CLIENT_ID
+npx wrangler secret put GOOGLE_CLIENT_SECRET
+npx wrangler secret put PUBLIC_BASE_URL
+```
+
+`PUBLIC_BASE_URL` is the Worker origin, with no trailing slash. The requested Google scopes are
+`openid`, `email`, `gmail.readonly`, and `drive.readonly`. A personal OAuth app can stay in testing
+with your Google account listed as a test user.
+
+Revoke any key that has appeared in chat or source control. The replacement belongs only in the
+Worker secret store. Voice time currently costs $0.05 per minute. Backend model and search usage
+cost extra. WebRTC session creation reserves 15 seconds and credits it against the running call.
+See OpenAI's [GPT-Live model page](https://developers.openai.com/api/docs/models/gpt-live-1) and
+[WebRTC guide](https://developers.openai.com/api/docs/guides/voice-webrtc?api=live).
+
+Migrations `0002` and `0003` are additive. The existing desktop and mobile clients keep working against the
 same tables while you try this out.
 
 ## 2. Enrol each device
@@ -45,9 +81,13 @@ you are testing this path.
 
 ## 4. Point the desktop app at it
 
-The desktop Settings screen has the same two fields. While a device token is stored, every money
+The desktop Settings screen calls this the Ego service and uses the same two fields. While a device token is stored, every money
 write becomes one operation with a revision check, and reads come from
-`/v1/legacy/snapshot`. Clear the token to fall back to the direct D1 connection.
+`/v1/legacy/snapshot`. The same credential authorizes Talk to AI session creation. Clear the token
+to fall back to the direct D1 connection. Talk to AI stays unavailable until the service is set.
+The Talk to AI settings in the desktop app apply to the next voice or chat session. Connect Google
+and Wispr Flow in the same panel, then enable only the tools you want. The Worker validates each
+value and keeps the models, tool schemas, storage policy, and host allowlists fixed on the server.
 
 Desktop writes through the Worker appear on the phone at its next foreground sync. Desktop writes
 through the old direct D1 path do not, because they never reach the change log.

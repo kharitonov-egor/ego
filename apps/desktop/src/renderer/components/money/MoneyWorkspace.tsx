@@ -12,7 +12,8 @@ import BudgetView from './BudgetView'
 import TransactionImageAnalyzer from './TransactionImageAnalyzer'
 import { buttonClass, OfflineBanner, panelClass } from './Common'
 
-export type AppView = 'accounts' | 'categories' | 'transactions' | 'purchases' | 'budget' | 'overview' | 'settings'
+export type MoneyView = 'accounts' | 'categories' | 'transactions' | 'purchases' | 'budget' | 'overview'
+export type AppView = MoneyView | 'talk' | 'settings'
 
 export interface MoneyActions {
   busy: boolean
@@ -33,7 +34,7 @@ export interface MoneyActions {
   deletePurchase: (id: string) => Promise<boolean>
 }
 
-export default function MoneyWorkspace({ view, onNavigate }: { view: Exclude<AppView, 'settings'>; onNavigate: (view: AppView) => void }): React.ReactElement {
+export default function MoneyWorkspace({ view, onNavigate }: { view: MoneyView; onNavigate: (view: AppView) => void }): React.ReactElement {
   const [snapshot, setSnapshot] = useState<MoneySnapshot | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [offline, setOffline] = useState(false)

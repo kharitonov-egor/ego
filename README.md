@@ -6,6 +6,13 @@ The desktop app has a personal budget tracker and a global Trello capture hotkey
 main process reads and writes budget data through Cloudflare's D1 HTTPS API. Accounts, categories,
 transactions, transfers, and reports are available from the main window.
 
+Talk to AI has voice and text chat modes. Both use `gpt-live-1` with delegated work handled by
+`gpt-5.6-terra`. The delegated model can use hosted web search plus the read tools enabled in
+Settings for Gmail, Google Drive, Wispr Flow, and Ego Money. Recording an Ego transaction or
+creating a Trello card always stops on a card with Confirm and Reject buttons. Voice alone cannot
+approve either write. Messages, audio, connector results, and tool arguments stay out of the audit
+log and disappear from Electron when the session closes.
+
 ## Money
 
 The Money sidebar has six views:
@@ -34,7 +41,7 @@ When D1 cannot be reached, the app opens the last encrypted snapshot in read-onl
 the Cloudflare account ID, D1 database ID, and a token limited to D1 Read and D1 Write under
 Settings. The app creates its tables and indexes when the connection first succeeds.
 
-### Ledger service
+### Ego service
 
 A Cloudflare Worker in `apps/api` can own the money database instead of each device talking to D1
 itself. It holds the migrations, the domain commands, paginated reads, and a change log, and each
@@ -45,10 +52,25 @@ without the network, a saved transaction is durable before it is delivered, and 
 Keep mine or Use saved version. The desktop app can route its writes through the same Worker while
 keeping its current screens.
 
-Both are off until configured, and both fall back to the direct D1 connection. `docs/ledger-setup.md`
-covers deployment, device enrolment, the cutover, and the rollback.
+Money sync and Talk to AI use the same Worker address and device token. Money sync falls back to
+the direct D1 connection when the Worker is not configured. `docs/ledger-setup.md` covers Worker
+deployment, device enrolment, Live setup, the money cutover, and rollback.
 
 The repo is public so I can point people at it. The credentials are not in it.
+
+## Quick tools
+
+Press `Alt+S` anywhere in Windows to open a three-item chooser. Use the arrow keys and Enter, or
+press `1`, `2`, or `3`.
+
+- Ask Claude opens `https://claude.ai/` in the default browser.
+- Read text from image accepts a clipboard screenshot or an image file. It uses Windows OCR on the
+  computer and copies the result to the clipboard.
+- Save video or audio runs `yt-dlp` for one URL and writes the result under `Downloads\Ego`. MP3
+  conversion also needs `ffmpeg` on `PATH`.
+
+The Quick tools hotkey can be changed in Settings. If another program owns `Alt+S`, remove that
+binding or choose a different combination.
 
 ## Quick add
 

@@ -1,12 +1,13 @@
 import React from 'react'
 import TitleBar from './components/TitleBar'
 import SettingsView from './components/SettingsView'
-import MoneyWorkspace, { type AppView } from './components/money/MoneyWorkspace'
-import { Landmark, Tags, ReceiptText, ScanLine, PiggyBank, ChartNoAxesCombined, Settings } from 'lucide-react'
+import TalkToAIView from './components/TalkToAIView'
+import MoneyWorkspace, { type AppView, type MoneyView } from './components/money/MoneyWorkspace'
+import { AudioLines, Landmark, Tags, ReceiptText, ScanLine, PiggyBank, ChartNoAxesCombined, Settings } from 'lucide-react'
 
 export default function App(): React.ReactElement {
   const [view, setView] = React.useState<AppView>('accounts')
-  const items = [
+  const items: Array<{ id: MoneyView; label: string; icon: typeof Landmark }> = [
     { id: 'accounts' as const, label: 'Accounts', icon: Landmark },
     { id: 'categories' as const, label: 'Categories', icon: Tags },
     { id: 'transactions' as const, label: 'Transactions', icon: ReceiptText },
@@ -23,11 +24,13 @@ export default function App(): React.ReactElement {
           <nav className="space-y-1">
             {items.map((item) => <button key={item.id} onClick={() => setView(item.id)} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${view === item.id ? 'bg-surface-700 text-white' : 'text-surface-400 hover:bg-surface-800 hover:text-white'}`}><item.icon size={17} />{item.label}</button>)}
           </nav>
+          <div className="my-3 border-t border-surface-800" />
+          <button onClick={() => setView('talk')} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${view === 'talk' ? 'bg-blue-500/15 text-blue-100 ring-1 ring-inset ring-blue-400/20' : 'text-surface-300 hover:bg-surface-800 hover:text-white'}`}><AudioLines size={17} className={view === 'talk' ? 'text-blue-300' : ''} />Talk to AI</button>
           <div className="flex-1" />
           <button onClick={() => setView('settings')} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm ${view === 'settings' ? 'bg-surface-700 text-white' : 'text-surface-400 hover:bg-surface-800 hover:text-white'}`}><Settings size={17} />Settings</button>
         </aside>
         <main className="min-w-0 flex-1">
-          {view === 'settings' ? <SettingsView /> : <MoneyWorkspace view={view} onNavigate={setView} />}
+          {view === 'settings' ? <SettingsView /> : view === 'talk' ? <TalkToAIView onOpenSettings={() => setView('settings')} /> : <MoneyWorkspace view={view} onNavigate={setView} />}
         </main>
       </div>
     </div>

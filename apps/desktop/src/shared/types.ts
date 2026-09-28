@@ -17,8 +17,14 @@ import type {
   MoneySyncStatus,
   PurchaseInput,
   TransactionImageAnalysisResult,
-  TransactionInput
+  TransactionInput,
+  LivePreferences
 } from '@ego/core'
+import type {
+  ConnectorStatus,
+  LiveToolExecuteRequest,
+  LiveToolExecuteResult
+} from '@ego/api-contracts'
 
 export type {
   AccountInput,
@@ -49,7 +55,8 @@ export type {
   ReceiptItemInput,
   ImageAnalysisCategory,
   TransactionInput,
-  TransactionKind
+  TransactionKind,
+  LivePreferences
 } from '@ego/core'
 
 export type BuildStage = 'compiling' | 'packaging' | 'installing' | 'done' | 'error'
@@ -93,6 +100,25 @@ export interface DesktopTransactionImageInput {
   categories: import('@ego/core').ImageAnalysisCategory[]
 }
 
+export type OcrResult =
+  | { ok: true; text: string }
+  | { ok: false; detail: string }
+
+export interface MediaDownloaderStatus {
+  available: boolean
+  version?: string
+  ffmpegAvailable: boolean
+}
+
+export interface MediaDownloadInput {
+  url: string
+  format: 'video' | 'audio'
+}
+
+export type MediaDownloadResult =
+  | { ok: true; outputDirectory: string; savedFile?: string }
+  | { ok: false; detail: string }
+
 export interface T3Status {
   paired: boolean
   origin: string
@@ -118,9 +144,26 @@ export interface LedgerConfigInput {
   token?: string
 }
 
+export type LiveCreateSessionResult =
+  | { ok: true; sessionId: string; sdp: string }
+  | { ok: false; code: string; message: string }
+
+export type DesktopApiResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; code: string; message: string }
+
 export interface IpcApi {
   moneyGetLedgerConfig: () => Promise<LedgerConfig>
   moneySetLedgerConfig: (input: LedgerConfigInput) => Promise<MoneyResult<{ connected: true }>>
+  liveCreateSession: (sdp: string) => Promise<LiveCreateSessionResult>
+  liveExecuteTool: (input: LiveToolExecuteRequest) => Promise<DesktopApiResult<LiveToolExecuteResult>>
+  connectorGetStatus: (provider: 'google' | 'wispr') => Promise<DesktopApiResult<ConnectorStatus>>
+  connectorStartGoogle: () => Promise<DesktopApiResult<{ authorizationUrl: string; expiresAt: string }>>
+  connectorStartWispr: (serverUrl: string) => Promise<DesktopApiResult<{ authorizationUrl: string; expiresAt: string }>>
+  connectorDisconnect: (provider: 'google' | 'wispr') => Promise<DesktopApiResult<{ disconnected: true }>>
+  onLiveSessionStopRequested: (callback: () => void) => () => void
+  getLivePreferences: () => Promise<LivePreferences>
+  setLivePreferences: (preferences: LivePreferences) => Promise<LivePreferences>
   moneyGetSyncStatus: () => Promise<MoneySyncStatus>
   moneySetSyncConfig: (input: MoneySyncConfigInput) => Promise<MoneyResult<{ connected: true }>>
   moneyTestConnection: () => Promise<MoneyResult<{ connected: true }>>
@@ -153,6 +196,8 @@ export interface IpcApi {
 
   getQuickAddHotkey: () => Promise<string>
   setQuickAddHotkey: (hotkey: string) => Promise<void>
+  getToolPaletteHotkey: () => Promise<string>
+  setToolPaletteHotkey: (hotkey: string) => Promise<void>
 
   getTrelloApiKey: () => Promise<string>
   setTrelloApiKey: (value: string) => Promise<void>
@@ -174,6 +219,17 @@ export interface IpcApi {
   cancelQuickAdd: () => void
   setQuickAddPreview: (expanded: boolean, aspectRatio?: number) => void
   onQuickAddFocus: (callback: (shortcuts: ListShortcut[]) => void) => () => void
+
+  hideToolPalette: () => void
+  openClaude: () => Promise<void>
+  ocrClipboardImage: () => Promise<OcrResult>
+  ocrImageFile: () => Promise<OcrResult>
+  copyToolText: (text: string) => Promise<void>
+  getMediaDownloaderStatus: () => Promise<MediaDownloaderStatus>
+  downloadMedia: (input: MediaDownloadInput) => Promise<MediaDownloadResult>
+  openMediaDownloads: (savedFile?: string) => Promise<void>
+  onToolPaletteFocus: (callback: (clipboardText: string) => void) => () => void
+  onMediaDownloadProgress: (callback: (line: string) => void) => () => void
 
   buildAndInstall: () => Promise<BuildResult>
   onBuildProgress: (callback: (stage: BuildStage) => void) => () => void

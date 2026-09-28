@@ -1,10 +1,20 @@
 import { safeStorage } from 'electron'
 import Store from 'electron-store'
 import type { QuickAddListShortcut } from '../shared/types'
-import { parseCachedSnapshot, type MoneySnapshot, type MoneySyncConfigInput, type MoneySyncStatus, type T3Session } from '@ego/core'
+import {
+  DEFAULT_LIVE_PREFERENCES,
+  isLivePreferences,
+  parseCachedSnapshot,
+  type LivePreferences,
+  type MoneySnapshot,
+  type MoneySyncConfigInput,
+  type MoneySyncStatus,
+  type T3Session
+} from '@ego/core'
 
 interface AppSettings {
   quickAddHotkey: string
+  toolPaletteHotkey: string
   trelloApiKey: string
   trelloToken: string
   trelloBoardId: string
@@ -22,6 +32,7 @@ interface AppSettings {
   t3TokenEncrypted: string
   t3TokenExpiresAt: number
   t3NotifyEnabled: boolean
+  livePreferences: LivePreferences
 }
 
 /**
@@ -39,6 +50,7 @@ const store = new Store<AppSettings>({
   name: 'ego-settings',
   defaults: {
     quickAddHotkey: 'Alt+N',
+    toolPaletteHotkey: 'Alt+S',
     trelloApiKey: seed.trelloApiKey,
     trelloToken: seed.trelloToken,
     trelloBoardId: seed.trelloBoardId,
@@ -55,7 +67,8 @@ const store = new Store<AppSettings>({
     t3Origin: '',
     t3TokenEncrypted: '',
     t3TokenExpiresAt: 0,
-    t3NotifyEnabled: true
+    t3NotifyEnabled: true,
+    livePreferences: DEFAULT_LIVE_PREFERENCES
   }
 })
 
@@ -110,6 +123,18 @@ export function setLedgerConfig(input: { url: string; token?: string }): void {
   if (input.token !== undefined) {
     store.set('moneyDeviceTokenEncrypted', input.token.length > 0 ? encrypt(input.token) : '')
   }
+}
+
+export function getLivePreferences(): LivePreferences {
+  const preferences = store.get('livePreferences')
+  return isLivePreferences(preferences) ? preferences : { ...DEFAULT_LIVE_PREFERENCES }
+}
+
+export function setLivePreferences(preferences: LivePreferences): LivePreferences {
+  if (!isLivePreferences(preferences)) return getLivePreferences()
+  const next = { ...preferences, customInstructions: preferences.customInstructions.trim() }
+  store.set('livePreferences', next)
+  return next
 }
 
 export function getMoneyCache(): MoneySnapshot | null {
@@ -168,6 +193,14 @@ export function setQuickAddHotkey(hotkey: string): void {
   store.set('quickAddHotkey', hotkey)
 }
 
+export function getToolPaletteHotkey(): string {
+  return store.get('toolPaletteHotkey')
+}
+
+export function setToolPaletteHotkey(hotkey: string): void {
+  store.set('toolPaletteHotkey', hotkey)
+}
+
 export function getTrelloApiKey(): string {
   return store.get('trelloApiKey')
 }
@@ -207,4 +240,3 @@ export function getQuickAddListShortcuts(): QuickAddListShortcut[] {
 export function setQuickAddListShortcuts(shortcuts: QuickAddListShortcut[]): void {
   store.set('quickAddListShortcuts', shortcuts)
 }
-
