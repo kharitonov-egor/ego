@@ -76,6 +76,7 @@ describe('study assignments', () => {
     const response = await handle(request('/v1/study/assignments'), env)
     expect(response.status).toBe(200)
     expect(fetchMock.mock.calls[0][0]).toBe(FEED_URL)
+    expect(new Headers(fetchMock.mock.calls[0][1]?.headers).get('user-agent')).toMatch(/^Ego\//)
     const data = (await payload<StudyAssignmentList>(response)).data
     expect(data.assignments.map((item) => [item.id, item.course, item.doneAt === null])).toEqual([
       ['event-assignment-1', 'CDA4205', true],
