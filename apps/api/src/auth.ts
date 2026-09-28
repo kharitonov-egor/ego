@@ -15,6 +15,8 @@ export interface Env {
   OPENROUTER_MODEL?: string
   TRELLO_API_KEY?: string
   TRELLO_TOKEN?: string
+  /** The Canvas calendar feed link. Anyone holding it can read the calendar. */
+  CANVAS_CALENDAR_URL?: string
 }
 
 interface DeviceRow {
