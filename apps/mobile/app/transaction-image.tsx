@@ -8,7 +8,6 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  Text,
   TextInput,
   View
 } from 'react-native'
@@ -26,7 +25,12 @@ import {
   type TransactionInput
 } from '@ego/core'
 import AnalyzedTransactionEditor from '../components/money/AnalyzedTransactionEditor'
-import { isoToday } from '../lib/dates'
+import { amountColor, amountSign } from '../components/money/tokens'
+import { Badge } from '../components/ui/badge'
+import { Button } from '../components/ui/button'
+import { Card } from '../components/ui/card'
+import { Text as UiText } from '../components/ui/text'
+import { formatIso, isoToday } from '../lib/dates'
 import { useLedger } from '../lib/ledger-context'
 import { useMoney } from '../lib/money-context'
 
@@ -244,62 +248,133 @@ export default function TransactionImage(): React.ReactElement {
     setEditingIndex(null)
   }
 
+  const blocked = thinking || Boolean(pending) || Boolean(missing)
+  const canSend = !blocked && (text.trim().length > 0 || attachment !== null)
+
   return <KeyboardAvoidingView
-    className="flex-1 bg-surface-950"
+    className="flex-1 bg-background"
     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     keyboardVerticalOffset={90}
   >
     <ScrollView
       ref={scroll}
       className="flex-1 px-4"
-      contentContainerStyle={{ paddingTop: 12, paddingBottom: 16 }}
+      contentContainerStyle={{ paddingTop: 16, paddingBottom: 16 }}
       keyboardShouldPersistTaps="handled"
       onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: true })}
     >
-      <View className="mb-3 flex-row items-center">
-        <View className="h-8 w-8 items-center justify-center rounded-full border border-accent-500/40 bg-accent-500/15"><Bot color="#fafafa" size={16} /></View>
-        <View className="ml-2"><Text className="text-[16px] font-bold text-surface-100">Ego money agent</Text><Text className="text-[14px] text-emerald-400">{ledger.enabled ? 'Saves to this phone, then syncs' : 'Sign in to use the agent'}</Text></View>
+      <View className="mb-5 flex-row items-center">
+        <View className="h-12 w-12 items-center justify-center rounded-full bg-surface-800"><Bot color="#fafafa" size={22} /></View>
+        <View className="ml-3 flex-1">
+          <UiText className="text-[18px] font-semibold">Money agent</UiText>
+          <UiText className="text-[15px] text-muted-foreground">{ledger.enabled ? 'Send a receipt photo or type what you spent' : 'Sign in to use the agent'}</UiText>
+        </View>
       </View>
 
-      {messages.map((message) => <View key={message.id} className={`mb-2.5 ${message.role === 'user' ? 'items-end' : 'items-start'}`}>
-        <View className={`max-w-[88%] overflow-hidden rounded-2xl px-3 py-2 ${message.role === 'user' ? 'rounded-br-md bg-primary' : message.error ? 'rounded-bl-md border border-red-500/30 bg-red-500/10' : 'rounded-bl-md border border-surface-800 bg-surface-900'}`}>
-          {message.imageUri && <Image source={{ uri: message.imageUri }} className="mb-2 h-28 w-44 rounded-lg" resizeMode="cover" />}
-          <Text className={`text-[16px] leading-5 ${message.role === 'user' ? 'text-primary-foreground' : message.error ? 'text-red-300' : 'text-surface-200'}`}>{message.text}</Text>
+      {messages.map((message) => <View key={message.id} className={`mb-3 ${message.role === 'user' ? 'items-end' : 'items-start'}`}>
+        <View className={`max-w-[86%] overflow-hidden rounded-3xl px-4 py-3 ${message.role === 'user' ? 'rounded-br-lg bg-primary' : message.error ? 'rounded-bl-lg border border-destructive/30 bg-destructive/10' : 'rounded-bl-lg border border-border bg-card'}`}>
+          {message.imageUri && <Image source={{ uri: message.imageUri }} className="mb-2 h-36 w-52 rounded-2xl" resizeMode="cover" />}
+          <UiText className={`text-[16px] leading-6 ${message.role === 'user' ? 'text-primary-foreground' : message.error ? 'text-rose-200' : ''}`}>{message.text}</UiText>
         </View>
       </View>)}
 
-      {thinking && <View className="mb-2.5 flex-row items-center self-start rounded-2xl rounded-bl-md border border-surface-800 bg-surface-900 px-3 py-2"><ActivityIndicator size="small" color="#fafafa" /><Text className="ml-2 text-[14px] text-surface-300">Reading...</Text></View>}
+      {thinking && <View className="mb-3 flex-row items-center self-start rounded-3xl rounded-bl-lg border border-border bg-card px-4 py-3">
+        <ActivityIndicator size="small" color="#fafafa" />
+        <UiText className="ml-2.5 text-[15px] text-muted-foreground">Reading...</UiText>
+      </View>}
 
-      {pending && <View className="mb-4 overflow-hidden rounded-2xl border border-accent-500/35 bg-surface-900">
-        <View className="flex-row items-center border-b border-surface-800 px-3 py-2"><View className="rounded bg-accent-500/15 px-1.5 py-0.5"><Text className="text-[14px] font-bold uppercase tracking-wider text-accent-400">Review</Text></View><Text className="ml-auto text-[14px] text-surface-400">{pending.length} {pending.length === 1 ? 'entry' : 'entries'} ready</Text></View>
-        <View className="border-l-2 border-accent-500 px-2.5 py-2.5">
+      {pending && <Card className="mb-4 overflow-hidden">
+        <View className="flex-row items-center border-b border-surface-800 px-5 py-4">
+          <Badge variant="secondary"><UiText>Review</UiText></Badge>
+          <UiText className="ml-auto text-[15px] text-muted-foreground">{pending.length} {pending.length === 1 ? 'entry' : 'entries'} ready</UiText>
+        </View>
+        <View className="px-5 py-4">
           {pending.map((draft, index) => {
             const accountName = accounts.find((item) => item.id === draft.accountId)?.name
             const categoryName = categories.find((item) => item.id === draft.categoryId)?.name
-            return <View key={`${draft.counterparty}-${draft.date}-${index}`} className={index ? 'mt-3 border-t border-surface-700 pt-3' : ''}>
-              <View className="flex-row items-start"><View className="flex-1 pr-2"><Text className="text-[16px] font-bold text-surface-100">{draft.receipt?.merchant ?? draft.counterparty}</Text><Text className="text-[14px] capitalize text-surface-400">{draft.kind} · {draft.date}</Text></View><Text className={`text-[16px] font-bold ${draft.kind === 'income' ? 'text-emerald-400' : 'text-rose-400'}`}>{dollars(draft.amountCents)}</Text></View>
-              <View className="mt-2 flex-row flex-wrap gap-1.5"><View className="rounded-full bg-surface-800 px-2 py-1"><Text className="text-[14px] text-surface-300">{accountName}</Text></View><View className="rounded-full bg-surface-800 px-2 py-1"><Text className="text-[14px] text-surface-300">{categoryName}</Text></View>{draft.receipt && <View className="rounded-full bg-surface-800 px-2 py-1"><Text className="text-[14px] text-surface-300">{draft.receipt.items.length} items</Text></View>}</View>
+            return <View key={`${draft.counterparty}-${draft.date}-${index}`} className={index ? 'mt-4 border-t border-surface-800 pt-4' : ''}>
+              <View className="flex-row items-start">
+                <View className="flex-1 pr-3">
+                  <UiText className="text-[17px] font-semibold">{draft.receipt?.merchant ?? draft.counterparty}</UiText>
+                  <UiText className="text-[15px] text-muted-foreground">{draft.kind === 'income' ? 'Income' : 'Expense'}{draft.date ? ` · ${formatIso(draft.date)}` : ''}</UiText>
+                </View>
+                <UiText className="text-[17px] font-semibold" style={{ color: amountColor(draft.kind) }}>{amountSign(draft.kind)}{dollars(draft.amountCents)}</UiText>
+              </View>
+              <View className="mt-2.5 flex-row flex-wrap gap-2">
+                {accountName && <Badge variant="outline"><UiText className="font-medium">{accountName}</UiText></Badge>}
+                {categoryName && <Badge variant="outline"><UiText className="font-medium">{categoryName}</UiText></Badge>}
+                {draft.receipt && <Badge variant="outline"><UiText className="font-medium">{draft.receipt.items.length} items</UiText></Badge>}
+              </View>
               {editingIndex === index && snapshot
-                ? <View className="mt-4 border-t border-surface-800 pt-4"><Pressable onPress={() => setEditingIndex(null)} className="mb-3 self-end rounded-lg border border-surface-700 px-2.5 py-1.5"><Text className="text-[14px] font-semibold text-surface-300">Close review</Text></Pressable><AnalyzedTransactionEditor snapshot={snapshot} draft={draft} initialAccountId={draft.accountId} onSaved={() => savedReviewedDraft(index, draft)} /></View>
-                : editingIndex === null && <View className="mt-3 flex-row gap-2"><Pressable onPress={() => setEditingIndex(index)} className="flex-1 flex-row items-center justify-center rounded-lg border border-surface-700 px-3 py-2"><SlidersHorizontal color="#d4d4d4" size={13} /><Text className="ml-1.5 text-[14px] font-semibold text-surface-300">Review</Text></Pressable><Pressable accessibilityLabel={`Discard ${draft.counterparty}`} onPress={() => removePending(index)} className="rounded-lg border border-surface-700 px-2.5 py-2"><X color="#d4d4d4" size={14} /></Pressable></View>}
+                ? <View className="mt-4 border-t border-surface-800 pt-4">
+                  <Button variant="outline" size="sm" onPress={() => setEditingIndex(null)} className="mb-4 self-end"><UiText>Close review</UiText></Button>
+                  <AnalyzedTransactionEditor snapshot={snapshot} draft={draft} initialAccountId={draft.accountId} onSaved={() => savedReviewedDraft(index, draft)} />
+                </View>
+                : editingIndex === null && <View className="mt-3 flex-row gap-2">
+                  <Button variant="outline" size="sm" onPress={() => setEditingIndex(index)} className="flex-1">
+                    <SlidersHorizontal color="#fafafa" size={16} />
+                    <UiText>Review</UiText>
+                  </Button>
+                  <Button variant="outline" size="sm" accessibilityLabel={`Discard ${draft.counterparty}`} onPress={() => removePending(index)} className="w-12 px-0">
+                    <X color="#d4d4d4" size={18} />
+                  </Button>
+                </View>}
             </View>
           })}
-          {editingIndex === null && <Pressable disabled={money.busy} onPress={() => void savePending()} className={`mt-3 flex-row items-center justify-center rounded-lg px-3 py-2.5 ${money.busy ? 'bg-surface-700' : 'bg-primary'}`}><Check color={money.busy ? '#a3a3a3' : '#0a0a0a'} size={15} /><Text className={`ml-1.5 text-[16px] font-bold ${money.busy ? 'text-surface-400' : 'text-primary-foreground'}`}>{money.busy ? 'Adding...' : `Add ${pending.length}`}</Text></Pressable>}
+          {editingIndex === null && <Button size="lg" disabled={money.busy} onPress={() => void savePending()} className="mt-5">
+            <Check color="#0a0a0a" size={20} />
+            <UiText>{money.busy ? 'Adding...' : `Add ${pending.length}`}</UiText>
+          </Button>}
         </View>
-      </View>}
+      </Card>}
 
-      {missing && <View className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3"><Text className="text-[14px] leading-5 text-amber-300">{missing}</Text><Pressable onPress={() => router.push(missingRoute)} className="mt-2.5 self-start rounded-lg bg-primary px-3 py-2"><Text className="text-[14px] font-bold text-primary-foreground">Open setup</Text></Pressable></View>}
+      {missing && <View className="rounded-3xl border border-attention/30 bg-attention/10 p-5">
+        <UiText className="text-[15px] leading-6 text-attention">{missing}</UiText>
+        <Button size="sm" onPress={() => router.push(missingRoute)} className="mt-3 self-start"><UiText>Open setup</UiText></Button>
+      </View>}
     </ScrollView>
 
     <View
-      className="border-t border-surface-800 bg-surface-900 px-4 pt-3"
+      className="border-t border-surface-800 bg-background px-4 pt-3"
       style={Platform.OS === 'android' && composerFocused
         ? { position: 'absolute', left: 0, right: 0, bottom: keyboardOverlap, paddingBottom: 12 }
         : { paddingBottom: 12 + Math.max(10, insets.bottom) }}
     >
-      {attachment && <View className="mb-2 flex-row items-center rounded-lg border border-surface-700 bg-surface-950 p-2"><Image source={{ uri: attachment.uri }} className="h-10 w-10 rounded" resizeMode="cover" /><View className="ml-2 flex-1"><Text className="text-[14px] font-semibold text-surface-200">Receipt attached</Text><Text className="text-[14px] text-surface-400">Add a note or send it now</Text></View><Pressable onPress={() => setAttachment(null)} className="p-1.5"><X color="#d4d4d4" size={15} /></Pressable></View>}
-      <View className="mb-2 flex-row gap-1"><Pressable accessibilityLabel="Take receipt photo" onPress={() => void camera()} className="flex-row items-center rounded-lg px-2.5 py-1.5"><Camera color="#fafafa" size={15} /><Text className="ml-1.5 text-[14px] font-semibold text-accent-400">Camera</Text></Pressable><Pressable accessibilityLabel="Choose receipt image" onPress={() => void library()} className="flex-row items-center rounded-lg px-2.5 py-1.5"><ImageIcon color="#d4d4d4" size={15} /><Text className="ml-1.5 text-[14px] font-semibold text-surface-300">Photos</Text></Pressable><Pressable accessibilityLabel="Paste receipt image" onPress={() => void paste()} className="flex-row items-center rounded-lg px-2.5 py-1.5"><ClipboardPaste color="#d4d4d4" size={15} /><Text className="ml-1.5 text-[14px] font-semibold text-surface-300">Paste</Text></Pressable></View>
-      <View className="flex-row items-end rounded-2xl border border-surface-700 bg-surface-950 p-2"><TextInput value={text} onChangeText={setText} onFocus={() => setComposerFocused(true)} onBlur={() => setComposerFocused(false)} multiline maxLength={500} editable={!thinking && !pending && !missing} placeholder="Add $25 at Publix and $12 for gas..." placeholderTextColor="#a3a3a3" className="max-h-24 min-h-9 flex-1 px-3 py-1.5 text-[16px] leading-5 text-surface-100" /><Pressable accessibilityLabel="Send to money agent" disabled={thinking || Boolean(pending) || Boolean(missing) || (!text.trim() && !attachment)} onPress={() => void send()} className={`h-9 w-9 items-center justify-center rounded-lg ${thinking || pending || missing || (!text.trim() && !attachment) ? 'bg-surface-800' : 'bg-primary'}`}><Send color={thinking || pending || missing || (!text.trim() && !attachment) ? '#737373' : '#0a0a0a'} size={16} /></Pressable></View>
+      {attachment && <View className="mb-3 flex-row items-center rounded-2xl border border-border bg-card p-2.5">
+        <Image source={{ uri: attachment.uri }} className="h-12 w-12 rounded-xl" resizeMode="cover" />
+        <View className="ml-3 flex-1">
+          <UiText className="text-[15px] font-semibold">Receipt attached</UiText>
+          <UiText className="text-[14px] text-muted-foreground">Add a note or send it now</UiText>
+        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel="Remove the receipt" onPress={() => setAttachment(null)} className="h-11 w-11 items-center justify-center rounded-full active:bg-surface-800"><X color="#d4d4d4" size={18} /></Pressable>
+      </View>}
+      <View className="mb-3 flex-row gap-2">
+        <Button variant="secondary" size="sm" accessibilityLabel="Take receipt photo" onPress={() => void camera()} className="flex-1"><Camera color="#fafafa" size={17} /><UiText>Camera</UiText></Button>
+        <Button variant="secondary" size="sm" accessibilityLabel="Choose receipt image" onPress={() => void library()} className="flex-1"><ImageIcon color="#fafafa" size={17} /><UiText>Photos</UiText></Button>
+        <Button variant="secondary" size="sm" accessibilityLabel="Paste receipt image" onPress={() => void paste()} className="flex-1"><ClipboardPaste color="#fafafa" size={17} /><UiText>Paste</UiText></Button>
+      </View>
+      <View className="flex-row items-end rounded-3xl border border-input bg-surface-900 p-1.5 pl-2">
+        <TextInput
+          value={text}
+          onChangeText={setText}
+          onFocus={() => setComposerFocused(true)}
+          onBlur={() => setComposerFocused(false)}
+          multiline
+          maxLength={500}
+          editable={!blocked}
+          accessibilityLabel="Message to the money agent"
+          placeholder="Add $25 at Publix and $12 for gas"
+          placeholderTextColor="#737373"
+          className="max-h-28 min-h-11 flex-1 px-3 py-2.5 text-[17px] leading-6 text-foreground"
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Send to money agent"
+          disabled={!canSend}
+          onPress={() => void send()}
+          className={`h-11 w-11 items-center justify-center rounded-full ${canSend ? 'bg-primary active:bg-primary/85' : 'bg-surface-800'}`}
+        ><Send color={canSend ? '#0a0a0a' : '#737373'} size={18} /></Pressable>
+      </View>
     </View>
   </KeyboardAvoidingView>
 }

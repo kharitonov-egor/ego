@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MoneySnapshot, MoneyTransaction } from '@ego/core'
-import { averagesFor, balanceAt, bucketFlows, elapsedDays, flowOf, projectedSpend } from '../lib/cash-flow'
+import { averagesFor, balanceAt, bucketFlows, elapsedDays, flowOf, heatLevels, projectedSpend } from '../lib/cash-flow'
 import { chartBuckets, periodSpan } from '../lib/periods'
 
 function transaction(overrides: Partial<MoneyTransaction>): MoneyTransaction {
@@ -86,5 +86,20 @@ describe('averages', () => {
     expect(projectedSpend(10000, month, '2026-09-10')).toBe(30000)
     expect(projectedSpend(10000, month, '2026-09-02')).toBeNull()
     expect(projectedSpend(10000, month, '2026-10-02')).toBeNull()
+  })
+})
+
+describe('calendar shades', () => {
+  it('ranks spending days into four shades and leaves empty days blank', () => {
+    expect(heatLevels([0, 1000, 2000, 3000, 4000])).toEqual([0, 1, 2, 3, 4])
+  })
+
+  it('keeps one huge day from washing out the rest', () => {
+    expect(heatLevels([250, 300, 350, 19673])).toEqual([1, 2, 3, 4])
+  })
+
+  it('gives equal days the same shade', () => {
+    expect(heatLevels([500, 500, 0])).toEqual([1, 1, 0])
+    expect(heatLevels([0, 0])).toEqual([0, 0])
   })
 })

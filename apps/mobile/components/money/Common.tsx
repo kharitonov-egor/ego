@@ -199,6 +199,25 @@ export function Chips<T extends string>({ values, value, labels, onChange }: { v
   })}</View>
 }
 
+/** A single choice among accounts or categories, with the record's own icon and color beside its name. */
+export function ChoicePill({ label, icon, color, selected, onPress }: {
+  label: string
+  icon?: string
+  color?: string
+  selected: boolean
+  onPress: () => void
+}): React.ReactElement {
+  return <Pressable
+    accessibilityRole="button"
+    accessibilityState={{ selected }}
+    onPress={onPress}
+    className={`min-h-12 flex-row items-center rounded-full border px-4 ${selected ? 'border-primary bg-primary' : 'border-input bg-surface-900 active:bg-surface-800'}`}
+  >
+    {icon && <View className="mr-2 h-6 w-6 items-center justify-center rounded-full" style={{ backgroundColor: color ?? '#404040' }}><MoneyIcon name={icon} size={13} /></View>}
+    <Text className={`text-[15px] ${selected ? 'font-semibold text-primary-foreground' : 'text-surface-200'}`}>{label}</Text>
+  </Pressable>
+}
+
 /** The selected tile takes the chosen color, so icon and color read as one choice. */
 export function IconPicker({ icons = ICON_OPTIONS, value, color, onChange }: {
   icons?: readonly string[]

@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { ActivityIndicator, Linking, Pressable, ScrollView, Switch, TextInput, View } from 'react-native'
 import {
-  Check, CircleUserRound, Info, KeyRound, ListPlus, LogOut, RefreshCw, Server, Trash2, X
+  BellRing, Check, ChevronRight, CircleUserRound, Info, KeyRound, Landmark, ListPlus, LogOut, RefreshCw, Server, Trash2, X,
+  type LucideIcon
 } from 'lucide-react-native'
 import Constants from 'expo-constants'
 import { useRouter } from 'expo-router'
@@ -12,11 +13,14 @@ import { syncLabel, useLedger } from '../lib/ledger-context'
 import { normalizeApiUrl } from '../lib/api-client'
 import { beginGoogleSignIn } from '../lib/sign-in'
 import { clearLegacySnapshot } from '../lib/retired'
-import { ConfirmDialog } from '../components/money/Common'
-import { TOUCH } from '../components/money/tokens'
-
-const CARD = 'mt-3 rounded-2xl border border-surface-800 bg-surface-900/60 p-4'
-const inputClass = 'min-h-11 rounded-lg border border-surface-700 bg-surface-950 px-3 py-2.5 text-[16px] text-surface-100'
+import { useMoney } from '../lib/money-context'
+import { useReminder } from '../lib/reminder-context'
+import { REMINDER_HOURS, hourLabel } from '../lib/reminders'
+import { Chips, ConfirmDialog, MoneyIcon, inputClass, money } from '../components/money/Common'
+import { tabular } from '../components/money/tokens'
+import { Button } from '../components/ui/button'
+import { Card } from '../components/ui/card'
+import { Text } from '../components/ui/text'
 
 const SERVICES: Array<{ key: keyof ServiceStatus; label: string; secret: string }> = [
   { key: 'moneyAgent', label: 'Money agent', secret: 'OPENROUTER_API_KEY' },
@@ -24,6 +28,9 @@ const SERVICES: Array<{ key: keyof ServiceStatus; label: string; secret: string 
   { key: 'voice', label: 'Talk to AI voice', secret: 'OPENAI_API_KEY' },
   { key: 'google', label: 'Gmail and Drive', secret: 'Connect from the desktop app' }
 ]
+
+const HOUR_VALUES = REMINDER_HOURS.map(String)
+const HOUR_LABELS = Object.fromEntries(REMINDER_HOURS.map((hour) => [String(hour), hourLabel(hour)]))
 
 function retiredLabels(retired: RetiredCredentials): string[] {
   return [
@@ -33,8 +40,25 @@ function retiredLabels(retired: RetiredCredentials): string[] {
   ].filter((label): label is string => label !== null)
 }
 
-function Heading({ icon, title }: { icon: React.ReactNode; title: string }): React.ReactElement {
-  return <View className="flex-row items-center">{icon}<Text className="ml-2 text-[16px] font-bold text-surface-100">{title}</Text></View>
+function Section({ Icon, title, tone = '#fafafa', right, children }: {
+  Icon: LucideIcon
+  title: string
+  tone?: string
+  right?: React.ReactNode
+  children: React.ReactNode
+}): React.ReactElement {
+  return <Card className="p-5">
+    <View className="flex-row items-center">
+      <View className="h-10 w-10 items-center justify-center rounded-full bg-surface-800"><Icon color={tone} size={19} /></View>
+      <Text accessibilityRole="header" className="ml-3 flex-1 text-[18px] font-semibold">{title}</Text>
+      {right}
+    </View>
+    {children}
+  </Card>
+}
+
+function FieldLabel({ children }: { children: string }): React.ReactElement {
+  return <Text className="mb-2 mt-4 text-[15px] font-medium text-surface-200">{children}</Text>
 }
 
 function Choice({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }): React.ReactElement {
@@ -42,13 +66,18 @@ function Choice({ label, active, onPress }: { label: string; active: boolean; on
     accessibilityRole="button"
     accessibilityState={{ selected: active }}
     onPress={onPress}
-    style={{ minHeight: TOUCH }}
-    className={`flex-1 justify-center rounded-lg border px-3 ${active ? 'border-accent-500/40 bg-accent-500/15' : 'border-surface-800 bg-surface-950'}`}
-  ><Text className={`text-[16px] font-medium ${active ? 'text-accent-400' : 'text-surface-100'}`}>{label}</Text></Pressable>
+    className={`min-h-12 flex-1 flex-row items-center justify-between rounded-xl border px-4 ${active ? 'border-primary bg-primary' : 'border-input bg-surface-900 active:bg-surface-800'}`}
+  >
+    <Text numberOfLines={1} className={`flex-1 text-[16px] ${active ? 'font-semibold text-primary-foreground' : 'text-foreground'}`}>{label}</Text>
+    {active && <Check color="#0a0a0a" size={18} />}
+  </Pressable>
 }
 
 export default function Settings(): React.ReactElement {
   const { settings, update } = useSettings()
+  const reminder = useReminder()
+  const { snapshot } = useMoney()
+  const openAccounts = snapshot?.accounts.filter((account) => !account.archivedAt) ?? []
   const ledger = useLedger()
   const router = useRouter()
   const signedIn = isSignedIn(settings)
@@ -182,97 +211,129 @@ export default function Settings(): React.ReactElement {
   const device = session?.deviceName ?? settings.account?.deviceName ?? null
 
   return (
-    <ScrollView className="flex-1 bg-surface-950 px-4" keyboardShouldPersistTaps="handled">
-      <View className={CARD}>
-        <Heading icon={<CircleUserRound color="#fafafa" size={17} />} title="Account" />
+    <ScrollView className="flex-1 bg-background" contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
+      <Section Icon={CircleUserRound} title="Account">
         {signedIn
           ? <>
-            <Text className="mt-2 text-[16px] text-surface-100">{email ? `Signed in as ${email}` : 'Connected with a device token'}</Text>
-            {device && <Text className="mt-0.5 text-[14px] text-surface-400">This device: {device}</Text>}
-            {sessionError && <Text className="mt-2 text-[14px] leading-5 text-amber-300">{sessionError}</Text>}
-            {(sessionError || !email) && <Pressable accessibilityRole="button" disabled={signingIn} onPress={() => void signIn()} style={{ minHeight: TOUCH }} className="mt-3 flex-row items-center justify-center rounded-xl bg-primary px-4">
-              <Text className="text-[16px] font-semibold text-primary-foreground">{signingIn ? 'Opening Google...' : 'Sign in with Google'}</Text>
-            </Pressable>}
-            <Pressable accessibilityRole="button" onPress={() => setConfirmingSignOut(true)} style={{ minHeight: TOUCH }} className="mt-3 flex-row items-center justify-center rounded-xl border border-surface-700 px-4">
-              <LogOut color="#d4d4d4" size={16} />
-              <Text className="ml-2 text-[16px] font-semibold text-surface-200">Sign out</Text>
-            </Pressable>
+            <Text className="mt-3 text-[17px]">{email ? `Signed in as ${email}` : 'Connected with a device token'}</Text>
+            {device && <Text className="mt-0.5 text-[15px] text-muted-foreground">This device: {device}</Text>}
+            {sessionError && <Text className="mt-2 text-[15px] leading-5 text-attention">{sessionError}</Text>}
+            {(sessionError || !email) && <Button size="lg" disabled={signingIn} onPress={() => void signIn()} className="mt-4">
+              <Text>{signingIn ? 'Opening Google...' : 'Sign in with Google'}</Text>
+            </Button>}
+            <Button variant="outline" size="lg" onPress={() => setConfirmingSignOut(true)} className="mt-4">
+              <LogOut color="#d4d4d4" size={18} />
+              <Text>Sign out</Text>
+            </Button>
           </>
           : <>
-            <Text className="mt-2 text-[14px] leading-5 text-surface-400">Sign in with the Google account your Ego server allows. The server holds every API key, so there is nothing else to paste here.</Text>
+            <Text className="mt-3 text-[15px] leading-6 text-muted-foreground">Sign in with the Google account your Ego server allows. The server holds every API key, so there is nothing else to paste here.</Text>
             {buildApiUrl && !editingServer
-              ? <Pressable accessibilityRole="button" accessibilityHint="Change the server address" onPress={() => setEditingServer(true)} style={{ minHeight: TOUCH }} className="mt-3 flex-row items-center">
-                <Server color="#a3a3a3" size={14} />
-                <Text numberOfLines={1} className="ml-2 flex-1 font-mono text-[14px] text-surface-400">{serverDraft}</Text>
-                <Text className="text-[14px] font-semibold text-accent-400">Change</Text>
+              ? <Pressable accessibilityRole="button" accessibilityHint="Change the server address" onPress={() => setEditingServer(true)} className="mt-3 min-h-12 flex-row items-center">
+                <Server color="#a3a3a3" size={16} />
+                <Text numberOfLines={1} className="ml-2 flex-1 font-mono text-[14px] text-muted-foreground">{serverDraft}</Text>
+                <Text className="text-[15px] font-semibold underline">Change</Text>
               </Pressable>
-              : <View className="mt-3">
-                <Text className="mb-1 text-[14px] font-semibold uppercase tracking-wide text-surface-400">Server address</Text>
+              : <View>
+                <FieldLabel>Server address</FieldLabel>
                 <TextInput value={serverDraft} onChangeText={setServerDraft} autoCapitalize="none" autoCorrect={false} keyboardType="url" placeholder="https://ego-money.example.workers.dev" placeholderTextColor="#737373" className={inputClass} />
               </View>}
-            <Pressable accessibilityRole="button" disabled={signingIn} onPress={() => void signIn()} style={{ minHeight: TOUCH }} className={`mt-3 flex-row items-center justify-center rounded-xl px-4 ${signingIn ? 'bg-surface-800' : 'bg-primary'}`}>
-              {signingIn && <ActivityIndicator color="#fff" size="small" />}
-              <Text className={`text-[16px] font-semibold ${signingIn ? 'ml-2 text-surface-300' : 'text-primary-foreground'}`}>{signingIn ? 'Opening Google...' : 'Sign in with Google'}</Text>
-            </Pressable>
+            <Button size="lg" disabled={signingIn} onPress={() => void signIn()} className="mt-4">
+              {signingIn && <ActivityIndicator color="#0a0a0a" size="small" />}
+              <Text>{signingIn ? 'Opening Google...' : 'Sign in with Google'}</Text>
+            </Button>
             {enteringToken
-              ? <View className="mt-3">
-                <Text className="mb-1 text-[14px] font-semibold uppercase tracking-wide text-surface-400">Device token</Text>
+              ? <View>
+                <FieldLabel>Device token</FieldLabel>
                 <TextInput value={tokenDraft} onChangeText={setTokenDraft} secureTextEntry autoCapitalize="none" autoCorrect={false} placeholder="From ego-device enroll" placeholderTextColor="#737373" className={inputClass} />
-                <Pressable accessibilityRole="button" onPress={() => void useDeviceToken()} style={{ minHeight: TOUCH }} className="mt-2 items-center justify-center rounded-xl border border-surface-700 px-4">
-                  <Text className="text-[16px] font-semibold text-surface-200">Connect with this token</Text>
-                </Pressable>
+                <Button variant="outline" size="lg" onPress={() => void useDeviceToken()} className="mt-3"><Text>Connect with this token</Text></Button>
               </View>
-              : <Pressable accessibilityRole="button" onPress={() => setEnteringToken(true)} style={{ minHeight: TOUCH }} className="mt-1 items-center justify-center">
-                <Text className="text-[14px] text-surface-400">Use a device token instead</Text>
-              </Pressable>}
+              : <Button variant="ghost" onPress={() => setEnteringToken(true)} className="mt-2">
+                <Text className="text-[15px] font-medium text-muted-foreground">Use a device token instead</Text>
+              </Button>}
           </>}
-        {signInError && <Text className="mt-2 text-[14px] leading-5 text-red-400">{signInError}</Text>}
-      </View>
+        {signInError && <Text className="mt-3 text-[15px] leading-5 text-destructive">{signInError}</Text>}
+      </Section>
 
-      {signedIn && <View className={CARD}>
-        <Heading icon={<RefreshCw color="#fafafa" size={16} />} title="Sync" />
-        <Text className="mt-2 text-[16px] text-surface-100">{ledger.syncing ? 'Syncing...' : syncLabel(ledger.status)}</Text>
-        {ledger.status?.message && ledger.status.state !== 'synced' && <Text className="mt-1 text-[14px] leading-5 text-surface-400">{ledger.status.message}</Text>}
-        <Text className="mt-1 text-[14px] leading-5 text-surface-400">Changes save on this phone first and reach the server when it is reachable.</Text>
-        <Pressable accessibilityRole="button" disabled={ledger.syncing} onPress={() => void ledger.sync()} style={{ minHeight: TOUCH }} className="mt-3 items-center justify-center rounded-xl border border-surface-700 px-4">
-          <Text className="text-[16px] font-semibold text-surface-200">Sync now</Text>
-        </Pressable>
-      </View>}
+      <Section
+        Icon={BellRing}
+        title="Daily reminder"
+        right={<Switch
+          accessibilityLabel="Daily reminder"
+          value={reminder.preference.enabled}
+          disabled={!reminder.available}
+          onValueChange={(value) => void reminder.setEnabled(value)}
+          trackColor={{ false: '#404040', true: '#fafafa' }}
+          thumbColor={reminder.preference.enabled ? '#0a0a0a' : '#d4d4d4'}
+          ios_backgroundColor="#404040"
+        />}
+      >
+        <Text className="mt-3 text-[15px] leading-6 text-muted-foreground">
+          {reminder.available
+            ? `A nudge at ${hourLabel(reminder.preference.hour)} on days with nothing logged. It stays quiet once you add anything that day.`
+            : 'Comes with the next app build. This build has no notification support yet.'}
+        </Text>
+        {reminder.blocked && <View className="mt-3 rounded-2xl bg-attention/15 p-4">
+          <Text className="text-[15px] leading-5 text-attention">Notifications are off for Ego. Turn them on in system settings, then try again.</Text>
+          <Button variant="secondary" size="sm" onPress={() => void Linking.openSettings()} className="mt-3 self-start"><Text>Open system settings</Text></Button>
+        </View>}
+        {reminder.available && reminder.preference.enabled && <>
+          <FieldLabel>Time</FieldLabel>
+          <Chips values={HOUR_VALUES} value={String(reminder.preference.hour)} labels={HOUR_LABELS} onChange={(value) => reminder.setHour(Number(value))} />
+        </>}
+      </Section>
 
-      {signedIn && session && <View className={CARD}>
-        <Heading icon={<KeyRound color="#fafafa" size={16} />} title="Server keys" />
-        <Text className="mt-2 text-[14px] leading-5 text-surface-400">The Worker keeps these as secrets and calls each service for this phone. Add a missing one with npx wrangler secret put.</Text>
-        {SERVICES.map((service) => {
+      {signedIn && snapshot && <Section Icon={Landmark} title="Accounts">
+        <View className="mt-3">{openAccounts.map((account) => <View key={account.id} className="min-h-14 flex-row items-center border-t border-surface-800 py-2">
+          <View className="h-9 w-9 items-center justify-center rounded-xl" style={{ backgroundColor: account.color }}><MoneyIcon name={account.icon} size={17} /></View>
+          <Text numberOfLines={1} className="ml-3 flex-1 text-[16px]">{account.name}</Text>
+          <Text className="text-[16px] font-semibold" style={tabular}>{money(account.balanceCents)}</Text>
+        </View>)}</View>
+        {openAccounts.length === 0 && <Text className="mt-2 text-[15px] text-muted-foreground">No accounts yet.</Text>}
+        <Button variant="outline" size="lg" onPress={() => router.push('/(money)/accounts')} className="mt-3">
+          <Text>Manage accounts</Text>
+          <ChevronRight color="#fafafa" size={18} />
+        </Button>
+      </Section>}
+
+      {signedIn && <Section Icon={RefreshCw} title="Sync">
+        <Text className="mt-3 text-[17px]">{ledger.syncing ? 'Syncing...' : syncLabel(ledger.status)}</Text>
+        {ledger.status?.message && ledger.status.state !== 'synced' && <Text className="mt-1 text-[15px] leading-5 text-muted-foreground">{ledger.status.message}</Text>}
+        <Text className="mt-1 text-[15px] leading-6 text-muted-foreground">Changes save on this phone first and reach the server when it is reachable.</Text>
+        <Button variant="outline" size="lg" disabled={ledger.syncing} onPress={() => void ledger.sync()} className="mt-4"><Text>Sync now</Text></Button>
+      </Section>}
+
+      {signedIn && session && <Section Icon={KeyRound} title="Server keys">
+        <Text className="mt-3 text-[15px] leading-6 text-muted-foreground">The Worker keeps these as secrets and calls each service for this phone. Add a missing one with npx wrangler secret put.</Text>
+        <View className="mt-2">{SERVICES.map((service) => {
           const ready = session.services[service.key]
-          return <View key={service.key} style={{ minHeight: TOUCH }} className="mt-1 flex-row items-center border-t border-surface-800 pt-2">
-            {ready ? <Check color="#34d399" size={16} /> : <X color="#a3a3a3" size={16} />}
-            <View className="ml-2.5 flex-1">
-              <Text className="text-[16px] text-surface-100">{service.label}</Text>
-              {!ready && <Text className="text-[14px] text-surface-400">{service.secret}</Text>}
+          return <View key={service.key} className="min-h-14 flex-row items-center border-t border-surface-800 py-2">
+            <View className={`h-8 w-8 items-center justify-center rounded-full ${ready ? 'bg-positive/15' : 'bg-surface-800'}`}>
+              {ready ? <Check color="#34d399" size={17} /> : <X color="#a3a3a3" size={17} />}
             </View>
-            <Text className={`text-[14px] ${ready ? 'text-emerald-400' : 'text-surface-500'}`}>{ready ? 'Ready' : 'Not set up'}</Text>
+            <View className="ml-3 flex-1">
+              <Text className="text-[16px]">{service.label}</Text>
+              {!ready && <Text className="text-[14px] text-muted-foreground">{service.secret}</Text>}
+            </View>
+            <Text className={`text-[14px] font-medium ${ready ? 'text-positive' : 'text-surface-500'}`}>{ready ? 'Ready' : 'Not set up'}</Text>
           </View>
-        })}
-      </View>}
+        })}</View>
+      </Section>}
 
-      {signedIn && trelloAvailable && <View className={CARD}>
-        <View className="flex-row items-center justify-between">
-          <Heading icon={<ListPlus color="#fafafa" size={16} />} title="Trello" />
-          {loadingTrello && <ActivityIndicator size="small" color="#fafafa" />}
-        </View>
-        <Text className="mt-3 text-[14px] font-semibold uppercase tracking-wide text-surface-400">Board</Text>
-        <View className="mt-1.5 gap-2">
+      {signedIn && trelloAvailable && <Section Icon={ListPlus} title="Trello" right={loadingTrello ? <ActivityIndicator size="small" color="#fafafa" /> : undefined}>
+        <FieldLabel>Board</FieldLabel>
+        <View className="gap-2">
           {boards.map((board) => <Choice
             key={board.id}
             label={board.name}
             active={board.id === settings.trelloBoardId}
             onPress={() => void update({ trelloBoardId: board.id, trelloListId: '', listShortcuts: [] })}
           />)}
-          {!loadingTrello && boards.length === 0 && <Text className="text-[14px] text-surface-400">No boards found for this Trello account.</Text>}
+          {!loadingTrello && boards.length === 0 && <Text className="text-[15px] text-muted-foreground">No boards found for this Trello account.</Text>}
         </View>
         {settings.trelloBoardId !== '' && <>
-          <Text className="mt-4 text-[14px] font-semibold uppercase tracking-wide text-surface-400">Default list</Text>
-          <View className="mt-1.5 gap-2">
+          <FieldLabel>Default list</FieldLabel>
+          <View className="gap-2">
             {lists.map((list) => <View key={list.id} className="flex-row items-center gap-2">
               <Choice label={list.name} active={list.id === settings.trelloListId} onPress={() => void update({ trelloListId: list.id })} />
               <Pressable
@@ -280,39 +341,36 @@ export default function Settings(): React.ReactElement {
                 accessibilityState={{ selected: pinned.has(list.id) }}
                 accessibilityLabel={`Pin ${list.name} to the capture screen`}
                 onPress={() => toggleShortcut(list)}
-                style={{ minHeight: TOUCH, minWidth: 64 }}
-                className={`items-center justify-center rounded-lg border px-3 ${pinned.has(list.id) ? 'border-accent-500/40 bg-accent-500/15' : 'border-surface-800 bg-surface-950'}`}
-              ><Text className={`text-[14px] ${pinned.has(list.id) ? 'text-accent-400' : 'text-surface-400'}`}>Pin</Text></Pressable>
+                className={`min-h-12 min-w-16 items-center justify-center rounded-xl border px-3 ${pinned.has(list.id) ? 'border-primary bg-primary' : 'border-input bg-surface-900 active:bg-surface-800'}`}
+              ><Text className={`text-[15px] font-medium ${pinned.has(list.id) ? 'text-primary-foreground' : 'text-muted-foreground'}`}>Pin</Text></Pressable>
             </View>)}
           </View>
-          <Text className="mt-2 text-[14px] leading-5 text-surface-400">Pinned lists show as buttons on the capture screen.</Text>
+          <Text className="mt-3 text-[15px] leading-5 text-muted-foreground">Pinned lists show as buttons on the capture screen.</Text>
         </>}
-        {trelloError && <Text className="mt-2 text-[14px] leading-5 text-red-400">{trelloError}</Text>}
-        <Pressable accessibilityRole="button" disabled={!settings.trelloListId} onPress={() => router.push('/capture')} style={{ minHeight: TOUCH }} className={`mt-4 items-center justify-center rounded-xl px-4 ${settings.trelloListId ? 'bg-primary' : 'bg-surface-800'}`}>
-          <Text className={`text-[16px] font-semibold ${settings.trelloListId ? 'text-primary-foreground' : 'text-surface-400'}`}>{settings.trelloListId ? 'Add Trello card' : 'Choose a default list first'}</Text>
-        </Pressable>
-      </View>}
+        {trelloError && <Text className="mt-3 text-[15px] leading-5 text-destructive">{trelloError}</Text>}
+        <Button size="lg" disabled={!settings.trelloListId} onPress={() => router.push('/capture')} className="mt-4">
+          <Text>{settings.trelloListId ? 'Add Trello card' : 'Choose a default list first'}</Text>
+        </Button>
+      </Section>}
 
-      {retired.length > 0 && <View className={CARD}>
-        <Heading icon={<Trash2 color="#fbbf24" size={16} />} title="Old keys on this phone" />
-        <Text className="mt-2 text-[14px] leading-5 text-surface-400">{retired.join(', ')}. Ego no longer reads these. Copy any you still need into Worker secrets, then remove them from this phone.</Text>
-        <Pressable accessibilityRole="button" onPress={() => void removeRetired()} style={{ minHeight: TOUCH }} className="mt-3 items-center justify-center rounded-xl border border-destructive/40 px-4">
-          <Text className="text-[16px] font-semibold text-destructive">Remove from this phone</Text>
-        </Pressable>
-      </View>}
+      {retired.length > 0 && <Section Icon={Trash2} tone="#fbbf24" title="Old keys on this phone">
+        <Text className="mt-3 text-[15px] leading-6 text-muted-foreground">{retired.join(', ')}. Ego no longer reads these. Copy any you still need into Worker secrets, then remove them from this phone.</Text>
+        <Button variant="outline" size="lg" onPress={() => void removeRetired()} className="mt-4 border-destructive/40">
+          <Text className="text-destructive">Remove from this phone</Text>
+        </Button>
+      </Section>}
 
-      <View className={CARD}>
-        <Heading icon={<Info color="#fafafa" size={16} />} title="About" />
-        <View className="mt-3 flex-row items-center justify-between">
-          <Text className="text-[14px] text-surface-400">Version</Text>
-          <Text className="font-mono text-[14px] text-surface-200">{Constants.expoConfig?.version ?? 'unknown'}</Text>
+      <Section Icon={Info} title="About">
+        <View className="mt-4 flex-row items-center justify-between">
+          <Text className="text-[15px] text-muted-foreground">Version</Text>
+          <Text className="font-mono text-[15px]">{Constants.expoConfig?.version ?? 'unknown'}</Text>
         </View>
         <View className="mt-2 flex-row items-center justify-between">
-          <Text className="text-[14px] text-surface-400">Commit</Text>
-          <Text selectable className="font-mono text-[14px] text-surface-200">{commitHash}</Text>
+          <Text className="text-[15px] text-muted-foreground">Commit</Text>
+          <Text selectable className="font-mono text-[15px]">{commitHash}</Text>
         </View>
-      </View>
-      <View className="h-10" />
+      </Section>
+      <View className="h-6" />
 
       <ConfirmDialog
         visible={confirmingSignOut}

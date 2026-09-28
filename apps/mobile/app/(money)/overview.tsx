@@ -1,12 +1,14 @@
 import React, { useMemo, useState } from 'react'
 import { Pressable, ScrollView, View } from 'react-native'
 import { useRouter } from 'expo-router'
-import { ArrowDownRight, ArrowUpRight, ChevronRight, PiggyBank } from 'lucide-react-native'
+import { ArrowDownRight, ArrowUpRight, ChevronRight } from 'lucide-react-native'
 import type { MoneySnapshot, MoneyTransaction } from '@ego/core'
 import { MoneyIcon, MoneyScreen, money } from '../../components/money/Common'
 import { CashFlowChart, SERIES_COLOR, type SeriesVisibility } from '../../components/money/CashFlowChart'
 import { PeriodBar } from '../../components/money/PeriodBar'
 import { PeriodSwipe } from '../../components/money/PeriodSwipe'
+import { SpendingCalendar } from '../../components/money/SpendingCalendar'
+import { UpcomingBills } from '../../components/money/UpcomingBills'
 import { HERO_AMOUNT, amountColor, amountSign, tabular } from '../../components/money/tokens'
 import { Badge } from '../../components/ui/badge'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../../components/ui/card'
@@ -72,14 +74,22 @@ function OverviewBody({ snapshot }: { snapshot: MoneySnapshot }): React.ReactEle
     <PeriodBar since={preset === 'all' ? formatIso(first) : undefined} />
     <PeriodSwipe>
     <ScrollView scrollEnabled={!scrubbing} className="flex-1" contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32, gap: 12 }}>
-      <Card className="p-5">
-        <Text className="text-[14px] font-medium text-muted-foreground">{past ? `Balance on ${formatIso(span.to)}` : 'Total balance'}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityHint="Opens your accounts"
+        onPress={() => router.push('/(money)/accounts')}
+        className="rounded-3xl border border-border bg-card p-5 active:bg-surface-900"
+      >
+        <View className="flex-row items-center justify-between">
+          <Text className="text-[14px] font-medium text-muted-foreground">{past ? `Balance on ${formatIso(span.to)}` : 'Total balance'}</Text>
+          <ChevronRight color="#737373" size={18} />
+        </View>
         <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} className={`mt-1 ${HERO_AMOUNT}`}>{money(balance)}</Text>
         <View className="mt-4 flex-row items-center justify-between">
           <Badge variant={net >= 0 ? 'positive' : 'secondary'}><Text style={tabular}>{money(net, true)} net</Text></Badge>
           <Text className="text-[14px] text-muted-foreground">{accountCount} {accountCount === 1 ? 'account' : 'accounts'}</Text>
         </View>
-      </Card>
+      </Pressable>
 
       <View className="flex-row gap-3">
         <FlowStat label="Spent" color={SERIES_COLOR.expense} cents={flow.expenseCents} previous={previous?.expenseCents} against={comparison?.label} />
@@ -101,6 +111,10 @@ function OverviewBody({ snapshot }: { snapshot: MoneySnapshot }): React.ReactEle
           />
         </Card>}
 
+      {preset === 'month' && <SpendingCalendar month={span} transactions={transactions} today={today} onOpenDay={(iso) => period.showPeriod('today', iso)} />}
+
+      {period.current && <UpcomingBills snapshot={snapshot} today={today} />}
+
       {preset !== 'today' && <Card>
         <CardHeader>
           <CardTitle>Average spending</CardTitle>
@@ -119,18 +133,6 @@ function OverviewBody({ snapshot }: { snapshot: MoneySnapshot }): React.ReactEle
 
       <TopCategories snapshot={snapshot} transactions={transactions} expenseCents={flow.expenseCents} onOpen={(categoryId) => router.push({ pathname: '/(money)/transactions', params: { categoryId } })} />
 
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => router.push({ pathname: '/(money)/budget', params: preset === 'month' ? { month: period.anchor.slice(0, 7) } : {} })}
-        className="min-h-16 flex-row items-center rounded-3xl border border-border bg-card px-5 active:bg-surface-900"
-      >
-        <PiggyBank color="#fafafa" size={20} />
-        <View className="ml-3 flex-1">
-          <Text className="font-semibold">Monthly budget</Text>
-          {preset === 'month' && <Text className="text-[14px] text-muted-foreground">{period.label}</Text>}
-        </View>
-        <ChevronRight color="#a3a3a3" size={18} />
-      </Pressable>
     </ScrollView>
     </PeriodSwipe>
   </View>
