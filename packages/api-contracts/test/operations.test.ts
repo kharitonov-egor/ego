@@ -109,3 +109,35 @@ describe('gym operations', () => {
     }))).toBe(false)
   })
 })
+
+describe('habit operations', () => {
+  const habit = { name: 'Read', icon: '📚', kind: 'build', startDate: '2026-09-28', position: 0 }
+  const entry = { habitId: 'hb-1', date: '2026-09-28', kind: 'done' }
+  const create = (entity: 'habit' | 'habitEntry', payload: unknown): unknown => ({
+    ...(operation() as object), entityId: 'hb-1', command: { entity, type: 'create', payload }
+  })
+
+  it('accepts a habit with a name, one emoji, and a start date', () => {
+    expect(isSyncOperation(create('habit', habit))).toBe(true)
+    expect(isSyncOperation(create('habit', { ...habit, kind: 'break', icon: '👨‍👩‍👧‍👦' }))).toBe(true)
+    expect(isSyncOperation(create('habit', { ...habit, name: '   ' }))).toBe(false)
+    expect(isSyncOperation(create('habit', { ...habit, name: 'x'.repeat(61) }))).toBe(false)
+    expect(isSyncOperation(create('habit', { ...habit, icon: '' }))).toBe(false)
+    expect(isSyncOperation(create('habit', { ...habit, kind: 'maybe' }))).toBe(false)
+    expect(isSyncOperation(create('habit', { ...habit, startDate: '2026-02-30' }))).toBe(false)
+    expect(isSyncOperation(create('habit', { ...habit, position: 1.5 }))).toBe(false)
+  })
+
+  it('accepts done, resisted, and slipped entries and nothing else', () => {
+    expect(isSyncOperation(create('habitEntry', entry))).toBe(true)
+    expect(isSyncOperation(create('habitEntry', { ...entry, kind: 'slipped' }))).toBe(true)
+    expect(isSyncOperation(create('habitEntry', { ...entry, kind: 'skipped' }))).toBe(false)
+    expect(isSyncOperation(create('habitEntry', { ...entry, habitId: '' }))).toBe(false)
+  })
+
+  it('needs a revision to update or delete', () => {
+    expect(isSyncOperation(operation({ entityId: 'hb-1', command: { entity: 'habit', type: 'delete' } }))).toBe(false)
+    expect(isSyncOperation(operation({ entityId: 'hb-1', expectedRevision: 1, command: { entity: 'habit', type: 'delete' } }))).toBe(true)
+    expect(isSyncOperation(operation({ entityId: 'he-1', expectedRevision: 1, command: { entity: 'habitEntry', type: 'delete' } }))).toBe(true)
+  })
+})

@@ -1,7 +1,7 @@
 import type { SyncCommand, SyncOperation } from '@ego/api-contracts'
 import type {
   AccountInput, BudgetInput, CategoryInput, GymCategoryInput, GymExerciseInput, GymSetInput,
-  GymWorkoutInput, MoodInput, PurchaseInput, TransactionInput
+  GymWorkoutInput, HabitEntryInput, HabitInput, MoodInput, PurchaseInput, TransactionInput
 } from '@ego/core'
 import type { LocalDatabase } from '../database/types'
 import { applyCommandLocally } from './local-apply'
@@ -119,3 +119,19 @@ export const saveMood = (
 
 export const deleteMood = (db: LocalDatabase, date: string, revision: number, now: string) =>
   submit(db, date, revision, { entity: 'mood', type: 'delete' }, now)
+
+export const createHabit = (db: LocalDatabase, input: HabitInput, now: string, id = newId()) =>
+  submit(db, id, null, { entity: 'habit', type: 'create', payload: input }, now)
+
+export const updateHabit = (
+  db: LocalDatabase, id: string, revision: number, input: HabitInput, now: string
+) => submit(db, id, revision, { entity: 'habit', type: 'update', payload: input }, now)
+
+export const deleteHabit = (db: LocalDatabase, id: string, revision: number, now: string) =>
+  submit(db, id, revision, { entity: 'habit', type: 'delete' }, now)
+
+export const createHabitEntry = (db: LocalDatabase, input: HabitEntryInput, now: string, id = newId()) =>
+  submit(db, id, null, { entity: 'habitEntry', type: 'create', payload: input }, now)
+
+export const deleteHabitEntry = (db: LocalDatabase, id: string, revision: number, now: string) =>
+  submit(db, id, revision, { entity: 'habitEntry', type: 'delete' }, now)
