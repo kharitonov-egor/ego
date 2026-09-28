@@ -1,6 +1,6 @@
 import type {
   GymCategory, GymExercise, GymSet, GymWorkout, MoneyAccount, MoneyCategory, MoneyPurchase,
-  MoneyTransaction, MonthlyBudget, TransactionKind
+  MoneyTransaction, MonthlyBudget, MoodEntry, TransactionKind
 } from '@ego/core'
 
 export const API_VERSION = 1
@@ -17,6 +17,7 @@ export type GymCategoryRecord = GymCategory & { revision: number }
 export type GymExerciseRecord = GymExercise & { revision: number }
 export type GymSetRecord = GymSet & { revision: number }
 export type GymWorkoutRecord = GymWorkout & { revision: number }
+export type MoodRecord = MoodEntry & { revision: number }
 
 export interface ReferenceData {
   accounts: AccountRecord[]
@@ -56,6 +57,7 @@ export interface BootstrapData {
   gymExercises: GymExerciseRecord[]
   gymSets: GymSetRecord[]
   gymWorkouts: GymWorkoutRecord[]
+  moods: MoodRecord[]
 }
 
 export interface TransactionDetail {
@@ -91,12 +93,17 @@ export interface PeriodSummary {
 export type ChangeAction = 'upsert' | 'delete'
 export type MoneyEntity = 'account' | 'category' | 'transaction' | 'purchase' | 'budget'
 export type GymEntity = 'gymCategory' | 'gymExercise' | 'gymSet' | 'gymWorkout'
-export type SyncEntity = MoneyEntity | GymEntity
+export type HealthEntity = 'mood'
+export type SyncEntity = MoneyEntity | GymEntity | HealthEntity
 
 export const GYM_ENTITIES: readonly GymEntity[] = ['gymCategory', 'gymExercise', 'gymSet', 'gymWorkout']
 
 export function isGymEntity(entity: SyncEntity): entity is GymEntity {
   return (GYM_ENTITIES as readonly string[]).includes(entity)
+}
+
+export function isHealthEntity(entity: SyncEntity): entity is HealthEntity {
+  return entity === 'mood'
 }
 
 interface ChangeBase {
@@ -118,6 +125,7 @@ export type ChangePayload =
   | { entity: 'gymExercise'; record: GymExerciseRecord | null }
   | { entity: 'gymSet'; record: GymSetRecord | null }
   | { entity: 'gymWorkout'; record: GymWorkoutRecord | null }
+  | { entity: 'mood'; record: MoodRecord | null }
 
 export type ChangeRecord = ChangeBase & ChangePayload
 

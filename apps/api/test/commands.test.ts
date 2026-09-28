@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { NO_TRANSACTION_FILTERS, type PurchaseRecord, type SyncOperation } from '@ego/api-contracts'
-import type { PurchaseInput } from '@ego/core'
+import type { MoodInput, PurchaseInput } from '@ego/core'
 import { applyOperation, applyOperations } from '../src/commands'
-import { readBalances, readChanges, readReceiptDetail, readTransactionPage, serverSequence } from '../src/reads'
+import {
+  readBalances, readBootstrap, readChanges, readReceiptDetail, readTransactionPage, serverSequence
+} from '../src/reads'
 import {
   NOW, addTransaction, exec, expense, operation, seedLedger, transactionInput, type Ledger
 } from './helpers'
@@ -272,6 +274,63 @@ describe('budgets', () => {
       .prepare('SELECT amount_cents FROM budget_allocations')
       .all<{ amount_cents: number }>()
     expect(allocations.results).toEqual([{ amount_cents: 50000 }])
+  })
+})
+
+describe('mood entries', () => {
+  const save = (operationId: string, expectedRevision: number | null, mood: MoodInput['mood'], note = ''): SyncOperation =>
+    operation({
+      operationId, entityId: '2026-09-28', expectedRevision,
+      command: { entity: 'mood', type: 'save', payload: { date: '2026-09-28', mood, note } }
+    })
+
+  it('saves a day, updates it, and downloads it in the bootstrap', async () => {
+    ledger = await seedLedger()
+    expect(await applyOperation(ledger.db, save('op-1', null, 3, '  Tired  '), NOW))
+      .toMatchObject({ ok: true, data: { entity: 'mood', entityId: '2026-09-28', revision: 1 } })
+    expect(await applyOperation(ledger.db, save('op-2', 1, 5, 'Better after the gym'), NOW))
+      .toMatchObject({ ok: true, data: { revision: 2 } })
+    const changes = await readChanges(ledger.db, 0, 50)
+    expect(changes.changes.map((change) => change.entity)).toEqual(['mood', 'mood'])
+    expect(changes.changes[0].record).toMatchObject({ mood: 3, note: 'Tired' })
+    const downloaded = await readBootstrap(ledger.db)
+    expect(downloaded.moods).toEqual([expect.objectContaining({
+      id: 'mood-2026-09-28', date: '2026-09-28', mood: 5, note: 'Better after the gym', revision: 2
+    })])
+  })
+
+  it('refuses a new entry for a day that already has one', async () => {
+    ledger = await seedLedger()
+    await applyOperation(ledger.db, save('op-1', null, 4), NOW)
+    const second = await applyOperation(ledger.db, save('op-2', null, 1), NOW)
+    expect(second).toMatchObject({ ok: false, error: { code: 'CONFLICT' } })
+    if (second.ok) return
+    expect(second.error.current).toMatchObject({ entity: 'mood', revision: 1, record: { mood: 4 } })
+  })
+
+  it('clears a day and revives the same row when it is saved again', async () => {
+    ledger = await seedLedger()
+    await applyOperation(ledger.db, save('op-1', null, 2), NOW)
+    const cleared = await applyOperation(ledger.db, operation({
+      operationId: 'op-clear', entityId: '2026-09-28', expectedRevision: 1,
+      command: { entity: 'mood', type: 'delete' }
+    }), NOW)
+    expect(cleared).toMatchObject({ ok: true, data: { revision: 2 } })
+    expect((await readBootstrap(ledger.db)).moods).toHaveLength(0)
+    expect(await applyOperation(ledger.db, save('op-3', null, 4), NOW))
+      .toMatchObject({ ok: true, data: { revision: 3 } })
+    expect(await count(ledger.db, 'mood_entries')).toBe(1)
+    expect((await readBootstrap(ledger.db)).moods[0]).toMatchObject({ mood: 4, revision: 3 })
+  })
+
+  it('refuses a payload whose date differs from the entity ID', async () => {
+    ledger = await seedLedger()
+    const mismatched = operation({
+      entityId: '2026-09-28',
+      command: { entity: 'mood', type: 'save', payload: { date: '2026-09-27', mood: 3, note: '' } }
+    })
+    expect(await applyOperation(ledger.db, mismatched, NOW))
+      .toMatchObject({ ok: false, error: { code: 'INVALID_REQUEST' } })
   })
 })
 

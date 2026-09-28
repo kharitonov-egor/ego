@@ -1,8 +1,9 @@
 import {
   isAccountInput, isBudgetInput, isCategoryInput, isDateString, isGymCategoryInput, isGymExerciseInput,
-  isGymSetInput, isGymWorkoutInput, isMonthString, isPurchaseInput, isTransactionInput,
+  isGymSetInput, isGymWorkoutInput, isMonthString, isMoodInput, isPurchaseInput, isTransactionInput,
   type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type GymCategoryInput,
-  type GymExerciseInput, type GymSetInput, type GymWorkoutInput, type PurchaseInput, type TransactionInput
+  type GymExerciseInput, type GymSetInput, type GymWorkoutInput, type MoodInput, type PurchaseInput,
+  type TransactionInput
 } from '@ego/core'
 import type { ApiError } from './errors'
 import type { SyncEntity } from './records'
@@ -32,6 +33,8 @@ export type SyncCommand =
   | { entity: 'gymSet'; type: 'update'; payload: GymSetInput }
   | { entity: 'gymSet'; type: 'delete' }
   | { entity: 'gymWorkout'; type: 'save'; payload: GymWorkoutInput }
+  | { entity: 'mood'; type: 'save'; payload: MoodInput }
+  | { entity: 'mood'; type: 'delete' }
 
 /**
  * The device generates `operationId` and `entityId` once and reuses them on every retry,
@@ -112,12 +115,15 @@ function isCommand(value: unknown): value is SyncCommand {
       return isGymSetInput(payload)
     case 'gymWorkout.save':
       return isGymWorkoutInput(payload)
+    case 'mood.save':
+      return isMoodInput(payload)
     case 'transaction.delete':
     case 'purchase.delete':
     case 'budget.delete':
     case 'gymCategory.delete':
     case 'gymExercise.delete':
     case 'gymSet.delete':
+    case 'mood.delete':
       return payload === undefined
     default:
       return false
@@ -138,6 +144,8 @@ export function isSyncOperation(value: unknown): value is SyncOperation {
   if (value.command.entity === 'budget' && !isMonthString(value.entityId)) return false
   if (value.command.entity === 'gymWorkout' &&
     (!isDateString(value.entityId) || value.command.payload.date !== value.entityId)) return false
+  if (value.command.entity === 'mood' && (!isDateString(value.entityId) ||
+    (value.command.type === 'save' && value.command.payload.date !== value.entityId))) return false
   const type = value.command.type
   if (type === 'create' && value.expectedRevision !== null) return false
   if (type !== 'create' && type !== 'save' && value.expectedRevision === null) return false
