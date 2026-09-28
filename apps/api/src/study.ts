@@ -9,6 +9,8 @@ import { isCalendarText, parseCanvasCalendar } from '@ego/core'
 import type { Env } from './auth'
 
 const CANVAS_TIMEOUT_MS = 10000
+/** Canvas answers 403 to a request with no User-Agent, and a Worker's fetch sends none. */
+const USER_AGENT = 'Ego/1.0 (+https://github.com/kharitonov-egor/ego)'
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -36,7 +38,7 @@ function isAssignmentId(value: string): boolean {
 async function fetchFeed(url: string): Promise<{ ok: true; text: string } | { ok: false; response: Response }> {
   let response: Response
   try {
-    response = await fetch(url, { headers: { accept: 'text/calendar' }, signal: AbortSignal.timeout(CANVAS_TIMEOUT_MS) })
+    response = await fetch(url, { headers: { accept: 'text/calendar', 'user-agent': USER_AGENT }, signal: AbortSignal.timeout(CANVAS_TIMEOUT_MS) })
   } catch {
     return { ok: false, response: failure(502, 'UPSTREAM_ERROR', 'Canvas did not answer') }
   }
