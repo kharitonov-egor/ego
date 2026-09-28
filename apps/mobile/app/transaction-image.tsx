@@ -18,6 +18,7 @@ import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as Clipboard from 'expo-clipboard'
 import * as ImagePicker from 'expo-image-picker'
+import { SaveFormat, manipulateAsync } from 'expo-image-manipulator'
 import {
   splitImageDataUrl,
   type MoneyAgentDraft,
@@ -49,6 +50,7 @@ interface ChatMessage {
 }
 
 const USD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' })
+const RECEIPT_LONG_EDGE = 1800
 
 function dollars(cents: number): string {
   return USD.format(cents / 100)
@@ -109,12 +111,25 @@ export default function TransactionImage(): React.ReactElement {
     requestAnimationFrame(() => scroll.current?.scrollToEnd({ animated: true }))
   }
 
-  const attachAsset = (asset: ImagePicker.ImagePickerAsset): void => {
-    if (!asset.base64) {
+  const optimizeAttachment = async (uri: string, width: number, height: number): Promise<void> => {
+    try {
+      const resize = Math.max(width, height) > RECEIPT_LONG_EDGE
+        ? [{ resize: width >= height ? { width: RECEIPT_LONG_EDGE } : { height: RECEIPT_LONG_EDGE } }]
+        : []
+      const result = await manipulateAsync(uri, resize, {
+        compress: 0.82,
+        format: SaveFormat.JPEG,
+        base64: true
+      })
+      if (!result.base64) throw new Error('Image encoding returned no data')
+      setAttachment({ base64: result.base64, mimeType: 'image/jpeg', uri: result.uri })
+    } catch {
       addMessage({ role: 'agent', text: 'The phone could not read that image. Choose it again.', error: true })
-      return
     }
-    setAttachment({ base64: asset.base64, mimeType: asset.mimeType ?? 'image/jpeg', uri: asset.uri })
+  }
+
+  const attachAsset = async (asset: ImagePicker.ImagePickerAsset): Promise<void> => {
+    await optimizeAttachment(asset.uri, asset.width, asset.height)
   }
 
   const camera = async (): Promise<void> => {
@@ -123,8 +138,8 @@ export default function TransactionImage(): React.ReactElement {
       addMessage({ role: 'agent', text: 'Camera access is off. Allow it in system settings to take a photo.', error: true })
       return
     }
-    const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.85, base64: true })
-    if (!result.canceled) attachAsset(result.assets[0])
+    const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1 })
+    if (!result.canceled) await attachAsset(result.assets[0])
   }
 
   const library = async (): Promise<void> => {
@@ -133,8 +148,8 @@ export default function TransactionImage(): React.ReactElement {
       addMessage({ role: 'agent', text: 'Photo access is off. Allow it in system settings to choose a receipt.', error: true })
       return
     }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.85, base64: true })
-    if (!result.canceled) attachAsset(result.assets[0])
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 })
+    if (!result.canceled) await attachAsset(result.assets[0])
   }
 
   const paste = async (): Promise<void> => {
@@ -143,12 +158,13 @@ export default function TransactionImage(): React.ReactElement {
       addMessage({ role: 'agent', text: 'There is no image on the clipboard.', error: true })
       return
     }
-    const parsed = splitImageDataUrl(image.data)
-    if (!parsed) {
+    if (!splitImageDataUrl(image.data)) {
       addMessage({ role: 'agent', text: 'I could not read the clipboard image. Copy it again and retry.', error: true })
       return
     }
-    setAttachment({ ...parsed, uri: image.data })
+    Image.getSize(image.data,
+      (width, height) => { void optimizeAttachment(image.data, width, height) },
+      () => addMessage({ role: 'agent', text: 'I could not read the clipboard image. Copy it again and retry.', error: true }))
   }
 
   const send = async (): Promise<void> => {

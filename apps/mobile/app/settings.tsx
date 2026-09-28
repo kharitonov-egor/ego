@@ -14,7 +14,6 @@ import { syncLabel, useLedger } from '../lib/ledger-context'
 import { clearLegacySnapshot } from '../lib/retired'
 import { REST_PRESETS, useRestTimer } from '../lib/rest-timer'
 import { SignInPanel, useGoogleSignIn } from '../components/SignInPanel'
-import { useMoney } from '../lib/money-context'
 import { useReminder } from '../lib/reminder-context'
 import { REMINDER_HOURS, hourLabel } from '../lib/reminders'
 import { Chips, ConfirmDialog, MoneyIcon, money } from '../components/money/Common'
@@ -82,9 +81,11 @@ export default function Settings(): React.ReactElement {
   const reminder = useReminder()
   const rest = useRestTimer()
   const google = useGoogleSignIn()
-  const { snapshot } = useMoney()
-  const openAccounts = snapshot?.accounts.filter((account) => !account.archivedAt) ?? []
   const ledger = useLedger()
+  const balances = new Map(ledger.balances.map((item) => [item.accountId, item.balanceCents]))
+  const openAccounts = (ledger.reference?.accounts ?? [])
+    .filter((account) => !account.archivedAt)
+    .map((account) => ({ ...account, balanceCents: balances.get(account.id) ?? account.openingBalanceCents }))
   const router = useRouter()
   const signedIn = isSignedIn(settings)
   const [session, setSession] = useState<SessionInfo | null>(null)
@@ -244,7 +245,7 @@ export default function Settings(): React.ReactElement {
         <Chips values={REST_VALUES} value={String(rest.preference.seconds)} labels={REST_LABELS} onChange={(value) => rest.setSeconds(Number(value))} />
       </Section>
 
-      {signedIn && snapshot && <Section Icon={Landmark} title="Accounts">
+      {signedIn && ledger.reference && <Section Icon={Landmark} title="Accounts">
         <View className="mt-3">{openAccounts.map((account) => <View key={account.id} className="min-h-14 flex-row items-center border-t border-surface-800 py-2">
           <View className="h-9 w-9 items-center justify-center rounded-xl" style={{ backgroundColor: account.color }}><MoneyIcon name={account.icon} size={17} /></View>
           <Text numberOfLines={1} className="ml-3 flex-1 text-[16px]">{account.name}</Text>

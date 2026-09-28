@@ -1,12 +1,13 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { useSegments } from 'expo-router'
 import {
-  budgetBreachMessage, budgetBreaches, isAccountInput, isBudgetInput, isCategoryInput,
+  budgetBreachMessage, isAccountInput, isBudgetInput, isCategoryInput,
   isPurchaseInput, isTransactionInput,
   type AccountInput, type BudgetInput, type CategoryInput, type MoneySnapshot, type PurchaseInput,
   type TransactionInput
 } from '@ego/core'
 import { useLedger, type LocalWrite } from './ledger-context'
-import { localRevision, localSnapshot, type RevisionTable } from './repositories/snapshot'
+import { localBudgetBreaches, localRevision, localSnapshot, type RevisionTable } from './repositories/snapshot'
 import {
   archiveAccount, archiveCategory, createAccount, createCategory, createPurchase, createTransaction,
   deleteBudget, deletePurchase, deleteTransaction, newId, saveBudget, updateAccount, updateCategory,
@@ -92,32 +93,53 @@ function budgetProblem(snapshot: MoneySnapshot, input: BudgetInput): string | nu
  */
 export function MoneyProvider({ children }: { children: React.ReactNode }): React.ReactElement {
   const ledger = useLedger()
+  const segments = useSegments()
+  const routeSegments = segments as readonly string[]
+  const moneyActive = routeSegments[0] === '(money)' || routeSegments[0] === 'transaction-image'
+  const transactionLimit = routeSegments[0] === 'transaction-image' ? 200 : undefined
   const [snapshot, setSnapshot] = useState<MoneySnapshot | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [alert, setAlert] = useState<string | null>(null)
   const snapshotRef = useRef<MoneySnapshot | null>(null)
-  const beforeWrite = useRef<MoneySnapshot | null>(null)
   const generation = useRef(0)
   const { db, ready, version, write, sync } = ledger
 
   useEffect(() => {
-    if (!db || !ready) {
-      snapshotRef.current = null
-      setSnapshot(null)
-      setLoading(ledger.enabled && !ledger.error)
-      return
-    }
     generation.current += 1
     const started = generation.current
-    void localSnapshot(db, new Date().toISOString()).then((next) => {
-      if (started !== generation.current) return
-      const before = beforeWrite.current
-      beforeWrite.current = null
-      if (before) {
-        const breaches = budgetBreaches(before, next)
-        if (breaches.length > 0) setAlert(breaches.map((breach) => budgetBreachMessage(breach)).join('\n'))
+    if (!db || !ready || !moneyActive) {
+      snapshotRef.current = null
+      setSnapshot(null)
+      setLoading(moneyActive && ledger.enabled && !ledger.error)
+      return
+    }
+    if (transactionLimit === undefined && ledger.reference) {
+      const balanceById = new Map(ledger.balances.map((item) => [item.accountId, item.balanceCents]))
+      const next: MoneySnapshot = {
+        accounts: ledger.reference.accounts.map((account) => ({
+          ...account,
+          balanceCents: balanceById.get(account.id) ?? account.openingBalanceCents
+        })),
+        categories: ledger.reference.categories,
+        transactions: [],
+        purchases: [],
+        budgets: [],
+        syncedAt: new Date().toISOString()
       }
+      snapshotRef.current = next
+      setSnapshot(next)
+      setLoading(false)
+      return
+    }
+    void localSnapshot(db, new Date().toISOString(), {
+      budgets: false,
+      purchases: false,
+      receiptItems: false,
+      transactionLimit,
+      transactions: true
+    }).then((next) => {
+      if (started !== generation.current) return
       snapshotRef.current = next
       setSnapshot(next)
       setLoading(false)
@@ -126,11 +148,12 @@ export function MoneyProvider({ children }: { children: React.ReactNode }): Reac
       setError(failure instanceof Error ? failure.message : 'This device could not read its ledger')
       setLoading(false)
     })
-  }, [db, ready, version, ledger.enabled, ledger.error])
+  }, [db, ready, version, ledger.enabled, ledger.error, ledger.reference, ledger.balances, moneyActive, transactionLimit])
 
   const run = useCallback(async (
     check: (current: MoneySnapshot) => string | null,
-    work: LocalWrite
+    work: LocalWrite,
+    checkBudgets = false
   ): Promise<boolean> => {
     const current = snapshotRef.current
     if (!current) return false
@@ -139,7 +162,9 @@ export function MoneyProvider({ children }: { children: React.ReactNode }): Reac
       setError(problem)
       return false
     }
-    beforeWrite.current = current
+    const before = checkBudgets && db
+      ? await localBudgetBreaches(db).catch(() => null)
+      : null
     let rejected: string | null = null
     const saved = await write(async (database, now) => {
       try {
@@ -149,10 +174,17 @@ export function MoneyProvider({ children }: { children: React.ReactNode }): Reac
         throw failure
       }
     })
-    if (!saved) beforeWrite.current = null
+    if (saved && db && before) {
+      const after = await localBudgetBreaches(db).catch(() => null)
+      if (after) {
+        const breaches = after.filter((breach) => !before.some((previous) =>
+          previous.month === breach.month && previous.category.categoryId === breach.category.categoryId))
+        if (breaches.length > 0) setAlert(breaches.map((breach) => budgetBreachMessage(breach)).join('\n'))
+      }
+    }
     setError(saved ? null : rejected ?? 'This device could not save that change')
     return saved
-  }, [write])
+  }, [db, write])
 
   const value = useMemo((): MoneyContextValue => {
     const invalid = (message: string): (() => string) => () => message
@@ -179,10 +211,12 @@ export function MoneyProvider({ children }: { children: React.ReactNode }): Reac
         (database, now) => createCategory(database, input, now, newId()).then(() => undefined)),
       updateCategory: (id, input) => run((current) => {
         if (!isCategoryInput(input)) return 'Check the category fields'
-        return current.transactions.some((item) => item.categoryId === id && item.kind !== input.kind)
-          ? 'A category that has transactions cannot change type'
-          : null
+        return null
       }, async (database, now) => {
+        const used = await database.all<{ found: number }>(
+          'SELECT 1 AS found FROM transactions WHERE category_id = ? AND kind <> ? AND deleted_at IS NULL LIMIT 1',
+          [id, input.kind])
+        if (used.length > 0) throw new RejectedWrite('A category that has transactions cannot change type')
         await updateCategory(database, id, await revisionOf(database, 'categories', id, 'That category'), input, now)
       }),
       archiveCategory: (id, archived) => run(() => null, async (database, now) => {
@@ -190,39 +224,39 @@ export function MoneyProvider({ children }: { children: React.ReactNode }): Reac
       }),
       createTransaction: (input) => run(
         (current) => isTransactionInput(input) ? transactionProblem(current, input) : 'Check the transaction fields',
-        (database, now) => createTransaction(database, input, now, newId()).then(() => undefined)),
+        (database, now) => createTransaction(database, input, now, newId()).then(() => undefined), true),
       updateTransaction: (id, input) => run(
         (current) => isTransactionInput(input) ? transactionProblem(current, input) : 'Check the transaction fields',
         async (database, now) => {
           await updateTransaction(database, id, await revisionOf(database, 'transactions', id, 'That transaction'), input, now)
-        }),
+        }, true),
       deleteTransaction: (id) => run(() => null, async (database, now) => {
         await deleteTransaction(database, id, await revisionOf(database, 'transactions', id, 'That transaction'), now)
-      }),
+      }, true),
       deleteTransactions: (ids) => run(() => null, (database, now) => database.transaction(async (tx) => {
         for (const id of ids) {
           await deleteTransaction(tx, id, await revisionOf(tx, 'transactions', id, 'A selected transaction'), now)
         }
-      })),
+      }), true),
       saveBudget: (input) => run(
         (current) => isBudgetInput(input) ? budgetProblem(current, input) : 'Check the budget amounts',
         async (database, now) => {
           await saveBudget(database, input, await localRevision(database, 'budgets', input.month), now)
-        }),
+        }, true),
       deleteBudget: (month) => run(() => null, async (database, now) => {
         await deleteBudget(database, month, await revisionOf(database, 'budgets', month, 'That budget'), now)
-      }),
+      }, true),
       createPurchase: (input) => run(
         (current) => isPurchaseInput(input) ? purchaseProblem(current, input) : 'Check the purchase fields',
-        (database, now) => createPurchase(database, input, now, newId()).then(() => undefined)),
+        (database, now) => createPurchase(database, input, now, newId()).then(() => undefined), true),
       updatePurchase: (id, input) => run(
         (current) => isPurchaseInput(input) ? purchaseProblem(current, input) : 'Check the purchase fields',
         async (database, now) => {
           await updatePurchase(database, id, await revisionOf(database, 'purchases', id, 'That purchase'), input, now)
-        }),
+        }, true),
       deletePurchase: (id) => run(() => null, async (database, now) => {
         await deletePurchase(database, id, await revisionOf(database, 'purchases', id, 'That purchase'), now)
-      })
+      }, true)
     }
   }, [alert, error, ledger.writing, loading, run, snapshot, sync])
 
@@ -233,4 +267,21 @@ export function useMoney(): MoneyContextValue {
   const context = useContext(MoneyContext)
   if (!context) throw new Error('useMoney must be used inside MoneyProvider')
   return context
+}
+
+/** Runs a screen query again after local money data changes. */
+export function useMoneyQuery<T>(query: (db: LocalDatabase) => Promise<T>, deps: React.DependencyList): T | null {
+  const { db, ready, version } = useLedger()
+  const [result, setResult] = useState<T | null>(null)
+  useEffect(() => {
+    if (!db || !ready) {
+      setResult(null)
+      return
+    }
+    let active = true
+    setResult(null)
+    void query(db).then((next) => { if (active) setResult(next) }).catch(() => undefined)
+    return () => { active = false }
+  }, [db, ready, version, ...deps])
+  return result
 }

@@ -4,6 +4,7 @@ import {
 } from '@ego/api-contracts'
 import type { MoneyApi } from '../api-client'
 import type { LocalDatabase } from '../database/types'
+import { withPreparedRuns } from '../database/types'
 import { TABLES, keyColumn, writeRecord, writeTombstone } from '../database/writes'
 import {
   markConflict, markFailed, readyOperations, scheduleRetry, toOperation
@@ -113,28 +114,28 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
     mood: new Set(moods.map((record) => record.date))
   }
   const deletedAt = now()
-  await db.transaction(async (tx) => {
-    for (const record of data.accounts) if (!skip('account', record.id)) await writeRecord(tx, { entity: 'account', record })
-    for (const record of data.categories) if (!skip('category', record.id)) await writeRecord(tx, { entity: 'category', record })
-    for (const record of data.transactions) if (!skip('transaction', record.id)) await writeRecord(tx, { entity: 'transaction', record })
-    for (const record of data.purchases) if (!skip('purchase', record.id)) await writeRecord(tx, { entity: 'purchase', record })
-    for (const record of data.budgets) if (!skip('budget', record.month)) await writeRecord(tx, { entity: 'budget', record })
-    for (const record of gymCategories) if (!skip('gymCategory', record.id)) await writeRecord(tx, { entity: 'gymCategory', record })
-    for (const record of gymExercises) if (!skip('gymExercise', record.id)) await writeRecord(tx, { entity: 'gymExercise', record })
-    for (const record of gymSets) if (!skip('gymSet', record.id)) await writeRecord(tx, { entity: 'gymSet', record })
-    for (const record of gymWorkouts) if (!skip('gymWorkout', record.id)) await writeRecord(tx, { entity: 'gymWorkout', record })
-    for (const record of moods) if (!skip('mood', record.date)) await writeRecord(tx, { entity: 'mood', record })
+  await db.transaction((tx) => withPreparedRuns(tx, async (cached) => {
+    for (const record of data.accounts) if (!skip('account', record.id)) await writeRecord(cached, { entity: 'account', record })
+    for (const record of data.categories) if (!skip('category', record.id)) await writeRecord(cached, { entity: 'category', record })
+    for (const record of data.transactions) if (!skip('transaction', record.id)) await writeRecord(cached, { entity: 'transaction', record })
+    for (const record of data.purchases) if (!skip('purchase', record.id)) await writeRecord(cached, { entity: 'purchase', record })
+    for (const record of data.budgets) if (!skip('budget', record.month)) await writeRecord(cached, { entity: 'budget', record })
+    for (const record of gymCategories) if (!skip('gymCategory', record.id)) await writeRecord(cached, { entity: 'gymCategory', record })
+    for (const record of gymExercises) if (!skip('gymExercise', record.id)) await writeRecord(cached, { entity: 'gymExercise', record })
+    for (const record of gymSets) if (!skip('gymSet', record.id)) await writeRecord(cached, { entity: 'gymSet', record })
+    for (const record of gymWorkouts) if (!skip('gymWorkout', record.id)) await writeRecord(cached, { entity: 'gymWorkout', record })
+    for (const record of moods) if (!skip('mood', record.date)) await writeRecord(cached, { entity: 'mood', record })
     for (const entity of Object.keys(TABLES) as SyncEntity[]) {
       const key = keyColumn(entity)
       const local = await tx.all<{ key: string }>(`SELECT ${key} AS key FROM ${TABLES[entity]} WHERE deleted_at IS NULL`)
       for (const row of local) {
         if (live[entity].has(row.key) || queued.has(`${entity}:${row.key}`)) continue
-        await tx.run(`UPDATE ${TABLES[entity]} SET deleted_at = ? WHERE ${key} = ?`, [deletedAt, row.key])
+        await cached.run(`UPDATE ${TABLES[entity]} SET deleted_at = ? WHERE ${key} = ?`, [deletedAt, row.key])
       }
     }
-    await tx.run('UPDATE sync_state SET server_sequence = ?, bootstrapped_at = ?, bootstrap_version = ? WHERE id = 1',
+    await cached.run('UPDATE sync_state SET server_sequence = ?, bootstrapped_at = ?, bootstrap_version = ? WHERE id = 1',
       [data.serverSequence, deletedAt, BOOTSTRAP_VERSION])
-  })
+  }))
   return null
 }
 

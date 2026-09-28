@@ -62,10 +62,8 @@ export function feedConditions(filters: TransactionFilters): Conditions {
 export function cursorCondition(cursor: FeedCursor | null): Conditions {
   if (!cursor) return { clauses: [], params: [] }
   return {
-    clauses: [`(t.date < ?
-      OR (t.date = ? AND t.created_at < ?)
-      OR (t.date = ? AND t.created_at = ? AND t.id < ?))`],
-    params: [cursor.date, cursor.date, cursor.createdAt, cursor.date, cursor.createdAt, cursor.id]
+    clauses: ['(t.date, t.created_at, t.id) < (?, ?, ?)'],
+    params: [cursor.date, cursor.createdAt, cursor.id]
   }
 }
 
@@ -89,8 +87,9 @@ export function feedPageSql(filters: TransactionFilters, cursor: FeedCursor | nu
 
 export function feedCountSql(filters: TransactionFilters): SqlQuery {
   const where = feedConditions(filters)
+  const from = filters.search.length > 0 ? FEED_FROM : 'FROM transactions t'
   return {
-    sql: `SELECT COUNT(*) AS total ${FEED_FROM} WHERE ${where.clauses.join(' AND ')}`,
+    sql: `SELECT COUNT(*) AS total ${from} WHERE ${where.clauses.join(' AND ')}`,
     params: where.params
   }
 }

@@ -4,7 +4,8 @@ import * as SecureStore from 'expo-secure-store'
 import { requireOptionalNativeModule } from 'expo'
 import { useRootNavigationState, useRouter } from 'expo-router'
 import { isoToday } from './dates'
-import { useMoney } from './money-context'
+import { useLedger } from './ledger-context'
+import { hasTransactionOnDate } from './repositories/transactions'
 import {
   DEFAULT_REMINDER, REMINDER_PREFIX, parseReminder, reminderId, reminderPlan, type ReminderPreference
 } from './reminders'
@@ -37,13 +38,14 @@ interface ReminderContextValue {
 const ReminderContext = createContext<ReminderContextValue | null>(null)
 
 export function ReminderProvider({ children }: { children: React.ReactNode }): React.ReactElement {
-  const { snapshot } = useMoney()
+  const ledger = useLedger()
   const router = useRouter()
   const navigationReady = Boolean(useRootNavigationState()?.key)
   const [preference, setPreference] = useState<ReminderPreference>(DEFAULT_REMINDER)
   const [restored, setRestored] = useState(false)
   const [blocked, setBlocked] = useState(false)
   const [today, setToday] = useState(isoToday)
+  const [recordedToday, setRecordedToday] = useState(false)
   const handled = useRef<string | null>(null)
 
   useEffect(() => {
@@ -67,7 +69,17 @@ export function ReminderProvider({ children }: { children: React.ReactNode }): R
     return () => subscription.remove()
   }, [])
 
-  const recordedToday = snapshot?.transactions.some((item) => item.date === today) ?? false
+  useEffect(() => {
+    if (!ledger.db || !ledger.ready) {
+      setRecordedToday(false)
+      return
+    }
+    let active = true
+    void hasTransactionOnDate(ledger.db, today)
+      .then((found) => { if (active) setRecordedToday(found) })
+      .catch(() => undefined)
+    return () => { active = false }
+  }, [ledger.db, ledger.ready, ledger.version, today])
 
   useEffect(() => {
     if (!AVAILABLE || !restored) return

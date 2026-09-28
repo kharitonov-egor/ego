@@ -4,8 +4,11 @@ import { calculateAccountBalance, type MoneyTransaction } from '@ego/core'
 import { writeFeedTransaction, writeRecord, writeTombstone } from '../lib/database/writes'
 import type { LocalDatabase } from '../lib/database/types'
 import {
-  localBalances, localReference, localSummary, localTransaction, localTransactionPage
+  localBalances, localPurchasePage, localReceipt, localReference, localSummary, localTransaction, localTransactionPage
 } from '../lib/repositories/transactions'
+import {
+  localBalanceAt, localBudgetBreaches, localTransactionBounds, localTransactionsInRange
+} from '../lib/repositories/snapshot'
 import { createTransaction } from '../lib/sync/commands'
 import { openTestLedger } from './local-db'
 import { feedRow } from './fake-api'
@@ -66,7 +69,7 @@ describe('local feed', () => {
     do {
       const page = await localTransactionPage(db, filters(), cursor, 50)
       seen.push(...page.items.map((item) => item.id))
-      expect(page.totalCount).toBe(121)
+      expect(page.totalCount).toBe(pages === 0 ? 121 : null)
       pages += 1
       cursor = page.nextCursor === null
         ? null
@@ -98,6 +101,54 @@ describe('local feed', () => {
     const stored = await localTransaction(db, 'tx-1')
     expect(stored?.purchaseId).toBe('p-1')
     expect(stored?.hasReceipt).toBe(true)
+  })
+
+  it('pages purchase headers and loads items only for the opened receipt', async () => {
+    db = await openTestLedger()
+    await seedAccounts(db)
+    for (let index = 0; index < 3; index += 1) {
+      const id = `tx-${index}`
+      const purchaseId = `purchase-${index}`
+      await writeFeedTransaction(db, feedRow({ id, purchaseId, merchant: `Shop ${index}` }))
+      await writeRecord(db, {
+        entity: 'purchase',
+        record: {
+          id: purchaseId,
+          transactionId: id,
+          merchant: `Shop ${index}`,
+          purchaseDate: `2026-09-${10 + index}`,
+          currency: 'USD',
+          subtotalCents: 100,
+          discountCents: 0,
+          taxCents: 0,
+          feesCents: 0,
+          totalCents: 100,
+          createdAt: `2026-09-${10 + index}T10:00:00.000Z`,
+          updatedAt: `2026-09-${10 + index}T10:00:00.000Z`,
+          revision: 1,
+          items: [{
+            id: `item-${index}`,
+            purchaseId,
+            position: 0,
+            name: `Item ${index}`,
+            quantity: 1,
+            unitPriceCents: 100,
+            grossPriceCents: 100,
+            discountCents: 0,
+            lineTotalCents: 100
+          }]
+        }
+      })
+    }
+
+    const first = await localPurchasePage(db, 2)
+    expect(first.items.map((item) => [item.id, item.itemCount])).toEqual([
+      ['purchase-2', 1], ['purchase-1', 1]
+    ])
+    expect(first.nextOffset).toBe(2)
+    const second = await localPurchasePage(db, 2, first.nextOffset ?? 0)
+    expect(second.items.map((item) => item.id)).toEqual(['purchase-0'])
+    expect((await localReceipt(db, 'purchase-2'))?.purchase.items[0]?.name).toBe('Item 2')
   })
 
   it('hides a tombstoned row from the feed and the count', async () => {
@@ -149,6 +200,22 @@ describe('local feed', () => {
     expect(balances).toEqual(expected)
   })
 
+  it('bounds Overview reads to its dates and computes a past balance in SQL', async () => {
+    db = await openTestLedger()
+    await seedAccounts(db)
+    await writeFeedTransaction(db, feedRow({ id: 'tx-1', date: '2026-09-01', amountCents: 1000 }))
+    await writeFeedTransaction(db, feedRow({ id: 'tx-2', date: '2026-09-02', kind: 'income', amountCents: 5000 }))
+    await writeFeedTransaction(db, feedRow({
+      id: 'tx-3', date: '2026-09-03', kind: 'transfer', amountCents: 2000,
+      destinationAccountId: 'acc-savings', categoryId: null
+    }))
+
+    expect(await localTransactionBounds(db)).toEqual({ earliest: '2026-09-01', latest: '2026-09-03' })
+    expect((await localTransactionsInRange(db, '2026-09-02', '2026-09-02')).map((item) => item.id))
+      .toEqual(['tx-2'])
+    expect(await localBalanceAt(db, '2026-09-02')).toBe(14500)
+  })
+
   it('leaves transfers out of the period net', async () => {
     db = await openTestLedger()
     await seedAccounts(db)
@@ -159,6 +226,29 @@ describe('local feed', () => {
     }))
     const summary = await localSummary(db, '2026-09-01', '2026-09-30')
     expect(summary).toMatchObject({ incomeCents: 250000, expenseCents: 4220, netCents: 245780, transferCents: 5000 })
+  })
+
+  it('finds budget breaches without building a money snapshot', async () => {
+    db = await openTestLedger()
+    await seedAccounts(db)
+    await writeFeedTransaction(db, feedRow({ id: 'tx-1', amountCents: 12000 }))
+    await writeRecord(db, {
+      entity: 'budget',
+      record: {
+        id: 'budget-1',
+        month: '2026-09',
+        plannedIncomeCents: 100000,
+        createdAt: '2026-09-01T00:00:00.000Z',
+        updatedAt: '2026-09-01T00:00:00.000Z',
+        revision: 1,
+        allocations: [{ id: 'allocation-1', budgetId: 'budget-1', categoryId: 'cat-food', amountCents: 10000 }]
+      }
+    })
+    const breaches = await localBudgetBreaches(db)
+    expect(breaches).toMatchObject([{
+      month: '2026-09',
+      category: { categoryId: 'cat-food', allocatedCents: 10000, spentCents: 12000, state: 'over' }
+    }])
   })
 
   it('reads reference data including the stored server sequence', async () => {

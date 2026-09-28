@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Pressable, ScrollView, SectionList, TextInput, View, useWindowDimensions,
+  ActivityIndicator, Pressable, ScrollView, SectionList, TextInput, View, useWindowDimensions,
   type NativeScrollEvent, type NativeSyntheticEvent
 } from 'react-native'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
@@ -24,7 +24,10 @@ import {
   EMPTY_DRAFT, draftFrom, historyHeader, stepDraft, unitFor, valuesFromDraft, type EntryDraft
 } from '../../lib/gym/format'
 import { useGym, useGymQuery } from '../../lib/gym-context'
-import { exerciseSets, gymDay, type GymExerciseView, type GymSetView } from '../../lib/repositories/gym'
+import {
+  cachedExerciseSets, exerciseSetsPage, exerciseTrackSets, gymDay,
+  type ExerciseTrackSets, type GymExerciseView, type GymSetView
+} from '../../lib/repositories/gym'
 import { useRestTimer } from '../../lib/rest-timer'
 
 const TABS = ['TRACK', 'HISTORY', 'GRAPH'] as const
@@ -210,14 +213,47 @@ interface HistorySection {
   data: GymSetView[]
 }
 
-function HistoryPage({ exercise, history, records, onOpenDay }: {
+const HISTORY_PAGE_SIZE = 100
+
+function HistoryPage({ exercise, records, onOpenDay }: {
   exercise: GymExerciseView
-  history: readonly GymSetView[]
   records: Set<string>
   onOpenDay: (date: string) => void
 }): React.ReactElement {
+  const gym = useGym()
   const insets = useSafeAreaInsets()
   const unit = unitFor(exercise.weightUnit)
+  const [history, setHistory] = useState<GymSetView[]>([])
+  const [nextOffset, setNextOffset] = useState<number | null>(0)
+  const [loading, setLoading] = useState(false)
+  const loadingRef = useRef(false)
+  const request = useRef(0)
+
+  const load = async (offset: number): Promise<void> => {
+    if (!gym.db || loadingRef.current) return
+    loadingRef.current = true
+    setLoading(true)
+    const started = request.current
+    try {
+      const page = await exerciseSetsPage(gym.db, exercise.id, HISTORY_PAGE_SIZE, offset)
+      if (started !== request.current) return
+      setHistory((current) => offset === 0 ? page.items : [...current, ...page.items])
+      setNextOffset(page.nextOffset)
+    } finally {
+      loadingRef.current = false
+      if (started === request.current) setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    request.current += 1
+    setHistory([])
+    setNextOffset(0)
+    void load(0)
+  // load intentionally restarts only when the exercise or stored gym data changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exercise.id, gym.db, gym.version])
+
   const sections = useMemo(() => {
     const grouped: HistorySection[] = []
     for (const set of history) {
@@ -227,6 +263,9 @@ function HistoryPage({ exercise, history, records, onOpenDay }: {
     }
     return grouped
   }, [history])
+  if (sections.length === 0 && loading) {
+    return <View className="flex-1 items-center justify-center"><ActivityIndicator color={color.text} /></View>
+  }
   if (sections.length === 0) {
     return <View className="flex-1 items-center justify-center px-8">
       <Text className="text-center text-[16px] leading-6 text-muted-foreground">No sets logged for {exercise.name} yet.</Text>
@@ -237,6 +276,8 @@ function HistoryPage({ exercise, history, records, onOpenDay }: {
     keyExtractor={(item) => item.id}
     stickySectionHeadersEnabled={false}
     initialNumToRender={30}
+    onEndReachedThreshold={0.6}
+    onEndReached={() => { if (nextOffset !== null) void load(nextOffset) }}
     contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}
     renderSectionHeader={({ section }) => <Pressable
       accessibilityRole="button"
@@ -251,6 +292,7 @@ function HistoryPage({ exercise, history, records, onOpenDay }: {
       </View>
       {item.comment !== '' && <Text className="text-right text-[14px] text-muted-foreground">{item.comment}</Text>}
     </View>}
+    ListFooterComponent={loading ? <ActivityIndicator color={color.text} className="py-5" /> : null}
   />
 }
 
@@ -286,9 +328,14 @@ export default function Track(): React.ReactElement {
   const [showInfo, setShowInfo] = useState(false)
   const [resting, setResting] = useState(false)
   const exercise = gym.exercises.find((item) => item.id === exerciseId) ?? null
-  const loaded = useGymQuery(async (db) => ({ exerciseId, sets: await exerciseSets(db, exerciseId) }), [exerciseId])
+  const track = useGymQuery(async (db) => ({
+    exerciseId, sets: await exerciseTrackSets(db, exerciseId, gym.date)
+  }), [exerciseId, gym.date])
   const day = useGymQuery((db) => gymDay(db, gym.date), [gym.date])
-  const history = loaded && loaded.exerciseId === exerciseId ? loaded.sets : null
+  const recordHistory = useGymQuery(
+    async (db) => ({ exerciseId, sets: await cachedExerciseSets(db, exerciseId, gym.version) }), [exerciseId])
+  const trackSets: ExerciseTrackSets | null = track && track.exerciseId === exerciseId ? track.sets : null
+  const history = recordHistory && recordHistory.exerciseId === exerciseId ? recordHistory.sets : null
   const unit = unitFor(exercise?.weightUnit ?? 'default')
   const distanceUnit: DistanceUnit = history?.find((set) => set.distanceUnit)?.distanceUnit ?? DEFAULT_DISTANCE_UNIT
   const records = useMemo(
@@ -354,20 +401,19 @@ export default function Track(): React.ReactElement {
             className="flex-1"
           >
             <View style={{ width, height: pageHeight }}>
-              {history && records && <TrackPage
+              {trackSets && <TrackPage
                 exercise={exercise}
                 date={gym.date}
-                history={history}
-                records={records.recordSetIds}
+                history={[...trackSets.today, ...(trackSets.previous ? [trackSets.previous] : [])]}
+                records={records?.recordSetIds ?? new Set<string>()}
                 nextInSuperset={nextInSuperset}
                 onNext={() => nextInSuperset && switchTo(nextInSuperset.id)}
               />}
             </View>
             <View style={{ width, height: pageHeight }}>
-              {visited[1] && history && records && <HistoryPage
+              {visited[1] && <HistoryPage
                 exercise={exercise}
-                history={history}
-                records={records.recordSetIds}
+                records={records?.recordSetIds ?? new Set<string>()}
                 onOpenDay={(date) => {
                   gym.setDate(date)
                   showTab(0)

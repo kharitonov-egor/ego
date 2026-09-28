@@ -15,11 +15,19 @@ export function createLocalDatabase(): LocalDatabase & { raw: DatabaseSync } {
     return { changes: Number(result.changes) }
   }
   const close = async (): Promise<void> => sqlite.close()
-  const inside: LocalDatabase = { all, run, close, transaction: (work) => work(inside) }
+  const prepare: LocalDatabase['prepare'] = async (sql) => {
+    const statement = sqlite.prepare(sql)
+    return {
+      run: async (params = []) => ({ changes: Number(statement.run(...params).changes) }),
+      finalize: async () => undefined
+    }
+  }
+  const inside: LocalDatabase = { all, run, prepare, close, transaction: (work) => work(inside) }
   return {
     raw: sqlite,
     all,
     run,
+    prepare,
     close,
     transaction: <T>(work: (tx: LocalDatabase) => Promise<T>): Promise<T> => {
       const turn = queue.then(async () => {

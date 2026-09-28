@@ -1,6 +1,6 @@
 import {
   BALANCES_SQL, FEED_COLUMNS, FEED_FROM, budgetTotalsSql, cursorCondition, encodeCursor,
-  feedConditions, summarySql, transactionQueryIdentity,
+  feedConditions, feedCountSql, summarySql, transactionQueryIdentity,
   type AccountBalance, type FeedCursor, type FeedTransaction, type PeriodSummary,
   type PurchaseRecord, type ReferenceData, type TransactionFilters
 } from '@ego/api-contracts'
@@ -17,7 +17,8 @@ export interface LocalTransactionPage {
   items: LocalFeedTransaction[]
   nextCursor: string | null
   hasMore: boolean
-  totalCount: number
+  /** Only the first page counts the matching rows. Later pages return null. */
+  totalCount: number | null
   queryIdentity: string
 }
 
@@ -94,9 +95,10 @@ export async function localTransactionPage(
       ORDER BY t.date DESC, t.created_at DESC, t.id DESC
       LIMIT ?`,
     params([...conditions.params, ...keyset.params, pageSize + 1]))
-  const totals = await db.all<{ total: number }>(
-    `SELECT COUNT(*) AS total ${FEED_FROM} WHERE ${conditions.clauses.join(' AND ')}`,
-    params(conditions.params))
+  const count = cursor ? null : feedCountSql(filters)
+  const totals = count
+    ? await db.all<{ total: number }>(count.sql, params(count.params))
+    : null
   const hasMore = rows.length > pageSize
   const items = rows.slice(0, pageSize).map(toFeedTransaction)
   const last = items[items.length - 1]
@@ -106,7 +108,7 @@ export async function localTransactionPage(
     nextCursor: hasMore && last
       ? encodeCursor({ date: last.date, createdAt: last.createdAt, id: last.id }, filters)
       : null,
-    totalCount: totals[0]?.total ?? 0,
+    totalCount: totals?.[0]?.total ?? null,
     queryIdentity: transactionQueryIdentity(filters)
   }
 }
@@ -136,6 +138,44 @@ interface PurchaseRow {
 export interface LocalReceipt {
   purchase: PurchaseRecord
   itemsLoaded: boolean
+}
+
+export interface LocalPurchaseHeader {
+  id: string
+  transactionId: string
+  merchant: string
+  purchaseDate: string
+  totalCents: number
+  itemCount: number
+}
+
+export interface LocalPurchasePage {
+  items: LocalPurchaseHeader[]
+  nextOffset: number | null
+}
+
+export async function localPurchasePage(
+  db: LocalDatabase, pageSize: number, offset = 0
+): Promise<LocalPurchasePage> {
+  const rows = await db.all<{
+    id: string; transaction_id: string; merchant: string; purchase_date: string
+    total_cents: number; item_count: number
+  }>(`SELECT p.id, p.transaction_id, p.merchant, p.purchase_date, p.total_cents,
+      (SELECT COUNT(*) FROM receipt_items i WHERE i.purchase_id = p.id) AS item_count
+    FROM purchases p
+    WHERE p.deleted_at IS NULL AND p.items_loaded = 1
+    ORDER BY p.purchase_date DESC, p.created_at DESC, p.id DESC
+    LIMIT ? OFFSET ?`, [pageSize + 1, offset])
+  const hasMore = rows.length > pageSize
+  const items = rows.slice(0, pageSize).map((row) => ({
+    id: row.id,
+    transactionId: row.transaction_id,
+    merchant: row.merchant,
+    purchaseDate: row.purchase_date,
+    totalCents: row.total_cents,
+    itemCount: row.item_count
+  }))
+  return { items, nextOffset: hasMore ? offset + items.length : null }
 }
 
 export async function localReceipt(db: LocalDatabase, purchaseId: string): Promise<LocalReceipt | null> {
@@ -208,6 +248,23 @@ export async function localReference(db: LocalDatabase): Promise<ReferenceData> 
 export async function localBalances(db: LocalDatabase): Promise<AccountBalance[]> {
   const rows = await db.all<{ account_id: string; balance_cents: number }>(BALANCES_SQL)
   return rows.map((row) => ({ accountId: row.account_id, balanceCents: row.balance_cents }))
+}
+
+export async function hasTransactionOnDate(db: LocalDatabase, date: string): Promise<boolean> {
+  const rows = await db.all<{ found: number }>(
+    'SELECT 1 AS found FROM transactions WHERE date = ? AND deleted_at IS NULL LIMIT 1', [date])
+  return rows.length > 0
+}
+
+export async function localMerchantNames(
+  db: LocalDatabase, transactionIds: readonly string[]
+): Promise<Map<string, string>> {
+  if (transactionIds.length === 0) return new Map()
+  const rows = await db.all<{ transaction_id: string; merchant: string }>(
+    `SELECT transaction_id, merchant FROM purchases
+      WHERE deleted_at IS NULL AND transaction_id IN (${transactionIds.map(() => '?').join(', ')})`,
+    [...transactionIds])
+  return new Map(rows.map((row) => [row.transaction_id, row.merchant]))
 }
 
 export async function localSummary(

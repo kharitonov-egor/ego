@@ -25,6 +25,10 @@ export function databaseFileFor(datasetId: string): string {
 interface NativeDatabase {
   getAllAsync: <T>(sql: string, params: SqlParam[]) => Promise<T[]>
   runAsync: (sql: string, params: SqlParam[]) => Promise<{ changes: number }>
+  prepareAsync: (sql: string) => Promise<{
+    executeAsync: (params: SqlParam[]) => Promise<{ changes: number }>
+    finalizeAsync: () => Promise<void>
+  }>
   withTransactionAsync: (work: () => Promise<void>) => Promise<void>
   execAsync: (sql: string) => Promise<void>
   closeAsync: () => Promise<void>
@@ -54,10 +58,18 @@ function adapt(native: NativeDatabase): LocalDatabase {
     return { changes: result.changes }
   }
   const close = (): Promise<void> => native.closeAsync()
-  const inside: LocalDatabase = { all, run, close, transaction: (work) => work(inside) }
+  const prepare: LocalDatabase['prepare'] = async (sql) => {
+    const statement = await native.prepareAsync(sql)
+    return {
+      run: async (params = []) => ({ changes: (await statement.executeAsync(params)).changes }),
+      finalize: () => statement.finalizeAsync()
+    }
+  }
+  const inside: LocalDatabase = { all, run, prepare, close, transaction: (work) => work(inside) }
   return {
     all,
     run,
+    prepare,
     close,
     transaction: <T>(work: (tx: LocalDatabase) => Promise<T>): Promise<T> => {
       const turn = queue.then(async () => {

@@ -18,23 +18,19 @@ import { Text } from '../../components/ui/text'
 import { shiftIso } from '../../lib/dates'
 import { dayBarLabel, unitFor } from '../../lib/gym/format'
 import { useGym, useGymQuery } from '../../lib/gym-context'
-import { exerciseSets, gymDay, type GymDay, type WorkoutExercise } from '../../lib/repositories/gym'
+import { cachedExerciseSets, gymDay, type GymDay, type WorkoutExercise } from '../../lib/repositories/gym'
 import { useRestTimer } from '../../lib/rest-timer'
 
-interface LoggedDay {
-  day: GymDay
-  records: Set<string>
-}
-
-async function loggedDay(db: Parameters<typeof gymDay>[0], date: string): Promise<LoggedDay> {
-  const day = await gymDay(db, date)
+async function recordIdsForDay(
+  db: Parameters<typeof gymDay>[0], day: GymDay, version: number
+): Promise<Set<string>> {
   const records = new Set<string>()
-  for (const item of day.exercises) {
-    const history = await exerciseSets(db, item.exercise.id)
+  await Promise.all(day.exercises.map(async (item) => {
+    const history = await cachedExerciseSets(db, item.exercise.id, version)
     const held = exerciseRecords(history, item.exercise.type, unitFor(item.exercise.weightUnit), DEFAULT_DISTANCE_UNIT).recordSetIds
     for (const id of held) records.add(id)
-  }
-  return { day, records }
+  }))
+  return records
 }
 
 function ExerciseCard({ item, records, grouped, onPress }: {
@@ -86,15 +82,11 @@ function groupPosition(day: GymDay, index: number): 'none' | 'first' | 'middle' 
   return 'none'
 }
 
-function DayBody({ onOpen }: { onOpen: (exerciseId: string) => void }): React.ReactElement {
+function LoggedDayBody({ day, onOpen }: { day: GymDay; onOpen: (exerciseId: string) => void }): React.ReactElement {
   const gym = useGym()
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const logged = useGymQuery((db) => loggedDay(db, gym.date), [gym.date])
-  if (!logged || logged.day.date !== gym.date) {
-    return <View className="flex-1 items-center justify-center"><ActivityIndicator color={color.text} /></View>
-  }
-  const { day, records } = logged
+  const records = useGymQuery((db) => recordIdsForDay(db, day, gym.version), [day.date]) ?? new Set<string>()
   if (day.exercises.length === 0) {
     const noLibrary = gym.categories.length === 0
     return <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 24 }}>
@@ -118,6 +110,15 @@ function DayBody({ onOpen }: { onOpen: (exerciseId: string) => void }): React.Re
       onPress={() => onOpen(item.exercise.id)}
     />)}
   </ScrollView>
+}
+
+function DayBody({ onOpen }: { onOpen: (exerciseId: string) => void }): React.ReactElement {
+  const gym = useGym()
+  const day = useGymQuery((db) => gymDay(db, gym.date), [gym.date])
+  if (!day || day.date !== gym.date) {
+    return <View className="flex-1 items-center justify-center"><ActivityIndicator color={color.text} /></View>
+  }
+  return <LoggedDayBody day={day} onOpen={onOpen} />
 }
 
 /** FitNotes' home: one day's workout, a card per exercise, days a swipe apart. */

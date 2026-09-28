@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { Pressable, ScrollView, View } from 'react-native'
+import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native'
 import { ChevronLeft, ChevronRight, Tags, Trash2, TriangleAlert } from 'lucide-react-native'
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import {
   monthOf, summarizeBudget,
   type BudgetInput, type CategoryBudgetStatus, type MoneySnapshot
 } from '@ego/core'
-import { useMoney } from '../../lib/money-context'
+import { useMoney, useMoneyQuery } from '../../lib/money-context'
+import { localSnapshot } from '../../lib/repositories/snapshot'
 import { formatMonth, isoToday, shiftMonth } from '../../lib/dates'
 import { AmountSheet } from '../../components/money/AmountSheet'
 import { PeriodSwipe } from '../../components/money/PeriodSwipe'
@@ -85,8 +86,21 @@ export default function Budget(): React.ReactElement {
   }, [params.month, router])
   const [editing, setEditing] = useState<'income' | CategoryBudgetStatus | null>(null)
   const [confirmingClear, setConfirmingClear] = useState(false)
+  const monthData = useMoneyQuery((db) => localSnapshot(db, new Date().toISOString(), {
+    accounts: false,
+    budgetMonth: month,
+    purchases: false,
+    transactionFrom: `${month}-01`,
+    transactionTo: `${month}-31`
+  }), [month])
 
-  return <MoneyScreen>{(snapshot: MoneySnapshot) => {
+  return <MoneyScreen>{(baseSnapshot: MoneySnapshot) => {
+    if (!monthData) return <View className="flex-1 items-center justify-center"><ActivityIndicator color="#fafafa" /></View>
+    const snapshot: MoneySnapshot = {
+      ...baseSnapshot,
+      budgets: monthData.budgets,
+      transactions: monthData.transactions
+    }
     const summary = summarizeBudget(snapshot, month)
     const planned = snapshot.budgets.some((item) => item.month === month)
     const allocations = summary.categories
