@@ -1,9 +1,10 @@
 import {
   isAccountInput, isBudgetInput, isCategoryInput, isDateString, isGymCategoryInput, isGymExerciseInput,
-  isGymSetInput, isGymWorkoutInput, isMonthString, isMoodInput, isPurchaseInput, isTransactionInput,
+  isGymSetInput, isGymWorkoutInput, isHabitEntryInput, isHabitInput, isMonthString, isMoodInput,
+  isPurchaseInput, isTransactionInput,
   type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type GymCategoryInput,
-  type GymExerciseInput, type GymSetInput, type GymWorkoutInput, type MoodInput, type PurchaseInput,
-  type TransactionInput
+  type GymExerciseInput, type GymSetInput, type GymWorkoutInput, type HabitEntryInput, type HabitInput,
+  type MoodInput, type PurchaseInput, type TransactionInput
 } from '@ego/core'
 import type { ApiError } from './errors'
 import type { SyncEntity } from './records'
@@ -35,6 +36,11 @@ export type SyncCommand =
   | { entity: 'gymWorkout'; type: 'save'; payload: GymWorkoutInput }
   | { entity: 'mood'; type: 'save'; payload: MoodInput }
   | { entity: 'mood'; type: 'delete' }
+  | { entity: 'habit'; type: 'create'; payload: HabitInput }
+  | { entity: 'habit'; type: 'update'; payload: HabitInput }
+  | { entity: 'habit'; type: 'delete' }
+  | { entity: 'habitEntry'; type: 'create'; payload: HabitEntryInput }
+  | { entity: 'habitEntry'; type: 'delete' }
 
 /**
  * The device generates `operationId` and `entityId` once and reuses them on every retry,
@@ -117,6 +123,11 @@ function isCommand(value: unknown): value is SyncCommand {
       return isGymWorkoutInput(payload)
     case 'mood.save':
       return isMoodInput(payload)
+    case 'habit.create':
+    case 'habit.update':
+      return isHabitInput(payload)
+    case 'habitEntry.create':
+      return isHabitEntryInput(payload)
     case 'transaction.delete':
     case 'purchase.delete':
     case 'budget.delete':
@@ -124,6 +135,8 @@ function isCommand(value: unknown): value is SyncCommand {
     case 'gymExercise.delete':
     case 'gymSet.delete':
     case 'mood.delete':
+    case 'habit.delete':
+    case 'habitEntry.delete':
       return payload === undefined
     default:
       return false

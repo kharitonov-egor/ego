@@ -214,6 +214,31 @@ export const LOCAL_MIGRATIONS: readonly string[][] = [
       ON purchases(purchase_date DESC, created_at DESC, id DESC) WHERE deleted_at IS NULL`,
     `CREATE INDEX IF NOT EXISTS idx_local_gym_sets_exercise_feed
       ON gym_sets(exercise_id, date DESC, position, created_at, id) WHERE deleted_at IS NULL`
+  ],
+  [
+    `CREATE TABLE IF NOT EXISTS habits (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      icon TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      start_date TEXT NOT NULL,
+      position INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1,
+      deleted_at TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS habit_entries (
+      id TEXT PRIMARY KEY,
+      habit_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1,
+      deleted_at TEXT
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_local_habit_entries_habit ON habit_entries(habit_id, date) WHERE deleted_at IS NULL'
   ]
 ]
 

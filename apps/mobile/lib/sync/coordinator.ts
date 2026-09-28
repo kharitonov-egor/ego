@@ -1,5 +1,5 @@
 import {
-  MAX_OPERATIONS_PER_REQUEST, isGymEntity, isHealthEntity,
+  MAX_OPERATIONS_PER_REQUEST, isGymEntity, isHabitEntity, isHealthEntity,
   type ApiError, type ChangeRecord, type OperationOutcome, type SyncEntity
 } from '@ego/api-contracts'
 import type { MoneyApi } from '../api-client'
@@ -24,6 +24,7 @@ export interface Touched {
   money: boolean
   gym: boolean
   health: boolean
+  habits: boolean
 }
 
 export interface SyncOutcome {
@@ -37,11 +38,12 @@ export interface SyncOutcome {
   touched: Touched
 }
 
-const NOTHING_TOUCHED: Touched = { money: false, gym: false, health: false }
+const NOTHING_TOUCHED: Touched = { money: false, gym: false, health: false, habits: false }
 
 function touch(touched: Touched, entity: SyncEntity): void {
   if (isGymEntity(entity)) touched.gym = true
   else if (isHealthEntity(entity)) touched.health = true
+  else if (isHabitEntity(entity)) touched.habits = true
   else touched.money = true
 }
 
@@ -101,6 +103,8 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
   const gymSets = data.gymSets ?? []
   const gymWorkouts = data.gymWorkouts ?? []
   const moods = data.moods ?? []
+  const habits = data.habits ?? []
+  const habitEntries = data.habitEntries ?? []
   const live: Record<SyncEntity, Set<string>> = {
     account: new Set(data.accounts.map((record) => record.id)),
     category: new Set(data.categories.map((record) => record.id)),
@@ -111,7 +115,9 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
     gymExercise: new Set(gymExercises.map((record) => record.id)),
     gymSet: new Set(gymSets.map((record) => record.id)),
     gymWorkout: new Set(gymWorkouts.map((record) => record.id)),
-    mood: new Set(moods.map((record) => record.date))
+    mood: new Set(moods.map((record) => record.date)),
+    habit: new Set(habits.map((record) => record.id)),
+    habitEntry: new Set(habitEntries.map((record) => record.id))
   }
   const deletedAt = now()
   await db.transaction((tx) => withPreparedRuns(tx, async (cached) => {
@@ -125,6 +131,8 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
     for (const record of gymSets) if (!skip('gymSet', record.id)) await writeRecord(cached, { entity: 'gymSet', record })
     for (const record of gymWorkouts) if (!skip('gymWorkout', record.id)) await writeRecord(cached, { entity: 'gymWorkout', record })
     for (const record of moods) if (!skip('mood', record.date)) await writeRecord(cached, { entity: 'mood', record })
+    for (const record of habits) if (!skip('habit', record.id)) await writeRecord(cached, { entity: 'habit', record })
+    for (const record of habitEntries) if (!skip('habitEntry', record.id)) await writeRecord(cached, { entity: 'habitEntry', record })
     for (const entity of Object.keys(TABLES) as SyncEntity[]) {
       const key = keyColumn(entity)
       const local = await tx.all<{ key: string }>(`SELECT ${key} AS key FROM ${TABLES[entity]} WHERE deleted_at IS NULL`)
@@ -260,13 +268,14 @@ export function createSyncCoordinator(deps: SyncDeps): SyncCoordinator {
 
   const run = async (): Promise<SyncOutcome> => {
     const { db, now } = deps
-    const touched: Touched = { money: false, gym: false, health: false }
+    const touched: Touched = { money: false, gym: false, health: false, habits: false }
     if (!(await isBootstrapped(db))) {
       const error = await bootstrap(deps)
       if (error) return outcomeFor(db, error, error.code === 'AUTH_REQUIRED', 0, 0)
       touched.money = true
       touched.gym = true
       touched.health = true
+      touched.habits = true
     }
     const delivery = await deliver(deps, touched)
     if (delivery.paused) return outcomeFor(db, delivery.error, true, delivery.delivered, 0, touched)
@@ -284,13 +293,14 @@ export function createSyncCoordinator(deps: SyncDeps): SyncCoordinator {
       }
       inFlight = (async () => {
         let outcome: SyncOutcome
-        const touched: Touched = { money: false, gym: false, health: false }
+        const touched: Touched = { money: false, gym: false, health: false, habits: false }
         do {
           again = false
           outcome = await run()
           touched.money ||= outcome.touched.money
           touched.gym ||= outcome.touched.gym
           touched.health ||= outcome.touched.health
+          touched.habits ||= outcome.touched.habits
         } while (again)
         return { ...outcome, touched }
       })().finally(() => {

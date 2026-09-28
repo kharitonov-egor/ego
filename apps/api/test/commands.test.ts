@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { NO_TRANSACTION_FILTERS, type PurchaseRecord, type SyncOperation } from '@ego/api-contracts'
-import type { MoodInput, PurchaseInput } from '@ego/core'
+import type { HabitEntryInput, HabitInput, MoodInput, PurchaseInput } from '@ego/core'
 import { applyOperation, applyOperations } from '../src/commands'
 import {
   readBalances, readBootstrap, readChanges, readReceiptDetail, readTransactionPage, serverSequence
@@ -331,6 +331,74 @@ describe('mood entries', () => {
     })
     expect(await applyOperation(ledger.db, mismatched, NOW))
       .toMatchObject({ ok: false, error: { code: 'INVALID_REQUEST' } })
+  })
+})
+
+describe('habits', () => {
+  const habit = (overrides: Partial<HabitInput> = {}): HabitInput => ({
+    name: '  Read  ', icon: '📚', kind: 'build', startDate: '2026-09-01', position: 0, ...overrides
+  })
+  const createHabit = (id: string, input: HabitInput, operationId = `op-${id}`): SyncOperation => operation({
+    operationId, entityId: id, command: { entity: 'habit', type: 'create', payload: input }
+  })
+  const createEntry = (id: string, input: HabitEntryInput): SyncOperation => operation({
+    operationId: `op-${id}`, entityId: id, command: { entity: 'habitEntry', type: 'create', payload: input }
+  })
+
+  it('creates, renames, and downloads a habit with its check-offs', async () => {
+    ledger = await seedLedger()
+    expect(await applyOperation(ledger.db, createHabit('hb-read', habit()), NOW))
+      .toMatchObject({ ok: true, data: { entity: 'habit', entityId: 'hb-read', revision: 1 } })
+    expect(await applyOperation(ledger.db, createEntry('he-1', { habitId: 'hb-read', date: '2026-09-12', kind: 'done' }), NOW))
+      .toMatchObject({ ok: true, data: { entity: 'habitEntry', revision: 1 } })
+    expect(await applyOperation(ledger.db, operation({
+      operationId: 'op-rename', entityId: 'hb-read', expectedRevision: 1,
+      command: { entity: 'habit', type: 'update', payload: habit({ name: 'Read 20 pages', position: 3 }) }
+    }), NOW)).toMatchObject({ ok: true, data: { revision: 2 } })
+    const changes = await readChanges(ledger.db, 0, 50)
+    expect(changes.changes.map((change) => change.entity)).toEqual(['habit', 'habitEntry', 'habit'])
+    expect(changes.changes[0].record).toMatchObject({ name: 'Read', startDate: '2026-09-01' })
+    const downloaded = await readBootstrap(ledger.db)
+    expect(downloaded.habits).toEqual([expect.objectContaining({ id: 'hb-read', name: 'Read 20 pages', position: 3, revision: 2 })])
+    expect(downloaded.habitEntries).toEqual([expect.objectContaining({ id: 'he-1', habitId: 'hb-read', date: '2026-09-12', kind: 'done' })])
+  })
+
+  it('refuses an entry that does not fit the habit, and one for a deleted habit', async () => {
+    ledger = await seedLedger()
+    await applyOperation(ledger.db, createHabit('hb-read', habit()), NOW)
+    await applyOperation(ledger.db, createHabit('hb-smoke', habit({ name: 'Smoking', kind: 'break' })), NOW)
+    expect(await applyOperation(ledger.db, createEntry('he-1', { habitId: 'hb-read', date: '2026-09-12', kind: 'slipped' }), NOW))
+      .toMatchObject({ ok: false, error: { code: 'INVALID_REQUEST' } })
+    expect(await applyOperation(ledger.db, createEntry('he-2', { habitId: 'hb-smoke', date: '2026-09-12', kind: 'done' }), NOW))
+      .toMatchObject({ ok: false, error: { code: 'INVALID_REQUEST' } })
+    expect(await applyOperation(ledger.db, createEntry('he-3', { habitId: 'hb-smoke', date: '2026-09-12', kind: 'resisted' }), NOW))
+      .toMatchObject({ ok: true })
+    expect(await applyOperation(ledger.db, operation({
+      operationId: 'op-delete', entityId: 'hb-smoke', expectedRevision: 1, command: { entity: 'habit', type: 'delete' }
+    }), NOW)).toMatchObject({ ok: true, data: { revision: 2 } })
+    expect(await applyOperation(ledger.db, createEntry('he-4', { habitId: 'hb-smoke', date: '2026-09-12', kind: 'slipped' }), NOW))
+      .toMatchObject({ ok: false, error: { code: 'CONFLICT' } })
+    expect((await readBootstrap(ledger.db)).habits.map((item) => item.id)).toEqual(['hb-read'])
+  })
+
+  it('keeps a habit on the side it started on', async () => {
+    ledger = await seedLedger()
+    await applyOperation(ledger.db, createHabit('hb-read', habit()), NOW)
+    expect(await applyOperation(ledger.db, operation({
+      operationId: 'op-flip', entityId: 'hb-read', expectedRevision: 1,
+      command: { entity: 'habit', type: 'update', payload: habit({ kind: 'break' }) }
+    }), NOW)).toMatchObject({ ok: false, error: { code: 'INVALID_REQUEST' } })
+  })
+
+  it('unchecks a day by deleting its entry', async () => {
+    ledger = await seedLedger()
+    await applyOperation(ledger.db, createHabit('hb-read', habit()), NOW)
+    await applyOperation(ledger.db, createEntry('he-1', { habitId: 'hb-read', date: '2026-09-12', kind: 'done' }), NOW)
+    expect(await applyOperation(ledger.db, operation({
+      operationId: 'op-uncheck', entityId: 'he-1', expectedRevision: 1, command: { entity: 'habitEntry', type: 'delete' }
+    }), NOW)).toMatchObject({ ok: true, data: { revision: 2 } })
+    expect((await readBootstrap(ledger.db)).habitEntries).toHaveLength(0)
+    expect(await count(ledger.db, 'habit_entries')).toBe(1)
   })
 })
 

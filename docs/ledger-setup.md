@@ -183,6 +183,19 @@ Study does not use the outbox or the change log. The Worker fetches the feed on 
 `PUT /v1/study/assignments/:id` sets or clears one check mark. Until the Worker has the secret,
 Study shows how to add it, and Settings lists Canvas calendar as not set up.
 
+## Habits
+
+Migration `0008_habits.sql` adds `habits` and `habit_entries`. It is additive. Apply it and deploy
+before publishing a phone update that has the Habits tile:
+
+```sh
+npm run migrate:remote --workspace @ego/api
+npm run deploy --workspace @ego/api
+```
+
+An older Worker rejects any batch that contains a habit or a check-off. Money, gym, and mood
+changes queued in the same batch then wait until the Worker is updated.
+
 ## 3. Point the desktop app at it
 
 The desktop Settings screen calls this the Ego service. It takes the Worker address and a token
