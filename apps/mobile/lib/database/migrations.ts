@@ -126,6 +126,59 @@ export const LOCAL_MIGRATIONS: readonly string[][] = [
     `CREATE INDEX IF NOT EXISTS idx_local_transactions_category
       ON transactions(category_id) WHERE deleted_at IS NULL`,
     'CREATE INDEX IF NOT EXISTS idx_local_budget_allocations_budget ON budget_allocations(budget_id)'
+  ],
+  [
+    `CREATE TABLE IF NOT EXISTS gym_categories (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      color TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1,
+      deleted_at TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS gym_exercises (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      category_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      weight_unit TEXT NOT NULL,
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1,
+      deleted_at TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS gym_sets (
+      id TEXT PRIMARY KEY,
+      exercise_id TEXT NOT NULL,
+      date TEXT NOT NULL,
+      position INTEGER NOT NULL,
+      weight REAL,
+      weight_unit TEXT,
+      reps INTEGER,
+      distance REAL,
+      distance_unit TEXT,
+      duration_seconds INTEGER,
+      comment TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1,
+      deleted_at TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS gym_workouts (
+      id TEXT PRIMARY KEY,
+      exercise_order TEXT NOT NULL DEFAULT '[]',
+      supersets TEXT NOT NULL DEFAULT '[]',
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1,
+      deleted_at TEXT
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_local_gym_exercises_category ON gym_exercises(category_id) WHERE deleted_at IS NULL',
+    'CREATE INDEX IF NOT EXISTS idx_local_gym_sets_date ON gym_sets(date, exercise_id, position) WHERE deleted_at IS NULL',
+    'CREATE INDEX IF NOT EXISTS idx_local_gym_sets_exercise ON gym_sets(exercise_id, date) WHERE deleted_at IS NULL'
   ]
 ]
 

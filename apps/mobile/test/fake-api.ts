@@ -63,7 +63,10 @@ export function fakeApi(script: FakeApiScript = {}): FakeApi {
 }
 
 export function emptyBootstrap(serverSequence: number): BootstrapData {
-  return { serverSequence, accounts: [], categories: [], transactions: [], purchases: [], budgets: [] }
+  return {
+    serverSequence, accounts: [], categories: [], transactions: [], purchases: [], budgets: [],
+    gymCategories: [], gymExercises: [], gymSets: [], gymWorkouts: []
+  }
 }
 
 export function feedRow(overrides: Partial<FeedTransaction> = {}): FeedTransaction {

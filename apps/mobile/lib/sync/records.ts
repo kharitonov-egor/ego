@@ -1,8 +1,10 @@
 import type {
-  AccountRecord, BudgetRecord, CategoryRecord, PurchaseRecord, TransactionRecord
+  AccountRecord, BudgetRecord, CategoryRecord, GymCategoryRecord, GymExerciseRecord, GymSetRecord,
+  GymWorkoutRecord, PurchaseRecord, TransactionRecord
 } from '@ego/api-contracts'
 import type {
-  AccountInput, BudgetInput, CategoryInput, PurchaseInput, ReceiptItem, TransactionInput
+  AccountInput, BudgetInput, CategoryInput, GymCategoryInput, GymExerciseInput, GymSetInput,
+  GymWorkoutInput, PurchaseInput, ReceiptItem, TransactionInput
 } from '@ego/core'
 
 /**
@@ -134,4 +136,62 @@ export function budgetRecordFrom(
 
 export function budgetIdFor(month: string): string {
   return `budget-${month}`
+}
+
+export function gymCategoryRecordFrom(
+  id: string, input: GymCategoryInput, createdAt: string, updatedAt: string, revision: number
+): GymCategoryRecord {
+  return { id, name: input.name.trim(), color: input.color, createdAt, updatedAt, revision }
+}
+
+export function gymExerciseRecordFrom(
+  id: string, input: GymExerciseInput, createdAt: string, updatedAt: string, revision: number
+): GymExerciseRecord {
+  return {
+    id,
+    name: input.name.trim(),
+    categoryId: input.categoryId,
+    type: input.type,
+    weightUnit: input.weightUnit,
+    notes: input.notes.trim(),
+    createdAt,
+    updatedAt,
+    revision
+  }
+}
+
+export function gymSetRecordFrom(
+  id: string, input: GymSetInput, createdAt: string, updatedAt: string, revision: number
+): GymSetRecord {
+  return {
+    id,
+    exerciseId: input.exerciseId,
+    date: input.date,
+    position: input.position,
+    weight: input.weight,
+    weightUnit: input.weightUnit,
+    reps: input.reps,
+    distance: input.distance,
+    distanceUnit: input.distanceUnit,
+    durationSeconds: input.durationSeconds,
+    comment: input.comment.trim(),
+    createdAt,
+    updatedAt,
+    revision
+  }
+}
+
+export function gymWorkoutRecordFrom(
+  input: GymWorkoutInput, createdAt: string, updatedAt: string, revision: number
+): GymWorkoutRecord {
+  return {
+    id: input.date,
+    date: input.date,
+    exerciseOrder: [...input.exerciseOrder],
+    supersets: input.supersets.map((group) => [...group]),
+    notes: input.notes.trim(),
+    createdAt,
+    updatedAt,
+    revision
+  }
 }

@@ -18,11 +18,26 @@ import { apiUrlFor, isSignedIn, useSettings } from './settings'
 
 export type LocalWrite = (db: LocalDatabase, now: string) => Promise<void>
 
+/** Which screens re-read after a write. A logged set should not rebuild the money snapshot. */
+export type WriteScope = 'money' | 'gym'
+
+interface RefreshScope {
+  money: boolean
+  gym: boolean
+}
+
+const EVERYTHING: RefreshScope = { money: true, gym: true }
+
 interface LedgerContextValue {
   /** Signed in, so this device keeps and syncs its own copy of the ledger. */
   enabled: boolean
   /** The local copy holds a complete download and screens can read it. */
   ready: boolean
+  /**
+   * That download is in the current format. Money screens read an older one while the phone
+   * downloads again; the gym log only exists in the current one.
+   */
+  current: boolean
   syncing: boolean
   writing: boolean
   error: string | null
@@ -30,8 +45,10 @@ interface LedgerContextValue {
   reference: ReferenceData | null
   balances: AccountBalance[]
   conflicts: OutboxEntry[]
-  /** Bumps whenever local data changes, so a screen knows to run its query again. */
+  /** Bumps whenever local money data changes, so a screen knows to run its query again. */
   version: number
+  /** The same for the gym log. */
+  gymVersion: number
   db: LocalDatabase | null
   api: EgoApi
   feed: (filters: TransactionFilters, cursor: FeedCursor | null, size: number) => Promise<LocalTransactionPage>
@@ -39,7 +56,7 @@ interface LedgerContextValue {
   receipt: (purchaseId: string) => Promise<LocalReceipt | null>
   sync: () => Promise<void>
   /** Commits one local change and its outbox entry, then delivers it in the background. */
-  write: (work: LocalWrite) => Promise<boolean>
+  write: (work: LocalWrite, scope?: WriteScope) => Promise<boolean>
   removeTransaction: (transaction: LocalFeedTransaction) => Promise<boolean>
   removeTransactions: (transactions: LocalFeedTransaction[]) => Promise<boolean>
   resolveKeepMine: (entry: OutboxEntry) => Promise<void>
@@ -58,6 +75,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
   const apiUrl = apiUrlFor(settings)
   const [db, setDb] = useState<LocalDatabase | null>(null)
   const [ready, setReady] = useState(false)
+  const [current, setCurrent] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [writing, setWriting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -66,6 +84,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
   const [balances, setBalances] = useState<AccountBalance[]>([])
   const [conflicts, setConflicts] = useState<OutboxEntry[]>([])
   const [version, setVersion] = useState(0)
+  const [gymVersion, setGymVersion] = useState(0)
   const generation = useRef(0)
   const writingRef = useRef(false)
   const lastStatus = useRef<SyncOutcome | null>(null)
@@ -78,6 +97,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     if (!enabled) {
       setDb(null)
       setReady(false)
+      setCurrent(false)
       setStatus(null)
       return
     }
@@ -108,14 +128,16 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     db, api, now: () => new Date().toISOString()
   }) : null, [api, db])
 
-  const refreshLocal = useCallback(async (database: LocalDatabase): Promise<void> => {
-    const [nextReference, nextBalances, outbox] = await Promise.all([
-      localReference(database), localBalances(database), allOperations(database)
-    ])
-    setReference(nextReference)
-    setBalances(nextBalances)
+  const refreshLocal = useCallback(async (database: LocalDatabase, scope: RefreshScope): Promise<void> => {
+    const outbox = await allOperations(database)
     setConflicts(outbox.filter((entry) => entry.status === 'conflict' || entry.status === 'failed'))
-    setVersion((current) => current + 1)
+    if (scope.money) {
+      const [nextReference, nextBalances] = await Promise.all([localReference(database), localBalances(database)])
+      setReference(nextReference)
+      setBalances(nextBalances)
+      setVersion((current) => current + 1)
+    }
+    if (scope.gym) setGymVersion((current) => current + 1)
   }, [])
 
   const sync = useCallback(async (): Promise<void> => {
@@ -127,11 +149,14 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
       const previous = lastStatus.current
       lastStatus.current = outcome
       setStatus(outcome)
-      const complete = await isBootstrapped(db)
-      const changed = (!wasBootstrapped && complete) || outcome.delivered > 0 || outcome.applied > 0 ||
-        outcome.conflictCount !== previous?.conflictCount
-      if (changed) await refreshLocal(db)
+      const downloaded = !wasBootstrapped && await isBootstrapped(db)
+      const scope: RefreshScope = {
+        money: downloaded || outcome.touched.money,
+        gym: downloaded || outcome.touched.gym
+      }
+      if (scope.money || scope.gym || outcome.conflictCount !== previous?.conflictCount) await refreshLocal(db, scope)
       if (await hasDownloaded(db)) setReady(true)
+      setCurrent(await isBootstrapped(db))
     } finally {
       setSyncing(false)
     }
@@ -141,8 +166,9 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     if (!db) return
     void (async () => {
       if (await hasDownloaded(db)) {
-        await refreshLocal(db)
+        await refreshLocal(db, EVERYTHING)
         setReady(true)
+        setCurrent(await isBootstrapped(db))
       }
       await sync()
     })()
@@ -156,13 +182,13 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     return () => subscription.remove()
   }, [db, sync])
 
-  const write = useCallback(async (work: LocalWrite): Promise<boolean> => {
+  const write = useCallback(async (work: LocalWrite, scope: WriteScope = 'money'): Promise<boolean> => {
     if (!db || writingRef.current) return false
     writingRef.current = true
     setWriting(true)
     try {
       await work(db, new Date().toISOString())
-      await refreshLocal(db)
+      await refreshLocal(db, { money: scope === 'money', gym: scope === 'gym' })
       void sync()
       return true
     } catch {
@@ -181,13 +207,14 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
   const resolve = useCallback(async (work: (database: LocalDatabase) => Promise<void>): Promise<void> => {
     if (!db) return
     await work(db)
-    await refreshLocal(db)
+    await refreshLocal(db, EVERYTHING)
     void sync()
   }, [db, refreshLocal, sync])
 
   const value = useMemo((): LedgerContextValue => ({
     enabled,
     ready: enabled && ready,
+    current: enabled && ready && current,
     syncing,
     writing,
     error,
@@ -196,6 +223,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     balances,
     conflicts,
     version,
+    gymVersion,
     db,
     api,
     feed,
@@ -211,8 +239,8 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     resolveKeepMine: (entry) => resolve((database) =>
       keepMine(database, entry, newId(), new Date().toISOString()).then(() => undefined)),
     resolveUseSaved: (entry) => resolve((database) => useSavedVersion(database, entry, new Date().toISOString()))
-  }), [api, balances, conflicts, db, enabled, error, feed, ready, receipt, reference, resolve, status,
-    sync, syncing, transaction, version, write, writing])
+  }), [api, balances, conflicts, current, db, enabled, error, feed, gymVersion, ready, receipt, reference, resolve,
+    status, sync, syncing, transaction, version, write, writing])
 
   return <LedgerContext.Provider value={value}>{children}</LedgerContext.Provider>
 }

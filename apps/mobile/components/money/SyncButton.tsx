@@ -9,7 +9,10 @@ import { Text } from '../ui/text'
  * The whole sync story in one header icon. A tap syncs, or opens what is blocking the sync: the
  * conflict review in Activity, or Settings when the device has to sign in again.
  */
-export function SyncButton(): React.ReactElement | null {
+export function SyncButton({ onReview }: {
+  /** Opens this app's own review. Without it, a conflict opens the review in Activity. */
+  onReview?: () => void
+} = {}): React.ReactElement | null {
   const ledger = useLedger()
   const router = useRouter()
   if (!ledger.enabled) return null
@@ -18,7 +21,10 @@ export function SyncButton(): React.ReactElement | null {
   const attention = conflicts > 0 || state === 'attention'
   const paused = state === 'paused'
   const onPress = (): void => {
-    if (attention) router.push({ pathname: '/(money)/transactions', params: { review: 'true' } })
+    if (attention) {
+      if (onReview) onReview()
+      else router.push({ pathname: '/(money)/transactions', params: { review: 'true' } })
+    }
     else if (paused) router.push('/settings')
     else void ledger.sync()
   }

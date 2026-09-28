@@ -1,8 +1,9 @@
 import type { SyncOperation } from '@ego/api-contracts'
 import type { LocalDatabase } from '../database/types'
-import { writeRecord, writeTombstone } from '../database/writes'
+import { TABLES, writeRecord, writeTombstone } from '../database/writes'
 import {
-  accountRecordFrom, budgetIdFor, budgetRecordFrom, categoryRecordFrom, purchaseRecordFrom,
+  accountRecordFrom, budgetIdFor, budgetRecordFrom, categoryRecordFrom, gymCategoryRecordFrom,
+  gymExerciseRecordFrom, gymSetRecordFrom, gymWorkoutRecordFrom, purchaseRecordFrom,
   purchaseTransactionInput, receiptTransactionIdFor, transactionRecordFrom
 } from './records'
 
@@ -99,6 +100,33 @@ export async function applyCommandLocally(
       entity: 'purchase',
       record: purchaseRecordFrom(entityId, transactionId, command.payload, row?.created_at ?? now, now,
         command.type === 'create' ? 1 : revision)
+    })
+    return
+  }
+
+  if (command.entity === 'gymCategory' || command.entity === 'gymExercise' || command.entity === 'gymSet') {
+    if (command.type === 'delete') {
+      await writeTombstone(tx, command.entity, entityId, revision, now)
+      return
+    }
+    const current = await existing(tx, TABLES[command.entity], 'id', entityId)
+    const createdAt = current?.created_at ?? now
+    const nextRevision = command.type === 'create' ? 1 : revision
+    if (command.entity === 'gymCategory') {
+      await writeRecord(tx, { entity: 'gymCategory', record: gymCategoryRecordFrom(entityId, command.payload, createdAt, now, nextRevision) })
+    } else if (command.entity === 'gymExercise') {
+      await writeRecord(tx, { entity: 'gymExercise', record: gymExerciseRecordFrom(entityId, command.payload, createdAt, now, nextRevision) })
+    } else {
+      await writeRecord(tx, { entity: 'gymSet', record: gymSetRecordFrom(entityId, command.payload, createdAt, now, nextRevision) })
+    }
+    return
+  }
+
+  if (command.entity === 'gymWorkout') {
+    const current = await existing(tx, 'gym_workouts', 'id', entityId)
+    await writeRecord(tx, {
+      entity: 'gymWorkout',
+      record: gymWorkoutRecordFrom(command.payload, current?.created_at ?? now, now, revision)
     })
     return
   }
