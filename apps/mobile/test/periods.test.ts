@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  bucketSizeFor, canStepForward, chartBuckets, comparisonSpan, formatSpan, isCurrentPeriod, isHorizontalSwipe, periodSpan,
-  periodTitle, rangeForPeriod, relativePeriodName, stepAnchor, swipeStep
+  addMonths, bucketSizeFor, canStepForward, chartBuckets, comparisonSpan, formatSpan, isCurrentPeriod, isHorizontalSwipe,
+  parseSavedPeriod, periodSpan, periodTitle, rangeForPeriod, relativePeriodName, stepAnchor, swipeStep
 } from '../lib/periods'
 
 const TODAY = '2026-09-27'
@@ -142,5 +142,25 @@ describe('swipes', () => {
     expect(isHorizontalSwipe(40, 10)).toBe(true)
     expect(isHorizontalSwipe(40, 30)).toBe(false)
     expect(isHorizontalSwipe(10, 0)).toBe(false)
+  })
+})
+
+describe('the saved period', () => {
+  it('restores the kind of period and a custom range', () => {
+    expect(parseSavedPeriod('{"period":"week","custom":{"from":null,"to":null}}')).toEqual({ period: 'week', custom: { from: null, to: null } })
+    expect(parseSavedPeriod('{"period":"custom","custom":{"from":"2026-01-01","to":"2026-03-31"}}'))
+      .toEqual({ period: 'custom', custom: { from: '2026-01-01', to: '2026-03-31' } })
+  })
+
+  it('opens on the default when the saved value is unusable', () => {
+    expect(parseSavedPeriod(null)).toBeNull()
+    expect(parseSavedPeriod('nope')).toBeNull()
+    expect(parseSavedPeriod('{"period":"decade"}')).toBeNull()
+    expect(parseSavedPeriod('{"period":"custom","custom":{"from":"yesterday"}}')).toEqual({ period: 'custom', custom: { from: null, to: null } })
+  })
+
+  it('adds months without spilling into the next one', () => {
+    expect(addMonths('2026-01-31', 1)).toBe('2026-02-28')
+    expect(addMonths('2026-09-14', 1)).toBe('2026-10-14')
   })
 })

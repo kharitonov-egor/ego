@@ -74,3 +74,16 @@ export function projectedSpend(expenseCents: number, span: Span, today: string):
   if (elapsed < 3 || elapsed >= total) return null
   return Math.round(expenseCents / elapsed * total)
 }
+
+/**
+ * Shades for a calendar: 0 for a day with no spending, then 1 to 4 by rank among the days that had
+ * some, so one large rent payment does not wash every other day out to the palest shade.
+ */
+export function heatLevels(values: readonly number[]): number[] {
+  const sorted = values.filter((value) => value > 0).sort((a, b) => a - b)
+  return values.map((value) => {
+    if (value <= 0) return 0
+    const below = sorted.findIndex((other) => other >= value)
+    return Math.min(4, 1 + Math.floor(below / sorted.length * 4))
+  })
+}

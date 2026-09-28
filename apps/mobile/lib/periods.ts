@@ -43,6 +43,11 @@ export function rangeForPeriod(period: PeriodPreset, custom: DateRange, anchor: 
   return periodSpan(period, anchor)
 }
 
+/** Adds whole months and keeps the day where the target month has it: Mar 31 minus one is Feb 28. */
+export function addMonths(anchor: string, months: number): string {
+  return shiftMonths(anchor, months)
+}
+
 function shiftMonths(anchor: string, months: number): string {
   const date = parseIso(anchor)
   const target = new Date(date.getFullYear(), date.getMonth() + months, 1)
@@ -248,4 +253,32 @@ export function swipeStep(dx: number, vx: number): -1 | 0 | 1 {
 /** Clearly sideways, so a slightly slanted vertical scroll never changes the period. */
 export function isHorizontalSwipe(dx: number, dy: number): boolean {
   return Math.abs(dx) > 18 && Math.abs(dx) > Math.abs(dy) * 2
+}
+
+export interface SavedPeriod {
+  period: PeriodPreset
+  custom: DateRange
+}
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
+
+function savedDay(value: unknown): string | null {
+  return typeof value === 'string' && ISO_DAY.test(value) ? value : null
+}
+
+/** Reads what the last session chose. Anything unreadable means the app opens on this month. */
+export function parseSavedPeriod(raw: string | null): SavedPeriod | null {
+  if (!raw) return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return null
+  }
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null
+  const record: Record<string, unknown> = { ...parsed }
+  const period = PERIOD_PRESETS.find((preset) => preset === record.period)
+  if (!period) return null
+  const custom: Record<string, unknown> = typeof record.custom === 'object' && record.custom !== null ? { ...record.custom } : {}
+  return { period, custom: { from: savedDay(custom.from), to: savedDay(custom.to) } }
 }

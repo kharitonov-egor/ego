@@ -1,10 +1,11 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { AppState } from 'react-native'
+import * as SecureStore from 'expo-secure-store'
 import type { DateRange, MoneySnapshot, MoneyTransaction, PeriodPreset } from '@ego/core'
 import { isoToday } from './dates'
 import {
-  canStepForward, isCurrentPeriod, isStepped, periodTitle, rangeForPeriod, relativePeriodName, stepAnchor,
-  type SteppedPeriod
+  canStepForward, isCurrentPeriod, isStepped, parseSavedPeriod, periodTitle, rangeForPeriod, relativePeriodName,
+  stepAnchor, type SavedPeriod, type SteppedPeriod
 } from './periods'
 
 export { PERIOD_PRESETS, rangeForPeriod } from './periods'
@@ -34,10 +35,34 @@ interface PeriodContextValue {
 
 const PeriodContext = createContext<PeriodContextValue | null>(null)
 
+const PERIOD_KEY = 'ego.period'
+
 export function PeriodProvider({ children }: { children: React.ReactNode }): React.ReactElement {
   const [period, setPeriodState] = useState<PeriodPreset>('month')
   const [custom, setCustomRange] = useState<DateRange>({ from: null, to: null })
   const [anchor, setAnchor] = useState(isoToday)
+  const [restored, setRestored] = useState(false)
+
+  /** The kind of period comes back on the next launch. The anchor does not: Week opens on this week. */
+  useEffect(() => {
+    let active = true
+    void SecureStore.getItemAsync(PERIOD_KEY)
+      .then((raw) => {
+        const saved = parseSavedPeriod(raw)
+        if (!active || !saved) return
+        setPeriodState(saved.period)
+        setCustomRange(saved.custom)
+      })
+      .catch(() => undefined)
+      .finally(() => { if (active) setRestored(true) })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    if (!restored) return
+    const saved: SavedPeriod = { period, custom }
+    void SecureStore.setItemAsync(PERIOD_KEY, JSON.stringify(saved)).catch(() => undefined)
+  }, [custom, period, restored])
   const setPeriod = useCallback((value: PeriodPreset): void => setPeriodState(value), [])
   const setCustom = useCallback((value: DateRange): void => {
     setCustomRange(value)

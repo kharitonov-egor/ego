@@ -8,15 +8,17 @@ import { useReducedMotion } from './tokens'
  * Steps the shared period on a horizontal swipe anywhere inside. Vertical scrolling and taps still
  * reach the content, and a child that holds its own gesture, like the chart scrubber, keeps it.
  */
-export function PeriodSwipe({ enabled = true, style, children }: {
+export function PeriodSwipe({ enabled = true, style, onStep, children }: {
   enabled?: boolean
   style?: StyleProp<ViewStyle>
+  /** Steps something other than the shared period, such as Budget's own month. */
+  onStep?: (delta: -1 | 1) => void
   children: React.ReactNode
 }): React.ReactElement {
   const period = usePeriod()
   const reducedMotion = useReducedMotion()
-  const live = useRef({ period, enabled, reducedMotion })
-  live.current = { period, enabled, reducedMotion }
+  const live = useRef({ period, enabled, reducedMotion, onStep })
+  live.current = { period, enabled, reducedMotion, onStep }
   const offset = useRef(new Animated.Value(0)).current
 
   const responder = useMemo(() => {
@@ -24,8 +26,8 @@ export function PeriodSwipe({ enabled = true, style, children }: {
       if (live.current.reducedMotion) offset.setValue(0)
       else Animated.spring(offset, { toValue: 0, useNativeDriver: true, bounciness: 4, speed: 18 }).start()
     }
-    const allowed = (delta: -1 | 1): boolean =>
-      delta === -1 ? live.current.period.canGoBack : live.current.period.canGoForward
+    const allowed = (delta: -1 | 1): boolean => live.current.onStep !== undefined ||
+      (delta === -1 ? live.current.period.canGoBack : live.current.period.canGoForward)
     return PanResponder.create({
       onMoveShouldSetPanResponder: (_, state) => live.current.enabled && isHorizontalSwipe(state.dx, state.dy),
       onPanResponderTerminationRequest: () => true,
@@ -36,7 +38,7 @@ export function PeriodSwipe({ enabled = true, style, children }: {
       },
       onPanResponderRelease: (_, state) => {
         const delta = swipeStep(state.dx, state.vx)
-        if (delta !== 0 && allowed(delta)) live.current.period.step(delta)
+        if (delta !== 0 && allowed(delta)) (live.current.onStep ?? live.current.period.step)(delta)
         settle()
       },
       onPanResponderTerminate: settle

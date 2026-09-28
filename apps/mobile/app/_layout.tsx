@@ -6,6 +6,7 @@ import { SettingsProvider } from '../lib/settings'
 import { MoneyProvider } from '../lib/money-context'
 import { LedgerProvider } from '../lib/ledger-context'
 import { PeriodProvider } from '../lib/period-context'
+import { ReminderProvider } from '../lib/reminder-context'
 
 export default function RootLayout(): React.ReactElement {
   return (
@@ -13,6 +14,7 @@ export default function RootLayout(): React.ReactElement {
       <LedgerProvider>
         <MoneyProvider>
           <PeriodProvider>
+            <ReminderProvider>
             <StatusBar style="light" />
             <Stack
               screenOptions={{
@@ -29,6 +31,7 @@ export default function RootLayout(): React.ReactElement {
               <Stack.Screen name="auth" options={{ title: 'Sign in', headerShown: false }} />
               <Stack.Screen name="transaction-image" options={{ title: 'Money agent' }} />
             </Stack>
+            </ReminderProvider>
           </PeriodProvider>
         </MoneyProvider>
       </LedgerProvider>
