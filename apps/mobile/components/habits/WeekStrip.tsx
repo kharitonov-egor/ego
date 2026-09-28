@@ -1,28 +1,14 @@
 import React from 'react'
 import { Pressable, Text, View } from 'react-native'
-import Svg, { Circle } from 'react-native-svg'
 import { ChevronLeft, ChevronRight } from 'lucide-react-native'
 import { parseIso, shiftIso } from '../../lib/dates'
 import { mondayOf, weekDates, type DayScore } from '../../lib/habits/stats'
 import { formatSpan } from '../../lib/periods'
 import { PeriodSwipe } from '../money/PeriodSwipe'
+import { Ring } from './Ring'
 
 const LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 const RING = 38
-const STROKE = 3
-
-function Ring({ share, track, fill }: { share: number; track: string; fill: string }): React.ReactElement {
-  const radius = (RING - STROKE) / 2
-  const circumference = 2 * Math.PI * radius
-  return <Svg width={RING} height={RING} style={{ position: 'absolute', transform: [{ rotate: '-90deg' }] }}>
-    <Circle cx={RING / 2} cy={RING / 2} r={radius} stroke={track} strokeWidth={STROKE} fill="none" />
-    {share > 0 && <Circle
-      cx={RING / 2} cy={RING / 2} r={radius} stroke={fill} strokeWidth={STROKE} fill="none"
-      strokeLinecap="round" strokeDasharray={`${circumference} ${circumference}`}
-      strokeDashoffset={circumference * (1 - share)}
-    />}
-  </Svg>
-}
 
 function weekLabel(monday: string, today: string): string {
   if (monday === mondayOf(today)) return 'This week'
@@ -39,7 +25,7 @@ function DayPill({ date, today, selected, score, onPress }: {
 }): React.ReactElement {
   const future = date > today
   const finished = !future && score.total > 0 && score.done === score.total
-  const share = future || score.total === 0 ? 0 : score.done / score.total
+  const share = future || score.total === 0 ? 0 : score.partial / score.total
   const letter = LETTERS[(parseIso(date).getDay() + 6) % 7]
   const numberColor = finished ? (selected ? 'text-white' : 'text-primary-foreground')
     : selected ? 'text-primary-foreground' : future ? 'text-surface-600' : 'text-foreground'
@@ -56,7 +42,7 @@ function DayPill({ date, today, selected, score, onPress }: {
     <View className="mt-1 items-center justify-center" style={{ width: RING, height: RING }}>
       {finished
         ? <View className={`absolute rounded-full ${selected ? 'bg-surface-950' : 'bg-primary'}`} style={{ width: RING, height: RING }} />
-        : <Ring share={share} track={selected ? '#d4d4d4' : '#262626'} fill={selected ? '#0a0a0a' : '#fafafa'} />}
+        : <Ring size={RING} share={share} track={selected ? '#d4d4d4' : '#262626'} fill={selected ? '#0a0a0a' : '#fafafa'} />}
       <Text className={`text-[15px] ${date === today || selected ? 'font-bold' : 'font-medium'} ${numberColor}`}>{parseIso(date).getDate()}</Text>
     </View>
   </Pressable>

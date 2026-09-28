@@ -126,23 +126,26 @@ Canvas sends deadlines in UTC. The phone places each one on its own calendar, so
 
 The phone's start screen has a Habits tile with three tabs.
 
-- Home lists the habits to build, each with an emoji. Tap a habit to check it off for the selected
-  day, and tap it again to undo. Hold one to rename it, change its emoji or start date, move it, or
-  delete it. The week strip at the top has a ring on each day that fills as habits get done. Swipe
+- Home lists the habits to build, each with an emoji. A habit is due once a day, several times a
+  day (up to 10), or on a number of days each week (up to 6). Tap a habit to add a check-off for
+  the selected day, and hold it to take one back. A habit done once a day, or a weekly one, toggles
+  on tap instead. The pencil on each row opens the editor, which renames, sets the frequency, moves,
+  or deletes. The week strip at the top has a ring on each day that fills as habits get done. Swipe
   it or use the arrows to move a week at a time. Future days stay locked.
-- Progress shows one month: the share of check-offs done, a calendar where a day gets brighter as
-  more gets done and turns solid white when everything is, the current and best run of days with
-  every habit done, and each habit's rate. Tapping a habit narrows the calendar and the streaks to
-  it. Tapping a day opens it on Home.
-- Quit is for habits to break. Each card counts the days clean since the last slip, or since the
-  start date when nothing has slipped since. It also shows the best run, the urges resisted, and
-  the slips. Resisted logs an urge you did not act on. Slipped asks first, then restarts the count.
-  Both offer Undo for a few seconds. The edit sheet lists the full history and can log a past day.
+- Progress shows one month: the share of targets met, a calendar where a day gets brighter as more
+  gets done and turns solid white when everything is, the current and best streak, and each habit's
+  rate. A weekly habit shows on Home every day until its week is done. On the calendar it only
+  brightens the days it was done and never leaves a day unfinished. Its rate counts weeks, each
+  belonging to the month its Thursday falls in. Tapping a habit narrows the calendar and the
+  streaks to it. Tapping a day opens it on Home.
+- Quit is for habits to break. Each card runs a clock from the moment you quit, in days, hours,
+  minutes, and seconds, and shows the best run so far. The editor sets the quit day and time,
+  restarts the clock after a relapse, and lists past restarts.
 
-Every habit is due every day from its start date, so adding one never counts against earlier days.
-Habits use the same local database, outbox, and change log as the other apps. A check-off shows
-at once and reaches D1 in `habits` and `habit_entries` on the next sync. Deleting a habit hides its
-entries on every device.
+A daily habit is due every day from its start date, so adding one never counts against earlier
+days. Habits use the same local database, outbox, and change log as the other apps. A check-off
+shows at once and reaches D1 in `habits` and `habit_entries` on the next sync. Deleting a habit
+hides its entries on every device.
 
 ## Quick tools
 

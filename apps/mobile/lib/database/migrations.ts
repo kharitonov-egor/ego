@@ -239,6 +239,12 @@ export const LOCAL_MIGRATIONS: readonly string[][] = [
       deleted_at TEXT
     )`,
     'CREATE INDEX IF NOT EXISTS idx_local_habit_entries_habit ON habit_entries(habit_id, date) WHERE deleted_at IS NULL'
+  ],
+  [
+    "ALTER TABLE habits ADD COLUMN target INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE habits ADD COLUMN period TEXT NOT NULL DEFAULT 'day'",
+    'ALTER TABLE habits ADD COLUMN started_at TEXT',
+    'ALTER TABLE habit_entries ADD COLUMN logged_at TEXT'
   ]
 ]
 

@@ -128,6 +128,19 @@ describe('habit operations', () => {
     expect(isSyncOperation(create('habit', { ...habit, position: 1.5 }))).toBe(false)
   })
 
+  it('takes an optional target, period, and quit moment within their limits', () => {
+    expect(isSyncOperation(create('habit', { ...habit, target: 4, period: 'day' }))).toBe(true)
+    expect(isSyncOperation(create('habit', { ...habit, target: 3, period: 'week' }))).toBe(true)
+    expect(isSyncOperation(create('habit', { ...habit, target: 7, period: 'week' }))).toBe(false)
+    expect(isSyncOperation(create('habit', { ...habit, target: 11 }))).toBe(false)
+    expect(isSyncOperation(create('habit', { ...habit, target: 0 }))).toBe(false)
+    expect(isSyncOperation(create('habit', { ...habit, period: 'month' }))).toBe(false)
+    expect(isSyncOperation(create('habit', { ...habit, kind: 'break', startedAt: '2026-09-28T21:30:00.000Z' }))).toBe(true)
+    expect(isSyncOperation(create('habit', { ...habit, startedAt: 'yesterday' }))).toBe(false)
+    expect(isSyncOperation(create('habitEntry', { ...entry, kind: 'slipped', loggedAt: '2026-09-28T21:30:00.000Z' }))).toBe(true)
+    expect(isSyncOperation(create('habitEntry', { ...entry, loggedAt: 12 }))).toBe(false)
+  })
+
   it('accepts done, resisted, and slipped entries and nothing else', () => {
     expect(isSyncOperation(create('habitEntry', entry))).toBe(true)
     expect(isSyncOperation(create('habitEntry', { ...entry, kind: 'slipped' }))).toBe(true)

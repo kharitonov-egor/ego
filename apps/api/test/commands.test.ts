@@ -390,6 +390,36 @@ describe('habits', () => {
     }), NOW)).toMatchObject({ ok: false, error: { code: 'INVALID_REQUEST' } })
   })
 
+  it('stores a target, a period, and exact times, and an older build keeps them on update', async () => {
+    ledger = await seedLedger()
+    await applyOperation(ledger.db, createHabit('hb-gym', habit({ name: 'Gym', target: 3, period: 'week' })), NOW)
+    await applyOperation(ledger.db, createHabit('hb-smoke', habit({ name: 'Smoking', kind: 'break', startedAt: '2026-09-01T20:30:00.000Z' })), NOW)
+    expect(await applyOperation(ledger.db, createEntry('he-slip', {
+      habitId: 'hb-smoke', date: '2026-09-11', kind: 'slipped', loggedAt: '2026-09-11T22:05:00.000Z'
+    }), NOW)).toMatchObject({ ok: true })
+    const { target, period, startedAt, ...legacy } = habit({ name: 'Gym, renamed' })
+    expect([target, period, startedAt]).toEqual([undefined, undefined, undefined])
+    expect(await applyOperation(ledger.db, operation({
+      operationId: 'op-legacy', entityId: 'hb-gym', expectedRevision: 1,
+      command: { entity: 'habit', type: 'update', payload: legacy }
+    }), NOW)).toMatchObject({ ok: true, data: { revision: 2 } })
+    const downloaded = await readBootstrap(ledger.db)
+    expect(downloaded.habits).toEqual([
+      expect.objectContaining({ id: 'hb-gym', name: 'Gym, renamed', target: 3, period: 'week', startedAt: null }),
+      expect.objectContaining({ id: 'hb-smoke', target: 1, period: 'day', startedAt: '2026-09-01T20:30:00.000Z' })
+    ])
+    expect(downloaded.habitEntries).toEqual([expect.objectContaining({ id: 'he-slip', loggedAt: '2026-09-11T22:05:00.000Z' })])
+  })
+
+  it('refuses a weekly target above six days', async () => {
+    ledger = await seedLedger()
+    await applyOperation(ledger.db, createHabit('hb-gym', habit({ target: 5 })), NOW)
+    expect(await applyOperation(ledger.db, operation({
+      operationId: 'op-weekly', entityId: 'hb-gym', expectedRevision: 1,
+      command: { entity: 'habit', type: 'update', payload: { ...habit({ target: 8 }), period: 'week' } }
+    }), NOW)).toMatchObject({ ok: false, error: { code: 'INVALID_REQUEST' } })
+  })
+
   it('unchecks a day by deleting its entry', async () => {
     ledger = await seedLedger()
     await applyOperation(ledger.db, createHabit('hb-read', habit()), NOW)
