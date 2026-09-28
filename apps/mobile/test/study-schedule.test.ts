@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
-  courseColors, courseList, courseSummaries, dayHeading, dueDay, dueWithin, isOverdue, studySections
+  courseColors, courseList, courseSummaries, dayHeading, dueDay, dueWithin, isOverdue, overdueCount, studySections,
+  type StudyFilter
 } from '../lib/study/schedule'
 import type { StudyItem } from '../lib/study/store'
 
 const local = (day: number, hour: number, minute = 0): string => new Date(2026, 8, day, hour, minute).toISOString()
 const NOW = new Date(2026, 8, 28, 12, 0)
+const ALL: StudyFilter = { course: null, hideOverdue: false }
 
 function item(id: string, due: StudyItem['due'], overrides: Partial<StudyItem> = {}): StudyItem {
   return { id, title: id, course: 'CDA4205', due, url: null, description: '', doneAt: null, pending: false, ...overrides }
@@ -34,7 +36,7 @@ describe('study days', () => {
   })
 
   it('opens Upcoming with unchecked work from earlier days, then each day from today', () => {
-    const sections = studySections(ITEMS, 'upcoming', NOW, null)
+    const sections = studySections(ITEMS, 'upcoming', NOW, ALL)
     expect(sections.map((section) => [section.day, section.data.map((entry) => entry.id)])).toEqual([
       [null, ['late-lab']],
       ['2026-09-28', ['this-morning', 'tonight', 'today-any-time']],
@@ -43,13 +45,28 @@ describe('study days', () => {
   })
 
   it('lists earlier days in Past, newest first, done or not', () => {
-    const sections = studySections(ITEMS, 'past', NOW, null)
+    const sections = studySections(ITEMS, 'past', NOW, ALL)
     expect(sections.map((section) => section.day)).toEqual(['2026-09-25', '2026-09-24'])
   })
 
   it('narrows to one course', () => {
-    const sections = studySections(ITEMS, 'upcoming', NOW, 'COT4400')
+    const sections = studySections(ITEMS, 'upcoming', NOW, { course: 'COT4400', hideOverdue: false })
     expect(sections.flatMap((section) => section.data.map((entry) => entry.id))).toEqual(['tonight'])
+  })
+
+  it('hides every unchecked item whose deadline has passed, in both views', () => {
+    const hidden = { course: null, hideOverdue: true }
+    expect(studySections(ITEMS, 'upcoming', NOW, hidden).map((section) => [section.day, section.data.map((entry) => entry.id)])).toEqual([
+      ['2026-09-28', ['tonight', 'today-any-time']],
+      ['2026-10-05', ['next-week']]
+    ])
+    expect(studySections(ITEMS, 'past', NOW, hidden).flatMap((section) => section.data.map((entry) => entry.id))).toEqual(['finished'])
+  })
+
+  it('counts overdue items for the chosen course', () => {
+    expect(overdueCount(ITEMS, NOW, null)).toBe(2)
+    expect(overdueCount(ITEMS, NOW, 'CDA4205L')).toBe(1)
+    expect(overdueCount(ITEMS, NOW, 'COT4400')).toBe(0)
   })
 
   it('counts what is still ahead in the next week', () => {

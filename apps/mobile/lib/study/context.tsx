@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { AppState } from 'react-native'
+import * as SecureStore from 'expo-secure-store'
 import type { ApiError } from '@ego/api-contracts'
 import { useLedger } from '../ledger-context'
 import type { LocalDatabase } from '../database/types'
@@ -8,6 +9,7 @@ import {
 } from './store'
 
 const STALE_AFTER_MS = 5 * 60 * 1000
+const HIDE_OVERDUE_KEY = 'ego.study.hideOverdue'
 
 interface StudyContextValue {
   /** The saved copy has been read, so an empty list means Canvas really has nothing. */
@@ -20,6 +22,8 @@ interface StudyContextValue {
   /** With `onlyIfStale`, a copy younger than five minutes is kept as it is. */
   refresh: (onlyIfStale?: boolean) => Promise<void>
   setDone: (id: string, done: boolean) => Promise<void>
+  hideOverdue: boolean
+  setHideOverdue: (hide: boolean) => void
 }
 
 const StudyContext = createContext<StudyContextValue | null>(null)
@@ -35,6 +39,7 @@ export function StudyProvider({ children }: { children: React.ReactNode }): Reac
   const [fetchedAt, setFetchedAt] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)
+  const [hideOverdue, setHideOverdueState] = useState(false)
   const running = useRef<Promise<void> | null>(null)
   const delivery = useRef<Promise<unknown>>(Promise.resolve())
   const fetchedAtRef = useRef<string | null>(null)
@@ -73,6 +78,17 @@ export function StudyProvider({ children }: { children: React.ReactNode }): Reac
   refreshRef.current = refresh
 
   useEffect(() => {
+    void SecureStore.getItemAsync(HIDE_OVERDUE_KEY)
+      .then((stored) => setHideOverdueState(stored === '1'))
+      .catch(() => undefined)
+  }, [])
+
+  const setHideOverdue = useCallback((hide: boolean): void => {
+    setHideOverdueState(hide)
+    void SecureStore.setItemAsync(HIDE_OVERDUE_KEY, hide ? '1' : '0').catch(() => undefined)
+  }, [])
+
+  useEffect(() => {
     setLoaded(false)
     setItems([])
     setFetchedAt(null)
@@ -106,8 +122,8 @@ export function StudyProvider({ children }: { children: React.ReactNode }): Reac
   }, [db, refresh])
 
   const value = useMemo((): StudyContextValue => ({
-    loaded, items, fetchedAt, refreshing, error, refresh, setDone
-  }), [error, fetchedAt, items, loaded, refresh, refreshing, setDone])
+    loaded, items, fetchedAt, refreshing, error, refresh, setDone, hideOverdue, setHideOverdue
+  }), [error, fetchedAt, hideOverdue, items, loaded, refresh, refreshing, setDone, setHideOverdue])
 
   return <StudyContext.Provider value={value}>{children}</StudyContext.Provider>
 }
