@@ -4,7 +4,7 @@ import {
   type SyncCommand, type SyncEntity, type SyncOperation
 } from '@ego/api-contracts'
 import {
-  entryKindFits,
+  HABIT_TARGET_LIMIT, entryKindFits,
   type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type GymSetInput,
   type HabitInput, type MoodInput, type PurchaseInput, type TransactionInput
 } from '@ego/core'
@@ -958,10 +958,15 @@ async function planMood(
   }
 }
 
-function habitRowFrom(id: string, input: HabitInput, createdAt: string, updatedAt: string, revision: number): HabitRow {
+/** A field an older build leaves out keeps its saved value, so that build cannot reset it. */
+function habitRowFrom(
+  id: string, input: HabitInput, current: HabitRow | null, createdAt: string, updatedAt: string, revision: number
+): HabitRow {
   return {
     id, name: input.name.trim(), icon: input.icon.trim(), kind: input.kind, start_date: input.startDate,
-    position: input.position, created_at: createdAt, updated_at: updatedAt, revision
+    position: input.position, target: input.target ?? current?.target ?? 1, period: input.period ?? current?.period ?? 'day',
+    started_at: input.startedAt === undefined ? current?.started_at ?? null : input.startedAt,
+    created_at: createdAt, updated_at: updatedAt, revision
   }
 }
 
@@ -970,13 +975,14 @@ async function planHabit(
 ): Promise<ApiResult<Plan>> {
   const id = operation.entityId
   if (command.type === 'create') {
-    const row = habitRowFrom(id, command.payload, now, now, 1)
+    const row = habitRowFrom(id, command.payload, null, now, now, 1)
+    if (row.target > HABIT_TARGET_LIMIT[row.period]) return invalid(`A weekly habit can ask for at most ${HABIT_TARGET_LIMIT.week} days`)
     return {
       ok: true,
       data: upsertPlan('habit', id, 1, { entity: 'habit', record: toHabitRecord(row) }, {
-        sql: `INSERT INTO habits (id, name, icon, kind, start_date, position, created_at, updated_at, revision)
-          SELECT ?, ?, ?, ?, ?, ?, ?, ?, 1`,
-        params: [id, row.name, row.icon, row.kind, row.start_date, row.position, now, now]
+        sql: `INSERT INTO habits (id, name, icon, kind, start_date, position, target, period, started_at, created_at,
+          updated_at, revision) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1`,
+        params: [id, row.name, row.icon, row.kind, row.start_date, row.position, row.target, row.period, row.started_at, now, now]
       }, null)
     }
   }
@@ -989,13 +995,14 @@ async function planHabit(
   }
   if (command.payload.kind !== current.kind) return invalid('A habit cannot switch between building and breaking')
   const revision = expected + 1
-  const row = habitRowFrom(id, command.payload, current.created_at, now, revision)
+  const row = habitRowFrom(id, command.payload, current, current.created_at, now, revision)
+  if (row.target > HABIT_TARGET_LIMIT[row.period]) return invalid(`A weekly habit can ask for at most ${HABIT_TARGET_LIMIT.week} days`)
   return {
     ok: true,
     data: upsertPlan('habit', id, revision, { entity: 'habit', record: toHabitRecord(row) }, {
-      sql: `UPDATE habits SET name = ?, icon = ?, start_date = ?, position = ?, updated_at = ?, revision = revision + 1
-        WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
-      params: [row.name, row.icon, row.start_date, row.position, now, id, expected]
+      sql: `UPDATE habits SET name = ?, icon = ?, start_date = ?, position = ?, target = ?, period = ?, started_at = ?,
+        updated_at = ?, revision = revision + 1 WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+      params: [row.name, row.icon, row.start_date, row.position, row.target, row.period, row.started_at, now, id, expected]
     }, guard)
   }
 }
@@ -1019,14 +1026,15 @@ async function planHabitEntry(
   if (!entryKindFits(habit.kind, input.kind)) return invalid(`A habit to ${habit.kind} cannot log ${input.kind}`)
   const parent = liveGuard('habit', input.habitId)
   const row: HabitEntryRow = {
-    id, habit_id: input.habitId, date: input.date, kind: input.kind, created_at: now, updated_at: now, revision: 1
+    id, habit_id: input.habitId, date: input.date, kind: input.kind, logged_at: input.loggedAt ?? null,
+    created_at: now, updated_at: now, revision: 1
   }
   return {
     ok: true,
     data: upsertPlan('habitEntry', id, 1, { entity: 'habitEntry', record: toHabitEntryRecord(row) }, guarded({
-      sql: `INSERT INTO habit_entries (id, habit_id, date, kind, created_at, updated_at, revision)
-        SELECT ?, ?, ?, ?, ?, ?, 1`,
-      params: [id, row.habit_id, row.date, row.kind, now, now]
+      sql: `INSERT INTO habit_entries (id, habit_id, date, kind, logged_at, created_at, updated_at, revision)
+        SELECT ?, ?, ?, ?, ?, ?, ?, 1`,
+      params: [id, row.habit_id, row.date, row.kind, row.logged_at, now, now]
     }, parent), parent)
   }
 }

@@ -35,9 +35,15 @@ interface HabitsContextValue {
   save: (input: HabitInput, habit: HabitRecord | null) => Promise<boolean>
   remove: (habit: HabitRecord) => Promise<boolean>
   move: (habit: HabitRecord, delta: -1 | 1) => Promise<boolean>
-  toggle: (habit: HabitRecord, date: string) => Promise<boolean>
-  /** Resolves to the new entry's ID, so the caller can offer an undo. */
-  record: (habit: HabitRecord, kind: 'resisted' | 'slipped', date: string) => Promise<string | null>
+  /**
+   * Adds a check-off. A habit done once a day, or a weekly one, toggles instead. A habit that has
+   * met a larger daily target stays as it is.
+   */
+  tap: (habit: HabitRecord, date: string) => Promise<boolean>
+  /** Removes the day's latest check-off. */
+  takeBack: (habit: HabitRecord, date: string) => Promise<boolean>
+  /** Restarts a habit to break's clock from this moment. */
+  restart: (habit: HabitRecord) => Promise<boolean>
   removeEntry: (entryId: string) => Promise<boolean>
 }
 
@@ -46,8 +52,15 @@ const HabitsContext = createContext<HabitsContextValue | null>(null)
 export function habitInput(habit: HabitRecord, changes: Partial<HabitInput> = {}): HabitInput {
   return {
     name: habit.name, icon: habit.icon, kind: habit.kind, startDate: habit.startDate, position: habit.position,
+    target: habit.target, period: habit.period, startedAt: habit.startedAt,
     ...changes
   }
+}
+
+function checkOffs(entries: readonly HabitEntryRecord[], habitId: string, date: string): HabitEntryRecord[] {
+  return entries
+    .filter((entry) => entry.habitId === habitId && entry.date === date && entry.kind === 'done')
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
 }
 
 async function removeEntries(db: LocalDatabase, ids: readonly string[], now: string): Promise<void> {
@@ -124,40 +137,42 @@ export function HabitsProvider({ children }: { children: React.ReactNode }): Rea
     return saved
   }, [queued])
 
-  const toggle = useCallback(async (habit: HabitRecord, date: string): Promise<boolean> => {
-    const existing = entriesRef.current
-      .filter((entry) => entry.habitId === habit.id && entry.date === date && entry.kind === 'done')
-      .map((entry) => entry.id)
-    if (existing.length > 0) {
-      return optimistic(
-        (current) => current.filter((entry) => !existing.includes(entry.id)),
-        (database, now) => removeEntries(database, existing, now),
-        'This phone could not uncheck that habit')
-    }
+  const add = useCallback((habit: HabitRecord, date: string, kind: 'done' | 'slipped', failure: string): Promise<boolean> => {
     const id = newId()
     const now = new Date().toISOString()
+    const input = { habitId: habit.id, date, kind, loggedAt: kind === 'slipped' ? now : null }
     return optimistic(
-      (current) => [...current, { id, habitId: habit.id, date, kind: 'done', createdAt: now, updatedAt: now, revision: 1 }],
-      async (database, at) => { await createHabitEntry(database, { habitId: habit.id, date, kind: 'done' }, at, id) },
-      'This phone could not check off that habit')
-  }, [optimistic])
-
-  const record = useCallback(async (
-    habit: HabitRecord, kind: 'resisted' | 'slipped', date: string
-  ): Promise<string | null> => {
-    const id = newId()
-    const now = new Date().toISOString()
-    const saved = await optimistic(
-      (current) => [...current, { id, habitId: habit.id, date, kind, createdAt: now, updatedAt: now, revision: 1 }],
-      async (database, at) => { await createHabitEntry(database, { habitId: habit.id, date, kind }, at, id) },
-      kind === 'slipped' ? 'This phone could not log that slip' : 'This phone could not log that')
-    return saved ? id : null
+      (current) => [...current, { id, ...input, createdAt: now, updatedAt: now, revision: 1 }],
+      async (database, at) => { await createHabitEntry(database, input, at, id) },
+      failure)
   }, [optimistic])
 
   const removeEntry = useCallback((entryId: string): Promise<boolean> => optimistic(
     (current) => current.filter((entry) => entry.id !== entryId),
     (database, now) => removeEntries(database, [entryId], now),
     'This phone could not remove that entry'), [optimistic])
+
+  const tap = useCallback(async (habit: HabitRecord, date: string): Promise<boolean> => {
+    const existing = checkOffs(entriesRef.current, habit.id, date).map((entry) => entry.id)
+    const toggles = habit.period === 'week' || habit.target === 1
+    if (toggles && existing.length > 0) {
+      return optimistic(
+        (current) => current.filter((entry) => !existing.includes(entry.id)),
+        (database, now) => removeEntries(database, existing, now),
+        'This phone could not uncheck that habit')
+    }
+    if (!toggles && existing.length >= habit.target) return true
+    return add(habit, date, 'done', 'This phone could not check off that habit')
+  }, [add, optimistic])
+
+  const takeBack = useCallback(async (habit: HabitRecord, date: string): Promise<boolean> => {
+    const existing = checkOffs(entriesRef.current, habit.id, date)
+    const latest = existing[existing.length - 1]
+    return latest ? removeEntry(latest.id) : false
+  }, [removeEntry])
+
+  const restart = useCallback((habit: HabitRecord): Promise<boolean> =>
+    add(habit, isoToday(), 'slipped', 'This phone could not restart the clock'), [add])
 
   const save = useCallback(async (input: HabitInput, habit: HabitRecord | null): Promise<boolean> => {
     if (!isHabitInput(input)) {
@@ -226,10 +241,11 @@ export function HabitsProvider({ children }: { children: React.ReactNode }): Rea
     save,
     remove,
     move,
-    toggle,
-    record,
+    tap,
+    takeBack,
+    restart,
     removeEntry
-  }), [date, editor, enabled, error, habits, log, move, record, remove, removeEntry, save, today, toggle, writing])
+  }), [date, editor, enabled, error, habits, log, move, remove, removeEntry, restart, save, takeBack, tap, today, writing])
 
   return <HabitsContext.Provider value={value}>{children}</HabitsContext.Provider>
 }

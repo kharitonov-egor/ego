@@ -196,6 +196,11 @@ npm run deploy --workspace @ego/api
 An older Worker rejects any batch that contains a habit or a check-off. Money, gym, and mood
 changes queued in the same batch then wait until the Worker is updated.
 
+Migration `0009_habit_targets_and_clock.sql` adds a habit's target and period, the exact moment a
+habit to break was quit, and the phone's own time on each restart. It is additive, and existing
+habits become once a day. The fields are optional on the wire. A phone on an older build can still
+save a habit, and the Worker keeps the saved values for anything that build leaves out.
+
 ## 3. Point the desktop app at it
 
 The desktop Settings screen calls this the Ego service. It takes the Worker address and a token

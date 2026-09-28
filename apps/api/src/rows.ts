@@ -1,6 +1,6 @@
 import type {
   AccountKind, CategoryKind, DistanceUnit, ExerciseType, ExerciseWeightUnit, HabitEntryKind, HabitKind,
-  MoneyPurchase, MoodLevel, ReceiptItem, TransactionKind, WeightUnit
+  HabitPeriod, MoneyPurchase, MoodLevel, ReceiptItem, TransactionKind, WeightUnit
 } from '@ego/core'
 import type {
   AccountRecord, BudgetRecord, CategoryRecord, FeedTransaction, GymCategoryRecord, GymExerciseRecord,
@@ -119,6 +119,9 @@ export interface HabitRow {
   kind: HabitKind
   start_date: string
   position: number
+  target: number
+  period: HabitPeriod
+  started_at: string | null
   created_at: string
   updated_at: string
   revision: number
@@ -129,6 +132,7 @@ export interface HabitEntryRow {
   habit_id: string
   date: string
   kind: HabitEntryKind
+  logged_at: string | null
   created_at: string
   updated_at: string
   revision: number
@@ -316,13 +320,14 @@ export function toMoodRecord(row: MoodRow): MoodRecord {
 export function toHabitRecord(row: HabitRow): HabitRecord {
   return {
     id: row.id, name: row.name, icon: row.icon, kind: row.kind, startDate: row.start_date, position: row.position,
+    target: row.target, period: row.period, startedAt: row.started_at,
     createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
   }
 }
 
 export function toHabitEntryRecord(row: HabitEntryRow): HabitEntryRecord {
   return {
-    id: row.id, habitId: row.habit_id, date: row.date, kind: row.kind,
+    id: row.id, habitId: row.habit_id, date: row.date, kind: row.kind, loggedAt: row.logged_at,
     createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
   }
 }

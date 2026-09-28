@@ -1,5 +1,5 @@
 import type { HabitEntryRecord, HabitRecord } from '@ego/api-contracts'
-import type { HabitEntryKind, HabitKind } from '@ego/core'
+import type { HabitEntryKind, HabitKind, HabitPeriod } from '@ego/core'
 import type { LocalDatabase } from '../database/types'
 
 interface HabitRow {
@@ -9,6 +9,9 @@ interface HabitRow {
   kind: HabitKind
   start_date: string
   position: number
+  target: number
+  period: HabitPeriod
+  started_at: string | null
   created_at: string
   updated_at: string
   revision: number
@@ -19,6 +22,7 @@ interface HabitEntryRow {
   habit_id: string
   date: string
   kind: HabitEntryKind
+  logged_at: string | null
   created_at: string
   updated_at: string
   revision: number
@@ -28,6 +32,7 @@ export async function localHabits(db: LocalDatabase): Promise<HabitRecord[]> {
   const rows = await db.all<HabitRow>('SELECT * FROM habits WHERE deleted_at IS NULL ORDER BY position, created_at')
   return rows.map((row) => ({
     id: row.id, name: row.name, icon: row.icon, kind: row.kind, startDate: row.start_date, position: row.position,
+    target: row.target, period: row.period, startedAt: row.started_at,
     createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
   }))
 }
@@ -38,7 +43,7 @@ export async function localHabitEntries(db: LocalDatabase): Promise<HabitEntryRe
     JOIN habits h ON h.id = e.habit_id AND h.deleted_at IS NULL
     WHERE e.deleted_at IS NULL ORDER BY e.date, e.created_at`)
   return rows.map((row) => ({
-    id: row.id, habitId: row.habit_id, date: row.date, kind: row.kind,
+    id: row.id, habitId: row.habit_id, date: row.date, kind: row.kind, loggedAt: row.logged_at,
     createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
   }))
 }

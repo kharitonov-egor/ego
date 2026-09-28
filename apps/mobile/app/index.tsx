@@ -1,6 +1,6 @@
 import React from 'react'
 import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useRouter, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   CircleCheckBig, Dumbbell, GraduationCap, HeartPulse, Settings, Wallet, type LucideIcon
@@ -9,16 +9,41 @@ import appIcon from '../assets/app-icon.png'
 import { SignInPanel } from '../components/SignInPanel'
 import { isSignedIn, useSettings } from '../lib/settings'
 
+interface App {
+  label: string
+  Icon: LucideIcon
+  href: Href
+}
+
+const APPS: readonly App[] = [
+  { label: 'Finance', Icon: Wallet, href: '/(money)/overview' },
+  { label: 'Gym', Icon: Dumbbell, href: '/gym' },
+  { label: 'Health', Icon: HeartPulse, href: '/health' },
+  { label: 'Study', Icon: GraduationCap, href: '/(study)/assignments' },
+  { label: 'Habits', Icon: CircleCheckBig, href: '/(habits)/home' }
+]
+
 function AppTile({ label, Icon, onPress }: { label: string; Icon: LucideIcon; onPress: () => void }): React.ReactElement {
   return <Pressable
     accessibilityRole="button"
     accessibilityLabel={label}
     onPress={onPress}
-    className="min-h-[128px] w-full items-center justify-center rounded-3xl border-2 border-white bg-black active:bg-white/10"
+    className="min-h-[136px] flex-1 items-center justify-center rounded-3xl border-2 border-white bg-black px-2 active:bg-white/10"
   >
-    <Icon color="#ffffff" size={38} strokeWidth={1.75} />
-    <Text className="mt-3 text-[22px] font-semibold text-white">{label}</Text>
+    <Icon color="#ffffff" size={36} strokeWidth={1.75} />
+    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} className="mt-3 text-[20px] font-semibold text-white">{label}</Text>
   </Pressable>
+}
+
+/** Two tiles a row. An odd last tile keeps its half width, so the grid stays even. */
+function AppGrid({ onOpen }: { onOpen: (href: Href) => void }): React.ReactElement {
+  const rows = Array.from({ length: Math.ceil(APPS.length / 2) }, (_, row) => APPS.slice(row * 2, row * 2 + 2))
+  return <View className="mt-10 gap-4">
+    {rows.map((row) => <View key={row[0].label} className="flex-row gap-4">
+      {row.map((app) => <AppTile key={app.label} label={app.label} Icon={app.Icon} onPress={() => onOpen(app.href)} />)}
+      {row.length === 1 && <View className="flex-1" />}
+    </View>)}
+  </View>
 }
 
 /**
@@ -33,7 +58,7 @@ export default function Launcher(): React.ReactElement {
   return <ScrollView
     className="flex-1 bg-black"
     keyboardShouldPersistTaps="handled"
-    contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 24, paddingHorizontal: 16 }}
+    contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 24, paddingHorizontal: 24 }}
   >
     <View className="h-11 flex-row justify-end">
       {signedIn && <Pressable
@@ -51,13 +76,7 @@ export default function Launcher(): React.ReactElement {
     {loading
       ? <ActivityIndicator color="#fafafa" className="mt-10" />
       : signedIn
-        ? <View className="mt-10 gap-4">
-          <AppTile label="Finance" Icon={Wallet} onPress={() => router.push('/(money)/overview')} />
-          <AppTile label="Gym" Icon={Dumbbell} onPress={() => router.push('/gym')} />
-          <AppTile label="Health" Icon={HeartPulse} onPress={() => router.push('/health')} />
-          <AppTile label="Study" Icon={GraduationCap} onPress={() => router.push('/(study)/assignments')} />
-          <AppTile label="Habits" Icon={CircleCheckBig} onPress={() => router.push('/(habits)/home')} />
-        </View>
+        ? <AppGrid onOpen={(href) => router.push(href)} />
         : <View className="mt-10 rounded-3xl border border-border bg-card p-5">
           <Text accessibilityRole="header" className="text-[20px] font-semibold text-white">Sign in</Text>
           <View className="mt-2"><SignInPanel /></View>

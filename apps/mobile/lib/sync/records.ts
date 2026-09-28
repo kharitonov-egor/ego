@@ -224,6 +224,9 @@ export function habitRecordFrom(
     kind: input.kind,
     startDate: input.startDate,
     position: input.position,
+    target: input.target ?? 1,
+    period: input.period ?? 'day',
+    startedAt: input.startedAt ?? null,
     createdAt,
     updatedAt,
     revision
@@ -233,5 +236,8 @@ export function habitRecordFrom(
 export function habitEntryRecordFrom(
   id: string, input: HabitEntryInput, createdAt: string, updatedAt: string, revision: number
 ): HabitEntryRecord {
-  return { id, habitId: input.habitId, date: input.date, kind: input.kind, createdAt, updatedAt, revision }
+  return {
+    id, habitId: input.habitId, date: input.date, kind: input.kind, loggedAt: input.loggedAt ?? null,
+    createdAt, updatedAt, revision
+  }
 }

@@ -65,7 +65,7 @@ function ProgressBody(): React.ReactElement {
           <View className="flex-row items-end justify-between">
             <Text className="text-[40px] font-bold tracking-tight text-foreground" style={{ fontVariant: ['tabular-nums'] }}>{`${rate}%`}</Text>
             <Text className="mb-2 text-[15px] text-muted-foreground" style={{ fontVariant: ['tabular-nums'] }}>
-              {summary.possible === 0 ? 'Nothing due yet' : `${summary.done} of ${summary.possible} check-offs`}
+              {summary.possible === 0 ? 'Nothing due yet' : `${summary.done} of ${summary.possible} targets met`}
             </Text>
           </View>
           <View className="mt-3" accessible accessibilityRole="progressbar" accessibilityLabel={`${rate} percent of ${focused ? focused.name : 'habits'} done in ${formatMonth(month)}`}>
@@ -99,22 +99,24 @@ function ProgressBody(): React.ReactElement {
       </Card>
 
       <View className="flex-row gap-3">
-        <StatTile Icon={Flame} label="Current streak" value={plural(runs.current, 'day')} />
-        <StatTile Icon={Trophy} label="Best streak" value={plural(runs.best, 'day')} />
+        <StatTile Icon={Flame} label="Current streak" value={plural(runs.current, runs.unit)} />
+        <StatTile Icon={Trophy} label="Best streak" value={plural(runs.best, runs.unit)} />
       </View>
       <Text className="-mt-1 px-1 text-[13px] leading-5 text-surface-500">
-        {focused ? `Days in a row with ${focused.name} done.` : 'Days in a row with every habit done.'}
+        {runs.unit === 'week'
+          ? focused ? `Weeks in a row with ${focused.name} on target.` : 'Weeks in a row with every weekly habit on target.'
+          : focused ? `Days in a row with ${focused.name} done.` : 'Days in a row with every daily habit done.'}
       </Text>
 
       <Card className="overflow-hidden">
         <CardHeader className="pb-3"><CardTitle>This month by habit</CardTitle></CardHeader>
-        {rates.map(({ habit, done, possible }) => {
+        {rates.map(({ habit, done, possible, unit }) => {
           const selected = habit.id === focus
           return <Pressable
             key={habit.id}
             accessibilityRole="button"
             accessibilityState={{ selected }}
-            accessibilityLabel={`${habit.name}, ${done} of ${possible} days, ${percent(done, possible)} percent`}
+            accessibilityLabel={`${habit.name}, ${done} of ${possible} ${unit}s, ${percent(done, possible)} percent`}
             accessibilityHint={selected ? 'Shows every habit on the calendar' : 'Shows only this habit on the calendar'}
             onPress={() => setFocus(selected ? null : habit.id)}
             className={`flex-row items-center border-t border-surface-800 px-5 py-3 active:bg-surface-900 ${selected ? 'bg-surface-900' : ''}`}
@@ -124,7 +126,9 @@ function ProgressBody(): React.ReactElement {
               <View className="flex-row items-baseline justify-between">
                 <Text numberOfLines={1} className="flex-1 text-[16px] font-semibold text-foreground">{habit.name}</Text>
                 <Text className="ml-3 text-[14px] text-muted-foreground" style={{ fontVariant: ['tabular-nums'] }}>
-                  {possible === 0 ? 'Not started' : `${done}/${possible} · ${percent(done, possible)}%`}
+                  {possible === 0
+                    ? unit === 'week' ? 'No full week yet' : 'Not started'
+                    : `${done}/${possible} ${unit}s · ${percent(done, possible)}%`}
                 </Text>
               </View>
               <View className="mt-2"><Bar thin share={possible === 0 ? 0 : done / possible} /></View>

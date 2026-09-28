@@ -22,16 +22,39 @@ const input = (overrides: Partial<HabitInput> = {}): HabitInput => ({
 })
 
 const habitRecord = (overrides: Partial<HabitRecord> = {}): HabitRecord => ({
-  id: 'hb-read', name: 'Read', icon: '📚', kind: 'build', startDate: '2026-09-01', position: 0,
-  createdAt: NOW, updatedAt: NOW, revision: 1, ...overrides
+  id: 'hb-read', name: 'Read', icon: '📚', kind: 'build', startDate: '2026-09-01', position: 0, target: 1,
+  period: 'day', startedAt: null, createdAt: NOW, updatedAt: NOW, revision: 1, ...overrides
 })
 
 const entryRecord = (overrides: Partial<HabitEntryRecord> = {}): HabitEntryRecord => ({
-  id: 'he-1', habitId: 'hb-read', date: '2026-09-27', kind: 'done', createdAt: NOW, updatedAt: NOW, revision: 1,
-  ...overrides
+  id: 'he-1', habitId: 'hb-read', date: '2026-09-27', kind: 'done', loggedAt: null, createdAt: NOW, updatedAt: NOW,
+  revision: 1, ...overrides
 })
 
 describe('habits on the phone', () => {
+  it('keeps a target, a period, and an exact quit moment', async () => {
+    db = await openTestLedger()
+    await createHabit(db, input({ name: 'Gym', target: 3, period: 'week' }), NOW, 'hb-gym')
+    await createHabit(db, input({ name: 'Smoking', kind: 'break', startedAt: '2026-09-20T01:30:00.000Z' }), NOW, 'hb-smoke')
+    await createHabitEntry(db, { habitId: 'hb-smoke', date: '2026-09-28', kind: 'slipped', loggedAt: '2026-09-28T20:15:00.000Z' }, NOW, 'he-slip')
+    expect(await localHabits(db)).toEqual([
+      expect.objectContaining({ id: 'hb-gym', target: 3, period: 'week', startedAt: null }),
+      expect.objectContaining({ id: 'hb-smoke', target: 1, period: 'day', startedAt: '2026-09-20T01:30:00.000Z' })
+    ])
+    expect(await localHabitEntries(db)).toEqual([expect.objectContaining({ id: 'he-slip', loggedAt: '2026-09-28T20:15:00.000Z' })])
+  })
+
+  it('reads a pulled habit written before targets as once a day', async () => {
+    db = await openTestLedger()
+    await db.run('UPDATE sync_state SET bootstrapped_at = ?, bootstrap_version = ? WHERE id = 1', [NOW, BOOTSTRAP_VERSION])
+    const { target, period, startedAt, ...legacy } = habitRecord({ id: 'hb-old' })
+    const pulled = { seq: 3, entityId: 'hb-old', action: 'upsert', revision: 1, committedAt: NOW, entity: 'habit', record: legacy }
+    const api = fakeApi({ changes: [{ ok: true, data: { changes: [pulled as ChangeRecord], cursor: 3, hasMore: false } }] })
+    expect(await createSyncCoordinator({ db, api, now: () => NOW }).sync()).toMatchObject({ state: 'synced', applied: 1 })
+    expect(await localHabits(db)).toEqual([expect.objectContaining({ id: 'hb-old', target: 1, period: 'day', startedAt: null })])
+    expect([target, period, startedAt]).toEqual([1, 'day', null])
+  })
+
   it('adds a habit, checks it off, unchecks it, and queues every step', async () => {
     db = await openTestLedger()
     await createHabit(db, input({ name: '  Read  ' }), NOW, 'hb-read')

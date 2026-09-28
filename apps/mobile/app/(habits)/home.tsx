@@ -1,14 +1,15 @@
 import React, { useCallback, useMemo } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
-import { Check, ListChecks, Plus } from 'lucide-react-native'
+import { Check, ListChecks, Pencil, Plus } from 'lucide-react-native'
 import type { HabitRecord } from '@ego/api-contracts'
+import { Ring } from '../../components/habits/Ring'
 import { HabitIcon, HabitsError, HabitsGate } from '../../components/habits/ui'
 import { WeekStrip } from '../../components/habits/WeekStrip'
 import { Button } from '../../components/ui/button'
 import { Text as UiText } from '../../components/ui/text'
 import { formatIso, parseIso, shiftIso } from '../../lib/dates'
 import { useHabits } from '../../lib/habits/context'
-import { dayScore, isDone } from '../../lib/habits/stats'
+import { dayScore, mondayOf, rowState, type RowState } from '../../lib/habits/stats'
 
 function dayTitle(date: string, today: string): string {
   if (date === today) return 'Today'
@@ -16,29 +17,73 @@ function dayTitle(date: string, today: string): string {
   return parseIso(date).toLocaleDateString('en-US', { weekday: 'long' })
 }
 
-function HabitRow({ habit, done, onToggle, onEdit }: {
+const MARK = 32
+
+function subtitle(habit: HabitRecord, state: RowState, thisWeek: boolean): string | null {
+  if (habit.period === 'week') {
+    if (state.met) return thisWeek ? 'Done for this week' : 'Done that week'
+    return `${state.progress} of ${state.target} ${thisWeek ? 'this week' : 'that week'}`
+  }
+  return habit.target > 1 ? `${Math.min(state.today, state.target)} of ${state.target} times` : null
+}
+
+/**
+ * Filled with a check once the day is done. A weekly habit met on other days shows a hollow check,
+ * and a count in progress shows its number inside the ring.
+ */
+function Mark({ habit, state }: { habit: HabitRecord; state: RowState }): React.ReactElement {
+  const filled = habit.period === 'week' ? state.today > 0 : state.met
+  if (filled) {
+    return <View className="h-8 w-8 items-center justify-center rounded-full bg-primary">
+      <Check color="#0a0a0a" size={18} strokeWidth={3} />
+    </View>
+  }
+  return <View className="items-center justify-center" style={{ width: MARK, height: MARK }}>
+    <Ring size={MARK} share={state.progress / state.target} track="#404040" fill="#fafafa" />
+    {habit.period === 'week' && state.met
+      ? <Check color="#fafafa" size={16} strokeWidth={3} />
+      : habit.period === 'day' && habit.target > 1 && state.today > 0
+        ? <Text className="text-[13px] font-bold text-foreground" style={{ fontVariant: ['tabular-nums'] }}>{state.today}</Text>
+        : null}
+  </View>
+}
+
+function HabitRow({ habit, state, thisWeek, onTap, onTakeBack, onEdit }: {
   habit: HabitRecord
-  done: boolean
-  onToggle: () => void
+  state: RowState
+  thisWeek: boolean
+  onTap: () => void
+  onTakeBack: () => void
   onEdit: () => void
 }): React.ReactElement {
+  const note = subtitle(habit, state, thisWeek)
+  const settled = habit.period === 'week' ? state.today > 0 || state.met : state.met
+  const toggles = habit.period === 'week' || habit.target === 1
   return <Pressable
-    accessibilityRole="checkbox"
-    accessibilityState={{ checked: done }}
-    accessibilityLabel={habit.name}
-    accessibilityHint="Hold to edit"
-    accessibilityActions={[{ name: 'longpress', label: 'Edit habit' }]}
-    onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') onEdit() }}
-    onPress={onToggle}
-    onLongPress={onEdit}
+    accessibilityRole={toggles ? 'checkbox' : 'button'}
+    accessibilityState={toggles ? { checked: state.today > 0 } : undefined}
+    accessibilityLabel={note ? `${habit.name}, ${note}` : habit.name}
+    accessibilityHint={toggles || state.met ? undefined : 'Adds one'}
+    accessibilityActions={state.today > 0 ? [{ name: 'longpress', label: 'Take one back' }] : []}
+    onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') onTakeBack() }}
+    onPress={onTap}
+    onLongPress={onTakeBack}
     delayLongPress={350}
-    className="min-h-[68px] flex-row items-center rounded-2xl border border-border bg-card px-3 py-3 active:bg-surface-900"
+    className="min-h-[68px] flex-row items-center rounded-2xl border border-border bg-card py-3 pl-3 pr-2 active:bg-surface-900"
   >
     <HabitIcon icon={habit.icon} />
-    <Text numberOfLines={2} className={`ml-3 flex-1 text-[17px] font-semibold ${done ? 'text-surface-400' : 'text-foreground'}`}>{habit.name}</Text>
-    <View className={`ml-3 h-8 w-8 items-center justify-center rounded-full ${done ? 'bg-primary' : 'border-2 border-surface-600'}`}>
-      {done && <Check color="#0a0a0a" size={18} strokeWidth={3} />}
+    <View className="ml-3 flex-1">
+      <Text numberOfLines={2} className={`text-[17px] font-semibold ${settled ? 'text-surface-400' : 'text-foreground'}`}>{habit.name}</Text>
+      {note && <Text className="mt-0.5 text-[14px] text-muted-foreground" style={{ fontVariant: ['tabular-nums'] }}>{note}</Text>}
     </View>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Edit ${habit.name}`}
+      onPress={onEdit}
+      hitSlop={4}
+      className="mx-1 h-10 w-10 items-center justify-center rounded-full active:bg-surface-800"
+    ><Pencil color="#737373" size={17} /></Pressable>
+    <Mark habit={habit} state={state} />
   </Pressable>
 }
 
@@ -89,11 +134,13 @@ function HomeBody(): React.ReactElement {
         {due.map((habit) => <HabitRow
           key={habit.id}
           habit={habit}
-          done={isDone(log, habit.id, date)}
-          onToggle={() => void habits.toggle(habit, date)}
+          state={rowState(habit, log, date)}
+          thisWeek={mondayOf(date) === mondayOf(today)}
+          onTap={() => void habits.tap(habit, date)}
+          onTakeBack={() => void habits.takeBack(habit, date)}
           onEdit={() => habits.openEditor({ kind: 'build', habit })}
         />)}
-        <Text className="mt-3 text-center text-[13px] text-surface-500">Hold a habit to edit, reorder, or delete it.</Text>
+        <Text className="mt-3 text-center text-[13px] text-surface-500">Tap to check off. Hold to take one back.</Text>
       </View>}
   </ScrollView>
 }

@@ -176,27 +176,31 @@ async function writeMood(tx: LocalDatabase, record: MoodRecord): Promise<void> {
   [record.id, record.date, record.mood, record.note, record.createdAt, record.updatedAt, record.revision])
 }
 
+/** Change-log payloads written before migration 0009 carry no target, period, or times. */
 async function writeHabit(tx: LocalDatabase, record: HabitRecord): Promise<void> {
-  await tx.run(`INSERT INTO habits (id, name, icon, kind, start_date, position, created_at, updated_at,
-    revision, deleted_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+  await tx.run(`INSERT INTO habits (id, name, icon, kind, start_date, position, target, period, started_at,
+    created_at, updated_at, revision, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
     ON CONFLICT(id) DO UPDATE SET name = excluded.name, icon = excluded.icon, kind = excluded.kind,
-      start_date = excluded.start_date, position = excluded.position,
+      start_date = excluded.start_date, position = excluded.position, target = excluded.target,
+      period = excluded.period, started_at = excluded.started_at,
       created_at = excluded.created_at, updated_at = excluded.updated_at,
       revision = excluded.revision, deleted_at = NULL
     WHERE excluded.revision >= habits.revision`,
-  [record.id, record.name, record.icon, record.kind, record.startDate, record.position,
-    record.createdAt, record.updatedAt, record.revision])
+  [record.id, record.name, record.icon, record.kind, record.startDate, record.position, record.target ?? 1,
+    record.period ?? 'day', record.startedAt ?? null, record.createdAt, record.updatedAt, record.revision])
 }
 
 async function writeHabitEntry(tx: LocalDatabase, record: HabitEntryRecord): Promise<void> {
-  await tx.run(`INSERT INTO habit_entries (id, habit_id, date, kind, created_at, updated_at, revision, deleted_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
+  await tx.run(`INSERT INTO habit_entries (id, habit_id, date, kind, logged_at, created_at, updated_at, revision,
+    deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
     ON CONFLICT(id) DO UPDATE SET habit_id = excluded.habit_id, date = excluded.date, kind = excluded.kind,
-      created_at = excluded.created_at, updated_at = excluded.updated_at,
+      logged_at = excluded.logged_at, created_at = excluded.created_at, updated_at = excluded.updated_at,
       revision = excluded.revision, deleted_at = NULL
     WHERE excluded.revision >= habit_entries.revision`,
-  [record.id, record.habitId, record.date, record.kind, record.createdAt, record.updatedAt, record.revision])
+  [record.id, record.habitId, record.date, record.kind, record.loggedAt ?? null, record.createdAt,
+    record.updatedAt, record.revision])
 }
 
 /** Applies a record only when it is at least as new as the stored revision. */
