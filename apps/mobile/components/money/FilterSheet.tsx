@@ -1,22 +1,16 @@
 import React, { useState } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import type { AccountRecord, CategoryRecord } from '@ego/api-contracts'
-import type { PeriodPreset, TransactionKind } from '@ego/core'
+import type { TransactionKind } from '@ego/core'
 import { clearFilters, toggleIn, type ActivityView } from '../../lib/activity-view'
-import { PERIOD_PRESETS, periodLabel } from '../../lib/period-context'
 import { MoneyIcon, Sheet } from './Common'
-import { TOUCH } from './tokens'
-import { CustomPeriodSheet } from './PeriodSheet'
+import { Button } from '../ui/button'
+import { Text as UiText } from '../ui/text'
 
 const KIND_LABELS: Record<TransactionKind, string> = {
   income: 'Income',
   expense: 'Expenses',
   transfer: 'Transfers'
-}
-
-const PERIOD_LABELS: Record<PeriodPreset, string> = {
-  today: 'Today', week: 'This week', month: 'This month', year: 'This year',
-  all: 'All time', custom: 'Custom'
 }
 
 function Choice({ label, selected, onPress, icon, color }: {
@@ -31,19 +25,18 @@ function Choice({ label, selected, onPress, icon, color }: {
     accessibilityState={{ checked: selected }}
     accessibilityLabel={label}
     onPress={onPress}
-    style={{ minHeight: 44 }}
-    className={`flex-row items-center rounded-full border px-3.5 ${selected ? 'border-accent-500/50 bg-accent-500/20' : 'border-surface-700 bg-surface-900'}`}
+    className={`min-h-12 flex-row items-center rounded-full border px-4 ${selected ? 'border-primary bg-primary' : 'border-input bg-surface-900 active:bg-surface-800'}`}
   >
-    {icon && <View className="mr-1.5 h-5 w-5 items-center justify-center rounded-full" style={{ backgroundColor: color ?? '#707078' }}>
-      <MoneyIcon name={icon} size={11} />
+    {icon && <View className="mr-2 h-6 w-6 items-center justify-center rounded-full" style={{ backgroundColor: color ?? '#737373' }}>
+      <MoneyIcon name={icon} size={13} />
     </View>}
-    <Text className={`text-[14px] ${selected ? 'font-semibold text-accent-400' : 'text-surface-300'}`}>{label}</Text>
+    <Text className={`text-[15px] ${selected ? 'font-semibold text-primary-foreground' : 'text-surface-200'}`}>{label}</Text>
   </Pressable>
 }
 
 function Group({ title, children }: { title: string; children: React.ReactNode }): React.ReactElement {
   return <View className="mb-6">
-    <Text className="mb-2.5 text-[14px] font-semibold uppercase tracking-wider text-surface-400">{title}</Text>
+    <Text className="mb-2.5 text-[15px] font-medium text-surface-200">{title}</Text>
     <View className="flex-row flex-wrap gap-2">{children}</View>
   </View>
 }
@@ -57,7 +50,6 @@ export default function FilterSheet({ visible, view, accounts, categories, onApp
   onClose: () => void
 }): React.ReactElement {
   const [draft, setDraft] = useState<ActivityView>(view)
-  const [picking, setPicking] = useState(false)
 
   React.useEffect(() => {
     if (visible) setDraft(view)
@@ -73,17 +65,6 @@ export default function FilterSheet({ visible, view, accounts, categories, onApp
         label={KIND_LABELS[kind]}
         selected={draft.kinds.includes(kind)}
         onPress={() => setDraft({ ...draft, kinds: toggleIn(draft.kinds, kind) })}
-      />)}
-    </Group>
-
-    <Group title="Period">
-      {PERIOD_PRESETS.map((preset) => <Choice
-        key={preset}
-        label={preset === 'custom' && draft.period === 'custom' && (draft.custom.from || draft.custom.to)
-          ? periodLabel('custom', draft.custom)
-          : PERIOD_LABELS[preset]}
-        selected={draft.period === preset}
-        onPress={() => preset === 'custom' ? setPicking(true) : setDraft({ ...draft, period: preset })}
       />)}
     </Group>
 
@@ -110,28 +91,9 @@ export default function FilterSheet({ visible, view, accounts, categories, onApp
     </Group>
 
     <View className="flex-row gap-3 pb-2">
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => setDraft(clearFilters(draft))}
-        style={{ minHeight: TOUCH }}
-        className="flex-1 items-center justify-center rounded-xl border border-surface-600"
-      ><Text className="text-[16px] font-semibold text-surface-200">Clear filters</Text></Pressable>
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => onApply(draft)}
-        style={{ minHeight: TOUCH }}
-        className="flex-1 items-center justify-center rounded-xl bg-accent-600"
-      ><Text className="text-[16px] font-semibold text-white">Show results</Text></Pressable>
+      <Button variant="outline" size="lg" onPress={() => setDraft(clearFilters(draft))} className="flex-1"><UiText>Clear filters</UiText></Button>
+      <Button size="lg" onPress={() => onApply(draft)} className="flex-1"><UiText>Show results</UiText></Button>
     </View>
 
-    <CustomPeriodSheet
-      visible={picking}
-      value={draft.custom}
-      onClose={() => setPicking(false)}
-      onApply={(range) => {
-        setDraft({ ...draft, period: 'custom', custom: range })
-        setPicking(false)
-      }}
-    />
   </Sheet>
 }

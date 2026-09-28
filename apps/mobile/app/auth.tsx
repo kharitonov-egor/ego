@@ -51,7 +51,7 @@ export default function Auth(): React.ReactElement {
 
   if (!message) {
     return <View className="flex-1 items-center justify-center bg-surface-950 px-8">
-      <ActivityIndicator color="#91c4ff" />
+      <ActivityIndicator color="#fafafa" />
       <Text className="mt-4 text-[16px] text-surface-300">Signing you in</Text>
     </View>
   }
@@ -64,9 +64,9 @@ export default function Auth(): React.ReactElement {
       accessibilityRole="button"
       onPress={() => router.replace('/settings')}
       style={{ minHeight: TOUCH }}
-      className="mt-6 justify-center rounded-xl bg-accent-600 px-5"
+      className="mt-6 justify-center rounded-xl bg-primary px-5"
     >
-      <Text className="text-[16px] font-semibold text-white">Back to Settings</Text>
+      <Text className="text-[16px] font-semibold text-primary-foreground">Back to Settings</Text>
     </Pressable>
   </View>
 }

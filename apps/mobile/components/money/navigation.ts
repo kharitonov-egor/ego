@@ -3,8 +3,8 @@ import type { ViewStyle } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
 export const moneyTabBarStyle: ViewStyle = {
-  backgroundColor: '#1c1d1f',
-  borderTopColor: '#2b2c30',
+  backgroundColor: '#0a0a0a',
+  borderTopColor: '#262626',
   height: 68,
   paddingTop: 5,
   paddingBottom: 6

@@ -2,21 +2,24 @@ import { AccessibilityInfo, Platform, type TextStyle } from 'react-native'
 import { useEffect, useState } from 'react'
 
 /**
- * The money palette, written once. Dark is the canvas these values were chosen against, not an
- * inversion of a light theme.
+ * The money palette for places a class name cannot reach: icons, SVG, navigation options.
+ * tailwind.config.js holds the same values. Dark is the canvas these values were chosen against,
+ * not an inversion of a light theme.
  */
 export const color = {
-  screen: '#121214',
-  surface: '#1c1d1f',
-  surfaceRaised: '#232426',
-  line: '#2a2b2e',
-  text: '#e6e6e8',
-  textSecondary: '#b5b5bc',
-  textMuted: '#8a8a92',
-  accent: '#91c4ff',
-  accentSurface: 'rgba(145, 196, 255, 0.16)',
+  screen: '#0a0a0a',
+  surface: '#141414',
+  surfaceRaised: '#1c1c1c',
+  line: '#262626',
+  text: '#fafafa',
+  textSecondary: '#d4d4d4',
+  textMuted: '#a3a3a3',
+  textFaint: '#737373',
+  accent: '#fafafa',
+  accentSurface: 'rgba(250, 250, 250, 0.12)',
   positive: '#34d399',
-  /** Red belongs to destructive actions and failures, not to ordinary spending. */
+  /** Money going out. A warmer red than destructive, so a spent amount never reads as a delete button. */
+  expense: '#f87171',
   destructive: '#fb7185',
   attention: '#fbbf24'
 } as const
@@ -45,7 +48,7 @@ export const ROW_MIN_HEIGHT = 64
 export const tabular: TextStyle = { fontVariant: ['tabular-nums'] }
 
 export const amountColor = (kind: 'income' | 'expense' | 'transfer'): string =>
-  kind === 'income' ? color.positive : kind === 'transfer' ? color.accent : color.text
+  kind === 'income' ? color.positive : kind === 'transfer' ? color.textMuted : color.expense
 
 export const amountSign = (kind: 'income' | 'expense' | 'transfer'): string =>
   kind === 'income' ? '+' : kind === 'expense' ? '-' : ''
@@ -80,7 +83,7 @@ export const semibold: TextStyle = Platform.select({
 }) as TextStyle
 
 /** Bold fintech surfaces: wide radii, one flat panel, no hairline boxes inside boxes. */
-export const CARD = 'rounded-3xl border border-surface-800 bg-surface-900/80'
+export const CARD = 'rounded-3xl border border-border bg-card'
 export const CARD_PADDING = 'p-5'
 export const HERO_AMOUNT = 'text-[40px] font-bold tracking-tight'
-export const SECTION_TITLE = 'text-[20px] font-semibold text-surface-100'
+export const SECTION_TITLE = 'text-[20px] font-semibold text-foreground'

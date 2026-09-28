@@ -1,58 +1,87 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { AppState } from 'react-native'
 import type { DateRange, MoneySnapshot, MoneyTransaction, PeriodPreset } from '@ego/core'
-import { formatIso, isoFromParts, isoToday } from './dates'
+import { isoToday } from './dates'
+import {
+  canStepForward, isCurrentPeriod, isStepped, periodTitle, rangeForPeriod, relativePeriodName, stepAnchor,
+  type SteppedPeriod
+} from './periods'
 
-export const PERIOD_PRESETS: PeriodPreset[] = ['today', 'week', 'month', 'year', 'all', 'custom']
+export { PERIOD_PRESETS, rangeForPeriod } from './periods'
 
-export function rangeForPeriod(period: PeriodPreset, custom: DateRange): DateRange {
-  if (period === 'all') return { from: null, to: null }
-  if (period === 'custom') return custom
-  const today = isoToday()
-  if (period === 'today') return { from: today, to: today }
-  const now = new Date(`${today}T00:00:00`)
-  const from = new Date(now)
-  if (period === 'week') from.setDate(now.getDate() - ((now.getDay() + 6) % 7))
-  if (period === 'month') from.setDate(1)
-  if (period === 'year') from.setMonth(0, 1)
-  return { from: isoFromParts(from.getFullYear(), from.getMonth(), from.getDate()), to: today }
-}
-
-export function periodLabel(period: PeriodPreset, custom: DateRange): string {
-  if (period === 'all') return 'All time'
-  if (period === 'today') return 'Today'
-  if (period !== 'custom') return `This ${period}`
-  if (custom.from && custom.to) return `${formatIso(custom.from)} - ${formatIso(custom.to)}`
-  if (custom.from) return `From ${formatIso(custom.from)}`
-  if (custom.to) return `Until ${formatIso(custom.to)}`
-  return 'Custom'
+export function periodLabel(period: PeriodPreset, custom: DateRange, anchor: string = isoToday()): string {
+  return periodTitle(period, anchor, custom)
 }
 
 interface PeriodContextValue {
   period: PeriodPreset
   custom: DateRange
+  /** Any day inside the chosen day, week, month, or year. */
+  anchor: string
   range: DateRange
   label: string
+  /** "This month", "Last week", or null further back. */
+  relative: string | null
+  current: boolean
+  canGoBack: boolean
+  canGoForward: boolean
   setPeriod: (value: PeriodPreset) => void
   setCustom: (value: DateRange) => void
+  step: (delta: -1 | 1) => void
+  showPeriod: (period: SteppedPeriod, anchor: string) => void
+  jumpToToday: () => void
 }
 
 const PeriodContext = createContext<PeriodContextValue | null>(null)
 
 export function PeriodProvider({ children }: { children: React.ReactNode }): React.ReactElement {
-  const [period, setPeriod] = useState<PeriodPreset>('all')
+  const [period, setPeriodState] = useState<PeriodPreset>('month')
   const [custom, setCustomRange] = useState<DateRange>({ from: null, to: null })
+  const [anchor, setAnchor] = useState(isoToday)
+  const setPeriod = useCallback((value: PeriodPreset): void => setPeriodState(value), [])
   const setCustom = useCallback((value: DateRange): void => {
     setCustomRange(value)
-    setPeriod('custom')
+    setPeriodState('custom')
   }, [])
-  const value = useMemo<PeriodContextValue>(() => ({
-    period,
-    custom,
-    range: rangeForPeriod(period, custom),
-    label: periodLabel(period, custom),
-    setPeriod,
-    setCustom
-  }), [custom, period, setCustom])
+  const step = useCallback((delta: -1 | 1): void => {
+    if (isStepped(period)) setAnchor((current) => stepAnchor(period, current, delta))
+  }, [period])
+  const showPeriod = useCallback((next: SteppedPeriod, day: string): void => {
+    setPeriodState(next)
+    setAnchor(day)
+  }, [])
+  const jumpToToday = useCallback((): void => setAnchor(isoToday()), [])
+  const seenToday = useRef(isoToday())
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      const today = isoToday()
+      if (state !== 'active' || today === seenToday.current) return
+      const before = seenToday.current
+      seenToday.current = today
+      setAnchor((current) => isStepped(period) && isCurrentPeriod(period, current, before) ? today : current)
+    })
+    return () => subscription.remove()
+  }, [period])
+  const value = useMemo<PeriodContextValue>(() => {
+    const today = isoToday()
+    const stepped = isStepped(period)
+    return {
+      period,
+      custom,
+      anchor,
+      range: rangeForPeriod(period, custom, anchor),
+      label: periodTitle(period, anchor, custom),
+      relative: stepped ? relativePeriodName(period, anchor, today) : null,
+      current: stepped ? isCurrentPeriod(period, anchor, today) : true,
+      canGoBack: stepped,
+      canGoForward: stepped && canStepForward(period, anchor, today),
+      setPeriod,
+      setCustom,
+      step,
+      showPeriod,
+      jumpToToday
+    }
+  }, [anchor, custom, jumpToToday, period, setCustom, setPeriod, showPeriod, step])
   return <PeriodContext.Provider value={value}>{children}</PeriodContext.Provider>
 }
 

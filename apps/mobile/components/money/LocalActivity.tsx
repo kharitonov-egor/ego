@@ -2,19 +2,24 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { ActivityIndicator, Pressable, SectionList, Text, TextInput, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as SecureStore from 'expo-secure-store'
-import { ArrowRight, Check, ListFilter, Plus, ScanLine, Search, Trash2, X } from 'lucide-react-native'
+import {
+  ArrowRight, Calculator, Check, ChevronRight, ListFilter, Plus, ScanLine, Search, Sparkles, Trash2, X
+} from 'lucide-react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import type { MoneySnapshot } from '@ego/core'
-import { syncLabel, useLedger } from '../../lib/ledger-context'
+import { useLedger } from '../../lib/ledger-context'
 import type { LocalFeedTransaction } from '../../lib/repositories/transactions'
 import type { OutboxEntry } from '../../lib/sync/outbox'
 import {
-  DEFAULT_ACTIVITY_VIEW, activityChips, activityFilters, hasFilters, parsePreferences,
-  searchAllTime, storedPreferences, viewIdentity, type ActivityView
+  DEFAULT_ACTIVITY_VIEW, activityChips, activityFilters, filterCount, hasFilters, parsePreferences,
+  storedPreferences, viewIdentity, type ActivityView
 } from '../../lib/activity-view'
-import { periodLabel } from '../../lib/period-context'
+import { usePeriod } from '../../lib/period-context'
+import { transactionDetail, transactionTitle } from '../../lib/transaction-title'
 import { ConfirmDialog, Empty, MoneyIcon, Sheet, money } from './Common'
 import FilterSheet from './FilterSheet'
+import { PeriodBar } from './PeriodBar'
+import { PeriodSwipe } from './PeriodSwipe'
 import TransactionEntry from './TransactionEntry'
 import { ROW_MIN_HEIGHT, TOUCH, amountColor, amountSign, tabular } from './tokens'
 
@@ -45,12 +50,6 @@ function pendingLabel(state: LocalFeedTransaction['pending']): string | null {
   return state === 'none' ? null : 'Needs attention'
 }
 
-function title(row: LocalFeedTransaction): string {
-  if (row.merchant) return row.merchant
-  if (row.kind === 'transfer') return row.destinationAccountName ?? 'Transfer'
-  return row.categoryName ?? 'Archived category'
-}
-
 function netOf(items: LocalFeedTransaction[]): number {
   return items.reduce((sum, item) =>
     sum + (item.kind === 'income' ? item.amountCents : item.kind === 'expense' ? -item.amountCents : 0), 0)
@@ -68,46 +67,59 @@ const TransactionRow = memo(function TransactionRow({ item, selecting, checked, 
 }): React.ReactElement {
   const state = pendingLabel(item.pending)
   const sign = amountSign(item.kind)
-  const second = item.kind === 'transfer'
-    ? item.destinationAccountName
-    : item.merchant ? item.categoryName : null
+  const title = transactionTitle(item)
+  const detail = transactionDetail(item)
   return <Pressable
     accessibilityRole="button"
     accessibilityState={selecting ? { selected: checked } : undefined}
-    accessibilityLabel={`${item.kind} ${sign}${money(item.amountCents)}, ${title(item)}, ${item.accountName}${state ? `, ${state}` : ''}`}
+    accessibilityLabel={`${item.kind} ${sign}${money(item.amountCents)}, ${title}, ${detail}${state ? `, ${state}` : ''}`}
     accessibilityHint={selecting ? undefined : 'Opens this transaction'}
     onPress={() => selecting ? onToggle(item.id) : onOpen(item.id)}
     onLongPress={() => selecting ? onToggle(item.id) : onSelect(item.id)}
     delayLongPress={350}
-    android_ripple={{ color: 'rgba(145, 196, 255, 0.12)' }}
-    style={{ minHeight: ROW_MIN_HEIGHT }}
-    className={`flex-row items-center border-t border-surface-800 px-4 py-3 ${checked ? 'bg-accent-500/15' : 'bg-surface-900/70'}`}
+    android_ripple={{ color: 'rgba(255, 255, 255, 0.08)' }}
+    style={{ minHeight: ROW_MIN_HEIGHT + 8 }}
+    className={`flex-row items-center border-t border-surface-800 px-4 py-3 ${checked ? 'bg-accent-500/15' : 'bg-card'}`}
   >
-    {selecting && <View className={`mr-3 h-6 w-6 items-center justify-center rounded-full border ${checked ? 'border-accent-500 bg-accent-600' : 'border-surface-600'}`}>
-      {checked && <Check color="#fff" size={13} strokeWidth={3} />}
+    {selecting && <View className={`mr-3 h-6 w-6 items-center justify-center rounded-full border ${checked ? 'border-accent-500 bg-primary' : 'border-surface-600'}`}>
+      {checked && <Check color="#0a0a0a" size={13} strokeWidth={3} />}
     </View>}
-    <View className="h-9 w-9 items-center justify-center rounded-full" style={{ backgroundColor: item.categoryColor ?? '#38383d' }}>
-      <MoneyIcon name={item.categoryIcon ?? (item.kind === 'transfer' ? 'ArrowRight' : 'Tag')} size={15} />
+    <View className="h-11 w-11 items-center justify-center rounded-full" style={{ backgroundColor: item.categoryColor ?? '#404040' }}>
+      <MoneyIcon name={item.categoryIcon ?? (item.kind === 'transfer' ? 'ArrowRight' : 'Tag')} size={19} />
     </View>
     <View className="ml-3 flex-1">
-      <Text numberOfLines={2} className="text-[16px] font-semibold text-surface-100">{title(item)}</Text>
+      <Text numberOfLines={1} className="text-[17px] font-semibold text-surface-100">{title}</Text>
       <View className="mt-0.5 flex-row flex-wrap items-center">
-        <Text className="text-[14px] text-surface-400">{item.accountName}</Text>
-        {item.kind === 'transfer' && second && <>
-          <ArrowRight color="#8a8a92" size={11} style={{ marginHorizontal: 4 }} />
-          <Text className="text-[14px] text-surface-400">{second}</Text>
+        <Text numberOfLines={1} className="text-[14px] text-surface-400">{detail}</Text>
+        {item.kind === 'transfer' && <>
+          <ArrowRight color="#a3a3a3" size={12} style={{ marginHorizontal: 4 }} />
+          <Text className="text-[14px] text-surface-400">{item.destinationAccountName ?? 'Archived account'}</Text>
         </>}
-        {item.kind !== 'transfer' && second && <Text className="text-[14px] text-surface-400"> · {second}</Text>}
         {state && <View className={`ml-2 rounded-full px-2 py-0.5 ${item.pending === 'pending' ? 'bg-surface-800' : 'bg-attention/20'}`}>
           <Text className={`text-[14px] ${item.pending === 'pending' ? 'text-surface-300' : 'text-attention'}`}>{state}</Text>
         </View>}
       </View>
     </View>
-    <Text className="ml-3 text-[16px] font-semibold" style={{ ...tabular, color: amountColor(item.kind) }}>
+    <Text className="ml-3 text-[17px] font-semibold" style={{ ...tabular, color: amountColor(item.kind) }}>
       {sign}{money(item.amountCents)}
     </Text>
   </Pressable>
 })
+
+function AddOption({ Icon, title, detail, onPress }: { Icon: typeof Calculator; title: string; detail: string; onPress: () => void }): React.ReactElement {
+  return <Pressable
+    accessibilityRole="button"
+    onPress={onPress}
+    className="mb-3 min-h-[84px] flex-row items-center rounded-2xl border border-border bg-card px-4 py-3 active:bg-surface-900"
+  >
+    <View className="h-12 w-12 items-center justify-center rounded-full bg-surface-800"><Icon color="#fafafa" size={22} /></View>
+    <View className="ml-3.5 flex-1">
+      <Text className="text-[17px] font-semibold text-foreground">{title}</Text>
+      <Text className="mt-0.5 text-[15px] leading-5 text-muted-foreground">{detail}</Text>
+    </View>
+    <ChevronRight color="#737373" size={20} />
+  </Pressable>
+}
 
 function ConflictReview({ entries, onKeepMine, onUseSaved, onClose }: {
   entries: OutboxEntry[]
@@ -121,8 +133,8 @@ function ConflictReview({ entries, onKeepMine, onUseSaved, onClose }: {
       <Text className="mt-1 text-[14px] text-surface-400">{entry.entity} · {entry.commandType}</Text>
       {entry.status === 'conflict'
         ? <View className="mt-4 flex-row gap-2">
-          <Pressable accessibilityRole="button" onPress={() => onKeepMine(entry)} style={{ minHeight: TOUCH }} className="flex-1 items-center justify-center rounded-xl bg-accent-600 px-3">
-            <Text className="text-[16px] font-semibold text-white">Keep mine</Text>
+          <Pressable accessibilityRole="button" onPress={() => onKeepMine(entry)} style={{ minHeight: TOUCH }} className="flex-1 items-center justify-center rounded-xl bg-primary px-3">
+            <Text className="text-[16px] font-semibold text-primary-foreground">Keep mine</Text>
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => onUseSaved(entry)} style={{ minHeight: TOUCH }} className="flex-1 items-center justify-center rounded-xl border border-surface-600 px-3">
             <Text className="text-[16px] font-semibold text-surface-200">Use saved version</Text>
@@ -139,7 +151,9 @@ export default function LocalActivity(): React.ReactElement {
   const ledger = useLedger()
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const params = useLocalSearchParams<{ categoryId?: string; new?: string }>()
+  const params = useLocalSearchParams<{ categoryId?: string; new?: string; review?: string }>()
+  const period = usePeriod()
+  const range = period.range
   const [view, setView] = useState<ActivityView>(DEFAULT_ACTIVITY_VIEW)
   const [restored, setRestored] = useState(false)
   const [rows, setRows] = useState<LocalFeedTransaction[]>(session?.rows ?? [])
@@ -169,14 +183,21 @@ export default function LocalActivity(): React.ReactElement {
     })()
   }, [])
 
+  const { categoryId } = params
   useEffect(() => {
-    if (!params.categoryId) return
-    const categoryId = params.categoryId
+    if (!restored || !categoryId) return
     setView((current) => current.categoryIds.includes(categoryId)
       ? current
       : { ...current, categoryIds: [...current.categoryIds, categoryId] })
     router.setParams({ categoryId: undefined })
-  }, [params.categoryId, router])
+  }, [categoryId, restored, router])
+
+  const conflictCount = ledger.conflicts.length
+  useEffect(() => {
+    if (params.review !== 'true') return
+    if (conflictCount > 0) setReviewing(true)
+    router.setParams({ review: undefined })
+  }, [conflictCount, params.review, router])
 
   useEffect(() => {
     if (params.new !== 'true') return
@@ -190,7 +211,7 @@ export default function LocalActivity(): React.ReactElement {
     return () => clearTimeout(timer)
   }, [search, view.search])
 
-  const identity = viewIdentity(view)
+  const identity = viewIdentity(view, range)
 
   const { feed, version } = ledger
   const loadFirstPage = useCallback(async (): Promise<void> => {
@@ -198,7 +219,7 @@ export default function LocalActivity(): React.ReactElement {
     const started = query.current
     setLoading(true)
     try {
-      const page = await feed(activityFilters(view), null, PAGE_SIZE)
+      const page = await feed(activityFilters(view, range), null, PAGE_SIZE)
       if (started !== query.current) return
       setRows(page.items)
       setTotal(page.totalCount)
@@ -234,7 +255,7 @@ export default function LocalActivity(): React.ReactElement {
     loadingOlder.current = true
     const started = query.current
     try {
-      const page = await feed(activityFilters(view), {
+      const page = await feed(activityFilters(view, range), {
         date: last.date, createdAt: last.createdAt, id: last.id
       }, PAGE_SIZE)
       if (started !== query.current) return
@@ -311,17 +332,16 @@ export default function LocalActivity(): React.ReactElement {
   const partial = rows.length < total
   const visibleIds = rows.map((row) => row.id)
   const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id))
-  const paused = ledger.status?.state === 'paused'
   const openAccounts = accounts.filter((account) => !account.archivedAt)
   const filtered = view.search.trim().length > 0 || hasFilters(view)
-  const attention = ledger.conflicts.length > 0
+  const activeFilters = filterCount(view)
 
   if (ledger.error) {
     return <View className="flex-1 items-center justify-center bg-surface-950 px-8">
       <Text className="text-center text-[20px] font-semibold text-surface-100">This device cannot open its ledger</Text>
       <Text className="mt-2 text-center text-[16px] leading-6 text-surface-400">{ledger.error}</Text>
-      <Pressable accessibilityRole="button" onPress={() => router.push('/settings')} style={{ minHeight: TOUCH }} className="mt-5 justify-center rounded-xl bg-accent-600 px-5">
-        <Text className="text-[16px] font-semibold text-white">Open settings</Text>
+      <Pressable accessibilityRole="button" onPress={() => router.push('/settings')} style={{ minHeight: TOUCH }} className="mt-5 justify-center rounded-xl bg-primary px-5">
+        <Text className="text-[16px] font-semibold text-primary-foreground">Open settings</Text>
       </Pressable>
     </View>
   }
@@ -336,37 +356,25 @@ export default function LocalActivity(): React.ReactElement {
           <Text className="mt-2 text-center text-[16px] leading-6 text-surface-400">{offline
             ? 'The first download needs the internet. After that, Activity works offline.'
             : ledger.status?.message ?? 'Try again in a moment.'}</Text>
-          <Pressable accessibilityRole="button" onPress={() => void ledger.sync()} style={{ minHeight: TOUCH }} className="mt-5 justify-center rounded-xl bg-accent-600 px-5">
-            <Text className="text-[16px] font-semibold text-white">Try again</Text>
+          <Pressable accessibilityRole="button" onPress={() => void ledger.sync()} style={{ minHeight: TOUCH }} className="mt-5 justify-center rounded-xl bg-primary px-5">
+            <Text className="text-[16px] font-semibold text-primary-foreground">Try again</Text>
           </Pressable>
         </>
         : <>
-          <ActivityIndicator color="#91c4ff" />
+          <ActivityIndicator color="#fafafa" />
           {restored && <Text className="mt-3 text-[14px] text-surface-400">Downloading your ledger</Text>}
         </>}
     </View>
   }
 
   return <View className="flex-1 bg-surface-950">
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Sync status: ${syncLabel(ledger.status)}`}
-      accessibilityHint={attention ? 'Opens the changes that need a decision' : paused ? 'Opens Settings to sign in' : 'Syncs with the server'}
-      onPress={() => attention ? setReviewing(true) : paused ? router.push('/settings') : void ledger.sync()}
-      style={{ minHeight: 44 }}
-      className={`flex-row items-center justify-between px-4 ${attention ? 'bg-attention/15' : 'bg-surface-900'}`}
-    >
-      <View className="flex-row items-center">
-        <View className={`mr-2 h-1.5 w-1.5 rounded-full ${attention ? 'bg-attention' : ledger.status?.state === 'synced' ? 'bg-positive' : 'bg-surface-500'}`} />
-        <Text className={`text-[14px] ${attention ? 'text-attention' : 'text-surface-400'}`}>{syncLabel(ledger.status)}</Text>
-      </View>
-      <Text className="text-[14px] text-surface-500">{attention ? 'Review' : paused ? 'Sign in' : ledger.syncing ? 'Syncing...' : 'Sync now'}</Text>
-    </Pressable>
+    <PeriodBar />
+    <PeriodSwipe enabled={!selecting}>
 
     {selecting
       ? <View className="flex-row items-center gap-2 border-b border-surface-800 px-2 py-1.5">
         <Pressable accessibilityRole="button" accessibilityLabel="Leave selection" onPress={exitSelection} hitSlop={8} className="h-12 w-12 items-center justify-center">
-          <X color="#b5b5bc" size={19} />
+          <X color="#d4d4d4" size={19} />
         </Pressable>
         <Text className="text-[16px] font-semibold text-surface-100">{selected.length} selected</Text>
         <Pressable
@@ -382,16 +390,17 @@ export default function LocalActivity(): React.ReactElement {
           onPress={() => setConfirmingBulk(true)}
           style={{ minHeight: TOUCH, minWidth: TOUCH }}
           className={`items-center justify-center rounded-full ${selected.length === 0 ? 'bg-surface-800' : 'bg-destructive'}`}
-        ><Trash2 color={selected.length === 0 ? '#707078' : '#1c1d1f'} size={17} /></Pressable>
+        ><Trash2 color={selected.length === 0 ? '#737373' : '#0a0a0a'} size={17} /></Pressable>
       </View>
-      : <View className="mx-4 mt-3 flex-row items-center rounded-xl border border-surface-700 bg-surface-900 px-3">
-        <Search color="#8a8a92" size={16} />
+      : <View className="mx-4 flex-row items-center gap-2">
+        <View className="flex-1 flex-row items-center rounded-xl border border-surface-700 bg-surface-900 px-3">
+        <Search color="#a3a3a3" size={16} />
         <TextInput
           value={search}
           onChangeText={setSearch}
           accessibilityLabel="Search activity"
           placeholder="Search activity"
-          placeholderTextColor="#8a8a92"
+          placeholderTextColor="#a3a3a3"
           returnKeyType="search"
           className="ml-2 flex-1 py-2.5 text-[16px] text-surface-100"
         />
@@ -404,7 +413,7 @@ export default function LocalActivity(): React.ReactElement {
           }}
           hitSlop={8}
           className="h-12 w-10 items-center justify-center"
-        ><X color="#8a8a92" size={16} /></Pressable>}
+        ><X color="#a3a3a3" size={16} /></Pressable>}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Select transactions"
@@ -413,19 +422,21 @@ export default function LocalActivity(): React.ReactElement {
           style={{ minHeight: TOUCH }}
           className="justify-center pl-2"
         ><Text className={`text-[14px] font-semibold ${rows.length === 0 ? 'text-surface-600' : 'text-accent-400'}`}>Select</Text></Pressable>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={activeFilters > 0 ? `Filters, ${activeFilters} on` : 'Filters'}
+          onPress={() => setFiltering(true)}
+          className={`h-12 w-12 items-center justify-center rounded-xl border ${activeFilters > 0 ? 'border-primary bg-primary' : 'border-surface-700 bg-surface-900 active:bg-surface-800'}`}
+        >
+          <ListFilter color={activeFilters > 0 ? '#0a0a0a' : '#fafafa'} size={20} />
+          {activeFilters > 0 && <View className="absolute -right-1.5 -top-1.5 h-5 min-w-5 items-center justify-center rounded-full border-2 border-background bg-foreground px-1">
+            <Text className="text-[11px] font-bold text-background">{activeFilters}</Text>
+          </View>}
+        </Pressable>
       </View>}
 
-    <View className="flex-row flex-wrap items-center gap-2 px-4 py-2.5">
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Filters. Period ${periodLabel(view.period, view.custom)}`}
-        onPress={() => setFiltering(true)}
-        style={{ minHeight: 44 }}
-        className={`flex-row items-center rounded-full border px-3.5 ${hasFilters(view) ? 'border-accent-500/50 bg-accent-500/20' : 'border-surface-700 bg-surface-900'}`}
-      >
-        <ListFilter color={hasFilters(view) ? '#91c4ff' : '#b5b5bc'} size={14} />
-        <Text className={`ml-2 text-[14px] ${hasFilters(view) ? 'font-semibold text-accent-400' : 'text-surface-300'}`}>{periodLabel(view.period, view.custom)}</Text>
-      </Pressable>
+    {chips.length > 0 && <View className="flex-row flex-wrap items-center gap-2 px-4 pt-2.5">
       {chips.map((chip) => <Pressable
         key={chip.id}
         accessibilityRole="button"
@@ -435,9 +446,9 @@ export default function LocalActivity(): React.ReactElement {
         className="flex-row items-center rounded-full border border-accent-500/50 bg-accent-500/20 px-3.5"
       >
         <Text className="text-[14px] font-semibold text-accent-400">{chip.label}</Text>
-        <X color="#91c4ff" size={13} style={{ marginLeft: 6 }} />
+        <X color="#fafafa" size={13} style={{ marginLeft: 6 }} />
       </Pressable>)}
-    </View>
+    </View>}
 
     <SectionList
       ref={listRef}
@@ -464,27 +475,30 @@ export default function LocalActivity(): React.ReactElement {
         ? null
         : <View className="pt-6">
           <Empty
-            title={filtered ? 'No matching transactions' : 'Record your first transaction'}
+            title={filtered ? 'No matching transactions' : period.period !== 'all' ? `Nothing in ${period.label}` : 'Record your first transaction'}
             detail={filtered
               ? 'Try another search, remove a filter, or choose a wider period.'
-              : 'Add income, an expense, or a transfer between two accounts.'} />
-          {filtered && view.period !== 'all' && <Pressable
+              : period.period !== 'all'
+                ? 'Step to another period above, or look at all time.'
+                : 'Add income, an expense, or a transfer between two accounts.'} />
+          {period.period !== 'all' && <Pressable
             accessibilityRole="button"
-            onPress={() => changeView(searchAllTime(view))}
+            onPress={() => period.setPeriod('all')}
             style={{ minHeight: TOUCH }}
             className="mx-6 items-center justify-center rounded-xl border border-surface-700 bg-surface-900"
-          ><Text className="text-[16px] text-surface-100">Search all time</Text></Pressable>}
+          ><Text className="text-[16px] text-surface-100">Show all time</Text></Pressable>}
         </View>}
-      renderSectionHeader={({ section }) => <View className="flex-row items-end justify-between bg-surface-950 pb-2 pt-5">
-        <Text className="text-[14px] font-semibold uppercase tracking-wider text-surface-400">
-          {new Date(`${section.date}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-        </Text>
-        <Text
-          accessibilityLabel={`${partial ? 'Net of the loaded rows' : 'Net'} ${money(netOf(section.data), true)}`}
-          className="text-[14px] font-semibold text-surface-400"
-          style={tabular}
-        >{partial ? 'Shown ' : ''}{money(netOf(section.data), true)}</Text>
-      </View>}
+      renderSectionHeader={({ section }) => {
+        const net = netOf(section.data)
+        return <View className="flex-row items-end justify-between bg-surface-950 pb-2 pt-5">
+          <Text className="text-[14px] font-semibold uppercase tracking-wider text-surface-400">
+            {new Date(`${section.date}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+          </Text>
+          <Text accessibilityLabel={`${partial ? 'Net of the loaded rows' : 'Net'} ${money(net, true)}`} className="text-[14px] font-semibold" style={tabular}>
+            <Text style={{ color: net < 0 ? amountColor('expense') : net > 0 ? amountColor('income') : '#a3a3a3' }}>{money(net, true)}</Text>
+          </Text>
+        </View>
+      }}
       renderItem={({ item, index, section }) => <View className={`overflow-hidden border-x border-surface-800 ${index === 0 ? 'rounded-t-2xl' : ''} ${index === section.data.length - 1 ? 'rounded-b-2xl border-b' : ''}`}>
         <TransactionRow
           item={item}
@@ -504,6 +518,7 @@ export default function LocalActivity(): React.ReactElement {
         ><Text className="text-[16px] text-surface-100">Load older activity</Text></Pressable>}
       </View>}
     />
+    </PeriodSwipe>
 
     {!selecting && <View
       style={{ bottom: Math.max(insets.bottom, 12) + 4 }}
@@ -516,7 +531,7 @@ export default function LocalActivity(): React.ReactElement {
         style={{ minHeight: TOUCH }}
         className="flex-row items-center rounded-2xl border border-surface-700 bg-surface-900/95 px-4"
       >
-        <ScanLine color="#b5b5bc" size={16} />
+        <ScanLine color="#d4d4d4" size={16} />
         <Text className="ml-2 text-[14px] font-semibold text-surface-200">Scan receipt</Text>
       </Pressable>
       <Pressable
@@ -525,38 +540,32 @@ export default function LocalActivity(): React.ReactElement {
         disabled={openAccounts.length === 0}
         onPress={() => setAdding(true)}
         style={{ minHeight: TOUCH }}
-        className={`flex-row items-center rounded-2xl px-5 ${openAccounts.length === 0 ? 'bg-surface-800' : 'bg-accent-600'}`}
+        className={`flex-row items-center rounded-2xl px-5 ${openAccounts.length === 0 ? 'bg-surface-800' : 'bg-primary'}`}
       >
-        <Plus color={openAccounts.length === 0 ? '#707078' : '#fff'} size={19} />
-        <Text className={`ml-1.5 text-[16px] font-semibold ${openAccounts.length === 0 ? 'text-surface-500' : 'text-white'}`}>Add</Text>
+        <Plus color={openAccounts.length === 0 ? '#737373' : '#0a0a0a'} size={19} />
+        <Text className={`ml-1.5 text-[16px] font-semibold ${openAccounts.length === 0 ? 'text-surface-500' : 'text-primary-foreground'}`}>Add</Text>
       </Pressable>
     </View>}
 
-    <Sheet visible={adding} title="Add" onClose={() => setAdding(false)}>
-      <Pressable
-        accessibilityRole="button"
+    <Sheet visible={adding} title="Add" onClose={() => setAdding(false)} dismissOnBackdrop>
+      <AddOption
+        Icon={Calculator}
+        title="Transaction"
+        detail="Type the amount, then pick the account and category."
         onPress={() => {
           setAdding(false)
           setCreating(true)
         }}
-        style={{ minHeight: ROW_MIN_HEIGHT }}
-        className="justify-center rounded-2xl border border-surface-700 bg-surface-900 px-4 py-3"
-      >
-        <Text className="text-[16px] font-semibold text-surface-100">Transaction</Text>
-        <Text className="mt-0.5 text-[14px] leading-5 text-surface-400">The amount keypad, with account, category, date, and notes.</Text>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
+      />
+      <AddOption
+        Icon={Sparkles}
+        title="Money agent"
+        detail="Turn a receipt photo or a message into transactions."
         onPress={() => {
           setAdding(false)
           router.push('/transaction-image')
         }}
-        style={{ minHeight: ROW_MIN_HEIGHT }}
-        className="mt-3 justify-center rounded-2xl border border-surface-700 bg-surface-900 px-4 py-3"
-      >
-        <Text className="text-[16px] font-semibold text-surface-100">Money agent</Text>
-        <Text className="mt-0.5 text-[14px] leading-5 text-surface-400">Read a receipt image or a message into one or more transactions.</Text>
-      </Pressable>
+      />
     </Sheet>
 
     {creating && <TransactionEntry

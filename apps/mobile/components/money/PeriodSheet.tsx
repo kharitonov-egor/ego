@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react'
-import { Modal, Pressable, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { CalendarDays } from 'lucide-react-native'
 import type { DateRange } from '@ego/core'
 import { formatIso, isoToday } from '../../lib/dates'
+import { Button } from '../ui/button'
+import { Text as UiText } from '../ui/text'
+import { BottomSheet } from './Common'
 import { CalendarDialog } from './DatePicker'
 
 function Edge({ label, value, placeholder, onPress }: {
@@ -11,11 +14,16 @@ function Edge({ label, value, placeholder, onPress }: {
   placeholder: string
   onPress: () => void
 }): React.ReactElement {
-  return <Pressable accessibilityRole="button" onPress={onPress} className="flex-1 rounded-xl border border-surface-800 bg-surface-900 px-3 py-2.5">
-    <Text className="text-[14px] font-semibold uppercase tracking-wide text-surface-400">{label}</Text>
-    <View className="mt-1 flex-row items-center gap-1.5">
-      <CalendarDays color="#b5b5bc" size={14} />
-      <Text numberOfLines={1} className={`flex-1 text-[16px] font-semibold ${value ? 'text-surface-100' : 'text-surface-400'}`}>{value ? formatIso(value) : placeholder}</Text>
+  return <Pressable
+    accessibilityRole="button"
+    accessibilityLabel={`${label}: ${value ? formatIso(value) : placeholder}`}
+    onPress={onPress}
+    className="min-h-[76px] flex-1 justify-center rounded-2xl border border-input bg-surface-900 px-4 active:bg-surface-800"
+  >
+    <Text className="text-[14px] text-muted-foreground">{label}</Text>
+    <View className="mt-1 flex-row items-center gap-2">
+      <CalendarDays color="#d4d4d4" size={16} />
+      <Text numberOfLines={1} className={`flex-1 text-[17px] font-semibold ${value ? 'text-foreground' : 'text-surface-500'}`}>{value ? formatIso(value) : placeholder}</Text>
     </View>
   </Pressable>
 }
@@ -36,27 +44,21 @@ export function CustomPeriodSheet({ visible, value, onClose, onApply }: {
     setEditing(null)
   }, [value.from, value.to, visible])
   const invalid = Boolean(from && to && from > to)
-  return <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
-    <Pressable onPress={onClose} className="flex-1 justify-end bg-black/70">
-      <Pressable onPress={(event) => event.stopPropagation()} className="rounded-t-2xl border-t border-surface-700 bg-surface-950 px-4 pb-8 pt-4">
-        <Text className="mb-3 text-center text-[18px] font-bold text-surface-100">Custom range</Text>
-        <View className="flex-row gap-2">
-          <Edge label="From" value={from} placeholder="Earliest" onPress={() => setEditing('from')} />
-          <Edge label="To" value={to} placeholder="Today" onPress={() => setEditing('to')} />
-        </View>
-        {invalid && <Text className="mt-2 text-[14px] text-rose-400">The start date is after the end date.</Text>}
-        <View className="mt-3 flex-row justify-end gap-2">
-          <Pressable accessibilityRole="button" onPress={() => { setFrom(null); setTo(null) }} className="rounded-lg px-3 py-2.5"><Text className="text-[16px] font-semibold text-surface-400">Clear</Text></Pressable>
-          <Pressable accessibilityRole="button" onPress={onClose} className="rounded-lg px-3 py-2.5"><Text className="text-[16px] font-semibold text-surface-300">Cancel</Text></Pressable>
-          <Pressable accessibilityRole="button" disabled={invalid} onPress={() => onApply({ from, to })} className={`rounded-lg px-4 py-2.5 ${invalid ? 'bg-surface-800' : 'bg-accent-600'}`}><Text className={`text-[16px] font-semibold ${invalid ? 'text-surface-400' : 'text-white'}`}>Apply</Text></Pressable>
-        </View>
-        <CalendarDialog
-          visible={editing !== null}
-          value={(editing === 'from' ? from : to) ?? isoToday()}
-          onCancel={() => setEditing(null)}
-          onConfirm={(iso) => { if (editing === 'from') setFrom(iso); else setTo(iso); setEditing(null) }}
-        />
-      </Pressable>
-    </Pressable>
-  </Modal>
+  return <BottomSheet visible={visible} title="Custom range" onClose={onClose} dismissOnBackdrop>
+    <View className="flex-row gap-3">
+      <Edge label="From" value={from} placeholder="Earliest" onPress={() => setEditing('from')} />
+      <Edge label="To" value={to} placeholder="Today" onPress={() => setEditing('to')} />
+    </View>
+    {invalid && <Text className="mt-3 text-[15px] text-destructive">The start date is after the end date.</Text>}
+    <View className="mt-5 flex-row gap-3">
+      <Button variant="outline" size="lg" onPress={() => { setFrom(null); setTo(null) }} className="flex-1"><UiText>Clear</UiText></Button>
+      <Button size="lg" disabled={invalid} onPress={() => onApply({ from, to })} className="flex-1"><UiText>Apply</UiText></Button>
+    </View>
+    <CalendarDialog
+      visible={editing !== null}
+      value={(editing === 'from' ? from : to) ?? isoToday()}
+      onCancel={() => setEditing(null)}
+      onConfirm={(iso) => { if (editing === 'from') setFrom(iso); else setTo(iso); setEditing(null) }}
+    />
+  </BottomSheet>
 }

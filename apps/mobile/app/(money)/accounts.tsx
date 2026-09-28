@@ -1,15 +1,20 @@
 import React, { useState } from 'react'
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { Archive, Plus, RotateCcw } from 'lucide-react-native'
 import type { AccountInput, AccountKind, MoneyAccount } from '@ego/core'
 import { useMoney } from '../../lib/money-context'
 import {
-  Chips, COLORS, ConfirmDialog, Empty, ICON_OPTIONS, Label, MoneyIcon, MoneyScreen,
+  Chips, COLORS, ColorPicker, ConfirmDialog, Empty, EntityPreview, ICON_OPTIONS, IconPicker, Label, MoneyIcon, MoneyScreen,
   PrimaryButton, Sheet, inputClass, money, today
 } from '../../components/money/Common'
+import { DateField } from '../../components/money/DatePicker'
 import { CARD, CARD_PADDING, HERO_AMOUNT, tabular } from '../../components/money/tokens'
 
 const KINDS: AccountKind[] = ['checking', 'savings', 'cash', 'credit-card', 'investment', 'crypto', 'other']
+const KIND_LABELS: Record<AccountKind, string> = {
+  checking: 'Checking', savings: 'Savings', cash: 'Cash', 'credit-card': 'Credit card',
+  investment: 'Investment', crypto: 'Crypto', other: 'Other'
+}
 
 function AccountForm({ account, onClose }: { account?: MoneyAccount; onClose: () => void }): React.ReactElement {
   const moneyState = useMoney()
@@ -19,13 +24,32 @@ function AccountForm({ account, onClose }: { account?: MoneyAccount; onClose: ()
   const [color, setColor] = useState(account?.color ?? COLORS[0])
   const [balance, setBalance] = useState(account ? String(account.openingBalanceCents / 100) : '0')
   const [date, setDate] = useState(account?.openingDate ?? today())
-  const valid = Boolean(name.trim() && date && Number.isFinite(Number(balance)))
+  const valid = Boolean(name.trim() && date && balance.trim() !== '' && Number.isFinite(Number(balance)))
+  const openingCents = Number.isFinite(Number(balance)) ? Math.round(Number(balance) * 100) : 0
   const save = async (): Promise<void> => {
     const input: AccountInput = { name: name.trim(), kind, icon, color, openingBalanceCents: Math.round(Number(balance) * 100), openingDate: date }
     const saved = account ? await moneyState.updateAccount(account.id, input) : await moneyState.createAccount(input)
     if (saved) onClose()
   }
-  return <View><Label text="Name"><TextInput autoFocus value={name} onChangeText={setName} placeholder="Chase checking" placeholderTextColor="#909099" className={inputClass} /></Label><Label text="Account type"><Chips values={KINDS} value={kind} onChange={setKind} /></Label><Label text="Opening balance in USD"><TextInput value={balance} onChangeText={setBalance} keyboardType="decimal-pad" className={inputClass} /></Label><Label text="Opening date"><TextInput value={date} onChangeText={setDate} autoCapitalize="none" placeholder="YYYY-MM-DD" placeholderTextColor="#909099" className={inputClass} /></Label><Label text="Icon"><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="gap-2">{ICON_OPTIONS.slice(0, 7).map((item) => <Pressable accessibilityRole="button" accessibilityLabel={`Use ${item} icon`} accessibilityState={{ selected: icon === item }} key={item} onPress={() => setIcon(item)} className={`h-11 w-11 items-center justify-center rounded-lg border ${icon === item ? 'border-accent-500 bg-accent-500/15' : 'border-surface-800 bg-surface-900'}`}><MoneyIcon name={item} color={icon === item ? '#91c4ff' : '#b5b5bc'} /></Pressable>)}</ScrollView></Label><Label text="Color"><View className="flex-row flex-wrap gap-2">{COLORS.map((item) => <Pressable accessibilityRole="button" accessibilityLabel={`Use color ${item}`} accessibilityState={{ selected: color === item }} key={item} onPress={() => setColor(item)} className={`h-11 w-11 rounded-full border-2 ${color === item ? 'border-white' : 'border-transparent'}`} style={{ backgroundColor: item }} />)}</View></Label><PrimaryButton label={account ? 'Save account' : 'Create account'} disabled={!valid || moneyState.busy} onPress={() => void save()} /></View>
+  return <View>
+    <EntityPreview shape="square" name={name} placeholder="New account" icon={icon} color={color} detail={`${KIND_LABELS[kind]} · ${money(openingCents)}`} />
+    <Label text="Name"><TextInput autoFocus={!account} value={name} onChangeText={setName} placeholder="Chase checking" placeholderTextColor="#737373" className={inputClass} /></Label>
+    <Label text="Type"><Chips values={KINDS} value={kind} labels={KIND_LABELS} onChange={setKind} /></Label>
+    <View className="flex-row gap-3">
+      <View className="flex-1">
+        <Label text="Opening balance">
+          <View className={`${inputClass} flex-row items-center py-0`}>
+            <Text className="text-[17px] text-muted-foreground">$</Text>
+            <TextInput value={balance} onChangeText={setBalance} keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'numeric'} accessibilityLabel="Opening balance in dollars" placeholder="0.00" placeholderTextColor="#737373" className="ml-1 flex-1 py-3 text-[17px] text-foreground" />
+          </View>
+        </Label>
+      </View>
+      <View className="flex-1"><Label text="Opened on"><DateField label="Opened on" value={date} onChange={setDate} /></Label></View>
+    </View>
+    <Label text="Icon"><IconPicker icons={ICON_OPTIONS.slice(0, 7)} value={icon} color={color} onChange={setIcon} /></Label>
+    <Label text="Color"><ColorPicker value={color} onChange={setColor} /></Label>
+    <PrimaryButton label={account ? 'Save account' : 'Create account'} disabled={!valid || moneyState.busy} onPress={() => void save()} />
+  </View>
 }
 
 export default function Accounts(): React.ReactElement {
@@ -45,21 +69,21 @@ export default function Accounts(): React.ReactElement {
     }
     return <View className="flex-1">
       <View className="px-4 pb-4 pt-5">
-        <View className="overflow-hidden rounded-3xl bg-accent-600 px-5 pb-5 pt-6">
-          <Text className="text-[14px] font-semibold uppercase tracking-wider text-white/70">Total balance</Text>
+        <View className="overflow-hidden rounded-3xl border border-border bg-card px-5 pb-5 pt-6">
+          <Text className="text-[14px] font-semibold uppercase tracking-wider text-muted-foreground">Total balance</Text>
           <Text
             numberOfLines={1}
             adjustsFontSizeToFit
             minimumFontScale={0.6}
-            className={`mt-1.5 ${HERO_AMOUNT} text-white`}
+            className={`mt-1.5 ${HERO_AMOUNT} text-foreground`}
             style={tabular}
           >{money(total)}</Text>
           <Pressable
             accessibilityRole="button"
             onPress={() => setArchived(!archived)}
             style={{ minHeight: 44 }}
-            className="mt-5 self-start justify-center rounded-full bg-black/20 px-4"
-          ><Text className="text-[14px] font-semibold text-white">{archived ? 'Show active' : 'Show archived'}</Text></Pressable>
+            className="mt-5 self-start justify-center rounded-full bg-secondary px-4"
+          ><Text className="text-[14px] font-semibold text-secondary-foreground">{archived ? 'Show active' : 'Show archived'}</Text></Pressable>
         </View>
       </View>
 
@@ -72,7 +96,7 @@ export default function Accounts(): React.ReactElement {
             accessibilityHint="Opens the account editor"
             key={account.id}
             onPress={() => setEditing(account)}
-            android_ripple={{ color: 'rgba(145, 196, 255, 0.12)' }}
+            android_ripple={{ color: 'rgba(255, 255, 255, 0.08)' }}
             className={`${CARD} ${CARD_PADDING}`}
           >
             <View className="flex-row items-center">
@@ -81,7 +105,7 @@ export default function Accounts(): React.ReactElement {
               </View>
               <View className="ml-3 flex-1">
                 <Text numberOfLines={1} className="text-[16px] font-semibold text-surface-100">{account.name}</Text>
-                <Text className="mt-0.5 text-[14px] capitalize text-surface-500">{account.kind.replace('-', ' ')}</Text>
+                <Text className="mt-0.5 text-[14px] text-surface-400">{KIND_LABELS[account.kind]}</Text>
               </View>
               <Pressable
                 accessibilityRole="button"
@@ -89,7 +113,7 @@ export default function Accounts(): React.ReactElement {
                 hitSlop={10}
                 onPress={() => toggleArchive(account)}
                 className="h-12 w-12 items-end justify-center"
-              >{account.archivedAt ? <RotateCcw color="#8a8a92" size={17} /> : <Archive color="#8a8a92" size={17} />}</Pressable>
+              >{account.archivedAt ? <RotateCcw color="#a3a3a3" size={17} /> : <Archive color="#a3a3a3" size={17} />}</Pressable>
             </View>
             <Text
               numberOfLines={1}
@@ -107,8 +131,8 @@ export default function Accounts(): React.ReactElement {
         disabled={moneyState.readOnly}
         onPress={() => setEditing('new')}
         style={{ minHeight: 48 }}
-        className="absolute bottom-5 right-4 flex-row items-center rounded-2xl bg-accent-600 px-5"
-      ><Plus color="#fff" size={19} /><Text className="ml-1.5 text-[16px] font-semibold text-white">Account</Text></Pressable>}
+        className="absolute bottom-5 right-4 flex-row items-center rounded-2xl bg-primary px-5"
+      ><Plus color="#0a0a0a" size={19} /><Text className="ml-1.5 text-[16px] font-semibold text-primary-foreground">Account</Text></Pressable>}
 
       <Sheet visible={Boolean(editing)} title={editing === 'new' ? 'New account' : 'Edit account'} onClose={() => setEditing(null)}>{editing && <AccountForm key={editing === 'new' ? 'new' : editing.id} account={editing === 'new' ? undefined : editing} onClose={() => setEditing(null)} />}</Sheet>
       <ConfirmDialog visible={Boolean(confirming)} title={confirming?.archivedAt ? 'Restore account?' : 'Archive account?'} detail="Transaction history will stay intact." confirmLabel={confirming?.archivedAt ? 'Restore' : 'Archive'} busy={moneyState.busy} onCancel={() => setConfirming(null)} onConfirm={() => void confirmArchive()} />

@@ -1,7 +1,7 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Pressable, ScrollView, Text, View } from 'react-native'
 import { ChevronLeft, ChevronRight, Tags, Trash2, TriangleAlert } from 'lucide-react-native'
-import { useRouter } from 'expo-router'
+import { useLocalSearchParams, useRouter } from 'expo-router'
 import {
   monthOf, summarizeBudget,
   type BudgetInput, type CategoryBudgetStatus, type MoneySnapshot
@@ -12,7 +12,7 @@ import { AmountSheet } from '../../components/money/AmountSheet'
 import { ConfirmDialog, Empty, MoneyIcon, MoneyScreen, money } from '../../components/money/Common'
 
 const BAR_COLORS: Record<CategoryBudgetStatus['state'], string> = {
-  over: '#e84d8a', close: '#ff9f43', under: '#2bb3a9', unplanned: '#505056'
+  over: '#e84d8a', close: '#ff9f43', under: '#2bb3a9', unplanned: '#525252'
 }
 
 function Stat({ label, value, tone = 'plain' }: { label: string; value: string; tone?: 'plain' | 'bad' }): React.ReactElement {
@@ -48,10 +48,18 @@ function CategoryRow({ status, disabled, onPress }: { status: CategoryBudgetStat
   </Pressable>
 }
 
+const MONTH = /^\d{4}-\d{2}$/
+
 export default function Budget(): React.ReactElement {
   const state = useMoney()
   const router = useRouter()
+  const params = useLocalSearchParams<{ month?: string }>()
   const [month, setMonth] = useState(() => monthOf(isoToday()))
+  useEffect(() => {
+    if (!params.month) return
+    if (MONTH.test(params.month)) setMonth(params.month)
+    router.setParams({ month: undefined })
+  }, [params.month, router])
   const [editing, setEditing] = useState<'income' | CategoryBudgetStatus | null>(null)
   const [confirmingClear, setConfirmingClear] = useState(false)
 
@@ -83,11 +91,11 @@ export default function Budget(): React.ReactElement {
     return <View className="flex-1">
       <View className="flex-row items-center justify-between px-3 py-2">
         <Pressable accessibilityRole="button" accessibilityLabel="Previous month" onPress={() => setMonth(shiftMonth(month, -1))} hitSlop={12} className="h-8 w-8 items-center justify-center rounded-full bg-surface-900">
-          <ChevronLeft color="#e6e6e8" size={17} />
+          <ChevronLeft color="#fafafa" size={17} />
         </Pressable>
         <Text className="text-[18px] font-bold text-surface-100">{formatMonth(month)}</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Next month" onPress={() => setMonth(shiftMonth(month, 1))} hitSlop={12} className="h-8 w-8 items-center justify-center rounded-full bg-surface-900">
-          <ChevronRight color="#e6e6e8" size={17} />
+          <ChevronRight color="#fafafa" size={17} />
         </Pressable>
       </View>
 
@@ -116,7 +124,7 @@ export default function Budget(): React.ReactElement {
         </Text>}
 
         <View className="mt-2.5 overflow-hidden rounded-xl border border-surface-800 bg-surface-900/70">
-          <View className="flex-row items-center justify-between px-3 py-2.5"><Text className="text-[16px] font-bold text-surface-100">Categories</Text><Pressable accessibilityRole="button" onPress={() => router.push('/(money)/categories')} className="flex-row items-center rounded-full bg-surface-800 px-2.5 py-1.5"><Tags color="#b5b5bc" size={13} /><Text className="ml-1.5 text-[14px] font-semibold text-surface-200">Manage</Text></Pressable></View>
+          <View className="flex-row items-center justify-between px-3 py-2.5"><Text className="text-[16px] font-bold text-surface-100">Categories</Text><Pressable accessibilityRole="button" onPress={() => router.push('/(money)/categories')} className="flex-row items-center rounded-full bg-surface-800 px-2.5 py-1.5"><Tags color="#d4d4d4" size={13} /><Text className="ml-1.5 text-[14px] font-semibold text-surface-200">Manage</Text></Pressable></View>
           {summary.categories.length === 0
             ? <Text className="px-3 pb-3 text-[14px] text-surface-400">Create an expense category first.</Text>
             : summary.categories.map((status) => <CategoryRow key={status.categoryId} status={status} disabled={state.readOnly} onPress={() => setEditing(status)} />)}
@@ -135,7 +143,7 @@ export default function Budget(): React.ReactElement {
         title="Planned income"
         detail={formatMonth(month)}
         valueCents={summary.plannedIncomeCents}
-        color="#2bb3a9"
+        color="#34d399"
         onClose={() => setEditing(null)}
         onConfirm={saveIncome}
       />
@@ -144,7 +152,7 @@ export default function Budget(): React.ReactElement {
         title={editing !== null && editing !== 'income' ? editing.name : ''}
         detail={`Monthly budget for ${formatMonth(month)}`}
         valueCents={editing !== null && editing !== 'income' ? editing.allocatedCents : 0}
-        color="#3b82f6"
+        color="#fafafa"
         onClose={() => setEditing(null)}
         onConfirm={(cents) => { if (editing !== null && editing !== 'income') saveAllocation(editing.categoryId, cents) }}
       />

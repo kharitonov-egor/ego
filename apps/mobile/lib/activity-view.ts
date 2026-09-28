@@ -1,14 +1,11 @@
 import { NO_TRANSACTION_FILTERS, type TransactionFilters } from '@ego/api-contracts'
-import type { DateRange, PeriodPreset, TransactionKind } from '@ego/core'
-import { rangeForPeriod } from './period-context'
+import type { DateRange, TransactionKind } from '@ego/core'
 
 /**
- * Activity keeps its own filters. Reading an old receipt must not move the period on the
- * dashboard or the budget.
+ * The filters that belong to Activity alone. The period is shared with Home and Categories
+ * through the period context, so switching to Week on one tab switches all three.
  */
 export interface ActivityView {
-  period: PeriodPreset
-  custom: DateRange
   accountIds: string[]
   categoryIds: string[]
   kinds: TransactionKind[]
@@ -16,16 +13,13 @@ export interface ActivityView {
 }
 
 export const DEFAULT_ACTIVITY_VIEW: ActivityView = {
-  period: 'month',
-  custom: { from: null, to: null },
   accountIds: [],
   categoryIds: [],
   kinds: [],
   search: ''
 }
 
-export function activityFilters(view: ActivityView): TransactionFilters {
-  const range = rangeForPeriod(view.period, view.custom)
+export function activityFilters(view: ActivityView, range: DateRange): TransactionFilters {
   return {
     ...NO_TRANSACTION_FILTERS,
     from: range.from,
@@ -38,8 +32,7 @@ export function activityFilters(view: ActivityView): TransactionFilters {
 }
 
 /** Changes the list identity, so the loaded pages and any selection have to start again. */
-export function viewIdentity(view: ActivityView): string {
-  const range = rangeForPeriod(view.period, view.custom)
+export function viewIdentity(view: ActivityView, range: DateRange): string {
   return [
     range.from ?? '', range.to ?? '', view.search.trim(),
     [...view.accountIds].sort().join('+'),
@@ -50,6 +43,10 @@ export function viewIdentity(view: ActivityView): string {
 
 export function hasFilters(view: ActivityView): boolean {
   return view.accountIds.length > 0 || view.categoryIds.length > 0 || view.kinds.length > 0
+}
+
+export function filterCount(view: ActivityView): number {
+  return view.accountIds.length + view.categoryIds.length + view.kinds.length
 }
 
 export function toggleIn<T>(values: T[], value: T): T[] {
@@ -92,26 +89,17 @@ export function clearFilters(view: ActivityView): ActivityView {
   return { ...view, accountIds: [], categoryIds: [], kinds: [] }
 }
 
-export function searchAllTime(view: ActivityView): ActivityView {
-  return { ...view, period: 'all', custom: { from: null, to: null } }
-}
-
 interface StoredPreferences {
-  period: PeriodPreset
-  custom: DateRange
   accountIds: string[]
   categoryIds: string[]
   kinds: TransactionKind[]
 }
 
-const PERIODS: PeriodPreset[] = ['today', 'week', 'month', 'year', 'all', 'custom']
 const KINDS: TransactionKind[] = ['income', 'expense', 'transfer']
 
 /** Filter choices are worth remembering. The search text is not, on a private ledger. */
 export function storedPreferences(view: ActivityView): string {
   const stored: StoredPreferences = {
-    period: view.period,
-    custom: view.custom,
     accountIds: view.accountIds,
     categoryIds: view.categoryIds,
     kinds: view.kinds
@@ -127,6 +115,7 @@ function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
 }
 
+/** Older installs stored a period here too. It is ignored now that the period is shared. */
 export function parsePreferences(raw: string | null): ActivityView {
   if (!raw) return DEFAULT_ACTIVITY_VIEW
   let parsed: unknown
@@ -136,13 +125,7 @@ export function parsePreferences(raw: string | null): ActivityView {
     return DEFAULT_ACTIVITY_VIEW
   }
   if (!isRecord(parsed)) return DEFAULT_ACTIVITY_VIEW
-  const custom = isRecord(parsed.custom) ? parsed.custom : {}
   return {
-    period: PERIODS.includes(parsed.period as PeriodPreset) ? parsed.period as PeriodPreset : DEFAULT_ACTIVITY_VIEW.period,
-    custom: {
-      from: typeof custom.from === 'string' ? custom.from : null,
-      to: typeof custom.to === 'string' ? custom.to : null
-    },
     accountIds: stringList(parsed.accountIds),
     categoryIds: stringList(parsed.categoryIds),
     kinds: KINDS.filter((kind) => stringList(parsed.kinds).includes(kind)),
