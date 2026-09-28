@@ -3,8 +3,8 @@ import type { LocalDatabase } from '../database/types'
 import { TABLES, writeRecord, writeTombstone } from '../database/writes'
 import {
   accountRecordFrom, budgetIdFor, budgetRecordFrom, categoryRecordFrom, gymCategoryRecordFrom,
-  gymExerciseRecordFrom, gymSetRecordFrom, gymWorkoutRecordFrom, purchaseRecordFrom,
-  purchaseTransactionInput, receiptTransactionIdFor, transactionRecordFrom
+  gymExerciseRecordFrom, gymSetRecordFrom, gymWorkoutRecordFrom, moodIdFor, moodRecordFrom,
+  purchaseRecordFrom, purchaseTransactionInput, receiptTransactionIdFor, transactionRecordFrom
 } from './records'
 
 interface Existing {
@@ -127,6 +127,23 @@ export async function applyCommandLocally(
     await writeRecord(tx, {
       entity: 'gymWorkout',
       record: gymWorkoutRecordFrom(command.payload, current?.created_at ?? now, now, revision)
+    })
+    return
+  }
+
+  if (command.entity === 'mood') {
+    if (command.type === 'delete') {
+      await writeTombstone(tx, 'mood', entityId, revision, now)
+      return
+    }
+    const rows = await tx.all<Existing & { id: string; deleted_at: string | null }>(
+      'SELECT id, created_at, revision, deleted_at FROM mood_entries WHERE date = ?', [entityId])
+    const current = rows[0]
+    const nextRevision = !current ? 1 : current.deleted_at ? current.revision + 1 : revision
+    await writeRecord(tx, {
+      entity: 'mood',
+      record: moodRecordFrom(current?.id ?? moodIdFor(entityId), command.payload,
+        current?.created_at ?? now, now, nextRevision)
     })
     return
   }

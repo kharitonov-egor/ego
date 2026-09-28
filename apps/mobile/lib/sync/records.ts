@@ -1,10 +1,10 @@
 import type {
   AccountRecord, BudgetRecord, CategoryRecord, GymCategoryRecord, GymExerciseRecord, GymSetRecord,
-  GymWorkoutRecord, PurchaseRecord, TransactionRecord
+  GymWorkoutRecord, MoodRecord, PurchaseRecord, TransactionRecord
 } from '@ego/api-contracts'
 import type {
   AccountInput, BudgetInput, CategoryInput, GymCategoryInput, GymExerciseInput, GymSetInput,
-  GymWorkoutInput, PurchaseInput, ReceiptItem, TransactionInput
+  GymWorkoutInput, MoodInput, PurchaseInput, ReceiptItem, TransactionInput
 } from '@ego/core'
 
 /**
@@ -194,4 +194,22 @@ export function gymWorkoutRecordFrom(
     updatedAt,
     revision
   }
+}
+
+export function moodRecordFrom(
+  id: string, input: MoodInput, createdAt: string, updatedAt: string, revision: number
+): MoodRecord {
+  return {
+    id,
+    date: input.date,
+    mood: input.mood,
+    note: input.note.trim(),
+    createdAt,
+    updatedAt,
+    revision
+  }
+}
+
+export function moodIdFor(date: string): string {
+  return `mood-${date}`
 }

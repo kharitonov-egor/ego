@@ -4,15 +4,16 @@ import {
   type SyncCommand, type SyncEntity, type SyncOperation
 } from '@ego/api-contracts'
 import type {
-  AccountInput, ArchiveInput, BudgetInput, CategoryInput, GymSetInput, PurchaseInput, TransactionInput
+  AccountInput, ArchiveInput, BudgetInput, CategoryInput, GymSetInput, MoodInput, PurchaseInput,
+  TransactionInput
 } from '@ego/core'
 import { query, readLatestChange, serverSequence } from './reads'
 import {
   toAccountRecord, toBudgetRecord, toCategoryRecord, toGymCategoryRecord, toGymExerciseRecord,
-  toGymSetRecord, toGymWorkoutRecord, toPurchaseRecord, toReceiptItem, toTransactionRecord,
+  toGymSetRecord, toGymWorkoutRecord, toMoodRecord, toPurchaseRecord, toReceiptItem, toTransactionRecord,
   type AccountRow, type BudgetAllocationRow, type BudgetRow, type CategoryRow, type GymCategoryRow,
-  type GymExerciseRow, type GymSetRow, type GymWorkoutRow, type PurchaseRow, type ReceiptItemRow,
-  type TransactionRow
+  type GymExerciseRow, type GymSetRow, type GymWorkoutRow, type MoodRow, type PurchaseRow,
+  type ReceiptItemRow, type TransactionRow
 } from './rows'
 
 interface Statement {
@@ -43,7 +44,22 @@ const TABLES: Record<SyncEntity, string> = {
   gymCategory: 'gym_categories',
   gymExercise: 'gym_exercises',
   gymSet: 'gym_sets',
-  gymWorkout: 'gym_workouts'
+  gymWorkout: 'gym_workouts',
+  mood: 'mood_entries'
+}
+
+/** Budgets are keyed by month and mood entries by date, so each has one row per period. */
+const KEYS: Record<SyncEntity, string> = {
+  account: 'id',
+  category: 'id',
+  transaction: 'id',
+  purchase: 'id',
+  budget: 'month',
+  gymCategory: 'id',
+  gymExercise: 'id',
+  gymSet: 'id',
+  gymWorkout: 'id',
+  mood: 'date'
 }
 
 function canonical(value: unknown): unknown {
@@ -72,9 +88,8 @@ export async function payloadHash(operation: SyncOperation): Promise<string> {
  * mistake another device's matching revision for this command's own update.
  */
 function guardFor(entity: SyncEntity, key: string, expectedRevision: number): Guard {
-  const column = entity === 'budget' ? 'month' : 'id'
   return {
-    sql: `EXISTS (SELECT 1 FROM ${TABLES[entity]} WHERE ${column} = ? AND revision = ? AND deleted_at IS NULL)`,
+    sql: `EXISTS (SELECT 1 FROM ${TABLES[entity]} WHERE ${KEYS[entity]} = ? AND revision = ? AND deleted_at IS NULL)`,
     params: [key, expectedRevision]
   }
 }
@@ -116,6 +131,17 @@ async function budgetRow(db: D1Database, month: string): Promise<BudgetRow | nul
 /** A cleared month keeps its row, because `month` is unique. Saving it again revives that row. */
 async function clearedBudgetRow(db: D1Database, month: string): Promise<BudgetRow | null> {
   const rows = await query<BudgetRow>(db, 'SELECT * FROM budgets WHERE month = ? AND deleted_at IS NOT NULL', [month])
+  return rows[0] ?? null
+}
+
+async function moodRow(db: D1Database, date: string): Promise<MoodRow | null> {
+  const rows = await query<MoodRow>(db, 'SELECT * FROM mood_entries WHERE date = ? AND deleted_at IS NULL', [date])
+  return rows[0] ?? null
+}
+
+/** A cleared day keeps its row, because `date` is unique. Saving it again revives that row. */
+async function clearedMoodRow(db: D1Database, date: string): Promise<MoodRow | null> {
+  const rows = await query<MoodRow>(db, 'SELECT * FROM mood_entries WHERE date = ? AND deleted_at IS NOT NULL', [date])
   return rows[0] ?? null
 }
 
@@ -860,6 +886,72 @@ async function planGymWorkout(
   }
 }
 
+async function planMood(
+  db: D1Database, operation: SyncOperation, command: Extract<SyncCommand, { entity: 'mood' }>, now: string
+): Promise<ApiResult<Plan>> {
+  const date = operation.entityId
+  const current = await moodRow(db, date)
+  if (command.type === 'delete') {
+    if (!current) return notFound('That mood entry was not found')
+    const expected = operation.expectedRevision ?? 0
+    const revision = expected + 1
+    return {
+      ok: true,
+      data: {
+        primary: {
+          sql: 'UPDATE mood_entries SET deleted_at = ?, updated_at = ?, revision = revision + 1 WHERE date = ? AND revision = ? AND deleted_at IS NULL',
+          params: [now, now, date, expected]
+        },
+        followUps: [],
+        guard: guardFor('mood', date, expected),
+        changes: [{ action: 'delete', entityId: date, revision, payload: { entity: 'mood', record: null } }],
+        outcome: { entity: 'mood', entityId: date, revision }
+      }
+    }
+  }
+  const input: MoodInput = command.payload
+  if (input.date !== date) return invalid('The mood date must match the operation entity ID')
+  const cleared = current ? null : await clearedMoodRow(db, date)
+  const expected = operation.expectedRevision ?? 0
+  const revision = current ? expected + 1 : cleared ? cleared.revision + 1 : 1
+  const row: MoodRow = {
+    id: current?.id ?? cleared?.id ?? `mood-${date}`, date, mood: input.mood, note: input.note.trim(),
+    created_at: current?.created_at ?? cleared?.created_at ?? now, updated_at: now, revision
+  }
+  const guard: Guard | null = current
+    ? guardFor('mood', date, expected)
+    : cleared
+      ? {
+        sql: 'EXISTS (SELECT 1 FROM mood_entries WHERE date = ? AND revision = ? AND deleted_at IS NOT NULL)',
+        params: [date, cleared.revision]
+      }
+      : null
+  const primary: Statement = current
+    ? {
+      sql: 'UPDATE mood_entries SET mood = ?, note = ?, updated_at = ?, revision = revision + 1 WHERE date = ? AND revision = ? AND deleted_at IS NULL',
+      params: [row.mood, row.note, now, date, expected]
+    }
+    : cleared
+      ? {
+        sql: 'UPDATE mood_entries SET mood = ?, note = ?, updated_at = ?, deleted_at = NULL, revision = revision + 1 WHERE date = ? AND revision = ? AND deleted_at IS NOT NULL',
+        params: [row.mood, row.note, now, date, cleared.revision]
+      }
+      : {
+        sql: 'INSERT INTO mood_entries (id, date, mood, note, created_at, updated_at, revision) SELECT ?, ?, ?, ?, ?, ?, 1',
+        params: [row.id, date, row.mood, row.note, now, now]
+      }
+  return {
+    ok: true,
+    data: {
+      primary,
+      followUps: [],
+      guard,
+      changes: [{ action: 'upsert', entityId: date, revision, payload: { entity: 'mood', record: toMoodRecord(row) } }],
+      outcome: { entity: 'mood', entityId: date, revision }
+    }
+  }
+}
+
 function planFor(db: D1Database, operation: SyncOperation, now: string): Promise<ApiResult<Plan>> {
   switch (operation.command.entity) {
     case 'account': return planAccount(db, operation, operation.command, now)
@@ -871,6 +963,7 @@ function planFor(db: D1Database, operation: SyncOperation, now: string): Promise
     case 'gymExercise': return planGymExercise(db, operation, operation.command, now)
     case 'gymSet': return planGymSet(db, operation, operation.command, now)
     case 'gymWorkout': return planGymWorkout(db, operation, operation.command, now)
+    case 'mood': return planMood(db, operation, operation.command, now)
   }
 }
 

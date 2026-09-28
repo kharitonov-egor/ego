@@ -179,6 +179,18 @@ export const LOCAL_MIGRATIONS: readonly string[][] = [
     'CREATE INDEX IF NOT EXISTS idx_local_gym_exercises_category ON gym_exercises(category_id) WHERE deleted_at IS NULL',
     'CREATE INDEX IF NOT EXISTS idx_local_gym_sets_date ON gym_sets(date, exercise_id, position) WHERE deleted_at IS NULL',
     'CREATE INDEX IF NOT EXISTS idx_local_gym_sets_exercise ON gym_sets(exercise_id, date) WHERE deleted_at IS NULL'
+  ],
+  [
+    `CREATE TABLE IF NOT EXISTS mood_entries (
+      id TEXT PRIMARY KEY,
+      date TEXT NOT NULL UNIQUE,
+      mood INTEGER NOT NULL,
+      note TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1,
+      deleted_at TEXT
+    )`
   ]
 ]
 

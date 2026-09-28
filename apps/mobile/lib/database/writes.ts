@@ -1,6 +1,7 @@
 import type {
   AccountRecord, BudgetRecord, CategoryRecord, ChangePayload, FeedTransaction, GymCategoryRecord,
-  GymExerciseRecord, GymSetRecord, GymWorkoutRecord, PurchaseRecord, SyncEntity, TransactionRecord
+  GymExerciseRecord, GymSetRecord, GymWorkoutRecord, MoodRecord, PurchaseRecord, SyncEntity,
+  TransactionRecord
 } from '@ego/api-contracts'
 import type { LocalDatabase } from './types'
 
@@ -13,12 +14,13 @@ export const TABLES: Record<SyncEntity, string> = {
   gymCategory: 'gym_categories',
   gymExercise: 'gym_exercises',
   gymSet: 'gym_sets',
-  gymWorkout: 'gym_workouts'
+  gymWorkout: 'gym_workouts',
+  mood: 'mood_entries'
 }
 
-/** Budgets are keyed by month; every other record by its ID. */
-export function keyColumn(entity: SyncEntity): 'month' | 'id' {
-  return entity === 'budget' ? 'month' : 'id'
+/** Budgets are keyed by month and mood entries by date; every other record by its ID. */
+export function keyColumn(entity: SyncEntity): 'month' | 'date' | 'id' {
+  return entity === 'budget' ? 'month' : entity === 'mood' ? 'date' : 'id'
 }
 
 async function writeAccount(tx: LocalDatabase, record: AccountRecord): Promise<void> {
@@ -162,6 +164,16 @@ async function writeGymWorkout(tx: LocalDatabase, record: GymWorkoutRecord): Pro
     record.createdAt, record.updatedAt, record.revision])
 }
 
+async function writeMood(tx: LocalDatabase, record: MoodRecord): Promise<void> {
+  await tx.run(`INSERT INTO mood_entries (id, date, mood, note, created_at, updated_at, revision, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
+    ON CONFLICT(date) DO UPDATE SET mood = excluded.mood, note = excluded.note,
+      created_at = excluded.created_at, updated_at = excluded.updated_at,
+      revision = excluded.revision, deleted_at = NULL
+    WHERE excluded.revision >= mood_entries.revision`,
+  [record.id, record.date, record.mood, record.note, record.createdAt, record.updatedAt, record.revision])
+}
+
 /** Applies a record only when it is at least as new as the stored revision. */
 export async function writeRecord(tx: LocalDatabase, payload: ChangePayload): Promise<void> {
   if (payload.record === null) return
@@ -175,6 +187,7 @@ export async function writeRecord(tx: LocalDatabase, payload: ChangePayload): Pr
     case 'gymExercise': return writeGymExercise(tx, payload.record)
     case 'gymSet': return writeGymSet(tx, payload.record)
     case 'gymWorkout': return writeGymWorkout(tx, payload.record)
+    case 'mood': return writeMood(tx, payload.record)
   }
 }
 
