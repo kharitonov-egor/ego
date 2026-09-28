@@ -98,6 +98,30 @@ Entries use the same local database, outbox, and change log as money and gym. A 
 the phone before it syncs. It lands in the `mood_entries` table in D1, and Clear this day deletes
 it on every device.
 
+## Study
+
+The phone's start screen has a Study tile for Canvas assignments.
+
+- Assignments groups everything by the day it is due. Upcoming starts with anything from an
+  earlier day still unchecked, then lists today and every day after. Past lists earlier days,
+  newest first. The chips under the toggle narrow the list to one course.
+- Courses shows each course with how many assignments are left, how many are overdue, and the next
+  deadline. Tapping a course opens its assignments.
+
+Canvas does not report submissions, so the check marks belong to Ego. Tap the circle on a row to
+check it off. Tap the row for the description and an Open in Canvas button.
+
+The Worker downloads the Canvas calendar feed and parses it. Anyone holding the feed link can read
+the calendar, so the link is a Worker secret, `CANVAS_CALENDAR_URL`, and never enters this repo.
+D1 stores only the check marks, in `study_completions`. The assignments stay in Canvas, and copying
+them into D1 would only add a second list that goes stale. The phone keeps the last list in SQLite.
+Study opens offline and refreshes on open, on pull-down, and on return to the app once the saved
+copy is five minutes old. A check mark made offline waits on the phone and goes out with the next
+refresh.
+
+Canvas sends deadlines in UTC. The phone places each one on its own calendar, so a deadline at
+10:59 PM Eastern (02:59 UTC) shows on the evening it is due, not the next morning.
+
 ## Quick tools
 
 Press `Alt+S` anywhere in Windows to open a three-item chooser. Use the arrow keys and Enter, or

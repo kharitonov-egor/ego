@@ -33,6 +33,7 @@ export interface ServiceStatus {
   trello: boolean
   voice: boolean
   google: boolean
+  canvas: boolean
 }
 
 export interface SessionInfo {

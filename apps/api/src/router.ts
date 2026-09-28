@@ -24,6 +24,7 @@ import { completeSignIn, exchangeSignIn, readSession, signOut, startSignIn } fro
 import {
   runMoneyAgentRequest, trelloAddAttachment, trelloBoards, trelloCreateCard, trelloLists
 } from './services'
+import { markStudyAssignment, readStudyAssignments } from './study'
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -120,6 +121,10 @@ export async function handle(request: Request, env: Env): Promise<Response> {
   if (request.method === 'POST' && path === '/v1/trello/cards') return trelloCreateCard(request, env)
   if (request.method === 'POST' && path.startsWith('/v1/trello/cards/') && path.endsWith('/attachments')) {
     return trelloAddAttachment(request, env, decodeURIComponent(path.slice('/v1/trello/cards/'.length, -'/attachments'.length)))
+  }
+  if (request.method === 'GET' && path === '/v1/study/assignments') return readStudyAssignments(env, device.data, now)
+  if (request.method === 'PUT' && path.startsWith('/v1/study/assignments/')) {
+    return markStudyAssignment(request, env, device.data, decodeURIComponent(path.slice('/v1/study/assignments/'.length)), now)
   }
   if (request.method === 'POST' && path === '/v1/live/sessions') {
     return createLiveSession(request, env, device.data)

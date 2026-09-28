@@ -234,7 +234,8 @@ export async function readSession(env: Env, device: DeviceIdentity): Promise<Ses
       moneyAgent: Boolean(env.OPENROUTER_API_KEY),
       trello: Boolean(env.TRELLO_API_KEY && env.TRELLO_TOKEN),
       voice: Boolean(env.OPENAI_API_KEY),
-      google: google.connected
+      google: google.connected,
+      canvas: Boolean(env.CANVAS_CALENDAR_URL?.trim())
     }
   }
 }

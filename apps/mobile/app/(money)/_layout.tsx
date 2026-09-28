@@ -6,20 +6,7 @@ import {
 } from 'lucide-react-native'
 import { useMoneyTabBarStyle } from '../../components/money/navigation'
 import { SyncButton } from '../../components/money/SyncButton'
-
-function HeaderButton({ label, onPress, children }: {
-  label: string
-  onPress: () => void
-  children: React.ReactNode
-}): React.ReactElement {
-  return <Pressable
-    accessibilityRole="button"
-    accessibilityLabel={label}
-    onPress={onPress}
-    hitSlop={12}
-    style={{ marginLeft: 14 }}
-  >{children}</Pressable>
-}
+import { HeaderButton } from '../../components/HeaderButton'
 
 export default function MoneyTabs(): React.ReactElement {
   const router = useRouter()

@@ -59,6 +59,7 @@ npx wrangler secret put ALLOWED_EMAILS        # your Google address; comma-separ
 npx wrangler secret put OPENROUTER_API_KEY    # the money agent
 npx wrangler secret put TRELLO_API_KEY        # Trello capture
 npx wrangler secret put TRELLO_TOKEN
+npx wrangler secret put CANVAS_CALENDAR_URL   # Study: Canvas > Calendar > Calendar Feed link
 ```
 
 `OPENROUTER_MODEL` is optional and defaults to `openai/gpt-5.6-terra`. `DATASET_ID` is optional and
@@ -164,6 +165,24 @@ npm run deploy --workspace @ego/api
 An older Worker rejects any batch that contains a mood entry. Money and gym changes queued in the
 same batch then wait until the Worker is updated.
 
+## Study
+
+Study reads the Canvas calendar feed on the Worker. In Canvas, open Calendar and copy the Calendar
+Feed link at the bottom right. Anyone with the link can read the calendar, so it goes in the Worker
+secret store and nowhere else. Migration `0007_study.sql` adds `study_completions`, which holds the
+check marks and nothing else. It is additive.
+
+```sh
+cd apps/api
+npx wrangler secret put CANVAS_CALENDAR_URL
+npm run migrate:remote
+npm run deploy
+```
+
+Study does not use the outbox or the change log. The Worker fetches the feed on each refresh, and
+`PUT /v1/study/assignments/:id` sets or clears one check mark. Until the Worker has the secret,
+Study shows how to add it, and Settings lists Canvas calendar as not set up.
+
 ## 3. Point the desktop app at it
 
 The desktop Settings screen calls this the Ego service. It takes the Worker address and a token
@@ -185,6 +204,8 @@ through the old direct D1 path do not, because they never reach the change log.
 - `outbox` holds undelivered operations with their attempt count and retry time.
 - `sync_state` holds the dataset, the last applied server sequence, whether the bootstrap finished,
   and which bootstrap version filled the tables.
+- `study_assignments` holds the last Canvas list. `done_pending` marks a check mark the server has
+  not received yet. `study_state` holds when the list was fetched.
 
 The bootstrap writes every record and its starting sequence in one SQLite transaction, so an
 interrupted first download restarts instead of leaving the device believing it is current.
