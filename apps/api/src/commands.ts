@@ -108,6 +108,12 @@ async function budgetRow(db: D1Database, month: string): Promise<BudgetRow | nul
   return rows[0] ?? null
 }
 
+/** A cleared month keeps its row, because `month` is unique. Saving it again revives that row. */
+async function clearedBudgetRow(db: D1Database, month: string): Promise<BudgetRow | null> {
+  const rows = await query<BudgetRow>(db, 'SELECT * FROM budgets WHERE month = ? AND deleted_at IS NOT NULL', [month])
+  return rows[0] ?? null
+}
+
 async function checkTransactionReferences(db: D1Database, input: TransactionInput): Promise<string | null> {
   const source = await accountRow(db, input.accountId)
   if (!source) return 'Source account was not found'
@@ -566,7 +572,8 @@ async function planBudget(
   if (input.month !== month) return invalid('The budget month must match the operation entity ID')
   const problem = await checkBudgetReferences(db, input)
   if (problem) return conflict(problem)
-  const budgetId = current?.id ?? `budget-${month}`
+  const cleared = current ? null : await clearedBudgetRow(db, month)
+  const budgetId = current?.id ?? cleared?.id ?? `budget-${month}`
   const allocationRows: BudgetAllocationRow[] = input.allocations.map((allocation, index) => ({
     id: `${budgetId}-${index}`, budget_id: budgetId, category_id: allocation.categoryId,
     amount_cents: allocation.amountCents
@@ -576,21 +583,33 @@ async function planBudget(
     params: [allocation.id, allocation.budget_id, allocation.category_id, allocation.amount_cents]
   }))
   const expected = operation.expectedRevision ?? 0
-  const revision = current ? expected + 1 : 1
-  const guard = current ? guardFor('budget', month, expected) : null
+  const revision = current ? expected + 1 : cleared ? cleared.revision + 1 : 1
+  const guard: Guard | null = current
+    ? guardFor('budget', month, expected)
+    : cleared
+      ? {
+        sql: 'EXISTS (SELECT 1 FROM budgets WHERE month = ? AND revision = ? AND deleted_at IS NOT NULL)',
+        params: [month, cleared.revision]
+      }
+      : null
   const row: BudgetRow = {
     id: budgetId, month, planned_income_cents: input.plannedIncomeCents,
-    created_at: current?.created_at ?? now, updated_at: now, revision
+    created_at: current?.created_at ?? cleared?.created_at ?? now, updated_at: now, revision
   }
   const primary: Statement = current
     ? {
       sql: 'UPDATE budgets SET planned_income_cents = ?, updated_at = ?, revision = revision + 1 WHERE month = ? AND revision = ? AND deleted_at IS NULL',
-      params: [input.plannedIncomeCents, now, month, (operation.expectedRevision ?? 0)]
+      params: [input.plannedIncomeCents, now, month, expected]
     }
-    : {
-      sql: 'INSERT INTO budgets (id, month, planned_income_cents, created_at, updated_at, revision) SELECT ?, ?, ?, ?, ?, 1',
-      params: [budgetId, month, input.plannedIncomeCents, now, now]
-    }
+    : cleared
+      ? {
+        sql: 'UPDATE budgets SET planned_income_cents = ?, updated_at = ?, deleted_at = NULL, revision = revision + 1 WHERE month = ? AND revision = ? AND deleted_at IS NOT NULL',
+        params: [input.plannedIncomeCents, now, month, cleared.revision]
+      }
+      : {
+        sql: 'INSERT INTO budgets (id, month, planned_income_cents, created_at, updated_at, revision) SELECT ?, ?, ?, ?, ?, 1',
+        params: [budgetId, month, input.plannedIncomeCents, now, now]
+      }
   return {
     ok: true,
     data: {

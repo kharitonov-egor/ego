@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Dimensions, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
 import { ChevronRight, Trash2, X } from 'lucide-react-native'
 import { useNavigation } from 'expo-router'
@@ -55,7 +55,6 @@ interface TransactionEntryProps {
   snapshot: MoneySnapshot
   transaction?: MoneyTransaction
   onClose: () => void
-  /** Supplied when Activity reads and writes the phone's own ledger. */
   onSave?: (input: TransactionInput) => Promise<boolean>
   onDelete?: () => Promise<boolean>
   busy?: boolean
@@ -66,6 +65,7 @@ export default function TransactionEntry({ snapshot, transaction, onClose, onSav
   const navigation = useNavigation()
   const insets = useSafeAreaInsets()
   const [saveFailed, setSaveFailed] = useState(false)
+  const saving = useRef(false)
   const tabBarStyle = useMoneyTabBarStyle()
   const accounts = snapshot.accounts.filter((item) => !item.archivedAt || item.id === transaction?.accountId || item.id === transaction?.destinationAccountId)
   const openAccounts = accounts.filter((item) => !item.archivedAt)
@@ -118,16 +118,22 @@ export default function TransactionEntry({ snapshot, transaction, onClose, onSav
 
   const changeKind = (value: TransactionKind): void => { setKind(value); setDestinationId(''); setCategoryId(lastUsedCategory(value)) }
   const save = async (): Promise<void> => {
+    if (saving.current) return
+    saving.current = true
     setSaveFailed(false)
     const input: TransactionInput = {
       kind, accountId, destinationAccountId: kind === 'transfer' ? destinationId : null,
       categoryId: kind === 'transfer' ? null : categoryId, amountCents: cents, date, notes: notes.trim()
     }
-    const saved = onSave
-      ? await onSave(input)
-      : transaction ? await state.updateTransaction(transaction.id, input) : await state.createTransaction(input)
-    if (saved) onClose()
-    else setSaveFailed(true)
+    try {
+      const saved = onSave
+        ? await onSave(input)
+        : transaction ? await state.updateTransaction(transaction.id, input) : await state.createTransaction(input)
+      if (saved) onClose()
+      else setSaveFailed(true)
+    } finally {
+      saving.current = false
+    }
   }
   const remove = async (): Promise<void> => {
     if (!transaction) return
@@ -237,7 +243,7 @@ export default function TransactionEntry({ snapshot, transaction, onClose, onSav
             <View className="h-9 w-9 items-center justify-center rounded-lg" style={{ backgroundColor: item.color }}><MoneyIcon name={item.icon} size={15} /></View>
             <Text className={`ml-2 text-[16px] font-semibold ${destinationId === item.id ? 'text-accent-300' : 'text-surface-200'}`}>{item.name}</Text>
           </Pressable>)
-        : <View className="flex-row flex-wrap gap-1.5">{categories.map((item) => <Pressable key={item.id} onPress={() => { setCategoryId(item.id); setPicking(null) }} className={`flex-row items-center rounded-full border px-2.5 py-1.5 ${categoryId === item.id ? 'border-accent-500 bg-accent-500/15' : 'border-surface-800 bg-surface-900'}`}>
+        : <View className="flex-row flex-wrap gap-1.5">{categories.map((item) => <Pressable key={item.id} accessibilityRole="button" accessibilityState={{ selected: categoryId === item.id }} onPress={() => { setCategoryId(item.id); setPicking(null) }} style={{ minHeight: 44 }} className={`flex-row items-center rounded-full border px-3 py-2 ${categoryId === item.id ? 'border-accent-500 bg-accent-500/15' : 'border-surface-800 bg-surface-900'}`}>
             <MoneyIcon name={item.icon} color={item.color} size={12} />
             <Text className={`ml-1.5 text-[14px] ${categoryId === item.id ? 'font-semibold text-accent-300' : 'text-surface-300'}`}>{item.name}</Text>
           </Pressable>)}</View>}

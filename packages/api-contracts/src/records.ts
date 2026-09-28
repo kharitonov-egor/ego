@@ -39,6 +39,16 @@ export interface TransactionPage {
   queryIdentity: string
 }
 
+/** Every live record in one response, read after the sequence it is current as of. */
+export interface BootstrapData {
+  serverSequence: number
+  accounts: AccountRecord[]
+  categories: CategoryRecord[]
+  transactions: TransactionRecord[]
+  purchases: PurchaseRecord[]
+  budgets: BudgetRecord[]
+}
+
 export interface TransactionDetail {
   transaction: FeedTransaction
   purchase: PurchaseRecord | null

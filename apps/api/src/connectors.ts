@@ -362,7 +362,7 @@ function html(message: string, success: boolean): Response {
   })
 }
 
-function callbackUrl(request: Request, env: Env): string {
+export function googleCallbackUrl(request: Request, env: Env): string {
   const base = env.PUBLIC_BASE_URL?.replace(/\/+$/, '') ?? new URL(request.url).origin
   return `${base}/v1/connectors/google/callback`
 }
@@ -414,7 +414,7 @@ export async function startGoogleConnector(
   const state = randomUrlToken()
   const verifier = randomUrlToken(48)
   const challenge = await sha256(verifier)
-  const redirectUri = callbackUrl(request, env)
+  const redirectUri = googleCallbackUrl(request, env)
   const expiresAt = new Date(now.getTime() + OAUTH_TTL_MS).toISOString()
   await env.DB.prepare(`INSERT INTO connector_oauth_states
     (state_hash, provider, dataset_id, device_id, pkce_verifier, redirect_uri, expires_at, created_at)

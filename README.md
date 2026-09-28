@@ -26,11 +26,12 @@ The Money sidebar has six views:
 
 Mobile has a money agent for messages and receipt images. A message can describe one transaction
 or several. The agent produces one `record_transactions` tool call with an entry for each one.
-The user checks the entries before Ego writes them to D1. The agent can also read a photo, library image,
+The user checks the entries before Ego saves them. The agent can also read a photo, library image,
 or clipboard image. Itemized receipts keep their purchase rows. Ego discards each image after
-OpenRouter reads it. Desktop still accepts Ctrl+V, drag and drop, and file selection for one-shot
-transaction image analysis. Add an OpenRouter API key and model in Settings on each device. The
-default model is `openai/gpt-5.6-terra`.
+OpenRouter reads it. The phone sends the request to the Worker, which holds the OpenRouter key.
+Desktop still accepts Ctrl+V, drag and drop, and file selection for one-shot transaction image
+analysis, and still reads its OpenRouter key from its own Settings. The default model is
+`openai/gpt-5.6-terra`; set `OPENROUTER_MODEL` on the Worker to change it for the phone.
 
 A budget covers one month. Set the planned income, give each expense category an amount, and the
 view tracks what is left. A category turns amber at 80 percent of its amount and red once spending
@@ -47,12 +48,16 @@ A Cloudflare Worker in `apps/api` can own the money database instead of each dev
 itself. It holds the migrations, the domain commands, paginated reads, and a change log, and each
 device authenticates with its own revocable token rather than a Cloudflare account token.
 
-With it configured, the phone keeps its own SQLite copy of the ledger: Activity reads and searches
-without the network, a saved transaction is durable before it is delivered, and conflicts offer
-Keep mine or Use saved version. The desktop app can route its writes through the same Worker while
-keeping its current screens.
+The phone keeps its own SQLite copy of the ledger. Every money screen reads it without the
+network, a saved transaction is durable before it is delivered, and conflicts offer Keep mine or
+Use saved version. The desktop app can route its writes through the same Worker while keeping its
+current screens.
 
-Money sync and Talk to AI use the same Worker address and device token. Money sync falls back to
+The phone signs in once with Google and gets its device token from the Worker. It keeps no API
+keys. The Worker holds the OpenRouter, Trello, and OpenAI keys as secrets and calls those services
+on the phone's behalf.
+
+Money sync and Talk to AI use the same Worker address and device token. Desktop money sync falls back to
 the direct D1 connection when the Worker is not configured. `docs/ledger-setup.md` covers Worker
 deployment, device enrolment, Live setup, the money cutover, and rollback.
 

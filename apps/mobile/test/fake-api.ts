@@ -1,10 +1,11 @@
 import type {
-  AccountBalances, ApiResult, ChangePage, ChangeRecord, FeedTransaction, OperationOutcome,
-  OperationResponse, ReceiptDetail, ReferenceData, SyncOperation, TransactionPage
+  AccountBalances, ApiResult, BootstrapData, ChangePage, ChangeRecord, FeedTransaction,
+  OperationOutcome, OperationResponse, ReceiptDetail, ReferenceData, SyncOperation, TransactionPage
 } from '@ego/api-contracts'
 import type { MoneyApi } from '../lib/api-client'
 
 export interface FakeApiScript {
+  bootstrap?: Array<ApiResult<BootstrapData>>
   reference?: Array<ApiResult<ReferenceData>>
   transactions?: Array<ApiResult<TransactionPage>>
   changes?: Array<ApiResult<ChangePage>>
@@ -31,6 +32,7 @@ export function fakeApi(script: FakeApiScript = {}): FakeApi {
     reference: async () => next(script.reference, {
       ok: true, data: { accounts: [], categories: [], serverSequence: 0 }
     }),
+    bootstrap: async () => next(script.bootstrap, { ok: true, data: emptyBootstrap(0) }),
     transactions: async () => next(script.transactions, { ok: true, data: emptyPage }),
     receipt: async (): Promise<ApiResult<ReceiptDetail>> =>
       ({ ok: false, error: { code: 'NOT_FOUND', message: 'No receipt' } }),
@@ -58,6 +60,10 @@ export function fakeApi(script: FakeApiScript = {}): FakeApi {
       })
     }
   }
+}
+
+export function emptyBootstrap(serverSequence: number): BootstrapData {
+  return { serverSequence, accounts: [], categories: [], transactions: [], purchases: [], budgets: [] }
 }
 
 export function feedRow(overrides: Partial<FeedTransaction> = {}): FeedTransaction {

@@ -26,17 +26,24 @@ export default function TransactionDetail(): React.ReactElement {
   const [confirming, setConfirming] = useState(false)
   const [receiptTotal, setReceiptTotal] = useState<number | null>(null)
 
+  const { transaction: findTransaction, receipt: findReceipt, version } = ledger
   const load = useCallback(async (): Promise<void> => {
-    if (!params.id) return
-    const found = await ledger.transaction(params.id)
-    setTransaction(found)
-    setLoading(false)
-    if (found?.purchaseId) {
-      const receipt = await ledger.receipt(found.purchaseId)
-      setReceiptTotal(receipt?.purchase.totalCents ?? null)
+    if (!params.id) {
+      setLoading(false)
+      return
+    }
+    try {
+      const found = await findTransaction(params.id)
+      setTransaction(found)
+      if (found?.purchaseId) {
+        const receipt = await findReceipt(found.purchaseId)
+        setReceiptTotal(receipt?.purchase.totalCents ?? null)
+      }
+    } finally {
+      setLoading(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.id, ledger.version])
+  }, [params.id, version, findTransaction, findReceipt])
 
   useEffect(() => {
     void load()
@@ -147,7 +154,6 @@ export default function TransactionDetail(): React.ReactElement {
     {editing && <TransactionEntry
       snapshot={editorSnapshot}
       transaction={transaction}
-      onSave={(input) => ledger.saveTransaction(input, transaction)}
       onDelete={async () => {
         const removed = await ledger.removeTransaction(transaction)
         if (removed) back()

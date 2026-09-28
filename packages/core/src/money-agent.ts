@@ -27,7 +27,7 @@ export interface RunMoneyAgentInput {
 
 export type MoneyAgentResult =
   | { ok: true; data: MoneyAgentDraft[] }
-  | { ok: false; message: string }
+  | { ok: false; message: string; reason?: 'unauthorized' }
 
 interface OpenRouterToolCall {
   function?: { name?: string; arguments?: string }
@@ -190,7 +190,7 @@ export async function runMoneyAgent(input: RunMoneyAgentInput, fetcher: FetchLik
     return { ok: false, message: 'OpenRouter returned an unreadable response.' }
   }
   if (response.status === 401 || response.status === 403) {
-    return { ok: false, message: 'OpenRouter rejected the API key. Check it in Settings.' }
+    return { ok: false, message: 'OpenRouter rejected the API key. Check it in Settings.', reason: 'unauthorized' }
   }
   if (response.status === 429) return { ok: false, message: 'OpenRouter rate limited the request. Wait a moment and try again.' }
   if (!response.ok) return { ok: false, message: value.error?.message ?? `OpenRouter returned HTTP ${response.status}.` }

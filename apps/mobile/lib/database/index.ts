@@ -41,30 +41,36 @@ async function openNative(name: string): Promise<NativeDatabase> {
   return open(name)
 }
 
+/**
+ * Expo runs every statement on one connection, so a transaction opened while another is still
+ * running would join it and roll back with it. Top-level transactions therefore wait their turn.
+ * Work inside one gets a handle whose nested transactions run in place.
+ */
 function adapt(native: NativeDatabase): LocalDatabase {
-  let depth = 0
-  const database: LocalDatabase = {
-    all: <T>(sql: string, params: SqlParam[] = []) => native.getAllAsync<T>(sql, params),
-    run: async (sql: string, params: SqlParam[] = []) => {
-      const result = await native.runAsync(sql, params)
-      return { changes: result.changes }
-    },
-    transaction: async <T>(work: (tx: LocalDatabase) => Promise<T>): Promise<T> => {
-      if (depth > 0) return work(database)
-      depth += 1
-      try {
+  let queue: Promise<unknown> = Promise.resolve()
+  const all = <T>(sql: string, params: SqlParam[] = []): Promise<T[]> => native.getAllAsync<T>(sql, params)
+  const run = async (sql: string, params: SqlParam[] = []): Promise<{ changes: number }> => {
+    const result = await native.runAsync(sql, params)
+    return { changes: result.changes }
+  }
+  const close = (): Promise<void> => native.closeAsync()
+  const inside: LocalDatabase = { all, run, close, transaction: (work) => work(inside) }
+  return {
+    all,
+    run,
+    close,
+    transaction: <T>(work: (tx: LocalDatabase) => Promise<T>): Promise<T> => {
+      const turn = queue.then(async () => {
         let outcome: T | undefined
         await native.withTransactionAsync(async () => {
-          outcome = await work(database)
+          outcome = await work(inside)
         })
         return outcome as T
-      } finally {
-        depth -= 1
-      }
-    },
-    close: () => native.closeAsync()
+      })
+      queue = turn.catch(() => undefined)
+      return turn
+    }
   }
-  return database
 }
 
 export async function openLocalDatabase(datasetId: string): Promise<LocalDatabase> {

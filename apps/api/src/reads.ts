@@ -2,7 +2,7 @@ import {
   DEFAULT_PAGE_SIZE, MAX_CHANGE_PAGE_SIZE, MAX_PAGE_SIZE, NO_TRANSACTION_FILTERS, encodeCursor,
   BALANCES_SQL, FEED_COLUMNS, FEED_FROM, budgetTotalsSql, feedCountSql, feedPageSql, notFound,
   summarySql, transactionQueryIdentity,
-  type AccountBalances, type ApiResult, type ChangePage, type ChangeRecord, type FeedCursor,
+  type AccountBalances, type ApiResult, type BootstrapData, type ChangePage, type ChangeRecord, type FeedCursor,
   type AccountRecord, type BudgetRecord, type CategoryRecord, type ChangePayload,
   type PeriodSummary, type PurchaseRecord, type ReceiptDetail, type ReferenceData,
   type TransactionDetail, type TransactionFilters, type TransactionPage, type TransactionRecord
@@ -199,28 +199,76 @@ export async function readChanges(db: D1Database, after: number, limit: number):
 
 export const ALL_TRANSACTIONS: TransactionFilters = NO_TRANSACTION_FILTERS
 
-/** Temporary desktop compatibility: one legacy snapshot until desktop reads pages. */
-export async function readLegacySnapshot(db: D1Database): Promise<MoneySnapshot> {
-  const [accounts, categories, transactions, purchases, items, budgets, allocations, balances] = await Promise.all([
+function groupBy<T>(rows: T[], key: (row: T) => string): Map<string, T[]> {
+  const groups = new Map<string, T[]>()
+  for (const row of rows) {
+    const id = key(row)
+    const group = groups.get(id)
+    if (group) group.push(row)
+    else groups.set(id, [row])
+  }
+  return groups
+}
+
+interface LiveRecords {
+  accounts: AccountRow[]
+  categories: CategoryRow[]
+  transactions: TransactionRow[]
+  purchases: PurchaseRecord[]
+  budgets: BudgetRecord[]
+}
+
+async function readLiveRecords(db: D1Database): Promise<LiveRecords> {
+  const [accounts, categories, transactions, purchases, items, budgets, allocations] = await Promise.all([
     query<AccountRow>(db, 'SELECT * FROM accounts WHERE deleted_at IS NULL ORDER BY created_at'),
     query<CategoryRow>(db, 'SELECT * FROM categories WHERE deleted_at IS NULL ORDER BY kind, name COLLATE NOCASE'),
     query<TransactionRow>(db, 'SELECT * FROM transactions WHERE deleted_at IS NULL ORDER BY date DESC, created_at DESC'),
     query<PurchaseRow>(db, 'SELECT * FROM purchases WHERE deleted_at IS NULL ORDER BY purchase_date DESC, created_at DESC'),
     query<ReceiptItemRow>(db, 'SELECT * FROM receipt_items ORDER BY purchase_id, position'),
     query<BudgetRow>(db, 'SELECT * FROM budgets WHERE deleted_at IS NULL ORDER BY month DESC'),
-    query<BudgetAllocationRow>(db, 'SELECT * FROM budget_allocations'),
-    readBalances(db)
+    query<BudgetAllocationRow>(db, 'SELECT * FROM budget_allocations')
   ])
-  const receiptItems = items.map(toReceiptItem)
+  const itemsByPurchase = groupBy(items.map(toReceiptItem), (item) => item.purchaseId)
+  const allocationsByBudget = groupBy(allocations, (allocation) => allocation.budget_id)
   return {
-    accounts: accounts.map((row) => ({
+    accounts,
+    categories,
+    transactions,
+    purchases: purchases.map((row) => toPurchaseRecord(row, itemsByPurchase.get(row.id) ?? [])),
+    budgets: budgets.map((row) => toBudgetRecord(row, allocationsByBudget.get(row.id) ?? []))
+  }
+}
+
+/**
+ * The whole live ledger for a device's first download. The sequence is read first, so any
+ * change committed while the tables are read is pulled again afterwards and applied by revision.
+ */
+export async function readBootstrap(db: D1Database): Promise<BootstrapData> {
+  const sequence = await serverSequence(db)
+  const records = await readLiveRecords(db)
+  return {
+    serverSequence: sequence,
+    accounts: records.accounts.map(toAccountRecord),
+    categories: records.categories.map(toCategoryRecord),
+    transactions: records.transactions.map(toTransactionRecord),
+    purchases: records.purchases,
+    budgets: records.budgets
+  }
+}
+
+/** Temporary desktop compatibility: one legacy snapshot until desktop reads pages. */
+export async function readLegacySnapshot(db: D1Database): Promise<MoneySnapshot> {
+  const [records, balances] = await Promise.all([readLiveRecords(db), readBalances(db)])
+  const balanceById = new Map(balances.balances.map((balance) => [balance.accountId, balance.balanceCents]))
+  return {
+    accounts: records.accounts.map((row) => ({
       ...toAccountRecord(row),
-      balanceCents: balances.balances.find((balance) => balance.accountId === row.id)?.balanceCents ?? row.opening_balance_cents
+      balanceCents: balanceById.get(row.id) ?? row.opening_balance_cents
     })),
-    categories: categories.map(toCategoryRecord),
-    transactions: transactions.map(toTransactionRecord),
-    purchases: purchases.map((row) => toPurchaseRecord(row, receiptItems)),
-    budgets: budgets.map((row) => toBudgetRecord(row, allocations)),
+    categories: records.categories.map(toCategoryRecord),
+    transactions: records.transactions.map(toTransactionRecord),
+    purchases: records.purchases,
+    budgets: records.budgets,
     syncedAt: new Date().toISOString()
   }
 }

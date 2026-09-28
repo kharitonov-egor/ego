@@ -3,8 +3,7 @@ import { AppState } from 'react-native'
 import type {
   AccountBalance, FeedCursor, ReferenceData, TransactionFilters
 } from '@ego/api-contracts'
-import type { PurchaseInput, TransactionInput } from '@ego/core'
-import { moneyApiFor } from './api-client'
+import { moneyApiFor, type EgoApi } from './api-client'
 import { datasetIdFor, openLocalDatabase } from './database'
 import type { LocalDatabase } from './database/types'
 import {
@@ -12,17 +11,20 @@ import {
   type LocalReceipt, type LocalFeedTransaction, type LocalTransactionPage
 } from './repositories/transactions'
 import { keepMine, useSavedVersion } from './sync/conflicts'
-import {
-  createPurchase, createTransaction, deletePurchase, deleteTransaction, newId, updatePurchase,
-  updateTransaction
-} from './sync/commands'
-import { createSyncCoordinator, type SyncOutcome } from './sync/coordinator'
+import { deleteTransaction, newId } from './sync/commands'
+import { createSyncCoordinator, hasDownloaded, isBootstrapped, type SyncOutcome } from './sync/coordinator'
 import { allOperations, type OutboxEntry } from './sync/outbox'
-import { usesLocalLedger, useSettings } from './settings'
+import { apiUrlFor, isSignedIn, useSettings } from './settings'
+
+export type LocalWrite = (db: LocalDatabase, now: string) => Promise<void>
 
 interface LedgerContextValue {
+  /** Signed in, so this device keeps and syncs its own copy of the ledger. */
   enabled: boolean
+  /** The local copy holds a complete download and screens can read it. */
   ready: boolean
+  syncing: boolean
+  writing: boolean
   error: string | null
   status: SyncOutcome | null
   reference: ReferenceData | null
@@ -30,15 +32,16 @@ interface LedgerContextValue {
   conflicts: OutboxEntry[]
   /** Bumps whenever local data changes, so a screen knows to run its query again. */
   version: number
+  db: LocalDatabase | null
+  api: EgoApi
   feed: (filters: TransactionFilters, cursor: FeedCursor | null, size: number) => Promise<LocalTransactionPage>
   transaction: (id: string) => Promise<LocalFeedTransaction | null>
   receipt: (purchaseId: string) => Promise<LocalReceipt | null>
   sync: () => Promise<void>
-  saveTransaction: (input: TransactionInput, existing?: LocalFeedTransaction) => Promise<boolean>
+  /** Commits one local change and its outbox entry, then delivers it in the background. */
+  write: (work: LocalWrite) => Promise<boolean>
   removeTransaction: (transaction: LocalFeedTransaction) => Promise<boolean>
   removeTransactions: (transactions: LocalFeedTransaction[]) => Promise<boolean>
-  saveReceipt: (input: PurchaseInput, purchaseId?: string, revision?: number) => Promise<boolean>
-  removeReceipt: (purchaseId: string, revision: number) => Promise<boolean>
   resolveKeepMine: (entry: OutboxEntry) => Promise<void>
   resolveUseSaved: (entry: OutboxEntry) => Promise<void>
 }
@@ -51,9 +54,12 @@ const EMPTY_PAGE: LocalTransactionPage = {
 
 export function LedgerProvider({ children }: { children: React.ReactNode }): React.ReactElement {
   const { settings, loading: settingsLoading } = useSettings()
-  const enabled = !settingsLoading && usesLocalLedger(settings)
+  const enabled = !settingsLoading && isSignedIn(settings)
+  const apiUrl = apiUrlFor(settings)
   const [db, setDb] = useState<LocalDatabase | null>(null)
   const [ready, setReady] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [writing, setWriting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useState<SyncOutcome | null>(null)
   const [reference, setReference] = useState<ReferenceData | null>(null)
@@ -61,15 +67,18 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
   const [conflicts, setConflicts] = useState<OutboxEntry[]>([])
   const [version, setVersion] = useState(0)
   const generation = useRef(0)
+  const writingRef = useRef(false)
+  const lastStatus = useRef<SyncOutcome | null>(null)
 
   const api = useMemo(
-    () => moneyApiFor({ url: settings.moneyApiUrl, token: settings.moneyDeviceToken }),
-    [settings.moneyApiUrl, settings.moneyDeviceToken])
+    () => moneyApiFor({ url: apiUrl, token: settings.deviceToken }),
+    [apiUrl, settings.deviceToken])
 
   useEffect(() => {
     if (!enabled) {
       setDb(null)
       setReady(false)
+      setStatus(null)
       return
     }
     let cancelled = false
@@ -78,7 +87,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     setReady(false)
     void (async () => {
       try {
-        const opened = await openLocalDatabase(datasetIdFor(settings.moneyApiUrl))
+        const opened = await openLocalDatabase(datasetIdFor(apiUrl))
         if (cancelled || started !== generation.current) {
           await opened.close()
           return
@@ -93,7 +102,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     return () => {
       cancelled = true
     }
-  }, [enabled, settings.moneyApiUrl])
+  }, [enabled, apiUrl])
 
   const coordinator = useMemo(() => db ? createSyncCoordinator({
     db, api, now: () => new Date().toISOString()
@@ -111,17 +120,30 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
 
   const sync = useCallback(async (): Promise<void> => {
     if (!db || !coordinator) return
-    const outcome = await coordinator.sync()
-    setStatus(outcome)
-    await refreshLocal(db)
-    setReady(true)
+    setSyncing(true)
+    try {
+      const wasBootstrapped = await isBootstrapped(db)
+      const outcome = await coordinator.sync()
+      const previous = lastStatus.current
+      lastStatus.current = outcome
+      setStatus(outcome)
+      const complete = await isBootstrapped(db)
+      const changed = (!wasBootstrapped && complete) || outcome.delivered > 0 || outcome.applied > 0 ||
+        outcome.conflictCount !== previous?.conflictCount
+      if (changed) await refreshLocal(db)
+      if (await hasDownloaded(db)) setReady(true)
+    } finally {
+      setSyncing(false)
+    }
   }, [coordinator, db, refreshLocal])
 
   useEffect(() => {
     if (!db) return
     void (async () => {
-      await refreshLocal(db)
-      setReady(true)
+      if (await hasDownloaded(db)) {
+        await refreshLocal(db)
+        setReady(true)
+      }
       await sync()
     })()
   }, [db, refreshLocal, sync])
@@ -134,69 +156,63 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     return () => subscription.remove()
   }, [db, sync])
 
-  const afterWrite = useCallback(async (): Promise<boolean> => {
-    if (!db) return false
-    await refreshLocal(db)
-    void sync()
-    return true
+  const write = useCallback(async (work: LocalWrite): Promise<boolean> => {
+    if (!db || writingRef.current) return false
+    writingRef.current = true
+    setWriting(true)
+    try {
+      await work(db, new Date().toISOString())
+      await refreshLocal(db)
+      void sync()
+      return true
+    } catch {
+      return false
+    } finally {
+      writingRef.current = false
+      setWriting(false)
+    }
   }, [db, refreshLocal, sync])
 
-  const value: LedgerContextValue = {
+  const feed = useCallback(async (filters: TransactionFilters, cursor: FeedCursor | null, size: number) =>
+    db ? localTransactionPage(db, filters, cursor, size) : EMPTY_PAGE, [db])
+  const transaction = useCallback(async (id: string) => db ? localTransaction(db, id) : null, [db])
+  const receipt = useCallback(async (purchaseId: string) => db ? localReceipt(db, purchaseId) : null, [db])
+
+  const resolve = useCallback(async (work: (database: LocalDatabase) => Promise<void>): Promise<void> => {
+    if (!db) return
+    await work(db)
+    await refreshLocal(db)
+    void sync()
+  }, [db, refreshLocal, sync])
+
+  const value = useMemo((): LedgerContextValue => ({
     enabled,
     ready: enabled && ready,
+    syncing,
+    writing,
     error,
     status,
     reference,
     balances,
     conflicts,
     version,
-    feed: async (filters, cursor, size) => db ? localTransactionPage(db, filters, cursor, size) : EMPTY_PAGE,
-    transaction: async (id) => db ? localTransaction(db, id) : null,
-    receipt: async (purchaseId) => db ? localReceipt(db, purchaseId) : null,
+    db,
+    api,
+    feed,
+    transaction,
+    receipt,
     sync,
-    saveTransaction: async (input, existing) => {
-      if (!db) return false
-      const now = new Date().toISOString()
-      if (existing) await updateTransaction(db, existing.id, existing.revision, input, now)
-      else await createTransaction(db, input, now, newId())
-      return afterWrite()
-    },
-    removeTransaction: async (transaction) => {
-      if (!db) return false
-      await deleteTransaction(db, transaction.id, transaction.revision, new Date().toISOString())
-      return afterWrite()
-    },
-    removeTransactions: async (transactions) => {
-      if (!db) return false
-      const now = new Date().toISOString()
-      for (const transaction of transactions) {
-        await deleteTransaction(db, transaction.id, transaction.revision, now)
-      }
-      return afterWrite()
-    },
-    saveReceipt: async (input, purchaseId, revision) => {
-      if (!db) return false
-      const now = new Date().toISOString()
-      if (purchaseId && revision !== undefined) await updatePurchase(db, purchaseId, revision, input, now)
-      else await createPurchase(db, input, now, newId())
-      return afterWrite()
-    },
-    removeReceipt: async (purchaseId, revision) => {
-      if (!db) return false
-      await deletePurchase(db, purchaseId, revision, new Date().toISOString())
-      return afterWrite()
-    },
-    resolveKeepMine: async (entry) => {
-      if (!db) return
-      await keepMine(db, entry, newId(), new Date().toISOString())
-      await afterWrite()
-    },
-    resolveUseSaved: async (entry) => {
-      if (!db) return
-      await useSavedVersion(db, entry, new Date().toISOString())
-      await afterWrite()
-    }
-  }
+    write,
+    removeTransaction: (row) => write((database, now) =>
+      deleteTransaction(database, row.id, row.revision, now).then(() => undefined)),
+    removeTransactions: (rows) => write((database, now) => database.transaction(async (tx) => {
+      for (const row of rows) await deleteTransaction(tx, row.id, row.revision, now)
+    })),
+    resolveKeepMine: (entry) => resolve((database) =>
+      keepMine(database, entry, newId(), new Date().toISOString()).then(() => undefined)),
+    resolveUseSaved: (entry) => resolve((database) => useSavedVersion(database, entry, new Date().toISOString()))
+  }), [api, balances, conflicts, db, enabled, error, feed, ready, receipt, reference, resolve, status,
+    sync, syncing, transaction, version, write, writing])
 
   return <LedgerContext.Provider value={value}>{children}</LedgerContext.Provider>
 }
@@ -209,7 +225,7 @@ export function useLedger(): LedgerContextValue {
 
 export function syncLabel(status: SyncOutcome | null): string {
   if (!status) return 'Not synced yet'
-  if (status.state === 'paused') return 'Reconnect this device'
+  if (status.state === 'paused') return 'Sign in again to sync'
   if (status.state === 'attention') return `${status.conflictCount} need attention`
   if (status.state === 'offline') return status.pendingCount > 0 ? `Offline, ${status.pendingCount} pending` : 'Offline'
   if (status.pendingCount > 0) return `${status.pendingCount} pending`

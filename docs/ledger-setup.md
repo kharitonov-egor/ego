@@ -48,40 +48,86 @@ cost extra. WebRTC session creation reserves 15 seconds and credits it against t
 See OpenAI's [GPT-Live model page](https://developers.openai.com/api/docs/models/gpt-live-1) and
 [WebRTC guide](https://developers.openai.com/api/docs/guides/voice-webrtc?api=live).
 
-Migrations `0002` and `0003` are additive. The existing desktop and mobile clients keep working against the
-same tables while you try this out.
+### Server keys for the phone
 
-## 2. Enrol each device
+The phone holds no API keys. It signs in with Google and the Worker calls every outside service for
+it. Add these once:
 
 ```sh
-node scripts/ego-device.mjs enroll "Phone" --apply --remote
-node scripts/ego-device.mjs enroll "Desktop" --apply --remote
+cd apps/api
+npx wrangler secret put ALLOWED_EMAILS        # your Google address; comma-separate several
+npx wrangler secret put OPENROUTER_API_KEY    # the money agent
+npx wrangler secret put TRELLO_API_KEY        # Trello capture
+npx wrangler secret put TRELLO_TOKEN
 ```
 
-Each token is printed once and only its hash reaches the database. Revoke with
-`node scripts/ego-device.mjs revoke <device-id> --apply --remote`.
+`OPENROUTER_MODEL` is optional and defaults to `openai/gpt-5.6-terra`. `DATASET_ID` is optional and
+defaults to `ego`, the dataset `ego-device.mjs` enrols into.
 
-## 3. Point the phone at it
+Sign-in uses the same Google OAuth client and the same redirect URI as the Gmail connector, so the
+Google Cloud setup above covers it. It asks only for `openid` and `email`. Sign-in stays off until
+`ALLOWED_EMAILS` has at least one address, and any other Google account is sent back to the phone
+without a code.
 
-Settings has a Ledger service panel: the API address and the device token, then Save and check.
-That only stores the connection. Activity still reads the old snapshot until you turn on
-**Read Activity from this device**.
+Migrations `0002` through `0004` are additive. The existing desktop app keeps working against the
+same tables.
 
-With it on:
+## 2. Sign in on the phone
 
-- Activity reads the phone's own SQLite database. Filters, search, and paging never touch the network.
-- A saved transaction writes the row and its outbox operation in one SQLite transaction, then
-  shows as Pending until the server acknowledges it.
+Deploy the Worker with the migration first:
+
+```sh
+npm run migrate:remote --workspace @ego/api
+npm run deploy --workspace @ego/api
+```
+
+The phone app is now version 0.2.0. Updates are matched to the app version, so `eas update` only
+reaches a build made from this version, and an older build without SQLite never receives code that
+needs it. Build and install it once:
+
+```sh
+npm run build:preview --workspace @ego/mobile
+```
+
+Then open Settings on the phone and tap **Sign in with Google**. A phone that already had the
+Worker address keeps it. A fresh install needs the address once, either typed on the sign-in card
+or built in by setting `EXPO_PUBLIC_EGO_API_URL` in `apps/mobile/.env.local` or as an EAS
+environment variable.
+
+1. The phone asks the Worker to start a sign-in and receives a one-time exchange secret over HTTPS.
+2. The browser opens Google. After you pick the allowed account, the Worker redirects to
+   `ego://auth` with a one-time code.
+3. The phone sends the code and the secret back, and the Worker enrols the device and returns its
+   token. Only the token's hash reaches the database.
+
+A code redeems once, only with the secret that started it, within ten minutes. Settings shows which
+server keys exist, never their values. **Sign out** revokes this device's token on the server and
+keeps the local ledger for the next sign-in.
+
+The first sync downloads every record in one request (`/v1/bootstrap`), including receipt items and
+budgets. After that, every money screen reads the phone's SQLite copy:
+
+- Overview, Accounts, Categories, Budget, Purchases, and Activity open without the network.
+- A saved change writes the row and its outbox operation in one SQLite transaction, then shows as
+  Pending until the server acknowledges it.
 - Sync runs on launch, on foreground, after each write, and when you tap the status row.
 - A row the server rejects reads Needs attention and offers Keep mine or Use saved version.
 
-Overview, Accounts, Budget, and Purchases still use the direct D1 connection in this phase. The
-two writers never touch the same action, but they are two writers: leave the switch off unless
-you are testing this path.
+A phone that bootstrapped under the first version, without budgets and receipt items, downloads
+again once and keeps its place in the change log.
 
-## 4. Point the desktop app at it
+`node scripts/ego-device.mjs` still enrols a device by hand, which the desktop app needs:
 
-The desktop Settings screen calls this the Ego service and uses the same two fields. While a device token is stored, every money
+```sh
+node scripts/ego-device.mjs enroll "Desktop" --apply --remote
+node scripts/ego-device.mjs list --remote
+node scripts/ego-device.mjs revoke <device-id> --apply --remote
+```
+
+## 3. Point the desktop app at it
+
+The desktop Settings screen calls this the Ego service. It takes the Worker address and a token
+from `ego-device enroll`. While a device token is stored, every money
 write becomes one operation with a revision check, and reads come from
 `/v1/legacy/snapshot`. The same credential authorizes Talk to AI session creation. Clear the token
 to fall back to the direct D1 connection. Talk to AI stays unavailable until the service is set.
@@ -97,12 +143,16 @@ through the old direct D1 path do not, because they never reach the change log.
 `ego-money-<dataset>.db`, one file per API address. Tables mirror the server, plus:
 
 - `outbox` holds undelivered operations with their attempt count and retry time.
-- `sync_state` holds the dataset, the last applied server sequence, and whether the bootstrap finished.
+- `sync_state` holds the dataset, the last applied server sequence, whether the bootstrap finished,
+  and which bootstrap version filled the tables.
 
-The bootstrap writes its starting sequence last, so an interrupted first download restarts
-instead of leaving the device believing it is current.
+The bootstrap writes every record and its starting sequence in one SQLite transaction, so an
+interrupted first download restarts instead of leaving the device believing it is current.
 
-## 5. Cutover
+SecureStore holds the Worker address, the device token, the signed-in account, and the Trello board
+and list choices. It holds no API keys.
+
+## 4. Cutover
 
 Run this once both apps have been on the Worker long enough to trust it.
 
@@ -125,24 +175,28 @@ Keep the backup off this repository. To exercise the restore, create a second D1
 the backup into it with `wrangler d1 execute`, point `CF_DATABASE_ID` at that copy, and run
 `compare` again. A restore you have not tested is not a restore.
 
-Once `compare` agrees and Activity has synced clean, Settings offers **Remove the old connection**
-on the phone. It deletes the Cloudflare account token and the cached ledger chunks from the
-device. It stays disabled while any local change is still undelivered, because those changes exist
-nowhere else. On desktop, clear the D1 fields in Settings after the same check.
+Once `compare` agrees, the phone has nothing left to retire: it no longer contains the direct D1
+client. If it still holds keys from the earlier version, Settings lists them under **Old keys on
+this phone**. Copy any you still need into Worker secrets, then tap **Remove from this phone**,
+which also deletes the cached ledger chunks. On desktop, clear the D1 fields in Settings after the
+same check.
 
 After that, revoke the D1 API token in the Cloudflare dashboard. The device tokens stay; revoke
-those individually with `ego-device revoke`.
+those individually with `ego-device revoke` or by signing out on the phone.
 
 ## Rollback
 
-Turn the Activity switch off and clear the desktop token. Both fall back to the direct D1 path.
-Check the outbox is empty first: a pending operation that never reached the server is only
-stored on the phone.
+Clear the desktop token to put desktop back on the direct D1 path. The phone has no direct path any
+more; rolling it back means installing the previous build. Check its outbox is empty first
+(Settings shows the pending count under Sync), because an operation that never reached the server
+is only stored on the phone.
 
 ## Still to do before trusting it
 
 - Run against a staging D1 database and compare balances and summaries with the current snapshot.
-- The device tests use `node:sqlite`, not Expo SQLite. Nothing has run on the phone yet.
+- The device tests use `node:sqlite`, not Expo SQLite.
+- Google sign-in has run only against mocked Google responses. The `ego://auth` redirect has not
+  been tried on a phone.
 - Expo SQLite needs a development build; a plain Expo Go session will not open the database.
 - SQLCipher is not configured. The local ledger is a plain SQLite file for now.
 - The cutover above has not been run. The scripts have not touched a real Cloudflare account.

@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import type { ViewStyle } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 
@@ -11,8 +12,9 @@ export const moneyTabBarStyle: ViewStyle = {
 
 const MIN_TAB_BAR_GAP = 10
 
+/** A stable object, so a screen that hides the tab bar does not call setOptions on every render. */
 export function useMoneyTabBarStyle(): ViewStyle {
   const insets = useSafeAreaInsets()
   const gap = Math.max(MIN_TAB_BAR_GAP, insets.bottom)
-  return { ...moneyTabBarStyle, height: 68 + gap, paddingBottom: 6 + gap }
+  return useMemo(() => ({ ...moneyTabBarStyle, height: 68 + gap, paddingBottom: 6 + gap }), [gap])
 }

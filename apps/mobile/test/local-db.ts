@@ -8,32 +8,35 @@ import type { LocalDatabase, SqlParam } from '../lib/database/types'
  */
 export function createLocalDatabase(): LocalDatabase & { raw: DatabaseSync } {
   const sqlite = new DatabaseSync(':memory:')
-  let depth = 0
-  const database: LocalDatabase & { raw: DatabaseSync } = {
-    raw: sqlite,
-    all: async <T>(sql: string, params: SqlParam[] = []) => sqlite.prepare(sql).all(...params) as T[],
-    run: async (sql: string, params: SqlParam[] = []) => {
-      const result = sqlite.prepare(sql).run(...params)
-      return { changes: Number(result.changes) }
-    },
-    transaction: async <T>(work: (tx: LocalDatabase) => Promise<T>): Promise<T> => {
-      if (depth > 0) return work(database)
-      depth += 1
-      sqlite.exec('BEGIN')
-      try {
-        const outcome = await work(database)
-        sqlite.exec('COMMIT')
-        return outcome
-      } catch (error: unknown) {
-        sqlite.exec('ROLLBACK')
-        throw error
-      } finally {
-        depth -= 1
-      }
-    },
-    close: async () => sqlite.close()
+  let queue: Promise<unknown> = Promise.resolve()
+  const all = async <T>(sql: string, params: SqlParam[] = []): Promise<T[]> => sqlite.prepare(sql).all(...params) as T[]
+  const run = async (sql: string, params: SqlParam[] = []): Promise<{ changes: number }> => {
+    const result = sqlite.prepare(sql).run(...params)
+    return { changes: Number(result.changes) }
   }
-  return database
+  const close = async (): Promise<void> => sqlite.close()
+  const inside: LocalDatabase = { all, run, close, transaction: (work) => work(inside) }
+  return {
+    raw: sqlite,
+    all,
+    run,
+    close,
+    transaction: <T>(work: (tx: LocalDatabase) => Promise<T>): Promise<T> => {
+      const turn = queue.then(async () => {
+        sqlite.exec('BEGIN')
+        try {
+          const outcome = await work(inside)
+          sqlite.exec('COMMIT')
+          return outcome
+        } catch (error: unknown) {
+          sqlite.exec('ROLLBACK')
+          throw error
+        }
+      })
+      queue = turn.catch(() => undefined)
+      return turn
+    }
+  }
 }
 
 export async function openTestLedger(datasetId = 'test'): Promise<LocalDatabase & { raw: DatabaseSync }> {
