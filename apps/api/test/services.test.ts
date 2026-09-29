@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { MoneyAgentResponse, TrelloCardResponse } from '@ego/api-contracts'
+import type { TrelloCardResponse } from '@ego/api-contracts'
 import { hashToken, type Env } from '../src/auth'
 import { handle } from '../src/router'
 import { NOW, exec, seedLedger, type Ledger } from './helpers'
@@ -36,67 +36,6 @@ function request(path: string, init: RequestInit = {}): Request {
     headers: { authorization: `Bearer ${TOKEN}`, ...init.headers }
   })
 }
-
-const agentBody = {
-  message: 'Lunch $12 at Chipotle',
-  today: '2026-09-12',
-  accounts: [{ id: 'acc-check', name: 'Checking' }],
-  categories: [{ id: 'cat-food', name: 'Food', kind: 'expense' }]
-}
-
-function toolCall(transactions: unknown[]): Response {
-  return new Response(JSON.stringify({
-    choices: [{ message: { tool_calls: [{ function: { name: 'record_transactions', arguments: JSON.stringify({ transactions }) } }] } }]
-  }), { status: 200 })
-}
-
-describe('money agent', () => {
-  it('reports a missing server key without calling OpenRouter', async () => {
-    const env = await environment()
-    const fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
-    const response = await handle(request('/v1/agent/money', { method: 'POST', body: JSON.stringify(agentBody) }), env)
-    expect(response.status).toBe(503)
-    expect(fetchMock).not.toHaveBeenCalled()
-  })
-
-  it('calls OpenRouter with the server key and model and returns drafts', async () => {
-    const env = await environment({ OPENROUTER_API_KEY: 'server-key', OPENROUTER_MODEL: 'test/model' })
-    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => toolCall([{
-      kind: 'expense', counterparty: 'Chipotle', date: '2026-09-12', currency: 'USD', amountCents: 1200,
-      notes: '', accountId: 'acc-check', categoryId: 'cat-food', receipt: null
-    }]))
-    vi.stubGlobal('fetch', fetchMock)
-    const response = await handle(request('/v1/agent/money', { method: 'POST', body: JSON.stringify(agentBody) }), env)
-    expect(response.status).toBe(200)
-    const data = (await payload<MoneyAgentResponse>(response)).data
-    expect(data.drafts).toHaveLength(1)
-    expect(data.drafts[0].amountCents).toBe(1200)
-    const init = fetchMock.mock.calls[0][1]
-    expect(new Headers(init?.headers).get('authorization')).toBe('Bearer server-key')
-    expect(JSON.parse(String(init?.body)).model).toBe('test/model')
-  })
-
-  it('says the server key was rejected rather than pointing at phone settings', async () => {
-    const env = await environment({ OPENROUTER_API_KEY: 'revoked' })
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 401 })))
-    const response = await handle(request('/v1/agent/money', { method: 'POST', body: JSON.stringify(agentBody) }), env)
-    const body = await payload<null>(response)
-    expect(response.status).toBe(502)
-    expect(body.error?.message).toContain('OPENROUTER_API_KEY')
-  })
-
-  it('rejects malformed reference data before spending a model call', async () => {
-    const env = await environment({ OPENROUTER_API_KEY: 'server-key' })
-    const fetchMock = vi.fn()
-    vi.stubGlobal('fetch', fetchMock)
-    const response = await handle(request('/v1/agent/money', {
-      method: 'POST', body: JSON.stringify({ ...agentBody, categories: [{ id: 'x', name: 'X', kind: 'transfer' }] })
-    }), env)
-    expect(response.status).toBe(400)
-    expect(fetchMock).not.toHaveBeenCalled()
-  })
-})
 
 describe('Trello', () => {
   it('is unavailable until the server holds a key and token', async () => {

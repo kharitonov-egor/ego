@@ -23,7 +23,7 @@ import { Card } from '../components/ui/card'
 import { Text } from '../components/ui/text'
 
 const SERVICES: Array<{ key: keyof ServiceStatus; label: string; secret: string }> = [
-  { key: 'moneyAgent', label: 'Money agent', secret: 'OPENROUTER_API_KEY' },
+  { key: 'assistant', label: 'AI', secret: 'OPENROUTER_API_KEY' },
   { key: 'trello', label: 'Trello', secret: 'TRELLO_API_KEY and TRELLO_TOKEN' },
   { key: 'voice', label: 'Talk to AI voice', secret: 'OPENAI_API_KEY' },
   { key: 'google', label: 'Gmail and Drive', secret: 'Connect from the desktop app' },

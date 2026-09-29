@@ -39,7 +39,7 @@ export default function RootLayout(): React.ReactElement {
                     <Stack.Screen name="capture" options={{ title: 'New Trello card' }} />
                     <Stack.Screen name="settings" options={{ title: 'Settings' }} />
                     <Stack.Screen name="auth" options={{ title: 'Sign in', headerShown: false }} />
-                    <Stack.Screen name="transaction-image" options={{ title: 'Money agent' }} />
+                    <Stack.Screen name="ai" options={{ title: 'AI', headerTitleAlign: 'center' }} />
                   </Stack>
                 </ReminderProvider>
               </PeriodProvider>

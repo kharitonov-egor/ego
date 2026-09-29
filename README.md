@@ -13,6 +13,31 @@ creating a Trello card always stops on a card with Confirm and Reject buttons. V
 approve either write. Messages, audio, connector results, and tool arguments stay out of the audit
 log and disappear from Electron when the session closes.
 
+## AI
+
+The AI tile on the phone's start screen is a text chat with an assistant that reads and writes the
+other apps' data. Ask "what was my mood yesterday" or "max bench press in the past month" and it
+calls the matching read tool, then answers with the number. Tell it "Publix $42 and gas $30",
+"bench 3x8 at 185", "mood 4 today", or "I read today" and it records that.
+
+- Money writes stop on a Confirm card listing every transaction the message named, with account,
+  category, and date. Nothing is saved until you tap Confirm. Typing a new message drops the card.
+- Mood, habit, gym, and study writes apply at once. The reply carries an Undo line for each.
+- Under each reply, a short trail says what was read or changed, like "Read mood for yesterday".
+- The paperclip attaches a receipt photo from the camera, the gallery, or the clipboard. Ego sends
+  it to the model once and keeps only a note that an image was attached.
+- Chats are separate. The list icon opens earlier chats or starts a new one; the tile opens the
+  latest. The diary is out of reach: the assistant has no tool for it.
+
+The Worker runs the loop. It holds the OpenRouter key, builds the system prompt from the accounts,
+categories, habits, and exercises in D1, runs each tool against D1, and streams the reply back
+while the model writes it. The default model is `openai/gpt-6-sol`; set `ASSISTANT_MODEL` on the
+Worker to change it. Arguments are checked against each tool's schema before anything runs, tool
+results are marked untrusted in the prompt, and a turn stops after eight model calls. Chats,
+messages, and tool calls live in `assistant_chats`, `assistant_messages`, and
+`assistant_tool_calls`. The tile asks for a fingerprint like Mood and Diary, since a reply can
+quote a mood note.
+
 ## Money
 
 The Money sidebar has six views:
@@ -24,14 +49,10 @@ The Money sidebar has six views:
 - Budget plans one month at a time: the income you expect and an amount per expense category.
 - Overview reports balance changes, cash flow, monthly totals, averages, and top categories.
 
-Mobile has a money agent for messages and receipt images. A message can describe one transaction
-or several. The agent produces one `record_transactions` tool call with an entry for each one.
-The user checks the entries before Ego saves them. The agent can also read a photo, library image,
-or clipboard image. Itemized receipts keep their purchase rows. Ego discards each image after
-OpenRouter reads it. The phone sends the request to the Worker, which holds the OpenRouter key.
+On the phone, typed purchases and receipt photos go through the AI tile: "Publix $42 and gas $30"
+becomes one Confirm card with both transactions, and an itemized receipt keeps its purchase rows.
 Desktop still accepts Ctrl+V, drag and drop, and file selection for one-shot transaction image
-analysis, and still reads its OpenRouter key from its own Settings. The default model is
-`openai/gpt-5.6-terra`; set `OPENROUTER_MODEL` on the Worker to change it for the phone.
+analysis, and still reads its OpenRouter key from its own Settings.
 
 A budget covers one month. Set the planned income, give each expense category an amount, and the
 view tracks what is left. A category turns amber at 80 percent of its amount and red once spending

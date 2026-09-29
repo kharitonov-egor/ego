@@ -138,9 +138,9 @@ export default function Purchases(): React.ReactElement {
 
       <Button
         size="lg"
-        accessibilityLabel="Open the money agent"
+        accessibilityLabel="Scan a receipt with AI"
         disabled={state.readOnly}
-        onPress={() => router.push('/transaction-image')}
+        onPress={() => router.push('/ai')}
         className="absolute bottom-5 right-4"
       >
         <ScanLine color="#0a0a0a" size={20} />
