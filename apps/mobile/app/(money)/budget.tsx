@@ -17,7 +17,7 @@ import { color, tabular } from '../../components/money/tokens'
 import { Button } from '../../components/ui/button'
 import { Card, CardHeader, CardTitle } from '../../components/ui/card'
 import { Text } from '../../components/ui/text'
-import { BlurSpan, useBlurText } from '../../lib/blur'
+import { BlurSpan, Blurred } from '../../lib/blur'
 
 /** Status colors, each paired with words in the row, so the bar never carries the meaning alone. */
 const BAR_COLORS: Record<CategoryBudgetStatus['state'], string> = {
@@ -25,21 +25,18 @@ const BAR_COLORS: Record<CategoryBudgetStatus['state'], string> = {
 }
 
 function Stat({ label, value, bad = false }: { label: string; value: string; bad?: boolean }): React.ReactElement {
-  const blur = useBlurText()
   return <View className="flex-1">
     <Text className="text-[14px] text-muted-foreground">{label}</Text>
-    <Text numberOfLines={1} adjustsFontSizeToFit className={`mt-1 text-[20px] font-bold ${bad ? 'text-destructive' : ''}`} style={blur(bad ? color.destructive : undefined)}>{value}</Text>
+    <Blurred tint={bad ? color.destructive : undefined}><Text numberOfLines={1} adjustsFontSizeToFit className={`mt-1 text-[20px] font-bold ${bad ? 'text-destructive' : ''}`}>{value}</Text></Blurred>
   </View>
 }
 
 function CategoryRow({ status, disabled, onPress }: { status: CategoryBudgetStatus; disabled: boolean; onPress: () => void }): React.ReactElement {
   const width = `${Math.min(100, Math.round(status.usedRatio * 100))}%` as const
   const over = status.state === 'over'
-  const amount = status.allocatedCents === 0
-    ? status.spentCents > 0 ? money(status.spentCents) : null
-    : money(over ? -status.remainingCents : status.remainingCents)
-  const suffix = status.allocatedCents === 0 ? '' : over ? ' over' : ' left'
-  const right = amount === null ? 'Set budget' : `${amount}${suffix}`
+  const right = status.allocatedCents === 0
+    ? status.spentCents > 0 ? money(status.spentCents) : 'Set budget'
+    : over ? `${money(-status.remainingCents)} over` : `${money(status.remainingCents)} left`
   const rightTint = over ? color.destructive : status.state === 'close' ? color.attention : undefined
   return <Pressable
     accessibilityRole="button"
@@ -54,13 +51,11 @@ function CategoryRow({ status, disabled, onPress }: { status: CategoryBudgetStat
       </View>
       <View className="ml-3 flex-1">
         <Text numberOfLines={1} className="text-[17px] font-semibold">{status.name}</Text>
-        <Text className="text-[14px] text-muted-foreground" style={tabular}>
-          {status.allocatedCents === 0
-            ? 'No budget set'
-            : <><BlurSpan tint={color.textMuted}>{money(status.spentCents)}</BlurSpan> of <BlurSpan tint={color.textMuted}>{money(status.allocatedCents)}</BlurSpan></>}
-        </Text>
+        <Blurred active={status.allocatedCents !== 0} tint={color.textMuted}><Text className="text-[14px] text-muted-foreground" style={tabular}>
+          {status.allocatedCents === 0 ? 'No budget set' : `${money(status.spentCents)} of ${money(status.allocatedCents)}`}
+        </Text></Blurred>
       </View>
-      <Text className={`ml-3 text-[15px] font-semibold ${over ? 'text-destructive' : status.state === 'close' ? 'text-attention' : status.allocatedCents === 0 && status.spentCents === 0 ? 'text-muted-foreground' : ''}`} style={tabular}>{amount === null ? right : <><BlurSpan tint={rightTint}>{amount}</BlurSpan>{suffix}</>}</Text>
+      <Blurred active={status.allocatedCents !== 0 || status.spentCents > 0} tint={rightTint}><Text className={`ml-3 text-[15px] font-semibold ${over ? 'text-destructive' : status.state === 'close' ? 'text-attention' : status.allocatedCents === 0 && status.spentCents === 0 ? 'text-muted-foreground' : ''}`} style={tabular}>{right}</Text></Blurred>
     </View>
     <View className="ml-14 mt-2.5 h-2 overflow-hidden rounded-full bg-surface-800">
       <View className="h-full rounded-full" style={{ width, backgroundColor: BAR_COLORS[status.state] }} />
@@ -83,7 +78,6 @@ export default function Budget(): React.ReactElement {
   const router = useRouter()
   const params = useLocalSearchParams<{ month?: string }>()
   const period = usePeriod()
-  const blur = useBlurText()
   const [month, setMonth] = useState(() => monthOf(period.anchor))
   /** Opening the tab lands on the month the other tabs show; stepping here stays local, so future months can be planned. */
   useFocusEffect(useCallback(() => { setMonth(monthOf(period.anchor)) }, [period.anchor]))
@@ -163,7 +157,7 @@ export default function Budget(): React.ReactElement {
 
         <Pressable accessibilityRole="button" accessibilityHint="Changes the planned income" disabled={state.readOnly} onPress={() => setEditing('income')} className="rounded-3xl border border-border bg-card p-5 active:bg-surface-900">
           <Text className="text-[14px] font-medium text-muted-foreground">Planned income</Text>
-          <Text numberOfLines={1} adjustsFontSizeToFit className="mt-1 text-[36px] font-bold tracking-tight" style={blur(undefined, 11)}>{money(summary.plannedIncomeCents)}</Text>
+          <Blurred><Text numberOfLines={1} adjustsFontSizeToFit className="mt-1 text-[36px] font-bold tracking-tight">{money(summary.plannedIncomeCents)}</Text></Blurred>
           <Text className="mt-1 text-[15px] text-muted-foreground"><BlurSpan tint={color.textMuted}>{money(summary.actualIncomeCents)}</BlurSpan> received so far</Text>
         </Pressable>
 

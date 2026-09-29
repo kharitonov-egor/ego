@@ -15,7 +15,7 @@ import {
   type StudyView
 } from '../../lib/study/schedule'
 import type { StudyItem } from '../../lib/study/store'
-import { useBlurText } from '../../lib/blur'
+import { Blurred } from '../../lib/blur'
 
 const VIEW_OPTIONS = [{ value: 'upcoming', label: 'Upcoming' }, { value: 'past', label: 'Past' }] as const
 
@@ -32,7 +32,6 @@ function CourseChip({ label, tint, selected, personal = false, onPress }: {
   personal?: boolean
   onPress: () => void
 }): React.ReactElement {
-  const blur = useBlurText()
   return <Pressable
     accessibilityRole="button"
     accessibilityState={{ selected }}
@@ -41,10 +40,9 @@ function CourseChip({ label, tint, selected, personal = false, onPress }: {
     className={`flex-row items-center rounded-full border px-3.5 ${selected ? 'border-primary bg-primary' : 'border-surface-700 bg-surface-900 active:bg-surface-800'}`}
   >
     {tint && <View className="mr-2 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: tint }} />}
-    <Text
-      className={`text-[14px] font-semibold ${selected ? 'text-primary-foreground' : 'text-surface-300'}`}
-      style={personal ? blur(selected ? '#0a0a0a' : '#d4d4d4', 5) : undefined}
-    >{label}</Text>
+    <Blurred active={personal} tint={selected ? '#0a0a0a' : '#d4d4d4'}>
+      <Text className={`text-[14px] font-semibold ${selected ? 'text-primary-foreground' : 'text-surface-300'}`}>{label}</Text>
+    </Blurred>
   </Pressable>
 }
 

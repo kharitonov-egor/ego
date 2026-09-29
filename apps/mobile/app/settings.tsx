@@ -15,7 +15,7 @@ import {
   canInstallBuilds, installBuild, installedBuildNumber, newerBuild, useInstallState, useLatestBuild
 } from '../lib/app-build'
 import { dateTimeLabel } from '../lib/diary/format'
-import { useBlur, useBlurText } from '../lib/blur'
+import { Blurred, useBlur } from '../lib/blur'
 import { syncLabel, useLedger } from '../lib/ledger-context'
 import { clearLegacySnapshot } from '../lib/retired'
 import { REST_PRESETS, useRestTimer } from '../lib/rest-timer'
@@ -114,7 +114,6 @@ export default function Settings(): React.ReactElement {
   const reminder = useReminder()
   const rest = useRestTimer()
   const privacy = useBlur()
-  const blur = useBlurText()
   const google = useGoogleSignIn()
   const ledger = useLedger()
   const balances = new Map(ledger.balances.map((item) => [item.accountId, item.balanceCents]))
@@ -299,7 +298,7 @@ export default function Settings(): React.ReactElement {
         <View className="mt-3">{openAccounts.map((account) => <View key={account.id} className="min-h-14 flex-row items-center border-t border-surface-800 py-2">
           <View className="h-9 w-9 items-center justify-center rounded-xl" style={{ backgroundColor: account.color }}><MoneyIcon name={account.icon} size={17} /></View>
           <Text numberOfLines={1} className="ml-3 flex-1 text-[16px]">{account.name}</Text>
-          <Text className="text-[16px] font-semibold" style={[tabular, blur()]}>{money(account.balanceCents)}</Text>
+          <Blurred><Text className="text-[16px] font-semibold" style={tabular}>{money(account.balanceCents)}</Text></Blurred>
         </View>)}</View>
         {openAccounts.length === 0 && <Text className="mt-2 text-[15px] text-muted-foreground">No accounts yet.</Text>}
         <Button variant="outline" size="lg" onPress={() => router.push('/(money)/accounts')} className="mt-3">

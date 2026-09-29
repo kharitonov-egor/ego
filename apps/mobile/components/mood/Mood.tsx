@@ -3,7 +3,7 @@ import { Pressable, TextInput, View } from 'react-native'
 import { Angry, Check, Frown, Laugh, Meh, Smile, Trash2, type LucideIcon } from 'lucide-react-native'
 import type { MoodRecord } from '@ego/api-contracts'
 import { MOOD_LEVELS, MOOD_NOTE_LIMIT, type MoodInput, type MoodLevel } from '@ego/core'
-import { BlurBlob, useBlur, useBlurText } from '../../lib/blur'
+import { BlurBlob, Blurred, useBlur } from '../../lib/blur'
 import { parseIso, shiftIso } from '../../lib/dates'
 import { inputClass } from '../money/Common'
 import { Button } from '../ui/button'
@@ -64,7 +64,6 @@ export function MoodDayEditor({ date, today, entry, busy, onSave, onClear }: {
   onClear: () => void
 }): React.ReactElement {
   const { blurred } = useBlur()
-  const blur = useBlurText()
   const [mood, setMood] = useState<MoodLevel | null>(entry?.mood ?? null)
   const [note, setNote] = useState(entry?.note ?? '')
   const dirty = mood !== (entry?.mood ?? null) || note.trim() !== (entry?.note ?? '')
@@ -78,7 +77,7 @@ export function MoodDayEditor({ date, today, entry, busy, onSave, onClear }: {
       <View pointerEvents="none"><MoodPicker value={null} onChange={setMood} /></View>
       <View className={`${inputClass} mt-4 min-h-[128px] justify-start py-3`}>
         {entry?.note
-          ? <Text className="text-[16px] leading-6" style={blur()}>{entry.note}</Text>
+          ? <Blurred><Text className="text-[16px] leading-6">{entry.note}</Text></Blurred>
           : <Text className="text-[16px] leading-6 text-surface-500">No notes</Text>}
       </View>
       <Text className="mt-4 text-[14px] leading-5 text-muted-foreground">Blur is on, so this day is read-only. Turn it off in Settings to edit.</Text>
@@ -121,7 +120,6 @@ export function MoodHistory({ entries, selected, today, onSelect }: {
   onSelect: (date: string) => void
 }): React.ReactElement {
   const { blurred } = useBlur()
-  const blur = useBlurText()
   const [shown, setShown] = useState(HISTORY_PAGE)
   return <Card className="overflow-hidden">
     <CardHeader className="pb-4"><CardTitle>Past days</CardTitle></CardHeader>
@@ -143,10 +141,10 @@ export function MoodHistory({ entries, selected, today, onSelect }: {
           </View>
           <View className="ml-3 flex-1 justify-center">
             <View className="flex-row items-baseline justify-between">
-              <Text className="text-[17px] font-semibold" style={blur()}>{label}</Text>
+              <Blurred><Text className="text-[17px] font-semibold">{label}</Text></Blurred>
               <Text className="ml-3 text-[14px] text-muted-foreground">{day}</Text>
             </View>
-            {entry.note.length > 0 && <Text numberOfLines={2} className="mt-0.5 text-[15px] leading-5 text-surface-300" style={blur('#d4d4d4')}>{entry.note}</Text>}
+            {entry.note.length > 0 && <Blurred tint="#d4d4d4"><Text numberOfLines={2} className="mt-0.5 text-[15px] leading-5 text-surface-300">{entry.note}</Text></Blurred>}
           </View>
         </Pressable>
       })}

@@ -8,7 +8,7 @@ import { useCourseColors } from '../../components/study/Assignment'
 import { StudyGate, StudyMessage } from '../../components/study/StudyGate'
 import { useStudy } from '../../lib/study/context'
 import { courseSummaries, dueDay, shortDay, type CourseSummary } from '../../lib/study/schedule'
-import { BlurSpan, useBlurText } from '../../lib/blur'
+import { BlurSpan, Blurred } from '../../lib/blur'
 
 function CourseCard({ summary, tint, showOverdue, onPress }: {
   summary: CourseSummary
@@ -16,7 +16,6 @@ function CourseCard({ summary, tint, showOverdue, onPress }: {
   showOverdue: boolean
   onPress: () => void
 }): React.ReactElement {
-  const blur = useBlurText()
   const next = summary.next
   const overdue = showOverdue && summary.overdue > 0
   return <Pressable
@@ -30,7 +29,7 @@ function CourseCard({ summary, tint, showOverdue, onPress }: {
       <View className="h-11 w-11 items-center justify-center rounded-full" style={{ backgroundColor: tint }}>
         <BookOpen color="#ffffff" size={19} />
       </View>
-      <Text numberOfLines={1} className="ml-3 flex-1 text-[19px] font-bold text-surface-100" style={blur('#f5f5f5')}>{summary.course}</Text>
+      <Blurred tint="#f5f5f5"><Text numberOfLines={1} className="ml-3 flex-1 text-[19px] font-bold text-surface-100">{summary.course}</Text></Blurred>
       <View className="items-end">
         <Text className="text-[22px] font-bold text-surface-50" style={tabular}>{summary.left}</Text>
         <Text className="text-[14px] text-surface-400">left</Text>

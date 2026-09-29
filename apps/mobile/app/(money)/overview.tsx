@@ -17,7 +17,7 @@ import { averagesFor, bucketFlows, elapsedDays, flowOf, projectedSpend } from '.
 import { formatIso, isoToday, shiftIso } from '../../lib/dates'
 import { bucketSizeFor, chartBuckets, comparisonSpan, isStepped, type Comparison, type Span } from '../../lib/periods'
 import { usePeriod } from '../../lib/period-context'
-import { useBlurText } from '../../lib/blur'
+import { BlurSpan, Blurred } from '../../lib/blur'
 import { useMoneyQuery } from '../../lib/money-context'
 import { localBalanceAt, localTransactionBounds, localTransactionsInRange } from '../../lib/repositories/snapshot'
 import { localMerchantNames } from '../../lib/repositories/transactions'
@@ -52,7 +52,6 @@ interface PeriodView {
 
 function OverviewBody({ snapshot }: { snapshot: MoneySnapshot }): React.ReactElement {
   const router = useRouter()
-  const blur = useBlurText()
   const period = usePeriod()
   const [scrubbing, setScrubbing] = useState(false)
   const [series, setSeries] = useState<SeriesVisibility>({ expense: true, income: true })
@@ -119,9 +118,9 @@ function OverviewBody({ snapshot }: { snapshot: MoneySnapshot }): React.ReactEle
           <Text className="text-[14px] font-medium text-muted-foreground">{past ? `Balance on ${formatIso(span.to)}` : 'Total balance'}</Text>
           <ChevronRight color="#737373" size={18} />
         </View>
-        <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} className={`mt-1 ${HERO_AMOUNT}`} style={blur(undefined, 11)}>{money(balance)}</Text>
+        <Blurred><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6} className={`mt-1 ${HERO_AMOUNT}`}>{money(balance)}</Text></Blurred>
         <View className="mt-4 flex-row items-center justify-between">
-          <Badge variant={net >= 0 ? 'positive' : 'secondary'}><Text style={tabular}><Text style={blur(net >= 0 ? color.positive : undefined)}>{money(net, true)}</Text> net</Text></Badge>
+          <Badge variant={net >= 0 ? 'positive' : 'secondary'}><Blurred tint={net >= 0 ? color.positive : undefined}><Text style={tabular}>{money(net, true)} net</Text></Blurred></Badge>
           <Text className="text-[14px] text-muted-foreground">{accountCount} {accountCount === 1 ? 'account' : 'accounts'}</Text>
         </View>
       </Pressable>
@@ -158,11 +157,11 @@ function OverviewBody({ snapshot }: { snapshot: MoneySnapshot }): React.ReactEle
         <CardContent className="flex-row">
           {averagesFor(flow.expenseCents, days).map((average) => <View key={average.label} className="flex-1">
             <Text className="text-[14px] text-muted-foreground">{average.label}</Text>
-            <Text numberOfLines={1} adjustsFontSizeToFit className="mt-1 text-[20px] font-bold" style={blur()}>{money(Math.round(average.cents))}</Text>
+            <Blurred><Text numberOfLines={1} adjustsFontSizeToFit className="mt-1 text-[20px] font-bold">{money(Math.round(average.cents))}</Text></Blurred>
           </View>)}
         </CardContent>
         {projection !== null && <CardFooter>
-          <Text className="text-[14px] leading-5 text-muted-foreground">At this pace, spending reaches about <Text className="text-[14px] font-semibold" style={blur()}>{money(projection)}</Text> by {formatIso(span.to)}.</Text>
+          <Text className="text-[14px] leading-5 text-muted-foreground">At this pace, spending reaches about <Text className="text-[14px] font-semibold"><BlurSpan>{money(projection)}</BlurSpan></Text> by {formatIso(span.to)}.</Text>
         </CardFooter>}
       </Card>}
 
@@ -180,7 +179,6 @@ function FlowStat({ label, color, cents, previous, against }: {
   previous?: number
   against?: string
 }): React.ReactElement {
-  const blur = useBlurText()
   const change = previous === undefined || !against ? null
     : previous === 0 ? (cents === 0 ? `Same as ${against}` : `Nothing in ${against}`)
       : Math.round((cents - previous) / previous * 100)
@@ -189,13 +187,13 @@ function FlowStat({ label, color, cents, previous, against }: {
       <View className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: color }} />
       <Text className="text-[14px] font-medium text-muted-foreground">{label}</Text>
     </View>
-    <Text numberOfLines={1} adjustsFontSizeToFit className="mt-1.5 text-[24px] font-bold" style={blur(undefined, 8)}>{money(cents)}</Text>
+    <Blurred><Text numberOfLines={1} adjustsFontSizeToFit className="mt-1.5 text-[24px] font-bold">{money(cents)}</Text></Blurred>
     {typeof change === 'string' && <Text numberOfLines={2} className="mt-1 text-[13px] text-muted-foreground">{change}</Text>}
     {typeof change === 'number' && <View className="mt-1 flex-row items-start">
       {change > 0 && <ArrowUpRight color="#d4d4d4" size={15} style={{ marginTop: 1 }} />}
       {change < 0 && <ArrowDownRight color="#d4d4d4" size={15} style={{ marginTop: 1 }} />}
       <Text numberOfLines={2} className="ml-0.5 flex-1 text-[13px] text-muted-foreground">
-        <Text className="text-[13px] font-semibold text-surface-300" style={change === 0 ? undefined : blur('#d4d4d4')}>{change === 0 ? 'Same' : `${Math.abs(change)}%`}</Text> vs {against}
+        <Text className="text-[13px] font-semibold text-surface-300">{change === 0 ? 'Same' : <BlurSpan tint="#d4d4d4">{`${Math.abs(change)}%`}</BlurSpan>}</Text> vs {against}
       </Text>
     </View>}
   </Card>
@@ -207,7 +205,6 @@ function TopCategories({ snapshot, transactions, expenseCents, onOpen }: {
   expenseCents: number
   onOpen: (categoryId: string) => void
 }): React.ReactElement {
-  const blur = useBlurText()
   const ranked = useMemo(() => {
     const totals = new Map<string, number>()
     for (const item of transactions) {
@@ -236,7 +233,7 @@ function TopCategories({ snapshot, transactions, expenseCents, onOpen }: {
             <MoneyIcon name={category.icon} size={17} />
           </View>
           <Text numberOfLines={1} className="ml-3 flex-1 font-semibold">{category.name}</Text>
-          <Text className="font-semibold" style={[tabular, blur()]}>{money(amount)}</Text>
+          <Blurred><Text className="font-semibold" style={tabular}>{money(amount)}</Text></Blurred>
         </View>
         <View className="ml-[52px] mt-2 h-1.5 overflow-hidden rounded-full bg-surface-800">
           <View className="h-full rounded-full" style={{ width: `${expenseCents ? amount / expenseCents * 100 : 0}%`, backgroundColor: category.color }} />
@@ -251,7 +248,6 @@ function DayCard({ snapshot, transactions, merchants, onOpen }: {
   merchants: ReadonlyMap<string, string>
   onOpen: (id: string) => void
 }): React.ReactElement {
-  const blur = useBlurText()
   const categories = useMemo(() => new Map(snapshot.categories.map((category) => [category.id, category])), [snapshot.categories])
   const accounts = useMemo(() => new Map(snapshot.accounts.map((account) => [account.id, account])), [snapshot.accounts])
   return <Card>
@@ -287,7 +283,7 @@ function DayCard({ snapshot, transactions, merchants, onOpen }: {
           <Text numberOfLines={1} className="text-[17px] font-semibold">{title}</Text>
           <Text numberOfLines={1} className="text-[14px] text-muted-foreground">{detail}</Text>
         </View>
-        <Text className="ml-3 font-semibold" style={[{ ...tabular, color: amountColor(item.kind) }, blur(amountColor(item.kind))]}>{amountSign(item.kind)}{money(item.amountCents)}</Text>
+        <Blurred tint={amountColor(item.kind)}><Text className="ml-3 font-semibold" style={{ ...tabular, color: amountColor(item.kind) }}>{amountSign(item.kind)}{money(item.amountCents)}</Text></Blurred>
       </Pressable>
     })}</CardContent>
   </Card>
