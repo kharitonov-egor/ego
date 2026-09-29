@@ -277,7 +277,7 @@ export async function disconnectHealth(env: Env, datasetId: string): Promise<voi
       const token = await decryptConnectorToken(row.encrypted_refresh_token, env)
       await fetch('https://oauth2.googleapis.com/revoke', {
         method: 'POST',
-        redirect: 'error',
+        redirect: 'manual',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ token })
       })
@@ -326,7 +326,7 @@ function problemFor(error: unknown): string {
   }
   if (error.status === 429) return 'Google Health asked Ego to slow down. The next sync tries again.'
   if (error.status === 0) return 'Google Health did not answer. The next sync tries again.'
-  return `${error.message}. The next sync tries again.`
+  return `${error.message}${error.detail ? ` (${error.detail.slice(0, 160)})` : ''}. The next sync tries again.`
 }
 
 interface DayRange {
@@ -336,8 +336,46 @@ interface DayRange {
   values: Map<string, DayValues>
 }
 
+const DATA_LABELS: Record<DailyRollupName | DailySummaryName | 'sleep' | 'curve', string> = {
+  steps: 'steps',
+  distance: 'distance',
+  calories: 'calories',
+  zoneMinutes: 'zone minutes',
+  heartRate: 'heart rate',
+  weight: 'weight',
+  restingHeartRate: 'resting heart rate',
+  hrv: 'HRV',
+  sleep: 'sleep',
+  curve: 'the heart rate curve'
+}
+
+/** Google's reason for each data type it refused this run, by label. */
+type Refusals = Map<string, string | null>
+
+/**
+ * A data type Google refuses outright is skipped, so one bad request cannot hold back the rest.
+ * A failure that may pass on a retry still stops the run.
+ */
+async function unlessRefused<T>(label: string, refusals: Refusals, work: Promise<T>): Promise<T | null> {
+  try {
+    return await work
+  } catch (error: unknown) {
+    if (error instanceof GoogleHealthError && [400, 403, 404].includes(error.status)) {
+      if (!refusals.has(label)) refusals.set(label, error.detail)
+      return null
+    }
+    throw error
+  }
+}
+
+function refusalMessage(refusals: Refusals): string | null {
+  if (refusals.size === 0) return null
+  const reason = [...refusals.values()].find((detail) => detail !== null)
+  return `Google Health refused ${[...refusals.keys()].join(', ')}${reason ? ` (${reason.slice(0, 160)})` : ''}. Everything else synced.`
+}
+
 async function readDays(
-  client: GoogleHealthClient, grants: HealthGrants, from: string, to: string, withHeartRate: boolean
+  client: GoogleHealthClient, grants: HealthGrants, from: string, to: string, withHeartRate: boolean, refusals: Refusals
 ): Promise<DayRange> {
   const rollups: DailyRollupName[] = [
     ...(grants.activity ? ['steps', 'distance', 'calories', 'zoneMinutes'] as const : []),
@@ -346,17 +384,22 @@ async function readDays(
   ]
   const summaries: DailySummaryName[] = grants.body ? ['restingHeartRate', 'hrv'] : []
   const results = await Promise.all([
-    ...rollups.map((name) => client.dailyRollup(name, from, to)),
-    ...summaries.map((name) => client.dailySummary(name, from, to))
+    ...rollups.map(async (name) => ({
+      columns: ROLLUP_COLUMNS[name],
+      values: await unlessRefused(DATA_LABELS[name], refusals, client.dailyRollup(name, from, to))
+    })),
+    ...summaries.map(async (name) => ({
+      columns: SUMMARY_COLUMNS[name],
+      values: await unlessRefused(DATA_LABELS[name], refusals, client.dailySummary(name, from, to))
+    }))
   ])
   const values = new Map<string, DayValues>()
+  const columns: DayColumn[] = []
   for (const result of results) {
-    for (const [date, value] of result) values.set(date, { ...values.get(date), ...value })
+    if (!result.values) continue
+    columns.push(...result.columns)
+    for (const [date, value] of result.values) values.set(date, { ...values.get(date), ...value })
   }
-  const columns = [
-    ...rollups.flatMap((name) => ROLLUP_COLUMNS[name]),
-    ...summaries.flatMap((name) => SUMMARY_COLUMNS[name])
-  ]
   return { from, to, columns, values }
 }
 
@@ -522,12 +565,13 @@ export async function syncHealth(
       : null
     const yesterday = shiftDate(today, -1)
 
+    const refusals: Refusals = new Map()
     const [recent, older, recentSleeps, olderSleeps, curve] = await Promise.all([
-      readDays(client, grants, recentFrom, to, true),
-      backfill ? readDays(client, grants, backfill.from, backfill.to, false) : null,
-      grants.sleep ? client.sleeps(recentFrom, to) : null,
-      grants.sleep && backfill ? client.sleeps(backfill.from, backfill.to) : null,
-      grants.body ? client.heartCurve(startOfLocalDay(yesterday, timeZone), nowMs) : null
+      readDays(client, grants, recentFrom, to, true, refusals),
+      backfill ? readDays(client, grants, backfill.from, backfill.to, false, refusals) : null,
+      grants.sleep ? unlessRefused(DATA_LABELS.sleep, refusals, client.sleeps(recentFrom, to)) : null,
+      grants.sleep && backfill ? unlessRefused(DATA_LABELS.sleep, refusals, client.sleeps(backfill.from, backfill.to)) : null,
+      grants.body ? unlessRefused(DATA_LABELS.curve, refusals, client.heartCurve(startOfLocalDay(yesterday, timeZone), nowMs)) : null
     ])
 
     const statements: D1PreparedStatement[] = [
@@ -540,9 +584,10 @@ export async function syncHealth(
     const reached = backfill ? backfill.from : historyFrom
     statements.push(env.DB.prepare(`UPDATE health_connections SET
       history_from = CASE WHEN history_from IS NULL OR history_from > ? THEN ? ELSE history_from END,
-      time_zone = ?, device = ?, last_sync_at = ?, sync_finished_at = ?, last_error = NULL, updated_at = ?
+      time_zone = ?, device = ?, last_sync_at = ?, sync_finished_at = ?, last_error = ?, updated_at = ?
       WHERE dataset_id = ?`)
-      .bind(reached, reached, timeZone, device ? JSON.stringify(device) : null, nowIso, nowIso, nowIso, datasetId))
+      .bind(reached, reached, timeZone, device ? JSON.stringify(device) : null, nowIso, nowIso,
+        refusalMessage(refusals), nowIso, datasetId))
     await env.DB.batch(statements)
   } catch (error: unknown) {
     return fail(problemFor(error))
