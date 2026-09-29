@@ -14,7 +14,8 @@ export interface Env {
   ALLOWED_EMAILS?: string
   DATASET_ID?: string
   OPENROUTER_API_KEY?: string
-  OPENROUTER_MODEL?: string
+  /** The OpenRouter model behind the AI chat. Defaults to openai/gpt-6-sol. */
+  ASSISTANT_MODEL?: string
   TRELLO_API_KEY?: string
   TRELLO_TOKEN?: string
   /** The Canvas calendar feed link. Anyone holding it can read the calendar. */

@@ -3,6 +3,7 @@ import { AppState } from 'react-native'
 import type {
   AccountBalance, FeedCursor, ReferenceData, TransactionFilters
 } from '@ego/api-contracts'
+import { fetch as expoFetch } from 'expo/fetch'
 import { moneyApiFor, type EgoApi } from './api-client'
 import { datasetIdFor, openLocalDatabase } from './database'
 import type { LocalDatabase } from './database/types'
@@ -99,7 +100,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
   const lastStatus = useRef<SyncOutcome | null>(null)
 
   const api = useMemo(
-    () => moneyApiFor({ url: apiUrl, token: settings.deviceToken }),
+    () => moneyApiFor({ url: apiUrl, token: settings.deviceToken }, { streamFetch: expoFetch }),
     [apiUrl, settings.deviceToken])
 
   useEffect(() => {

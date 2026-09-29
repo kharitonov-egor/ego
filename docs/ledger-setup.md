@@ -56,13 +56,13 @@ it. Add these once:
 ```sh
 cd apps/api
 npx wrangler secret put ALLOWED_EMAILS        # your Google address; comma-separate several
-npx wrangler secret put OPENROUTER_API_KEY    # the money agent
+npx wrangler secret put OPENROUTER_API_KEY    # the AI chat
 npx wrangler secret put TRELLO_API_KEY        # Trello capture
 npx wrangler secret put TRELLO_TOKEN
 npx wrangler secret put CANVAS_CALENDAR_URL   # Study: Canvas > Calendar > Calendar Feed link
 ```
 
-`OPENROUTER_MODEL` is optional and defaults to `openai/gpt-5.6-terra`. `DATASET_ID` is optional and
+`ASSISTANT_MODEL` is optional and defaults to `openai/gpt-6-sol`. `DATASET_ID` is optional and
 defaults to `ego`, the dataset `ego-device.mjs` enrols into.
 
 Sign-in uses the same Google OAuth client and the same redirect URI as the Gmail connector, so the
@@ -242,6 +242,23 @@ The script uploads each file once, checking the Worker first, then sends the mes
 IDs come from Telegram's message IDs, so a second run changes nothing. A later export that includes
 files the first one left out fills them in on the existing messages. It uses `ffmpeg` for video
 posters and smaller copies of large photos, and falls back to Telegram's thumbnails without it.
+
+## AI
+
+Migration `0012_assistant.sql` adds `assistant_chats`, `assistant_messages`, and
+`assistant_tool_calls`. It is additive. Apply it and deploy before publishing the phone update
+with the AI tile, which replaces the money agent screen:
+
+```sh
+npm run migrate:remote --workspace @ego/api
+npm run deploy --workspace @ego/api
+npm run update --workspace @ego/mobile
+```
+
+The chat needs no new native module, so an `eas update` reaches the 0.3.0 build. The Worker's
+`OPENROUTER_API_KEY` is the same one the money agent used. `ASSISTANT_MODEL` picks the model;
+without it the Worker uses `openai/gpt-6-sol`. A turn is capped at eight model calls and about
+110 seconds, and each device gets 30 turns a minute.
 
 ## 3. Point the desktop app at it
 

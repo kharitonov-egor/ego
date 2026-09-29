@@ -111,39 +111,53 @@ async function assignmentsFromFeed(
   return request
 }
 
+export type StudyLoad =
+  | { ok: true; data: StudyAssignmentList }
+  | { ok: false; response: Response; message: string }
+
 /** The feed link is a secret: anyone holding it can read the calendar, so it stays on the Worker. */
-export async function readStudyAssignments(env: Env, device: DeviceIdentity, now: string): Promise<Response> {
+export async function loadStudyAssignments(env: Env, device: DeviceIdentity, now: string): Promise<StudyLoad> {
   const url = env.CANVAS_CALENDAR_URL?.trim()
-  if (!url) return failure(503, 'NOT_CONFIGURED', 'The Canvas calendar is not set up on the server')
+  if (!url) {
+    const message = 'The Canvas calendar is not set up on the server'
+    return { ok: false, response: failure(503, 'NOT_CONFIGURED', message), message }
+  }
   const nowMs = Date.parse(now)
   const marksRequest = env.DB.prepare('SELECT assignment_id, completed_at FROM study_completions WHERE dataset_id = ?')
     .bind(device.datasetId)
     .all<{ assignment_id: string; completed_at: string }>()
   const [feed, marks] = await Promise.all([assignmentsFromFeed(env, url, Number.isFinite(nowMs) ? nowMs : Date.now()), marksRequest])
-  if (!feed.ok) return feed.response
+  if (!feed.ok) return { ok: false, response: feed.response, message: 'Canvas did not answer' }
   const doneAt = new Map((marks.results ?? []).map((row) => [row.assignment_id, row.completed_at]))
   const assignments: StudyAssignment[] = feed.assignments
     .map((item) => ({ ...item, doneAt: doneAt.get(item.id) ?? null }))
-  const data: StudyAssignmentList = { assignments, fetchedAt: feed.fetchedAt }
-  return ok(data)
+  return { ok: true, data: { assignments, fetchedAt: feed.fetchedAt } }
+}
+
+export async function readStudyAssignments(env: Env, device: DeviceIdentity, now: string): Promise<Response> {
+  const result = await loadStudyAssignments(env, device, now)
+  return result.ok ? ok(result.data) : result.response
 }
 
 /** A repeated done mark keeps the first time, so a retried delivery does not move it. */
-export async function markStudyAssignment(request: Request, env: Env, device: DeviceIdentity, id: string, now: string): Promise<Response> {
-  if (!isAssignmentId(id)) return failure(400, 'INVALID_REQUEST', 'That assignment ID is not valid')
-  let body: unknown
-  try { body = await request.json() } catch { return failure(400, 'INVALID_REQUEST', 'The request body is not valid JSON') }
-  if (!isRecord(body) || typeof body.done !== 'boolean') return failure(400, 'INVALID_REQUEST', 'Send done as true or false')
-  if (!body.done) {
+export async function setStudyMark(env: Env, device: DeviceIdentity, id: string, done: boolean, now: string): Promise<StudyMark> {
+  if (!isAssignmentId(id)) throw new Error('That assignment ID is not valid')
+  if (!done) {
     await env.DB.prepare('DELETE FROM study_completions WHERE dataset_id = ? AND assignment_id = ?')
       .bind(device.datasetId, id).run()
-    const cleared: StudyMark = { id, doneAt: null }
-    return ok(cleared)
+    return { id, doneAt: null }
   }
   await env.DB.prepare(`INSERT INTO study_completions (dataset_id, assignment_id, completed_at) VALUES (?, ?, ?)
     ON CONFLICT(dataset_id, assignment_id) DO NOTHING`).bind(device.datasetId, id, now).run()
   const row = await env.DB.prepare('SELECT completed_at FROM study_completions WHERE dataset_id = ? AND assignment_id = ?')
     .bind(device.datasetId, id).first<{ completed_at: string }>()
-  const marked: StudyMark = { id, doneAt: row?.completed_at ?? now }
-  return ok(marked)
+  return { id, doneAt: row?.completed_at ?? now }
+}
+
+export async function markStudyAssignment(request: Request, env: Env, device: DeviceIdentity, id: string, now: string): Promise<Response> {
+  if (!isAssignmentId(id)) return failure(400, 'INVALID_REQUEST', 'That assignment ID is not valid')
+  let body: unknown
+  try { body = await request.json() } catch { return failure(400, 'INVALID_REQUEST', 'The request body is not valid JSON') }
+  if (!isRecord(body) || typeof body.done !== 'boolean') return failure(400, 'INVALID_REQUEST', 'Send done as true or false')
+  return ok(await setStudyMark(env, device, id, body.done, now))
 }

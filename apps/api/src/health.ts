@@ -66,7 +66,7 @@ interface StateRow {
   consumed_at: string | null
 }
 
-interface DayRow {
+export interface DayRow {
   date: string
   steps: number | null
   distance_m: number | null
@@ -83,7 +83,7 @@ interface DayRow {
   updated_at: string
 }
 
-interface SleepDbRow {
+export interface SleepDbRow {
   id: string
   date: string
   start_time: string
@@ -102,7 +102,7 @@ interface SleepDbRow {
   deleted_at: string | null
 }
 
-interface HeartRow {
+export interface HeartRow {
   date: string
   points: string
   updated_at: string
@@ -600,7 +600,7 @@ export async function syncHealth(
   return 'synced'
 }
 
-function toDay(row: DayRow): HealthDay {
+export function toDay(row: DayRow): HealthDay {
   return {
     date: row.date,
     steps: row.steps,
@@ -635,7 +635,7 @@ function parseStages(stored: string): HealthSleepStage[] {
   }
 }
 
-function toSleep(row: SleepDbRow): HealthSleep {
+export function toSleep(row: SleepDbRow): HealthSleep {
   return {
     id: row.id,
     date: row.date,
@@ -656,7 +656,7 @@ function toSleep(row: SleepDbRow): HealthSleep {
   }
 }
 
-function toHeart(row: HeartRow): HealthHeartDay {
+export function toHeart(row: HeartRow): HealthHeartDay {
   let points: Array<[number, number]> = []
   try {
     const value: unknown = JSON.parse(row.points)

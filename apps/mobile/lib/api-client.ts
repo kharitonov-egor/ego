@@ -1,7 +1,8 @@
 import type {
-  AccountBalances, ApiError, ApiErrorCode, ApiResult, BootstrapData, ChangePage, DiaryMediaInfo, DiaryMultipartPart,
-  DiaryMultipartStart, FeedCursor,
-  HealthConnectStart, HealthSnapshot, MoneyAgentRequest, MoneyAgentResponse, OperationResponse, ReceiptDetail, ReferenceData,
+  AccountBalances, ApiError, ApiErrorCode, ApiResult, AssistantChatList, AssistantConfirmRequest, AssistantHistory,
+  AssistantStreamEvent, AssistantTurnRequest, AssistantUndoRequest, AssistantUndoResponse, BootstrapData, ChangePage,
+  DiaryMediaInfo, DiaryMultipartPart, DiaryMultipartStart, FeedCursor,
+  HealthConnectStart, HealthSnapshot, OperationResponse, ReceiptDetail, ReferenceData,
   SessionInfo, SignInResult, SignInStartResult, StudyAssignmentList, StudyMark, SyncOperation,
   TransactionFilters, TransactionPage, TrelloCardRequest, TrelloCardResponse
 } from '@ego/api-contracts'
@@ -51,10 +52,36 @@ export interface DiaryMediaApi {
   diaryMultipartComplete: (mediaId: string, uploadId: string, parts: DiaryMultipartPart[]) => Promise<ApiResult<DiaryMediaInfo>>
 }
 
-export interface EgoApi extends MoneyApi, StudyApi, HealthApi, DiaryMediaApi {
+export type AssistantEventHandler = (event: AssistantStreamEvent) => void
+
+export interface StreamResponse {
+  ok: boolean
+  status: number
+  body: ReadableStream<Uint8Array> | null
+  text: () => Promise<string>
+}
+
+/**
+ * A fetch whose response body can be read as it arrives. React Native's own fetch buffers the
+ * whole body, so the app passes Expo's fetch here; tests and Node use the global one.
+ */
+export type StreamFetch = (
+  url: string, init: { method: string; headers: Record<string, string>; body: string; signal: AbortSignal }
+) => Promise<StreamResponse>
+
+/** The AI chat. A turn and a confirmation stream their events as the Worker produces them. */
+export interface AssistantApi {
+  assistantChats: () => Promise<ApiResult<AssistantChatList>>
+  assistantDeleteChat: (chatId: string) => Promise<ApiResult<{ deleted: true }>>
+  assistantMessages: (chatId: string) => Promise<ApiResult<AssistantHistory>>
+  assistantTurn: (request: AssistantTurnRequest, onEvent: AssistantEventHandler) => Promise<ApiResult<{ done: true }>>
+  assistantConfirm: (request: AssistantConfirmRequest, onEvent: AssistantEventHandler) => Promise<ApiResult<{ done: true }>>
+  assistantUndo: (request: AssistantUndoRequest) => Promise<ApiResult<AssistantUndoResponse>>
+}
+
+export interface EgoApi extends MoneyApi, StudyApi, HealthApi, DiaryMediaApi, AssistantApi {
   session: () => Promise<ApiResult<SessionInfo>>
   signOut: () => Promise<ApiResult<{ signedOut: true }>>
-  moneyAgent: (request: MoneyAgentRequest) => Promise<ApiResult<MoneyAgentResponse>>
   trelloBoards: () => Promise<ApiResult<TrelloBoardSummary[]>>
   trelloLists: (boardId: string) => Promise<ApiResult<TrelloListSummary[]>>
   trelloCard: (card: TrelloCardRequest) => Promise<ApiResult<TrelloCardResponse>>
@@ -68,6 +95,8 @@ export interface ApiConfig {
 
 const REQUEST_TIMEOUT_MS = 15000
 const SLOW_REQUEST_TIMEOUT_MS = 90000
+/** A turn can take several model calls. The Worker gives up before this. */
+const STREAM_TIMEOUT_MS = 120000
 
 const KNOWN_CODES: readonly ApiErrorCode[] = [
   'AUTH_REQUIRED', 'OFFLINE', 'INVALID_REQUEST', 'NOT_FOUND', 'CONFLICT', 'SERVER_ERROR',
@@ -170,9 +199,68 @@ async function send<T>(base: string, token: string | null, path: string, options
   }
 }
 
-export function moneyApiFor(config: ApiConfig): EgoApi {
+function isStreamEvent(value: unknown): value is AssistantStreamEvent {
+  return isRecord(value) && typeof value.type === 'string'
+}
+
+/** Reads the Worker's NDJSON answer line by line as it arrives. */
+async function stream(
+  streamFetch: StreamFetch, base: string, token: string, path: string, body: unknown, onEvent: AssistantEventHandler
+): Promise<ApiResult<{ done: true }>> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), STREAM_TIMEOUT_MS)
+  const handleLine = (line: string): void => {
+    if (!line.trim()) return
+    let value: unknown
+    try { value = JSON.parse(line) } catch { return }
+    if (isStreamEvent(value)) onEvent(value)
+  }
+  try {
+    let response: StreamResponse
+    try {
+      response = await streamFetch(`${base}${path}`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal
+      })
+    } catch {
+      return { ok: false, error: { code: 'OFFLINE', message: 'The Ego server is unreachable' } }
+    }
+    if (!response.ok) return resultFrom<{ done: true }>(response.status, await response.text())
+    const reader = response.body?.getReader()
+    if (!reader) {
+      for (const line of (await response.text()).split('\n')) handleLine(line)
+      return { ok: true, data: { done: true } }
+    }
+    const decoder = new TextDecoder()
+    let buffer = ''
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      let newline = buffer.indexOf('\n')
+      while (newline >= 0) {
+        handleLine(buffer.slice(0, newline))
+        buffer = buffer.slice(newline + 1)
+        newline = buffer.indexOf('\n')
+      }
+    }
+    handleLine(buffer)
+    return { ok: true, data: { done: true } }
+  } catch {
+    return controller.signal.aborted
+      ? { ok: false, error: { code: 'OFFLINE', message: 'The Ego server took too long to answer' } }
+      : { ok: false, error: { code: 'OFFLINE', message: 'The connection dropped before the answer finished' } }
+  } finally {
+    clearTimeout(timeout)
+  }
+}
+
+export function moneyApiFor(config: ApiConfig, options: { streamFetch?: StreamFetch } = {}): EgoApi {
   const base = normalizeApiUrl(config.url)
   const token = config.token.trim()
+  const streamFetch: StreamFetch = options.streamFetch ?? ((url, init) => fetch(url, init))
   const call = <T>(path: string, options?: SendOptions): Promise<ApiResult<T>> => {
     if (!isMoneyApiConfigured(config)) {
       return Promise.resolve({ ok: false, error: { code: 'AUTH_REQUIRED', message: 'Sign in with Google on the start screen' } })
@@ -210,10 +298,18 @@ export function moneyApiFor(config: ApiConfig): EgoApi {
     }),
     session: () => call<SessionInfo>('/v1/session'),
     signOut: () => call<{ signedOut: true }>('/v1/session', { method: 'DELETE' }),
-    moneyAgent: (request) => call<MoneyAgentResponse>('/v1/agent/money', {
+    assistantChats: () => call<AssistantChatList>('/v1/assistant/chats'),
+    assistantDeleteChat: (chatId) => call<{ deleted: true }>(`/v1/assistant/chats/${encodeURIComponent(chatId)}`, { method: 'DELETE' }),
+    assistantMessages: (chatId) => call<AssistantHistory>(`/v1/assistant/messages?chat=${encodeURIComponent(chatId)}`),
+    assistantTurn: (request, onEvent) => isMoneyApiConfigured(config)
+      ? stream(streamFetch, base, token, '/v1/assistant/turns', request, onEvent)
+      : Promise.resolve({ ok: false, error: { code: 'AUTH_REQUIRED', message: 'Sign in with Google on the start screen' } }),
+    assistantConfirm: (request, onEvent) => isMoneyApiConfigured(config)
+      ? stream(streamFetch, base, token, '/v1/assistant/confirm', request, onEvent)
+      : Promise.resolve({ ok: false, error: { code: 'AUTH_REQUIRED', message: 'Sign in with Google on the start screen' } }),
+    assistantUndo: (request) => call<AssistantUndoResponse>('/v1/assistant/undo', {
       method: 'POST',
-      body: JSON.stringify(request),
-      timeoutMs: SLOW_REQUEST_TIMEOUT_MS
+      body: JSON.stringify(request)
     }),
     studyAssignments: () => call<StudyAssignmentList>('/v1/study/assignments'),
     markStudyAssignment: (id, done) => call<StudyMark>(`/v1/study/assignments/${encodeURIComponent(id)}`, {

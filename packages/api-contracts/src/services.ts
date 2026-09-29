@@ -1,17 +1,3 @@
-import type { ImageAnalysisCategory, MoneyAgentAccount, MoneyAgentDraft } from '@ego/core'
-
-export interface MoneyAgentRequest {
-  message: string
-  image?: { base64: string; mimeType: string }
-  today: string
-  accounts: MoneyAgentAccount[]
-  categories: ImageAnalysisCategory[]
-}
-
-export interface MoneyAgentResponse {
-  drafts: MoneyAgentDraft[]
-}
-
 export interface TrelloCardRequest {
   title: string
   description: string
