@@ -7,7 +7,7 @@ import { COLORS } from '../money/Common'
 import { ROW_MIN_HEIGHT, color, tabular } from '../money/tokens'
 import { Button } from '../ui/button'
 import { Text as UiText } from '../ui/text'
-import { useBlurText } from '../../lib/blur'
+import { Blurred } from '../../lib/blur'
 
 const NO_COURSE = '#525252'
 
@@ -50,7 +50,6 @@ export const AssignmentRow = memo(function AssignmentRow({ item, tint, overdue, 
   onToggle: (id: string, done: boolean) => void
   onOpen: (id: string) => void
 }): React.ReactElement {
-  const blur = useBlurText()
   const done = isDone(item)
   const when = showDay ? shortDay(dueDay(item)) : dueClock(item)
   return <Pressable
@@ -64,10 +63,10 @@ export const AssignmentRow = memo(function AssignmentRow({ item, tint, overdue, 
   >
     <DoneToggle done={done} tint={tint} title={item.title} onToggle={() => onToggle(item.id, !done)} />
     <View className="flex-1">
-      <Text numberOfLines={2} className={`text-[17px] font-semibold ${done ? 'text-surface-500 line-through' : 'text-surface-100'}`} style={blur(done ? '#737373' : '#f5f5f5')}>{item.title}</Text>
+      <Blurred tint={done ? '#737373' : '#f5f5f5'}><Text numberOfLines={2} className={`text-[17px] font-semibold ${done ? 'text-surface-500 line-through' : 'text-surface-100'}`}>{item.title}</Text></Blurred>
       {item.course && <View className="mt-0.5 flex-row items-center">
         <View className="mr-1.5 h-2 w-2 rounded-full" style={{ backgroundColor: tint }} />
-        <Text numberOfLines={1} className="text-[14px] text-surface-400" style={blur('#a3a3a3', 5)}>{item.course}</Text>
+        <Blurred tint="#a3a3a3"><Text numberOfLines={1} className="text-[14px] text-surface-400">{item.course}</Text></Blurred>
       </View>}
     </View>
     <Text
@@ -83,20 +82,19 @@ export function AssignmentDetail({ item, tint, overdue, onToggle }: {
   overdue: boolean
   onToggle: (done: boolean) => void
 }): React.ReactElement {
-  const blur = useBlurText()
   const done = isDone(item)
   return <View>
     <View className="flex-row flex-wrap items-center gap-2">
       {item.course && <View className="flex-row items-center rounded-full bg-surface-900 px-3 py-1.5">
         <View className="mr-2 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: tint }} />
-        <Text className="text-[14px] font-semibold text-surface-200" style={blur('#e5e5e5', 5)}>{item.course}</Text>
+        <Blurred tint="#e5e5e5"><Text className="text-[14px] font-semibold text-surface-200">{item.course}</Text></Blurred>
       </View>}
       {overdue && <View className="rounded-full bg-red-500/15 px-3 py-1.5"><Text className="text-[14px] font-semibold text-red-300">Overdue</Text></View>}
       {done && <View className="rounded-full bg-positive/15 px-3 py-1.5"><Text className="text-[14px] font-semibold text-positive">Done</Text></View>}
     </View>
     <Text className="mt-3 text-[17px] font-semibold text-surface-100" style={tabular}>{dueSentence(item)}</Text>
     {item.pending && <Text className="mt-1 text-[14px] text-surface-400">Saved on this phone. The server gets it on the next sync.</Text>}
-    {item.description.length > 0 && <Text selectable className="mt-4 text-[16px] leading-6 text-surface-300" style={blur('#d4d4d4')}>{item.description}</Text>}
+    {item.description.length > 0 && <Blurred tint="#d4d4d4"><Text selectable className="mt-4 text-[16px] leading-6 text-surface-300">{item.description}</Text></Blurred>}
     <Button size="lg" onPress={() => onToggle(!done)} className="mt-6"><UiText>{done ? 'Mark as not done' : 'Mark as done'}</UiText></Button>
     {item.url && <Button variant="outline" size="lg" onPress={() => void Linking.openURL(item.url ?? '')} className="mt-3">
       <ExternalLink color="#fafafa" size={18} />

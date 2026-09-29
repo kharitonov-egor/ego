@@ -9,7 +9,7 @@ import {
 } from '../../components/money/Common'
 import { DateField } from '../../components/money/DatePicker'
 import { CARD, CARD_PADDING, HERO_AMOUNT, color, tabular } from '../../components/money/tokens'
-import { useBlurText } from '../../lib/blur'
+import { Blurred } from '../../lib/blur'
 
 const KINDS: AccountKind[] = ['checking', 'savings', 'cash', 'credit-card', 'investment', 'crypto', 'other']
 const KIND_LABELS: Record<AccountKind, string> = {
@@ -55,7 +55,6 @@ function AccountForm({ account, onClose }: { account?: MoneyAccount; onClose: ()
 
 export default function Accounts(): React.ReactElement {
   const moneyState = useMoney()
-  const blur = useBlurText()
   const [editing, setEditing] = useState<MoneyAccount | 'new' | null>(null)
   const [archived, setArchived] = useState(false)
   const [confirming, setConfirming] = useState<MoneyAccount | null>(null)
@@ -73,13 +72,13 @@ export default function Accounts(): React.ReactElement {
       <View className="px-4 pb-4 pt-5">
         <View className="overflow-hidden rounded-3xl border border-border bg-card px-5 pb-5 pt-6">
           <Text className="text-[14px] font-semibold uppercase tracking-wider text-muted-foreground">Total balance</Text>
-          <Text
+          <Blurred><Text
             numberOfLines={1}
             adjustsFontSizeToFit
             minimumFontScale={0.6}
             className={`mt-1.5 ${HERO_AMOUNT} text-foreground`}
-            style={[tabular, blur(undefined, 11)]}
-          >{money(total)}</Text>
+            style={tabular}
+          >{money(total)}</Text></Blurred>
           <Pressable
             accessibilityRole="button"
             onPress={() => setArchived(!archived)}
@@ -117,12 +116,12 @@ export default function Accounts(): React.ReactElement {
                 className="h-12 w-12 items-end justify-center"
               >{account.archivedAt ? <RotateCcw color="#a3a3a3" size={17} /> : <Archive color="#a3a3a3" size={17} />}</Pressable>
             </View>
-            <Text
+            <Blurred tint={account.balanceCents < 0 ? color.destructive : undefined}><Text
               numberOfLines={1}
               adjustsFontSizeToFit
               className={`mt-4 text-[28px] font-bold ${account.balanceCents < 0 ? 'text-destructive' : 'text-surface-50'}`}
-              style={[tabular, blur(account.balanceCents < 0 ? color.destructive : undefined, 10)]}
-            >{money(account.balanceCents)}</Text>
+              style={tabular}
+            >{money(account.balanceCents)}</Text></Blurred>
           </Pressable>)}</View>}
         <View className="h-28" />
       </ScrollView>

@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Text } from '../ui/text'
 import { MoneyIcon, money } from './Common'
 import { color, tabular } from './tokens'
-import { BlurSpan, useBlurText } from '../../lib/blur'
+import { BlurSpan, Blurred } from '../../lib/blur'
 
 const SHORT_DATE = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
 const shortDate = (iso: string): string => SHORT_DATE.format(parseIso(iso))
@@ -16,7 +16,6 @@ const shortDate = (iso: string): string => SHORT_DATE.format(parseIso(iso))
 export function UpcomingBills({ snapshot, today }: { snapshot: MoneySnapshot; today: string }): React.ReactElement | null {
   const charges = useMemo(() => recurringCharges(snapshot.transactions, today), [snapshot.transactions, today])
   const categories = useMemo(() => new Map(snapshot.categories.map((category) => [category.id, category])), [snapshot.categories])
-  const blur = useBlurText()
   if (charges.length === 0) return null
   const soon = upcomingCharges(charges, today, 7)
   const next = charges.find((charge) => charge.nextDate > today)
@@ -45,7 +44,7 @@ export function UpcomingBills({ snapshot, today }: { snapshot: MoneySnapshot; to
             <Text numberOfLines={1} className="text-[17px] font-semibold">{charge.title}</Text>
             <Text className="text-[14px] text-muted-foreground">{label}</Text>
           </View>
-          <Text className="ml-3 text-[17px] font-semibold" style={[tabular, blur()]}>{money(charge.amountCents)}</Text>
+          <Blurred><Text className="ml-3 text-[17px] font-semibold" style={tabular}>{money(charge.amountCents)}</Text></Blurred>
         </View>
       })}
     </CardContent>

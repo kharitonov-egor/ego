@@ -10,7 +10,7 @@ import { Card } from '../../components/ui/card'
 import { Text as UiText } from '../../components/ui/text'
 import { momentLabel, runLabel, runSpoken, twoDigits } from '../../lib/habits/format'
 import { useHabits } from '../../lib/habits/context'
-import { useBlurText } from '../../lib/blur'
+import { Blurred } from '../../lib/blur'
 import { quitClock, splitDuration } from '../../lib/habits/stats'
 
 const TABULAR = { fontVariant: ['tabular-nums' as const] }
@@ -35,7 +35,6 @@ function Unit({ value, label }: { value: number; label: string }): React.ReactEl
 
 function QuitCard({ habit, now }: { habit: HabitRecord; now: number }): React.ReactElement {
   const habits = useHabits()
-  const blur = useBlurText()
   const clock = useMemo(() => quitClock(habit, habits.log), [habit, habits.log])
   const running = Math.max(0, now - clock.since)
   const { days, hours, minutes, seconds } = splitDuration(running)
@@ -45,7 +44,7 @@ function QuitCard({ habit, now }: { habit: HabitRecord; now: number }): React.Re
     <View className="flex-row items-center">
       <HabitIcon icon={habit.icon} size={48} />
       <View className="ml-3 flex-1">
-        <Text numberOfLines={2} className="text-[18px] font-semibold text-foreground" style={blur()}>{habit.name}</Text>
+        <Blurred><Text numberOfLines={2} className="text-[18px] font-semibold text-foreground">{habit.name}</Text></Blurred>
         <Text className="mt-0.5 text-[14px] text-muted-foreground">
           {`${clock.restarted ? 'Restarted' : 'Clean since'} ${momentLabel(clock.since)}`}
         </Text>

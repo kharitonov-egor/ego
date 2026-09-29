@@ -15,7 +15,7 @@ import {
   storedPreferences, viewIdentity, type ActivityView
 } from '../../lib/activity-view'
 import { usePeriod } from '../../lib/period-context'
-import { useBlurText } from '../../lib/blur'
+import { Blurred } from '../../lib/blur'
 import { transactionDetail, transactionTitle } from '../../lib/transaction-title'
 import { ConflictEntries } from '../ConflictEntries'
 import { ConfirmDialog, Empty, MoneyIcon, Sheet, money } from './Common'
@@ -67,7 +67,6 @@ const TransactionRow = memo(function TransactionRow({ item, selecting, checked, 
   onToggle: (id: string) => void
   onSelect: (id: string) => void
 }): React.ReactElement {
-  const blur = useBlurText()
   const state = pendingLabel(item.pending)
   const sign = amountSign(item.kind)
   const title = transactionTitle(item)
@@ -103,9 +102,9 @@ const TransactionRow = memo(function TransactionRow({ item, selecting, checked, 
         </View>}
       </View>
     </View>
-    <Text className="ml-3 text-[17px] font-semibold" style={[{ ...tabular, color: amountColor(item.kind) }, blur(amountColor(item.kind))]}>
+    <Blurred tint={amountColor(item.kind)}><Text className="ml-3 text-[17px] font-semibold" style={{ ...tabular, color: amountColor(item.kind) }}>
       {sign}{money(item.amountCents)}
-    </Text>
+    </Text></Blurred>
   </Pressable>
 })
 
@@ -137,7 +136,6 @@ function ConflictReview({ entries, onKeepMine, onUseSaved, onClose }: {
 
 export default function LocalActivity(): React.ReactElement {
   const ledger = useLedger()
-  const blur = useBlurText()
   const router = useRouter()
   const insets = useSafeAreaInsets()
   const params = useLocalSearchParams<{ categoryId?: string; new?: string; review?: string }>()
@@ -484,9 +482,9 @@ export default function LocalActivity(): React.ReactElement {
           <Text className="text-[14px] font-semibold uppercase tracking-wider text-surface-400">
             {new Date(`${section.date}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
           </Text>
-          <Text accessibilityLabel={`${partial ? 'Net of the loaded rows' : 'Net'} ${money(net, true)}`} className="text-[14px] font-semibold" style={tabular}>
-            <Text style={[{ color: netColor }, blur(netColor)]}>{money(net, true)}</Text>
-          </Text>
+          <Blurred tint={netColor}><Text accessibilityLabel={`${partial ? 'Net of the loaded rows' : 'Net'} ${money(net, true)}`} className="text-[14px] font-semibold" style={{ ...tabular, color: netColor }}>
+            {money(net, true)}
+          </Text></Blurred>
         </View>
       }}
       renderItem={({ item, index, section }) => <View className={`overflow-hidden border-x border-surface-800 ${index === 0 ? 'rounded-t-2xl' : ''} ${index === section.data.length - 1 ? 'rounded-b-2xl border-b' : ''}`}>
