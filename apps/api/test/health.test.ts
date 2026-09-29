@@ -108,6 +108,9 @@ function fakeGoogle(options: {
     new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })
 
   const handler = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    if (init?.redirect === 'error') {
+      throw new TypeError('Invalid redirect value, must be one of "follow" or "manual" ("error" is not supported)')
+    }
     const url = new URL(String(input))
     calls.push(`${init?.method ?? 'GET'} ${url.pathname}`)
     if (url.hostname === 'oauth2.googleapis.com' && url.pathname === '/token') {
@@ -452,6 +455,22 @@ describe('google health sync', () => {
     const snapshot = await readHealthSnapshot(env, 'ego', null, SYNC_AT)
     expect(snapshot.connection.lastError).toBe('Google Health asked Ego to slow down. The next sync tries again.')
     expect(snapshot.connection.connected).toBe(true)
+  })
+
+  it('skips a data type Google refuses and still writes the rest', async () => {
+    const env = await environment()
+    await connect(env)
+    const google = fakeGoogle({ firstDay: '2026-09-20', sleeps: nights('2026-09-26', 2) })
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) =>
+      String(input).includes('/dataTypes/sleep/')
+        ? new Response(JSON.stringify({ error: { code: 400, message: 'Invalid filter', status: 'INVALID_ARGUMENT' } }), { status: 400 })
+        : google.fetch(input, init)))
+    expect(await syncHealth(env, 'ego', SYNC_AT, { minimumGapMs: 0 })).toBe('synced')
+    const snapshot = await readHealthSnapshot(env, 'ego', null, SYNC_AT)
+    expect(snapshot.connection.lastError).toBe('Google Health refused sleep (Invalid filter). Everything else synced.')
+    expect(snapshot.connection.historyFrom).toBe('2026-06-27')
+    expect(snapshot.days.find((day) => day.date === '2026-09-27')?.steps).toBe(8027)
+    expect(snapshot.sleeps).toEqual([])
   })
 
   it('syncs every live connection from the cron trigger', async () => {

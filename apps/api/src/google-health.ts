@@ -42,8 +42,19 @@ export interface HealthSettings {
 }
 
 export class GoogleHealthError extends Error {
-  constructor(message: string, readonly status: number) {
+  constructor(message: string, readonly status: number, readonly detail: string | null = null) {
     super(message)
+  }
+}
+
+/** Google's own reason, such as an invalid filter. It never holds tokens or health data. */
+async function googleErrorDetail(response: Response): Promise<string | null> {
+  try {
+    const body: unknown = await response.json()
+    const error = isRecord(body) && isRecord(body.error) ? body.error : null
+    return typeof error?.message === 'string' ? error.message.slice(0, 300) : null
+  } catch {
+    return null
   }
 }
 
@@ -378,7 +389,8 @@ export function googleHealthClient(accessToken: string): GoogleHealthClient {
     try {
       response = await fetch(`${GOOGLE_HEALTH_API}${path}`, {
         ...init,
-        redirect: 'error',
+        // Workers reject redirect: 'error'. A 3xx still fails below, since only 2xx is ok.
+        redirect: 'manual',
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
         headers: {
           authorization: `Bearer ${accessToken}`,
@@ -386,10 +398,15 @@ export function googleHealthClient(accessToken: string): GoogleHealthClient {
           ...(init.body ? { 'content-type': 'application/json' } : {})
         }
       })
-    } catch {
+    } catch (error: unknown) {
+      console.error(`google-health ${path.split('?')[0]} failed before a response`, error instanceof Error ? error.message : error)
       throw new GoogleHealthError('Google Health did not answer', 0)
     }
-    if (!response.ok) throw new GoogleHealthError(`Google Health answered with HTTP ${response.status}`, response.status)
+    if (!response.ok) {
+      const detail = await googleErrorDetail(response)
+      console.error(`google-health ${path.split('?')[0]} HTTP ${response.status}`, detail ?? '')
+      throw new GoogleHealthError(`Google Health answered with HTTP ${response.status}`, response.status, detail)
+    }
     let body: unknown
     try { body = await response.json() } catch { throw new GoogleHealthError('Google Health sent something unreadable', response.status) }
     return isRecord(body) ? body : {}
