@@ -4,16 +4,16 @@ import {
   type SyncCommand, type SyncEntity, type SyncOperation
 } from '@ego/api-contracts'
 import {
-  HABIT_TARGET_LIMIT, entryKindFits,
-  type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type GymSetInput,
-  type HabitInput, type MoodInput, type PurchaseInput, type TransactionInput
+  HABIT_TARGET_LIMIT, diaryMediaIds, entryKindFits,
+  type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type DiaryMessageInput,
+  type GymSetInput, type HabitInput, type MoodInput, type PurchaseInput, type TransactionInput
 } from '@ego/core'
 import { query, readLatestChange, serverSequence } from './reads'
 import {
-  toAccountRecord, toBudgetRecord, toCategoryRecord, toGymCategoryRecord, toGymExerciseRecord,
+  toAccountRecord, toBudgetRecord, toCategoryRecord, toDiaryMessageRecord, toGymCategoryRecord, toGymExerciseRecord,
   toGymSetRecord, toGymWorkoutRecord, toHabitEntryRecord, toHabitRecord, toMoodRecord, toPurchaseRecord,
   toReceiptItem, toTransactionRecord,
-  type AccountRow, type BudgetAllocationRow, type BudgetRow, type CategoryRow, type GymCategoryRow,
+  type AccountRow, type BudgetAllocationRow, type BudgetRow, type CategoryRow, type DiaryMessageRow, type GymCategoryRow,
   type GymExerciseRow, type GymSetRow, type GymWorkoutRow, type HabitEntryRow, type HabitRow, type MoodRow,
   type PurchaseRow, type ReceiptItemRow, type TransactionRow
 } from './rows'
@@ -49,7 +49,8 @@ const TABLES: Record<SyncEntity, string> = {
   gymWorkout: 'gym_workouts',
   mood: 'mood_entries',
   habit: 'habits',
-  habitEntry: 'habit_entries'
+  habitEntry: 'habit_entries',
+  diaryMessage: 'diary_messages'
 }
 
 /** Budgets are keyed by month and mood entries by date, so each has one row per period. */
@@ -65,7 +66,8 @@ const KEYS: Record<SyncEntity, string> = {
   gymWorkout: 'id',
   mood: 'date',
   habit: 'id',
-  habitEntry: 'id'
+  habitEntry: 'id',
+  diaryMessage: 'id'
 }
 
 function canonical(value: unknown): unknown {
@@ -1039,6 +1041,73 @@ async function planHabitEntry(
   }
 }
 
+/** The files a message names that have not finished uploading. */
+async function missingDiaryMedia(db: D1Database, input: DiaryMessageInput): Promise<string[]> {
+  const ids = diaryMediaIds(input)
+  if (ids.length === 0) return []
+  const rows = await query<{ id: string }>(db,
+    `SELECT id FROM diary_media WHERE id IN (${ids.map(() => '?').join(', ')})`, ids)
+  const found = new Set(rows.map((row) => row.id))
+  return ids.filter((id) => !found.has(id))
+}
+
+function diaryRowFrom(
+  id: string, input: DiaryMessageInput, createdAt: string, updatedAt: string, revision: number
+): DiaryMessageRow {
+  return {
+    id, sent_at: input.sentAt, text: input.text, entities: JSON.stringify(input.entities),
+    attachments: JSON.stringify(input.attachments), reply_to_id: input.replyToId, forwarded: input.forwarded ? 1 : 0,
+    forwarded_from: input.forwardedFrom, pinned_at: input.pinnedAt, edited_at: input.editedAt, source: input.source,
+    created_at: createdAt, updated_at: updatedAt, revision
+  }
+}
+
+async function planDiaryMessage(
+  db: D1Database, operation: SyncOperation, command: Extract<SyncCommand, { entity: 'diaryMessage' }>, now: string
+): Promise<ApiResult<Plan>> {
+  const id = operation.entityId
+  if (command.type === 'delete') {
+    if (!await liveRow<DiaryMessageRow>(db, 'diaryMessage', id)) return notFound('That message was not found')
+    const expected = operation.expectedRevision ?? 0
+    return {
+      ok: true,
+      data: deletePlan('diaryMessage', id, expected, now, guardFor('diaryMessage', id, expected), { entity: 'diaryMessage', record: null })
+    }
+  }
+  const input = command.payload
+  const missing = await missingDiaryMedia(db, input)
+  if (missing.length > 0) {
+    return invalid(missing.length === 1 ? 'Upload the attached file before sending' : `Upload the ${missing.length} attached files before sending`)
+  }
+  if (command.type === 'create') {
+    const row = diaryRowFrom(id, input, now, now, 1)
+    return {
+      ok: true,
+      data: upsertPlan('diaryMessage', id, 1, { entity: 'diaryMessage', record: toDiaryMessageRecord(row) }, {
+        sql: `INSERT INTO diary_messages (id, sent_at, text, entities, attachments, reply_to_id, forwarded, forwarded_from,
+          pinned_at, edited_at, source, created_at, updated_at, revision) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1`,
+        params: [id, row.sent_at, row.text, row.entities, row.attachments, row.reply_to_id, row.forwarded, row.forwarded_from,
+          row.pinned_at, row.edited_at, row.source, now, now]
+      }, null)
+    }
+  }
+  const current = await liveRow<DiaryMessageRow>(db, 'diaryMessage', id)
+  if (!current) return notFound('That message was not found')
+  const expected = operation.expectedRevision ?? 0
+  const revision = expected + 1
+  const row = diaryRowFrom(id, input, current.created_at, now, revision)
+  return {
+    ok: true,
+    data: upsertPlan('diaryMessage', id, revision, { entity: 'diaryMessage', record: toDiaryMessageRecord(row) }, {
+      sql: `UPDATE diary_messages SET sent_at = ?, text = ?, entities = ?, attachments = ?, reply_to_id = ?, forwarded = ?,
+        forwarded_from = ?, pinned_at = ?, edited_at = ?, source = ?, updated_at = ?, revision = revision + 1
+        WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+      params: [row.sent_at, row.text, row.entities, row.attachments, row.reply_to_id, row.forwarded, row.forwarded_from,
+        row.pinned_at, row.edited_at, row.source, now, id, expected]
+    }, guardFor('diaryMessage', id, expected))
+  }
+}
+
 function planFor(db: D1Database, operation: SyncOperation, now: string): Promise<ApiResult<Plan>> {
   switch (operation.command.entity) {
     case 'account': return planAccount(db, operation, operation.command, now)
@@ -1053,6 +1122,7 @@ function planFor(db: D1Database, operation: SyncOperation, now: string): Promise
     case 'mood': return planMood(db, operation, operation.command, now)
     case 'habit': return planHabit(db, operation, operation.command, now)
     case 'habitEntry': return planHabitEntry(db, operation, operation.command, now)
+    case 'diaryMessage': return planDiaryMessage(db, operation, operation.command, now)
   }
 }
 

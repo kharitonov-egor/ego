@@ -1,5 +1,5 @@
 import type {
-  AccountRecord, BudgetRecord, CategoryRecord, ChangePayload, FeedTransaction, GymCategoryRecord,
+  AccountRecord, BudgetRecord, CategoryRecord, ChangePayload, DiaryMessageRecord, FeedTransaction, GymCategoryRecord,
   GymExerciseRecord, GymSetRecord, GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord,
   PurchaseRecord, SyncEntity, TransactionRecord
 } from '@ego/api-contracts'
@@ -17,7 +17,8 @@ export const TABLES: Record<SyncEntity, string> = {
   gymWorkout: 'gym_workouts',
   mood: 'mood_entries',
   habit: 'habits',
-  habitEntry: 'habit_entries'
+  habitEntry: 'habit_entries',
+  diaryMessage: 'diary_messages'
 }
 
 /** Budgets are keyed by month and mood entries by date; every other record by its ID. */
@@ -203,6 +204,21 @@ async function writeHabitEntry(tx: LocalDatabase, record: HabitEntryRecord): Pro
     record.updatedAt, record.revision])
 }
 
+async function writeDiaryMessage(tx: LocalDatabase, record: DiaryMessageRecord): Promise<void> {
+  await tx.run(`INSERT INTO diary_messages (id, sent_at, text, entities, attachments, reply_to_id, forwarded,
+    forwarded_from, pinned_at, edited_at, source, created_at, updated_at, revision, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+    ON CONFLICT(id) DO UPDATE SET sent_at = excluded.sent_at, text = excluded.text, entities = excluded.entities,
+      attachments = excluded.attachments, reply_to_id = excluded.reply_to_id, forwarded = excluded.forwarded,
+      forwarded_from = excluded.forwarded_from, pinned_at = excluded.pinned_at, edited_at = excluded.edited_at,
+      source = excluded.source, created_at = excluded.created_at, updated_at = excluded.updated_at,
+      revision = excluded.revision, deleted_at = NULL
+    WHERE excluded.revision >= diary_messages.revision`,
+  [record.id, record.sentAt, record.text, JSON.stringify(record.entities), JSON.stringify(record.attachments),
+    record.replyToId, record.forwarded ? 1 : 0, record.forwardedFrom, record.pinnedAt, record.editedAt, record.source,
+    record.createdAt, record.updatedAt, record.revision])
+}
+
 /** Applies a record only when it is at least as new as the stored revision. */
 export async function writeRecord(tx: LocalDatabase, payload: ChangePayload): Promise<void> {
   if (payload.record === null) return
@@ -219,6 +235,7 @@ export async function writeRecord(tx: LocalDatabase, payload: ChangePayload): Pr
     case 'mood': return writeMood(tx, payload.record)
     case 'habit': return writeHabit(tx, payload.record)
     case 'habitEntry': return writeHabitEntry(tx, payload.record)
+    case 'diaryMessage': return writeDiaryMessage(tx, payload.record)
   }
 }
 

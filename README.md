@@ -123,6 +123,41 @@ Entries use the same local database, outbox, and change log as money and gym. A 
 the phone before it syncs. It lands in the `mood_entries` table in D1, and Clear this day deletes
 it on every device.
 
+Mood and Diary ask for a fingerprint, or the phone's PIN, every time they open and every time Ego
+comes back from the background. Trips Ego starts itself, like the photo picker, the camera, or
+opening a PDF in another app, do not count.
+
+## Diary
+
+The Diary tile is a chat with yourself, laid out like Telegram's Saved Messages: dark bubbles on
+the right, a composer at the bottom, and the newest message at the bottom of the screen.
+
+- Type and send. The paperclip attaches photos and videos from the gallery (up to 20 in one
+  message), a photo or video from the camera, or any file. Hold the microphone to record a voice
+  message, slide left to cancel, and let go to send.
+- Photos and videos show as images in the bubble, grouped into a grid when there are several. A tap
+  opens them full screen, where you can swipe between every photo and video in the diary and pinch
+  to zoom. GIFs loop on their own. Round video messages play in place. Songs and voice messages
+  play in the bubble, one at a time. Other files open in whichever app on the phone handles them.
+- Swipe a bubble left to reply. Hold one for Reply, Copy text, Edit, Pin, and Delete. The bar under
+  the header shows the latest pin, and each tap goes to the next one.
+- The search icon searches every message, file name, and song title on the phone, offline. With an
+  empty query it lists your hashtags by use. Tapping a hashtag in a message searches for it.
+- Messages forwarded from other chats say "Forwarded from" and the sender, or "Forwarded message"
+  when Telegram hid who sent it.
+
+A message with files waits on the phone until every file has uploaded, with a clock on the bubble
+and a ring over each file while it goes. Then the message goes through the same outbox and change
+log as everything else, in `diary_messages` in D1. The files are in a private R2 bucket,
+`ego-diary`, which only the Worker can read; the phone downloads them through the Worker with its
+device token. Files over 95 MB go up in 20 MB parts. The phone keeps its own copy of what it sent,
+and caches what it has viewed.
+
+`scripts/diary-import.mjs` loads a Telegram Desktop JSON export: text with its formatting, photos,
+videos, GIFs, round videos, songs, files, stickers (the animated one too), replies, forwards, pins,
+and edit times. Posts Telegram exported one by one as an album become one message with a grid.
+See `docs/ledger-setup.md`.
+
 ## Study
 
 The phone's start screen has a Study tile for Canvas assignments.

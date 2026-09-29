@@ -1,5 +1,5 @@
 import type {
-  GymCategory, GymExercise, GymSet, GymWorkout, Habit, HabitEntry, MoneyAccount, MoneyCategory,
+  DiaryMessage, GymCategory, GymExercise, GymSet, GymWorkout, Habit, HabitEntry, MoneyAccount, MoneyCategory,
   MoneyPurchase, MoneyTransaction, MonthlyBudget, MoodEntry, TransactionKind
 } from '@ego/core'
 
@@ -20,6 +20,7 @@ export type GymWorkoutRecord = GymWorkout & { revision: number }
 export type MoodRecord = MoodEntry & { revision: number }
 export type HabitRecord = Habit & { revision: number }
 export type HabitEntryRecord = HabitEntry & { revision: number }
+export type DiaryMessageRecord = DiaryMessage & { revision: number }
 
 export interface ReferenceData {
   accounts: AccountRecord[]
@@ -62,6 +63,7 @@ export interface BootstrapData {
   moods: MoodRecord[]
   habits: HabitRecord[]
   habitEntries: HabitEntryRecord[]
+  diaryMessages: DiaryMessageRecord[]
 }
 
 export interface TransactionDetail {
@@ -99,7 +101,8 @@ export type MoneyEntity = 'account' | 'category' | 'transaction' | 'purchase' | 
 export type GymEntity = 'gymCategory' | 'gymExercise' | 'gymSet' | 'gymWorkout'
 export type HealthEntity = 'mood'
 export type HabitEntity = 'habit' | 'habitEntry'
-export type SyncEntity = MoneyEntity | GymEntity | HealthEntity | HabitEntity
+export type DiaryEntity = 'diaryMessage'
+export type SyncEntity = MoneyEntity | GymEntity | HealthEntity | HabitEntity | DiaryEntity
 
 export const GYM_ENTITIES: readonly GymEntity[] = ['gymCategory', 'gymExercise', 'gymSet', 'gymWorkout']
 
@@ -113,6 +116,10 @@ export function isHealthEntity(entity: SyncEntity): entity is HealthEntity {
 
 export function isHabitEntity(entity: SyncEntity): entity is HabitEntity {
   return entity === 'habit' || entity === 'habitEntry'
+}
+
+export function isDiaryEntity(entity: SyncEntity): entity is DiaryEntity {
+  return entity === 'diaryMessage'
 }
 
 interface ChangeBase {
@@ -137,6 +144,7 @@ export type ChangePayload =
   | { entity: 'mood'; record: MoodRecord | null }
   | { entity: 'habit'; record: HabitRecord | null }
   | { entity: 'habitEntry'; record: HabitEntryRecord | null }
+  | { entity: 'diaryMessage'; record: DiaryMessageRecord | null }
 
 export type ChangeRecord = ChangeBase & ChangePayload
 

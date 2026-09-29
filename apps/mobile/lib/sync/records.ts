@@ -1,9 +1,9 @@
 import type {
-  AccountRecord, BudgetRecord, CategoryRecord, GymCategoryRecord, GymExerciseRecord, GymSetRecord,
+  AccountRecord, BudgetRecord, CategoryRecord, DiaryMessageRecord, GymCategoryRecord, GymExerciseRecord, GymSetRecord,
   GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord, PurchaseRecord, TransactionRecord
 } from '@ego/api-contracts'
 import type {
-  AccountInput, BudgetInput, CategoryInput, GymCategoryInput, GymExerciseInput, GymSetInput,
+  AccountInput, BudgetInput, CategoryInput, DiaryMessageInput, GymCategoryInput, GymExerciseInput, GymSetInput,
   GymWorkoutInput, HabitEntryInput, HabitInput, MoodInput, PurchaseInput, ReceiptItem, TransactionInput
 } from '@ego/core'
 
@@ -239,5 +239,15 @@ export function habitEntryRecordFrom(
   return {
     id, habitId: input.habitId, date: input.date, kind: input.kind, loggedAt: input.loggedAt ?? null,
     createdAt, updatedAt, revision
+  }
+}
+
+export function diaryMessageRecordFrom(
+  id: string, input: DiaryMessageInput, createdAt: string, updatedAt: string, revision: number
+): DiaryMessageRecord {
+  return {
+    id, sentAt: input.sentAt, text: input.text, entities: input.entities, attachments: input.attachments,
+    replyToId: input.replyToId, forwarded: input.forwarded, forwardedFrom: input.forwardedFrom,
+    pinnedAt: input.pinnedAt, editedAt: input.editedAt, source: input.source, createdAt, updatedAt, revision
   }
 }
