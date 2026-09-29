@@ -16,6 +16,8 @@ export const ink = {
   failed: '#fb7185'
 } as const
 
-export const BUBBLE_WIDTH = Math.min(Math.round(Dimensions.get('window').width * 0.8), 340)
+export const MESSAGE_GUTTER = 10
+/** Messages run the width of the screen, like pages of a journal rather than one side of a chat. */
+export const BUBBLE_WIDTH = Dimensions.get('window').width - MESSAGE_GUTTER * 2
 export const MEDIA_MAX_HEIGHT = 380
 export const MEDIA_MIN_HEIGHT = 140

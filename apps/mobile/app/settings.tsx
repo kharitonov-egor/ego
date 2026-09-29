@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Linking, Pressable, ScrollView, Switch, View } from 'react-native'
 import {
-  AlarmClock, BellRing, Check, ChevronRight, CircleUserRound, Info, KeyRound, Landmark, ListPlus, LogOut, RefreshCw, Trash2, X,
+  AlarmClock, BellRing, Check, ChevronRight, CircleUserRound, Download, EyeOff, Info, KeyRound, Landmark, ListPlus, LogOut, RefreshCw, Trash2, X,
   type LucideIcon
 } from 'lucide-react-native'
 import { formatSetDuration } from '@ego/core'
@@ -10,6 +10,12 @@ import { useRouter } from 'expo-router'
 import type { ServiceStatus, SessionInfo } from '@ego/api-contracts'
 import type { ListShortcut, TrelloBoardSummary, TrelloListSummary } from '@ego/core'
 import { isSignedIn, useSettings, type RetiredCredentials } from '../lib/settings'
+import type { EgoApi } from '../lib/api-client'
+import {
+  canInstallBuilds, installBuild, installedBuildNumber, newerBuild, useInstallState, useLatestBuild
+} from '../lib/app-build'
+import { dateTimeLabel } from '../lib/diary/format'
+import { useBlur, useBlurText } from '../lib/blur'
 import { syncLabel, useLedger } from '../lib/ledger-context'
 import { clearLegacySnapshot } from '../lib/retired'
 import { REST_PRESETS, useRestTimer } from '../lib/rest-timer'
@@ -77,10 +83,38 @@ function Choice({ label, active, onPress }: { label: string; active: boolean; on
   </Pressable>
 }
 
+function NewBuild({ api }: { api: EgoApi }): React.ReactElement | null {
+  const { status, error } = useLatestBuild(api)
+  const install = useInstallState()
+  const offered = newerBuild(status?.latest ?? null, installedBuildNumber())
+  const note = (text: string): React.ReactElement => <Text className="mt-4 text-[15px] leading-5 text-muted-foreground">{text}</Text>
+  if (error) return note(`Could not check for a new build. ${error}`)
+  if (!status) return null
+  if (!status.webhookReady) return note('The Worker hears about new builds once EAS_WEBHOOK_SECRET is set.')
+  if (!offered) return note(status.latest ? 'This is the newest preview build.' : 'No preview build reported yet.')
+  const downloading = install.step === 'downloading' && install.buildNumber === offered.buildNumber ? install : null
+  const failed = install.step === 'failed' && install.buildNumber === offered.buildNumber ? install.message : null
+  return <View className="mt-4 rounded-2xl bg-surface-900 p-4">
+    <Text className="text-[17px] font-semibold">Build {offered.buildNumber} is ready</Text>
+    <Text className="mt-0.5 text-[14px] text-muted-foreground">Version {offered.appVersion}, built {dateTimeLabel(offered.completedAt)}</Text>
+    {offered.title && <Text numberOfLines={3} className="mt-2 text-[15px] leading-5 text-surface-200">{offered.title}</Text>}
+    <Button size="lg" accessibilityState={{ busy: downloading !== null }} onPress={() => void installBuild(offered)} className="mt-4">
+      {downloading ? <ActivityIndicator size="small" color="#0a0a0a" /> : <Download color="#0a0a0a" size={18} />}
+      <Text>{downloading
+        ? `Downloading${downloading.percent === null ? '...' : ` ${downloading.percent}%`}`
+        : `Install build ${offered.buildNumber}`}</Text>
+    </Button>
+    {failed && <Text className="mt-3 text-[15px] leading-5 text-destructive">{failed}</Text>}
+    <Text className="mt-3 text-[14px] leading-5 text-muted-foreground">Android asks you to confirm, then replaces Ego and keeps its data. Tap Open when it finishes.</Text>
+  </View>
+}
+
 export default function Settings(): React.ReactElement {
   const { settings, update } = useSettings()
   const reminder = useReminder()
   const rest = useRestTimer()
+  const privacy = useBlur()
+  const blur = useBlurText()
   const google = useGoogleSignIn()
   const ledger = useLedger()
   const balances = new Map(ledger.balances.map((item) => [item.accountId, item.balanceCents]))
@@ -201,6 +235,21 @@ export default function Settings(): React.ReactElement {
           : <View className="mt-3"><SignInPanel /></View>}
       </Section>
 
+      <Section Icon={EyeOff} title="Blur personal data" right={<Switch
+        accessibilityLabel="Blur personal data"
+        value={privacy.blurred}
+        onValueChange={privacy.setBlurred}
+        trackColor={{ false: '#404040', true: '#fafafa' }}
+        thumbColor={privacy.blurred ? '#0a0a0a' : '#d4d4d4'}
+        ios_backgroundColor="#404040"
+      />}>
+        <Text className="mt-3 text-[15px] leading-6 text-muted-foreground">
+          {privacy.blurred
+            ? 'Amounts in Finance, moods and their notes, habits, and Canvas assignments are blurred. Mood entries can be edited again once this is off.'
+            : 'Blurs amounts in Finance, moods and their notes, habits, and Canvas assignments, for showing the app to someone.'}
+        </Text>
+      </Section>
+
       <Section
         Icon={BellRing}
         title="Daily reminder"
@@ -250,7 +299,7 @@ export default function Settings(): React.ReactElement {
         <View className="mt-3">{openAccounts.map((account) => <View key={account.id} className="min-h-14 flex-row items-center border-t border-surface-800 py-2">
           <View className="h-9 w-9 items-center justify-center rounded-xl" style={{ backgroundColor: account.color }}><MoneyIcon name={account.icon} size={17} /></View>
           <Text numberOfLines={1} className="ml-3 flex-1 text-[16px]">{account.name}</Text>
-          <Text className="text-[16px] font-semibold" style={tabular}>{money(account.balanceCents)}</Text>
+          <Text className="text-[16px] font-semibold" style={[tabular, blur()]}>{money(account.balanceCents)}</Text>
         </View>)}</View>
         {openAccounts.length === 0 && <Text className="mt-2 text-[15px] text-muted-foreground">No accounts yet.</Text>}
         <Button variant="outline" size="lg" onPress={() => router.push('/(money)/accounts')} className="mt-3">
@@ -328,10 +377,15 @@ export default function Settings(): React.ReactElement {
           <Text className="text-[15px] text-muted-foreground">Version</Text>
           <Text className="font-mono text-[15px]">{Constants.expoConfig?.version ?? 'unknown'}</Text>
         </View>
+        {canInstallBuilds && <View className="mt-2 flex-row items-center justify-between">
+          <Text className="text-[15px] text-muted-foreground">Build</Text>
+          <Text className="font-mono text-[15px]">{installedBuildNumber() ?? 'unknown'}</Text>
+        </View>}
         <View className="mt-2 flex-row items-center justify-between">
           <Text className="text-[15px] text-muted-foreground">Commit</Text>
           <Text selectable className="font-mono text-[15px]">{commitHash}</Text>
         </View>
+        {canInstallBuilds && signedIn && <NewBuild api={api} />}
       </Section>
       <View className="h-6" />
 

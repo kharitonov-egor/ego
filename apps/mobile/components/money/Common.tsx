@@ -13,6 +13,7 @@ import { useMoney } from '../../lib/money-context'
 import { useLedger } from '../../lib/ledger-context'
 import { isoToday } from '../../lib/dates'
 import { transactionsInRange } from '../../lib/period-context'
+import { useBlurText } from '../../lib/blur'
 import { useNavigation, useRouter } from 'expo-router'
 import { useMoneyTabBarStyle } from './navigation'
 import { sheetAnimation, useReducedMotion } from './tokens'
@@ -117,14 +118,17 @@ export function MoneyScreen({ children }: { children: (snapshot: MoneySnapshot) 
 }
 
 /** A bottom sheet with no navigation side effects, so it can open on top of a full-screen modal. */
-export function BottomSheet({ visible, title, onClose, dismissOnBackdrop = false, children }: {
+export function BottomSheet({ visible, title, onClose, dismissOnBackdrop = false, privateTitle = false, children }: {
   visible: boolean
   title: string
   onClose: () => void
   dismissOnBackdrop?: boolean
+  /** Blurs the title while Blur is on, for a sheet named after personal data. */
+  privateTitle?: boolean
   children: React.ReactNode
 }): React.ReactElement {
   const reducedMotion = useReducedMotion()
+  const blur = useBlurText()
   return <Modal visible={visible} transparent animationType={sheetAnimation(reducedMotion)} onRequestClose={onClose}>
     <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View className="flex-1 justify-end bg-black/70">
@@ -132,7 +136,7 @@ export function BottomSheet({ visible, title, onClose, dismissOnBackdrop = false
         <View className="max-h-[92%] rounded-t-[28px] border-t border-surface-800 bg-background">
           <View className="items-center pt-2.5"><View className="h-1.5 w-10 rounded-full bg-surface-700" /></View>
           <View className="flex-row items-center justify-between px-5 pb-1 pt-2">
-            <Text accessibilityRole="header" className="flex-1 pr-3 text-[22px] font-bold text-foreground">{title}</Text>
+            <Text accessibilityRole="header" className="flex-1 pr-3 text-[22px] font-bold text-foreground" style={privateTitle ? blur(undefined, 8) : undefined}>{title}</Text>
             <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} hitSlop={6} className="h-11 w-11 items-center justify-center rounded-full bg-surface-900 active:bg-surface-800"><X color="#d4d4d4" size={20} /></Pressable>
           </View>
           <ScrollView className="px-5 pt-3" keyboardShouldPersistTaps="handled">{children}<View className="h-10" /></ScrollView>
@@ -142,7 +146,7 @@ export function BottomSheet({ visible, title, onClose, dismissOnBackdrop = false
   </Modal>
 }
 
-export function Sheet(props: { visible: boolean; title: string; onClose: () => void; dismissOnBackdrop?: boolean; children: React.ReactNode }): React.ReactElement {
+export function Sheet(props: { visible: boolean; title: string; onClose: () => void; dismissOnBackdrop?: boolean; privateTitle?: boolean; children: React.ReactNode }): React.ReactElement {
   const navigation = useNavigation()
   const tabBarStyle = useMoneyTabBarStyle()
   const { visible } = props

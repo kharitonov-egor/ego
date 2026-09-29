@@ -267,7 +267,10 @@ export function useMoney(): MoneyContextValue {
   return context
 }
 
-/** Runs a screen query again after local money data changes. */
+/**
+ * Runs a screen query again after local money data changes. The previous result stays up until
+ * the next one lands: clearing it swapped whole screens for a spinner on every period tap.
+ */
 export function useMoneyQuery<T>(query: (db: LocalDatabase) => Promise<T>, deps: React.DependencyList): T | null {
   const { db, ready, version } = useLedger()
   const [result, setResult] = useState<T | null>(null)
@@ -277,7 +280,6 @@ export function useMoneyQuery<T>(query: (db: LocalDatabase) => Promise<T>, deps:
       return
     }
     let active = true
-    setResult(null)
     void query(db).then((next) => { if (active) setResult(next) }).catch(() => undefined)
     return () => { active = false }
   }, [db, ready, version, ...deps])

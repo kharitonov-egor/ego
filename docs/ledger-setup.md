@@ -260,6 +260,29 @@ The chat needs no new native module, so an `eas update` reaches the 0.3.0 build.
 without it the Worker uses `openai/gpt-6-sol`. A turn is capped at eight model calls and about
 110 seconds, and each device gets 30 turns a minute.
 
+## App builds
+
+Settings > About offers the newest preview build and installs it over the app. EAS reports each
+finished build to `POST /v1/app/builds/webhook`, signed with a shared secret. The Worker keeps the
+finished Android APKs from internal builds in `app_builds` (migration `0013_app_builds.sql`), and
+the phone offers the newest one whose build number is above its own. Set it up once with a random
+secret of at least 16 characters:
+
+```sh
+cd apps/api
+npm run migrate:remote
+npx wrangler secret put EAS_WEBHOOK_SECRET
+npm run deploy
+cd ../mobile
+npx eas-cli webhook:create --event BUILD --url <worker URL>/v1/app/builds/webhook --secret <same secret>
+```
+
+Handing an APK to Android's installer needs the `REQUEST_INSTALL_PACKAGES` permission, which only a
+new build can add, so the app moved to version 0.4.0. Install that build once by hand. After that,
+`npm run build:preview --workspace @ego/mobile` is all it takes: when the build finishes, Settings
+shows "Install build N". The first time, Android asks whether Ego may install apps. EAS deletes
+internal builds after two weeks, and the Worker stops offering a build once it expires.
+
 ## 3. Point the desktop app at it
 
 The desktop Settings screen calls this the Ego service. It takes the Worker address and a token

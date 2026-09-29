@@ -8,7 +8,8 @@ import {
   PrimaryButton, Sheet, inputClass, money, today
 } from '../../components/money/Common'
 import { DateField } from '../../components/money/DatePicker'
-import { CARD, CARD_PADDING, HERO_AMOUNT, tabular } from '../../components/money/tokens'
+import { CARD, CARD_PADDING, HERO_AMOUNT, color, tabular } from '../../components/money/tokens'
+import { useBlurText } from '../../lib/blur'
 
 const KINDS: AccountKind[] = ['checking', 'savings', 'cash', 'credit-card', 'investment', 'crypto', 'other']
 const KIND_LABELS: Record<AccountKind, string> = {
@@ -54,6 +55,7 @@ function AccountForm({ account, onClose }: { account?: MoneyAccount; onClose: ()
 
 export default function Accounts(): React.ReactElement {
   const moneyState = useMoney()
+  const blur = useBlurText()
   const [editing, setEditing] = useState<MoneyAccount | 'new' | null>(null)
   const [archived, setArchived] = useState(false)
   const [confirming, setConfirming] = useState<MoneyAccount | null>(null)
@@ -76,7 +78,7 @@ export default function Accounts(): React.ReactElement {
             adjustsFontSizeToFit
             minimumFontScale={0.6}
             className={`mt-1.5 ${HERO_AMOUNT} text-foreground`}
-            style={tabular}
+            style={[tabular, blur(undefined, 11)]}
           >{money(total)}</Text>
           <Pressable
             accessibilityRole="button"
@@ -119,7 +121,7 @@ export default function Accounts(): React.ReactElement {
               numberOfLines={1}
               adjustsFontSizeToFit
               className={`mt-4 text-[28px] font-bold ${account.balanceCents < 0 ? 'text-destructive' : 'text-surface-50'}`}
-              style={tabular}
+              style={[tabular, blur(account.balanceCents < 0 ? color.destructive : undefined, 10)]}
             >{money(account.balanceCents)}</Text>
           </Pressable>)}</View>}
         <View className="h-28" />

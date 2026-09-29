@@ -10,6 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Text } from '../ui/text'
 import { SERIES_COLOR } from './CashFlowChart'
 import { money } from './Common'
+import { color } from './tokens'
+import { BlurSpan } from '../../lib/blur'
 
 /** One hue, darker to brighter, on the card surface: a sequential scale, not five categories. */
 const SHADES = ['#1c1c1c', `${SERIES_COLOR.expense}40`, `${SERIES_COLOR.expense}73`, `${SERIES_COLOR.expense}b3`, SERIES_COLOR.expense]
@@ -90,7 +92,9 @@ export function SpendingCalendar({ month, transactions, today, onOpenDay }: {
           <View className="flex-1">
             <Text className="font-semibold">{DAY_TITLE.format(parseIso(chosen.iso))}</Text>
             <Text className="text-[14px] text-muted-foreground">
-              {chosen.count === 0 ? 'No spending' : `${money(chosen.cents)} across ${chosen.count} ${chosen.count === 1 ? 'purchase' : 'purchases'}`}
+              {chosen.count === 0
+                ? 'No spending'
+                : <><BlurSpan tint={color.textMuted}>{money(chosen.cents)}</BlurSpan> across {chosen.count} {chosen.count === 1 ? 'purchase' : 'purchases'}</>}
             </Text>
           </View>
           <Button variant="secondary" size="sm" onPress={() => onOpenDay(chosen.iso)}>

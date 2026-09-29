@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { PanResponder, ScrollView, View, type LayoutChangeEvent } from 'react-native'
+import { PanResponder, View, type LayoutChangeEvent } from 'react-native'
 import Svg, { Circle, Line, Path } from 'react-native-svg'
 import {
   GRAPH_METRIC_LABELS, formatSetDuration, formatWeight, graphMetricsFor, graphPoints,
@@ -141,9 +141,7 @@ export function ExerciseGraph({ sets, type, weightUnit, distanceUnit, onScrubbin
   const metricLabels = Object.fromEntries(metrics.map((item) => [item, GRAPH_METRIC_LABELS[item]])) as Partial<Record<GraphMetric, string>>
 
   return <View>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-      <Chips values={metrics} value={metric} labels={metricLabels} onChange={setMetric} />
-    </ScrollView>
+    <Chips values={metrics} value={metric} labels={metricLabels} onChange={setMetric} />
     <View className="mt-4 rounded-3xl border border-border bg-card p-4">
       <Text className="text-[15px] font-medium text-muted-foreground">{GRAPH_METRIC_LABELS[metric]}</Text>
       {shown

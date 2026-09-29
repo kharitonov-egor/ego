@@ -1,7 +1,7 @@
 import type {
-  AccountBalances, ApiError, ApiErrorCode, ApiResult, AssistantChatList, AssistantConfirmRequest, AssistantHistory,
-  AssistantStreamEvent, AssistantTurnRequest, AssistantUndoRequest, AssistantUndoResponse, BootstrapData, ChangePage,
-  DiaryMediaInfo, DiaryMultipartPart, DiaryMultipartStart, FeedCursor,
+  AccountBalances, ApiError, ApiErrorCode, ApiResult, AppBuildStatus, AssistantChatList, AssistantConfirmRequest,
+  AssistantHistory, AssistantStreamEvent, AssistantTurnRequest, AssistantUndoRequest, AssistantUndoResponse, BootstrapData,
+  ChangePage, DiaryMediaInfo, DiaryMultipartPart, DiaryMultipartStart, FeedCursor,
   HealthConnectStart, HealthSnapshot, OperationResponse, ReceiptDetail, ReferenceData,
   SessionInfo, SignInResult, SignInStartResult, StudyAssignmentList, StudyMark, SyncOperation,
   TransactionFilters, TransactionPage, TrelloCardRequest, TrelloCardResponse
@@ -86,6 +86,7 @@ export interface EgoApi extends MoneyApi, StudyApi, HealthApi, DiaryMediaApi, As
   trelloLists: (boardId: string) => Promise<ApiResult<TrelloListSummary[]>>
   trelloCard: (card: TrelloCardRequest) => Promise<ApiResult<TrelloCardResponse>>
   trelloAttachment: (cardId: string, file: AttachmentFile) => Promise<ApiResult<{ attached: true }>>
+  appBuilds: () => Promise<ApiResult<AppBuildStatus>>
 }
 
 export interface ApiConfig {
@@ -326,6 +327,7 @@ export function moneyApiFor(config: ApiConfig, options: { streamFetch?: StreamFe
     }),
     healthConnect: () => call<HealthConnectStart>('/v1/health/connect', { method: 'POST' }),
     healthDisconnect: () => call<{ disconnected: true }>('/v1/health/connection', { method: 'DELETE' }),
+    appBuilds: () => call<AppBuildStatus>('/v1/app/builds/latest'),
     trelloBoards: () => call<TrelloBoardSummary[]>('/v1/trello/boards'),
     trelloLists: (boardId) => call<TrelloListSummary[]>(`/v1/trello/boards/${encodeURIComponent(boardId)}/lists`),
     trelloCard: (card) => call<TrelloCardResponse>('/v1/trello/cards', {
