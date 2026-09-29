@@ -21,9 +21,8 @@ import {
 } from './connectors'
 import { auditLocalLiveTool, executeLiveTool } from './live-tools'
 import { completeSignIn, exchangeSignIn, readSession, signOut, startSignIn } from './sign-in'
-import {
-  runMoneyAgentRequest, trelloAddAttachment, trelloBoards, trelloCreateCard, trelloLists
-} from './services'
+import { trelloAddAttachment, trelloBoards, trelloCreateCard, trelloLists } from './services'
+import { assistantRoute } from './assistant'
 import { markStudyAssignment, readStudyAssignments } from './study'
 import { completeHealthConnect, disconnectHealth, readHealth, startHealthConnect, syncHealthRequest } from './health'
 import { diaryMediaRoute } from './diary'
@@ -116,7 +115,8 @@ export async function handle(request: Request, env: Env): Promise<Response> {
       return ok({ signedOut: true })
     }
   }
-  if (request.method === 'POST' && path === '/v1/agent/money') return runMoneyAgentRequest(request, env)
+  const assistant = assistantRoute(request, env, device.data, path, now)
+  if (assistant) return assistant
   if (request.method === 'GET' && path === '/v1/trello/boards') return trelloBoards(env)
   if (request.method === 'GET' && path.startsWith('/v1/trello/boards/') && path.endsWith('/lists')) {
     return trelloLists(env, decodeURIComponent(path.slice('/v1/trello/boards/'.length, -'/lists'.length)))

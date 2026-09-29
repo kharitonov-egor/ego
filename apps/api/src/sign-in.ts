@@ -233,7 +233,7 @@ export async function readSession(env: Env, device: DeviceIdentity): Promise<Ses
     deviceName: device.name,
     email: row?.account_email ?? null,
     services: {
-      moneyAgent: Boolean(env.OPENROUTER_API_KEY),
+      assistant: Boolean(env.OPENROUTER_API_KEY),
       trello: Boolean(env.TRELLO_API_KEY && env.TRELLO_TOKEN),
       voice: Boolean(env.OPENAI_API_KEY),
       google: google.connected,

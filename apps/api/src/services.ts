@@ -1,22 +1,7 @@
-import {
-  MAX_TRELLO_ATTACHMENT_BYTES,
-  type MoneyAgentRequest,
-  type MoneyAgentResponse,
-  type TrelloCardResponse
-} from '@ego/api-contracts'
-import {
-  createTrelloClient,
-  isDateString,
-  runMoneyAgent,
-  type ImageAnalysisCategory,
-  type MoneyAgentAccount,
-  type TrelloClient
-} from '@ego/core'
+import { MAX_TRELLO_ATTACHMENT_BYTES, type TrelloCardResponse } from '@ego/api-contracts'
+import { createTrelloClient, type TrelloClient } from '@ego/core'
 import type { Env } from './auth'
 
-const DEFAULT_AGENT_MODEL = 'openai/gpt-5.6-terra'
-const MAX_AGENT_MESSAGE_LENGTH = 2000
-const MAX_REFERENCE_ITEMS = 200
 const TRELLO_ID = /^[A-Za-z0-9]{1,64}$/
 const MAX_TRELLO_TEXT_LENGTH = 16384
 
@@ -37,54 +22,6 @@ function ok<T>(data: T): Response {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function isShortString(value: unknown, maximum: number): value is string {
-  return typeof value === 'string' && value.length > 0 && value.length <= maximum
-}
-
-function isAgentAccount(value: unknown): value is MoneyAgentAccount {
-  return isRecord(value) && isShortString(value.id, 64) && isShortString(value.name, 80)
-}
-
-function isAgentCategory(value: unknown): value is ImageAnalysisCategory {
-  return isRecord(value) && isShortString(value.id, 64) && isShortString(value.name, 80) &&
-    (value.kind === 'income' || value.kind === 'expense')
-}
-
-function parseAgentRequest(value: unknown): MoneyAgentRequest | null {
-  if (!isRecord(value)) return null
-  if (typeof value.message !== 'string' || value.message.length > MAX_AGENT_MESSAGE_LENGTH) return null
-  if (typeof value.today !== 'string' || !isDateString(value.today)) return null
-  if (!Array.isArray(value.accounts) || value.accounts.length > MAX_REFERENCE_ITEMS || !value.accounts.every(isAgentAccount)) return null
-  if (!Array.isArray(value.categories) || value.categories.length > MAX_REFERENCE_ITEMS || !value.categories.every(isAgentCategory)) return null
-  let image: MoneyAgentRequest['image']
-  if (value.image !== undefined) {
-    if (!isRecord(value.image) || typeof value.image.base64 !== 'string' || typeof value.image.mimeType !== 'string') return null
-    image = { base64: value.image.base64, mimeType: value.image.mimeType }
-  }
-  return { message: value.message, image, today: value.today, accounts: value.accounts, categories: value.categories }
-}
-
-/** The phone sends its own accounts and categories, so a category it created offline is still a valid choice. */
-export async function runMoneyAgentRequest(request: Request, env: Env): Promise<Response> {
-  if (!env.OPENROUTER_API_KEY) return failure(503, 'NOT_CONFIGURED', 'The money agent is not set up on the server')
-  let body: unknown
-  try { body = await request.json() } catch { return failure(400, 'INVALID_REQUEST', 'The request body is not valid JSON') }
-  const input = parseAgentRequest(body)
-  if (!input) return failure(400, 'INVALID_REQUEST', 'Check the message, accounts, and categories')
-  const result = await runMoneyAgent({
-    ...input,
-    apiKey: env.OPENROUTER_API_KEY,
-    model: env.OPENROUTER_MODEL?.trim() || DEFAULT_AGENT_MODEL
-  }, fetch)
-  if (!result.ok) {
-    return result.reason === 'unauthorized'
-      ? failure(502, 'UPSTREAM_ERROR', 'OpenRouter rejected the server key. Replace OPENROUTER_API_KEY on the Worker.')
-      : failure(502, 'UPSTREAM_ERROR', result.message)
-  }
-  const data: MoneyAgentResponse = { drafts: result.data }
-  return ok(data)
 }
 
 function trelloClient(env: Env): TrelloClient | null {

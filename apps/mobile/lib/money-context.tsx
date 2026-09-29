@@ -95,8 +95,7 @@ export function MoneyProvider({ children }: { children: React.ReactNode }): Reac
   const ledger = useLedger()
   const segments = useSegments()
   const routeSegments = segments as readonly string[]
-  const moneyActive = routeSegments[0] === '(money)' || routeSegments[0] === 'transaction-image'
-  const transactionLimit = routeSegments[0] === 'transaction-image' ? 200 : undefined
+  const moneyActive = routeSegments[0] === '(money)'
   const [snapshot, setSnapshot] = useState<MoneySnapshot | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -114,7 +113,7 @@ export function MoneyProvider({ children }: { children: React.ReactNode }): Reac
       setLoading(moneyActive && ledger.enabled && !ledger.error)
       return
     }
-    if (transactionLimit === undefined && ledger.reference) {
+    if (ledger.reference) {
       const balanceById = new Map(ledger.balances.map((item) => [item.accountId, item.balanceCents]))
       const next: MoneySnapshot = {
         accounts: ledger.reference.accounts.map((account) => ({
@@ -136,7 +135,6 @@ export function MoneyProvider({ children }: { children: React.ReactNode }): Reac
       budgets: false,
       purchases: false,
       receiptItems: false,
-      transactionLimit,
       transactions: true
     }).then((next) => {
       if (started !== generation.current) return
@@ -148,7 +146,7 @@ export function MoneyProvider({ children }: { children: React.ReactNode }): Reac
       setError(failure instanceof Error ? failure.message : 'This device could not read its ledger')
       setLoading(false)
     })
-  }, [db, ready, version, ledger.enabled, ledger.error, ledger.reference, ledger.balances, moneyActive, transactionLimit])
+  }, [db, ready, version, ledger.enabled, ledger.error, ledger.reference, ledger.balances, moneyActive])
 
   const run = useCallback(async (
     check: (current: MoneySnapshot) => string | null,

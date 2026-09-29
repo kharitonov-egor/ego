@@ -513,7 +513,7 @@ export default function LocalActivity(): React.ReactElement {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Scan receipt"
-        onPress={() => router.push('/transaction-image')}
+        onPress={() => router.push('/ai')}
         style={{ minHeight: TOUCH }}
         className="flex-row items-center rounded-2xl border border-surface-700 bg-surface-900/95 px-4"
       >
@@ -545,11 +545,11 @@ export default function LocalActivity(): React.ReactElement {
       />
       <AddOption
         Icon={Sparkles}
-        title="Money agent"
+        title="AI"
         detail="Turn a receipt photo or a message into transactions."
         onPress={() => {
           setAdding(false)
-          router.push('/transaction-image')
+          router.push('/ai')
         }}
       />
     </Sheet>
