@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ego",
     "slug": "ego",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "orientation": "portrait",
     "icon": "./assets/app-icon.png",
     "scheme": "ego",
@@ -16,7 +16,6 @@
         "backgroundColor": "#121214"
       },
       "permissions": [
-        "android.permission.RECORD_AUDIO",
         "android.permission.RECORD_AUDIO",
         "android.permission.VIBRATE"
       ]
@@ -32,8 +31,9 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Ego uses photos you choose for Trello attachments and transaction image analysis.",
-          "cameraPermission": "Ego uses the camera to analyze a transaction image."
+          "photosPermission": "Ego uses photos you choose for your diary, Trello attachments, and transaction image analysis.",
+          "cameraPermission": "Ego uses the camera for diary photos and videos and to analyze a transaction image.",
+          "microphonePermission": "Ego records sound when you film a video for your diary."
         }
       ],
       [
@@ -43,6 +43,21 @@
           "imageWidth": 160,
           "resizeMode": "contain",
           "backgroundColor": "#121214"
+        }
+      ],
+      "expo-video",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Ego records voice messages for your diary.",
+          "enableBackgroundPlayback": false
+        }
+      ],
+      "expo-image",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Ego uses Face ID to unlock Mood and Diary."
         }
       ]
     ],

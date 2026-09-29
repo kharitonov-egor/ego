@@ -1,10 +1,10 @@
 import {
-  isAccountInput, isBudgetInput, isCategoryInput, isDateString, isGymCategoryInput, isGymExerciseInput,
-  isGymSetInput, isGymWorkoutInput, isHabitEntryInput, isHabitInput, isMonthString, isMoodInput,
-  isPurchaseInput, isTransactionInput,
-  type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type GymCategoryInput,
-  type GymExerciseInput, type GymSetInput, type GymWorkoutInput, type HabitEntryInput, type HabitInput,
-  type MoodInput, type PurchaseInput, type TransactionInput
+  isAccountInput, isBudgetInput, isCategoryInput, isDateString, isDiaryMessageInput, isGymCategoryInput,
+  isGymExerciseInput, isGymSetInput, isGymWorkoutInput, isHabitEntryInput, isHabitInput, isMonthString,
+  isMoodInput, isPurchaseInput, isTransactionInput,
+  type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type DiaryMessageInput,
+  type GymCategoryInput, type GymExerciseInput, type GymSetInput, type GymWorkoutInput, type HabitEntryInput,
+  type HabitInput, type MoodInput, type PurchaseInput, type TransactionInput
 } from '@ego/core'
 import type { ApiError } from './errors'
 import type { SyncEntity } from './records'
@@ -41,6 +41,9 @@ export type SyncCommand =
   | { entity: 'habit'; type: 'delete' }
   | { entity: 'habitEntry'; type: 'create'; payload: HabitEntryInput }
   | { entity: 'habitEntry'; type: 'delete' }
+  | { entity: 'diaryMessage'; type: 'create'; payload: DiaryMessageInput }
+  | { entity: 'diaryMessage'; type: 'update'; payload: DiaryMessageInput }
+  | { entity: 'diaryMessage'; type: 'delete' }
 
 /**
  * The device generates `operationId` and `entityId` once and reuses them on every retry,
@@ -128,6 +131,9 @@ function isCommand(value: unknown): value is SyncCommand {
       return isHabitInput(payload)
     case 'habitEntry.create':
       return isHabitEntryInput(payload)
+    case 'diaryMessage.create':
+    case 'diaryMessage.update':
+      return isDiaryMessageInput(payload)
     case 'transaction.delete':
     case 'purchase.delete':
     case 'budget.delete':
@@ -137,6 +143,7 @@ function isCommand(value: unknown): value is SyncCommand {
     case 'mood.delete':
     case 'habit.delete':
     case 'habitEntry.delete':
+    case 'diaryMessage.delete':
       return payload === undefined
     default:
       return false

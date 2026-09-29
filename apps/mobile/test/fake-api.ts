@@ -65,7 +65,8 @@ export function fakeApi(script: FakeApiScript = {}): FakeApi {
 export function emptyBootstrap(serverSequence: number): BootstrapData {
   return {
     serverSequence, accounts: [], categories: [], transactions: [], purchases: [], budgets: [],
-    gymCategories: [], gymExercises: [], gymSets: [], gymWorkouts: [], moods: [], habits: [], habitEntries: []
+    gymCategories: [], gymExercises: [], gymSets: [], gymWorkouts: [], moods: [], habits: [], habitEntries: [],
+    diaryMessages: []
   }
 }
 
