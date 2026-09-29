@@ -1,4 +1,5 @@
 import type { Env } from './auth'
+import { runScheduledHealthSync } from './health'
 import { handle } from './router'
 
 export default {
@@ -11,5 +12,9 @@ export default {
         { status: 500, headers: { 'content-type': 'application/json; charset=utf-8' } }
       )
     }
+  },
+
+  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(runScheduledHealthSync(env, new Date(controller.scheduledTime)))
   }
 }

@@ -3,16 +3,17 @@ import {
   ActivityIndicator, AppState, KeyboardAvoidingView, Platform, Pressable, ScrollView, View
 } from 'react-native'
 import { Stack, useRouter } from 'expo-router'
-import { ChevronLeft, ChevronRight, HeartPulse, LayoutGrid, X } from 'lucide-react-native'
+import { LayoutGrid, Smile, X } from 'lucide-react-native'
 import { ConflictEntries } from '../components/ConflictEntries'
+import { DayBar } from '../components/DayBar'
 import { HeaderIcon } from '../components/gym/ui'
-import { MoodDayEditor, MoodHistory } from '../components/health/Mood'
+import { MoodDayEditor, MoodHistory } from '../components/mood/Mood'
 import { BottomSheet, ConfirmDialog } from '../components/money/Common'
 import { CalendarDialog } from '../components/money/DatePicker'
 import { SyncButton } from '../components/money/SyncButton'
 import { Button } from '../components/ui/button'
 import { Text } from '../components/ui/text'
-import { formatIso, isoToday, parseIso, shiftIso } from '../lib/dates'
+import { isoToday } from '../lib/dates'
 import { useLedger } from '../lib/ledger-context'
 import { useMoodJournal } from '../lib/mood-journal'
 
@@ -23,49 +24,14 @@ function Message({ title, detail, action, onAction }: {
   onAction?: () => void
 }): React.ReactElement {
   return <View className="flex-1 items-center justify-center bg-background px-8">
-    <HeartPulse color="#737373" size={34} />
+    <Smile color="#737373" size={34} />
     <Text className="mt-3 text-center text-[20px] font-semibold">{title}</Text>
     <Text className="mt-2 text-center text-[16px] leading-6 text-muted-foreground">{detail}</Text>
     {action && onAction && <Button onPress={onAction} className="mt-5"><Text>{action}</Text></Button>}
   </View>
 }
 
-function DayBar({ date, today, onPick, onOpenCalendar }: {
-  date: string
-  today: string
-  onPick: (iso: string) => void
-  onOpenCalendar: () => void
-}): React.ReactElement {
-  const title = date === today ? 'Today'
-    : date === shiftIso(today, -1) ? 'Yesterday'
-      : parseIso(date).toLocaleDateString('en-US', { weekday: 'long' })
-  return <View className="flex-row items-center">
-    <Button variant="ghost" size="icon" accessibilityLabel="Previous day" onPress={() => onPick(shiftIso(date, -1))}>
-      <ChevronLeft color="#fafafa" size={22} />
-    </Button>
-    <View className="flex-1 items-center">
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${title}, ${formatIso(date)}`}
-        accessibilityHint="Opens the calendar"
-        onPress={onOpenCalendar}
-        hitSlop={8}
-        className="items-center"
-      >
-        <Text accessibilityLiveRegion="polite" className="text-[22px] font-bold tracking-tight">{title}</Text>
-        <Text className="mt-0.5 text-[14px] text-muted-foreground">{formatIso(date)}</Text>
-      </Pressable>
-      {date !== today && <Pressable accessibilityRole="button" onPress={() => onPick(today)} hitSlop={10} className="mt-1">
-        <Text className="text-[14px] font-semibold underline">Back to today</Text>
-      </Pressable>}
-    </View>
-    <Button variant="ghost" size="icon" accessibilityLabel="Next day" disabled={date >= today} onPress={() => onPick(shiftIso(date, 1))}>
-      <ChevronRight color="#fafafa" size={22} />
-    </Button>
-  </View>
-}
-
-export default function Health(): React.ReactElement {
+export default function Mood(): React.ReactElement {
   const ledger = useLedger()
   const journal = useMoodJournal()
   const router = useRouter()

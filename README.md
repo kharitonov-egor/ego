@@ -89,7 +89,32 @@ works offline. `scripts/gym-import.mjs` loads a FitNotes CSV export through the 
 
 ## Health
 
-The phone's start screen has a Health tile. It opens a mood journal with one entry per day: a mood
+The phone's start screen has a Health tile for the data a Fitbit records in Google Health: steps,
+sleep, calories, distance, zone minutes, heart rate, resting heart rate, HRV, and weight.
+
+- The overview shows one day, with the same arrows and calendar as Mood. A readiness card sits on
+  top, then a tile per metric. Weekly cardio counts zone minutes since Monday against Google's goal
+  of 150.
+- A tile opens that metric by week, month, or year, with a chart, the average and extremes, and
+  every value listed under it. Sleep adds the night's stages, heart rate adds the day in
+  five-minute steps, and readiness shows what went into the score.
+- The gear holds the units switch (miles and pounds, or kilometers and kilograms) and the Google
+  Health connection.
+
+Google does not let other apps read its readiness or cardio load scores. Readiness here is Ego's
+own estimate from the same inputs Google names: HRV and resting heart rate against the previous 30
+days, and sleep against 7.5 hours. A usual day scores near 60. It needs a week of readings first.
+
+The phone connects Google Health once, through the Worker's Google OAuth client with the read-only
+activity, health metrics, sleep, and settings scopes. The Worker keeps the refresh token encrypted
+and copies the data into D1: a year of history on the first connection, in slices of 84 days, then
+the last ten days every 15 minutes from a cron trigger. Opening Health asks the Worker to sync
+again if the last pull is more than a minute old, then downloads only the rows that changed. The
+phone keeps its own copy in SQLite, so Health opens offline.
+
+## Mood
+
+The phone's start screen has a Mood tile. It opens a mood journal with one entry per day: a mood
 from Awful to Great and an optional note of up to 2,000 characters. The arrows and the calendar
 reach earlier days, but not future ones. Past entries appear below the editor. Tapping one opens
 that day.

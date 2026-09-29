@@ -1,6 +1,6 @@
 import type {
   AccountBalances, ApiError, ApiErrorCode, ApiResult, BootstrapData, ChangePage, FeedCursor,
-  MoneyAgentRequest, MoneyAgentResponse, OperationResponse, ReceiptDetail, ReferenceData,
+  HealthConnectStart, HealthSnapshot, MoneyAgentRequest, MoneyAgentResponse, OperationResponse, ReceiptDetail, ReferenceData,
   SessionInfo, SignInResult, SignInStartResult, StudyAssignmentList, StudyMark, SyncOperation,
   TransactionFilters, TransactionPage, TrelloCardRequest, TrelloCardResponse
 } from '@ego/api-contracts'
@@ -30,7 +30,15 @@ export interface StudyApi {
   markStudyAssignment: (id: string, done: boolean) => Promise<ApiResult<StudyMark>>
 }
 
-export interface EgoApi extends MoneyApi, StudyApi {
+export interface HealthApi {
+  healthData: (since: string | null) => Promise<ApiResult<HealthSnapshot>>
+  /** Asks the Worker to pull from Google Health first. It skips the pull if one just ran. */
+  healthSync: (since: string | null, timeZone: string | null) => Promise<ApiResult<HealthSnapshot>>
+  healthConnect: () => Promise<ApiResult<HealthConnectStart>>
+  healthDisconnect: () => Promise<ApiResult<{ disconnected: true }>>
+}
+
+export interface EgoApi extends MoneyApi, StudyApi, HealthApi {
   session: () => Promise<ApiResult<SessionInfo>>
   signOut: () => Promise<ApiResult<{ signedOut: true }>>
   moneyAgent: (request: MoneyAgentRequest) => Promise<ApiResult<MoneyAgentResponse>>
@@ -169,6 +177,16 @@ export function moneyApiFor(config: ApiConfig): EgoApi {
       method: 'PUT',
       body: JSON.stringify({ done })
     }),
+    healthData: (since) => call<HealthSnapshot>(`/v1/health/data${since ? `?since=${encodeURIComponent(since)}` : ''}`, {
+      timeoutMs: SLOW_REQUEST_TIMEOUT_MS
+    }),
+    healthSync: (since, timeZone) => call<HealthSnapshot>('/v1/health/sync', {
+      method: 'POST',
+      body: JSON.stringify({ since, timeZone }),
+      timeoutMs: SLOW_REQUEST_TIMEOUT_MS
+    }),
+    healthConnect: () => call<HealthConnectStart>('/v1/health/connect', { method: 'POST' }),
+    healthDisconnect: () => call<{ disconnected: true }>('/v1/health/connection', { method: 'DELETE' }),
     trelloBoards: () => call<TrelloBoardSummary[]>('/v1/trello/boards'),
     trelloLists: (boardId) => call<TrelloListSummary[]>(`/v1/trello/boards/${encodeURIComponent(boardId)}/lists`),
     trelloCard: (card) => call<TrelloCardResponse>('/v1/trello/cards', {

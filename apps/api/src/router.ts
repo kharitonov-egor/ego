@@ -25,6 +25,7 @@ import {
   runMoneyAgentRequest, trelloAddAttachment, trelloBoards, trelloCreateCard, trelloLists
 } from './services'
 import { markStudyAssignment, readStudyAssignments } from './study'
+import { completeHealthConnect, disconnectHealth, readHealth, startHealthConnect, syncHealthRequest } from './health'
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -95,7 +96,8 @@ export async function handle(request: Request, env: Env): Promise<Response> {
   if (request.method === 'POST' && path === '/v1/auth/google/start') return startSignIn(request, env)
   if (request.method === 'POST' && path === '/v1/auth/exchange') return exchangeSignIn(request, env)
   if (request.method === 'GET' && path === '/v1/connectors/google/callback') {
-    return await completeSignIn(request, env) ?? completeGoogleConnector(request, env)
+    return await completeSignIn(request, env) ?? await completeHealthConnect(request, env) ??
+      completeGoogleConnector(request, env)
   }
   if (request.method === 'GET' && path === '/v1/connectors/wispr/callback') {
     return completeWisprConnector(request, env)
@@ -125,6 +127,13 @@ export async function handle(request: Request, env: Env): Promise<Response> {
   if (request.method === 'GET' && path === '/v1/study/assignments') return readStudyAssignments(env, device.data, now)
   if (request.method === 'PUT' && path.startsWith('/v1/study/assignments/')) {
     return markStudyAssignment(request, env, device.data, decodeURIComponent(path.slice('/v1/study/assignments/'.length)), now)
+  }
+  if (request.method === 'GET' && path === '/v1/health/data') return readHealth(request, env, device.data, new Date(now))
+  if (request.method === 'POST' && path === '/v1/health/sync') return syncHealthRequest(request, env, device.data, new Date(now))
+  if (request.method === 'POST' && path === '/v1/health/connect') return startHealthConnect(request, env, device.data)
+  if (request.method === 'DELETE' && path === '/v1/health/connection') {
+    await disconnectHealth(env, device.data.datasetId)
+    return ok({ disconnected: true })
   }
   if (request.method === 'POST' && path === '/v1/live/sessions') {
     return createLiveSession(request, env, device.data)

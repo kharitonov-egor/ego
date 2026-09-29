@@ -2,6 +2,10 @@ name = "ego-money"
 main = "src/index.ts"
 compatibility_date = "2026-09-01"
 
+# Pulls Google Health into D1 so the phone finds fresh numbers without waiting on Google.
+[triggers]
+crons = ["*/15 * * * *"]
+
 [[d1_databases]]
 binding = "DB"
 database_name = "ego"
