@@ -204,7 +204,7 @@ describe('session', () => {
     const response = await handle(authorized('/v1/session', result.token), env)
     const session = (await payload<SessionInfo>(response)).data
     expect(session.email).toBe('me@example.com')
-    expect(session.services).toEqual({ moneyAgent: true, trello: false, voice: false, google: false, canvas: false })
+    expect(session.services).toEqual({ moneyAgent: true, trello: false, voice: false, google: false, canvas: false, googleHealth: false })
     expect(JSON.stringify(session)).not.toContain('or-key')
   })
 

@@ -34,6 +34,7 @@ export interface ServiceStatus {
   voice: boolean
   google: boolean
   canvas: boolean
+  googleHealth: boolean
 }
 
 export interface SessionInfo {

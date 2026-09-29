@@ -245,6 +245,53 @@ export const LOCAL_MIGRATIONS: readonly string[][] = [
     "ALTER TABLE habits ADD COLUMN period TEXT NOT NULL DEFAULT 'day'",
     'ALTER TABLE habits ADD COLUMN started_at TEXT',
     'ALTER TABLE habit_entries ADD COLUMN logged_at TEXT'
+  ],
+  [
+    `CREATE TABLE IF NOT EXISTS health_days (
+      date TEXT PRIMARY KEY,
+      steps INTEGER,
+      distance_m REAL,
+      calories_kcal REAL,
+      fat_burn_minutes INTEGER,
+      cardio_minutes INTEGER,
+      peak_minutes INTEGER,
+      resting_hr INTEGER,
+      hrv_ms REAL,
+      hr_min REAL,
+      hr_avg REAL,
+      hr_max REAL,
+      weight_kg REAL,
+      updated_at TEXT NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS health_sleeps (
+      id TEXT PRIMARY KEY,
+      date TEXT NOT NULL,
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      start_local TEXT NOT NULL,
+      end_local TEXT NOT NULL,
+      minutes_asleep INTEGER NOT NULL,
+      minutes_awake INTEGER NOT NULL,
+      minutes_in_bed INTEGER NOT NULL,
+      deep_minutes INTEGER,
+      light_minutes INTEGER,
+      rem_minutes INTEGER,
+      nap INTEGER NOT NULL DEFAULT 0,
+      stages TEXT NOT NULL DEFAULT '[]',
+      updated_at TEXT NOT NULL
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_local_health_sleeps_date ON health_sleeps(date)',
+    `CREATE TABLE IF NOT EXISTS health_heart (
+      date TEXT PRIMARY KEY,
+      points TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS health_state (
+      id INTEGER PRIMARY KEY CHECK(id = 1),
+      connection TEXT,
+      server_time TEXT,
+      fetched_at TEXT
+    )`
   ]
 ]
 

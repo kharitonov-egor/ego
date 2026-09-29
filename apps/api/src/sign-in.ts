@@ -8,6 +8,7 @@ import {
 import { hashToken, type Env } from './auth'
 import { fromBase64, randomUrlToken, sha256 } from './connector-crypto'
 import { connectorStatus, googleCallbackUrl } from './connectors'
+import { healthConnected } from './health'
 
 const GOOGLE_AUTHORIZE = 'https://accounts.google.com/o/oauth2/v2/auth'
 const GOOGLE_TOKEN = 'https://oauth2.googleapis.com/token'
@@ -81,7 +82,7 @@ function deviceNameFrom(value: unknown): string {
   return value.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) || 'Phone'
 }
 
-function idTokenClaims(idToken: string): IdTokenClaims | null {
+export function idTokenClaims(idToken: string): IdTokenClaims | null {
   const payload = idToken.split('.')[1]
   if (!payload) return null
   try {
@@ -221,10 +222,11 @@ export async function exchangeSignIn(request: Request, env: Env, now = new Date(
 }
 
 export async function readSession(env: Env, device: DeviceIdentity): Promise<SessionInfo> {
-  const [row, google] = await Promise.all([
+  const [row, google, googleHealth] = await Promise.all([
     env.DB.prepare('SELECT account_email FROM devices WHERE id = ?')
       .bind(device.deviceId).first<{ account_email: string | null }>(),
-    connectorStatus(env, device.datasetId, 'google')
+    connectorStatus(env, device.datasetId, 'google'),
+    healthConnected(env, device.datasetId)
   ])
   return {
     deviceId: device.deviceId,
@@ -235,7 +237,8 @@ export async function readSession(env: Env, device: DeviceIdentity): Promise<Ses
       trello: Boolean(env.TRELLO_API_KEY && env.TRELLO_TOKEN),
       voice: Boolean(env.OPENAI_API_KEY),
       google: google.connected,
-      canvas: Boolean(env.CANVAS_CALENDAR_URL?.trim())
+      canvas: Boolean(env.CANVAS_CALENDAR_URL?.trim()),
+      googleHealth
     }
   }
 }
