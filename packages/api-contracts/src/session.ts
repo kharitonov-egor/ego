@@ -29,7 +29,7 @@ export interface SignInResult {
 
 /** Which server-held credentials exist. The values themselves never leave the Worker. */
 export interface ServiceStatus {
-  moneyAgent: boolean
+  assistant: boolean
   trello: boolean
   voice: boolean
   google: boolean

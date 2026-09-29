@@ -21,7 +21,12 @@ All routes except `/v1/health`, the two sign-in routes, and the two OAuth callba
 | `GET /v1/session` | The signed-in account and which server keys exist, never their values |
 | `DELETE /v1/session` | Signs out by revoking this device's token |
 | `GET /v1/bootstrap` | Every live money and gym record, with receipt items and budget allocations, plus the sequence it was read after |
-| `POST /v1/agent/money` | Runs the money agent with the Worker's OpenRouter key |
+| `GET /v1/assistant/chats` | The dataset's AI chats, newest first |
+| `DELETE /v1/assistant/chats/:id` | Hides one chat |
+| `GET /v1/assistant/messages` | The shown messages of one chat (`chat=`), plus any money write waiting on the Confirm card |
+| `POST /v1/assistant/turns` | Sends one message and streams the turn back as NDJSON: the stored user message, text deltas, tool trail lines, the stored reply, and a pending write |
+| `POST /v1/assistant/confirm` | Answers the Confirm card, applies the write, and streams the model's follow-up |
+| `POST /v1/assistant/undo` | Takes back a write the assistant made and adds an "Undid" line to the chat |
 | `GET /v1/trello/boards` | Trello boards, with the Worker's Trello key and token |
 | `GET /v1/trello/boards/:id/lists` | Lists on one board |
 | `POST /v1/trello/cards` | Creates a card |
@@ -70,7 +75,7 @@ one-time code. The code redeems once, with the matching secret, within ten minut
 device row with the account email.
 
 API keys for outside services are Worker secrets: `OPENROUTER_API_KEY` (and optional
-`OPENROUTER_MODEL`), `TRELLO_API_KEY`, `TRELLO_TOKEN`, and `OPENAI_API_KEY`. `GET /v1/session`
+`ASSISTANT_MODEL`), `TRELLO_API_KEY`, `TRELLO_TOKEN`, and `OPENAI_API_KEY`. `GET /v1/session`
 reports which exist so the phone can say what is set up. A new service follows the same shape: a
 secret, a route that calls the service, and a flag in `ServiceStatus`.
 
@@ -125,6 +130,25 @@ phone never pull at the same time.
 
 Google's testing mode expires refresh tokens after seven days. Keep the OAuth consent screen in
 production. An unverified app is fine for a single user.
+
+## AI assistant
+
+`POST /v1/assistant/turns` runs one turn of the phone's AI chat. The Worker stores the user's
+message, builds a system prompt from today's date, the phone's time zone and units, and the live
+accounts, categories, habits, and exercises, then calls OpenRouter with the tool list in
+`packages/core/src/assistant-tools.ts`. Each tool call is validated against its schema, run
+against D1, and fed back, up to eight model calls a turn. The answer is an NDJSON stream so the
+phone can show text as it arrives.
+
+Reads cover mood, habits, gym sets and records, Google Health days, sleeps and heart rate curves,
+money summaries, accounts, budgets, transactions, and Canvas assignments. Writes go through the
+same `applyOperation` path as sync, so every change lands in the change log and reaches the phone
+on its next pull. `record_transactions` stops the turn and returns a Confirm card;
+`POST /v1/assistant/confirm` applies or rejects it and lets the model finish its reply. The other
+writes apply at once and keep an undo plan in `assistant_tool_calls`, which
+`POST /v1/assistant/undo` runs. Every stored message is the model-format message, so the next turn
+rebuilds its context from the table; a tool call left without a result by a dropped connection
+gets a synthetic "interrupted" result. Migration `0012_assistant.sql` adds the three tables.
 
 ## Talk to AI
 
