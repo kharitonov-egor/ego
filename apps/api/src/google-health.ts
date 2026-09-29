@@ -344,7 +344,10 @@ export const ROLLUP_COLUMNS: Record<DailyRollupName, DayColumn[]> = {
 interface DailySummarySpec {
   dataType: string
   field: string
-  /** The REST reference names the filter field in camelCase and the RPC reference in snake_case. */
+  /**
+   * Google accepted snake_case on 2026-09-28 and refused camelCase, though the REST reference shows
+   * camelCase. The second spelling stays as a fallback in case that changes.
+   */
   filterNames: [string, string]
   read: (value: JsonRecord) => DayValues
 }
@@ -353,13 +356,13 @@ export const DAILY_SUMMARIES = {
   restingHeartRate: {
     dataType: 'daily-resting-heart-rate',
     field: 'dailyRestingHeartRate',
-    filterNames: ['dailyRestingHeartRate', 'daily_resting_heart_rate'],
+    filterNames: ['daily_resting_heart_rate', 'dailyRestingHeartRate'],
     read: (value) => ({ resting_hr: numberAt(value, 'beatsPerMinute') })
   },
   hrv: {
     dataType: 'daily-heart-rate-variability',
     field: 'dailyHeartRateVariability',
-    filterNames: ['dailyHeartRateVariability', 'daily_heart_rate_variability'],
+    filterNames: ['daily_heart_rate_variability', 'dailyHeartRateVariability'],
     read: (value) => ({ hrv_ms: numberAt(value, 'averageHeartRateVariabilityMilliseconds') })
   }
 } satisfies Record<string, DailySummarySpec>
@@ -437,7 +440,8 @@ export function googleHealthClient(accessToken: string): GoogleHealthClient {
           body: JSON.stringify({
             range: { start: civilDate(start), end: civilDate(end) },
             windowSizeDays: 1,
-            pageSize: 1000,
+            // Google counts windowSizeDays * pageSize against the same cap as the range.
+            pageSize: daysBetween(start, end),
             ...(pageToken ? { pageToken } : {})
           })
         }), 'rollupDataPoints')
