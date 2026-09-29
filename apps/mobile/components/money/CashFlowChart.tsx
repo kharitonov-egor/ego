@@ -6,7 +6,8 @@ import type { ChartBucket } from '../../lib/periods'
 import { Checkbox } from '../ui/checkbox'
 import { Text } from '../ui/text'
 import { money } from './Common'
-import { tabular } from './tokens'
+import { color, tabular } from './tokens'
+import { useBlurText } from '../../lib/blur'
 
 /** Validated as a pair against the card surface with the dataviz palette checker. */
 export const SERIES_COLOR = { expense: '#3b8fe8', income: '#2fa37a' } as const
@@ -100,6 +101,7 @@ export function CashFlowChart({ title, buckets, flows, today, series, onSeriesCh
   onScrubbingChange: (scrubbing: boolean) => void
   onOpen: (bucket: ChartBucket) => void
 }): React.ReactElement {
+  const blur = useBlurText()
   const [width, setWidth] = useState(0)
   const [selected, setSelected] = useState<number | null>(null)
   const [touching, setTouching] = useState(false)
@@ -184,8 +186,8 @@ export function CashFlowChart({ title, buckets, flows, today, series, onSeriesCh
           {!empty && <Text className="text-[13px] text-surface-500">Drag to explore</Text>}
         </View>
         <View className="mt-1 flex-row flex-wrap gap-x-4">
-          {series.expense && <Text className="text-[14px] text-muted-foreground">Spent <Text className="text-[14px] font-semibold" style={tabular}>{money(totals.expenseCents)}</Text></Text>}
-          {series.income && <Text className="text-[14px] text-muted-foreground">Received <Text className="text-[14px] font-semibold" style={tabular}>{money(totals.incomeCents)}</Text></Text>}
+          {series.expense && <Text className="text-[14px] text-muted-foreground">Spent <Text className="text-[14px] font-semibold" style={[tabular, blur()]}>{money(totals.expenseCents)}</Text></Text>}
+          {series.income && <Text className="text-[14px] text-muted-foreground">Received <Text className="text-[14px] font-semibold" style={[tabular, blur()]}>{money(totals.incomeCents)}</Text></Text>}
         </View>
       </View>
 
@@ -233,10 +235,10 @@ export function CashFlowChart({ title, buckets, flows, today, series, onSeriesCh
         </View>
 
         <View pointerEvents="none" style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: GUTTER - 6 }}>
-          <Text className="absolute right-0 top-0 text-[12px] text-muted-foreground" style={tabular}>
+          <Text className="absolute right-0 top-0 text-[12px] text-muted-foreground" style={[tabular, blur(color.textMuted, 4)]}>
             {compactMoney(shape.diverging ? shape.incomeMax : Math.max(shape.incomeMax, shape.expenseMax))}
           </Text>
-          {shape.diverging && <Text className="absolute bottom-0 right-0 text-[12px] text-muted-foreground" style={tabular}>
+          {shape.diverging && <Text className="absolute bottom-0 right-0 text-[12px] text-muted-foreground" style={[tabular, blur(color.textMuted, 4)]}>
             {compactMoney(shape.expenseMax)}
           </Text>}
           <Text className="absolute right-0 text-[12px] text-muted-foreground" style={{ ...tabular, top: Math.min(PLOT_HEIGHT - 16, Math.max(16, shape.baseline - 8)) }}>$0</Text>
@@ -293,9 +295,10 @@ export function CashFlowChart({ title, buckets, flows, today, series, onSeriesCh
 }
 
 function BubbleRow({ color, label, cents }: { color: string; label: string; cents: number }): React.ReactElement {
+  const blur = useBlurText()
   return <View className="mt-0.5 flex-row items-center">
     <View className="mr-2 h-[3px] w-3 rounded-full" style={{ backgroundColor: color }} />
     <Text className="flex-1 text-[13px] text-muted-foreground">{label}</Text>
-    <Text className="text-[15px] font-semibold" style={tabular}>{money(cents)}</Text>
+    <Text className="text-[15px] font-semibold" style={[tabular, blur()]}>{money(cents)}</Text>
   </View>
 }

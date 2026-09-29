@@ -8,6 +8,7 @@ import { useCourseColors } from '../../components/study/Assignment'
 import { StudyGate, StudyMessage } from '../../components/study/StudyGate'
 import { useStudy } from '../../lib/study/context'
 import { courseSummaries, dueDay, shortDay, type CourseSummary } from '../../lib/study/schedule'
+import { BlurSpan, useBlurText } from '../../lib/blur'
 
 function CourseCard({ summary, tint, showOverdue, onPress }: {
   summary: CourseSummary
@@ -15,6 +16,7 @@ function CourseCard({ summary, tint, showOverdue, onPress }: {
   showOverdue: boolean
   onPress: () => void
 }): React.ReactElement {
+  const blur = useBlurText()
   const next = summary.next
   const overdue = showOverdue && summary.overdue > 0
   return <Pressable
@@ -28,7 +30,7 @@ function CourseCard({ summary, tint, showOverdue, onPress }: {
       <View className="h-11 w-11 items-center justify-center rounded-full" style={{ backgroundColor: tint }}>
         <BookOpen color="#ffffff" size={19} />
       </View>
-      <Text numberOfLines={1} className="ml-3 flex-1 text-[19px] font-bold text-surface-100">{summary.course}</Text>
+      <Text numberOfLines={1} className="ml-3 flex-1 text-[19px] font-bold text-surface-100" style={blur('#f5f5f5')}>{summary.course}</Text>
       <View className="items-end">
         <Text className="text-[22px] font-bold text-surface-50" style={tabular}>{summary.left}</Text>
         <Text className="text-[14px] text-surface-400">left</Text>
@@ -36,7 +38,7 @@ function CourseCard({ summary, tint, showOverdue, onPress }: {
     </View>
     <View className="mt-3 border-t border-surface-800 pt-3">
       {next
-        ? <Text numberOfLines={1} className="text-[15px] text-surface-300">Next: <Text className="font-semibold text-surface-100">{next.title}</Text> · {shortDay(dueDay(next))}</Text>
+        ? <Text numberOfLines={1} className="text-[15px] text-surface-300">Next: <Text className="font-semibold text-surface-100"><BlurSpan tint="#f5f5f5">{next.title}</BlurSpan></Text> · {shortDay(dueDay(next))}</Text>
         : <Text className="text-[15px] text-surface-400">Nothing coming up</Text>}
       {overdue && <Text className="mt-1 text-[14px] font-semibold" style={{ color: color.expense }}>{summary.overdue} overdue</Text>}
     </View>

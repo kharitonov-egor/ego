@@ -20,6 +20,8 @@ export interface Env {
   TRELLO_TOKEN?: string
   /** The Canvas calendar feed link. Anyone holding it can read the calendar. */
   CANVAS_CALENDAR_URL?: string
+  /** The secret given to `eas webhook:create`. EAS signs each build report with it. */
+  EAS_WEBHOOK_SECRET?: string
 }
 
 interface DeviceRow {

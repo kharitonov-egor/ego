@@ -14,6 +14,7 @@ import { DateSheet } from './DatePicker'
 import { BottomSheet, ConfirmDialog, MoneyIcon, money } from './Common'
 import { useMoneyTabBarStyle } from './navigation'
 import { color as palette } from './tokens'
+import { useBlurText } from '../../lib/blur'
 
 const KIND_OPTIONS: SegmentedOption<TransactionKind>[] = [
   { value: 'expense', label: 'Expense' },
@@ -48,6 +49,7 @@ function Field({ label, name, icon, color, placeholder, onPress }: {
 }
 
 function AccountOption({ account, selected, onPress }: { account: MoneyAccount; selected: boolean; onPress: () => void }): React.ReactElement {
+  const blur = useBlurText()
   return <Pressable
     accessibilityRole="button"
     accessibilityState={{ selected }}
@@ -57,7 +59,7 @@ function AccountOption({ account, selected, onPress }: { account: MoneyAccount; 
     <View className="h-12 w-12 items-center justify-center rounded-2xl" style={{ backgroundColor: account.color }}><MoneyIcon name={account.icon} size={21} /></View>
     <View className="ml-3 flex-1">
       <Text numberOfLines={1} className="text-[17px] font-semibold">{account.name}</Text>
-      <Text className="text-[14px] text-muted-foreground">{money(account.balanceCents)}</Text>
+      <Text className="text-[14px] text-muted-foreground" style={blur(palette.textMuted)}>{money(account.balanceCents)}</Text>
     </View>
     {selected && <Check color="#fafafa" size={22} />}
   </Pressable>

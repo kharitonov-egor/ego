@@ -26,6 +26,7 @@ import { assistantRoute } from './assistant'
 import { markStudyAssignment, readStudyAssignments } from './study'
 import { completeHealthConnect, disconnectHealth, readHealth, startHealthConnect, syncHealthRequest } from './health'
 import { diaryMediaRoute } from './diary'
+import { readAppBuilds, receiveBuildWebhook } from './app-builds'
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -102,6 +103,7 @@ export async function handle(request: Request, env: Env): Promise<Response> {
   if (request.method === 'GET' && path === '/v1/connectors/wispr/callback') {
     return completeWisprConnector(request, env)
   }
+  if (request.method === 'POST' && path === '/v1/app/builds/webhook') return respond(await receiveBuildWebhook(request, env))
 
   const device = await authorize(request, env.DB)
   if (!device.ok) return failure(device.error)
@@ -126,6 +128,7 @@ export async function handle(request: Request, env: Env): Promise<Response> {
     return trelloAddAttachment(request, env, decodeURIComponent(path.slice('/v1/trello/cards/'.length, -'/attachments'.length)))
   }
   if (request.method === 'GET' && path === '/v1/study/assignments') return readStudyAssignments(env, device.data, now)
+  if (request.method === 'GET' && path === '/v1/app/builds/latest') return ok(await readAppBuilds(env, now))
   if (request.method === 'PUT' && path.startsWith('/v1/study/assignments/')) {
     return markStudyAssignment(request, env, device.data, decodeURIComponent(path.slice('/v1/study/assignments/'.length)), now)
   }

@@ -6,6 +6,7 @@ import type { MoneyPurchase } from '@ego/core'
 import PurchaseEditor, { draftForPurchase } from '../../components/money/PurchaseEditor'
 import { ConfirmDialog, Empty, MoneyScreen, Sheet, money } from '../../components/money/Common'
 import { color, tabular } from '../../components/money/tokens'
+import { useBlurText } from '../../lib/blur'
 import { Button } from '../../components/ui/button'
 import { Card } from '../../components/ui/card'
 import { Text } from '../../components/ui/text'
@@ -22,14 +23,16 @@ interface PurchaseSection {
 }
 
 function Total({ label, cents, strong = false }: { label: string; cents: number; strong?: boolean }): React.ReactElement {
+  const blur = useBlurText()
   return <View className="flex-row items-center justify-between py-1">
     <Text className={strong ? 'font-semibold' : 'text-[15px] text-muted-foreground'}>{label}</Text>
-    <Text className={strong ? 'text-[17px] font-bold' : 'text-[15px] font-medium'} style={tabular}>{money(cents)}</Text>
+    <Text className={strong ? 'text-[17px] font-bold' : 'text-[15px] font-medium'} style={[tabular, blur()]}>{money(cents)}</Text>
   </View>
 }
 
 export default function Purchases(): React.ReactElement {
   const state = useMoney()
+  const blur = useBlurText()
   const ledger = useLedger()
   const router = useRouter()
   const params = useLocalSearchParams<{ purchaseId?: string }>()
@@ -130,7 +133,7 @@ export default function Purchases(): React.ReactElement {
               <Text numberOfLines={1} className="text-[17px] font-semibold">{item.merchant}</Text>
               <Text className="text-[14px] text-muted-foreground">{item.itemCount} {item.itemCount === 1 ? 'item' : 'items'}</Text>
             </View>
-            <Text className="text-[17px] font-semibold" style={{ ...tabular, color: color.expense }}>-{money(item.totalCents)}</Text>
+            <Text className="text-[17px] font-semibold" style={[{ ...tabular, color: color.expense }, blur(color.expense)]}>-{money(item.totalCents)}</Text>
           </Pressable>
         </Card>}
         ListFooterComponent={loadingMore.current && headers.length > 0 ? <ActivityIndicator color="#fafafa" className="py-5" /> : null}
@@ -152,14 +155,14 @@ export default function Purchases(): React.ReactElement {
           ? <PurchaseEditor snapshot={editorSnapshot} purchase={current} draft={draftForPurchase(current)} busy={state.busy} onSave={async (input) => { if (await state.updatePurchase(current.id, input)) setEditing(false) }} />
           : <View>
             <Text className="text-[15px] text-muted-foreground">{formatIso(current.purchaseDate)} · {current.currency}</Text>
-            <Text className="mt-1 text-[36px] font-bold tracking-tight">{money(current.totalCents)}</Text>
+            <Text className="mt-1 text-[36px] font-bold tracking-tight" style={blur(undefined, 11)}>{money(current.totalCents)}</Text>
 
             <Card className="mt-4 overflow-hidden">{current.items.map((item, index) => <View key={item.id} className={`min-h-14 flex-row items-center px-4 py-3 ${index ? 'border-t border-surface-800' : ''}`}>
               <View className="flex-1 pr-3">
                 <Text className="text-[16px]">{item.name}</Text>
                 {item.quantity !== 1 && <Text className="text-[14px] text-muted-foreground">Quantity {item.quantity}</Text>}
               </View>
-              <Text className="text-[16px] font-semibold" style={tabular}>{money(item.lineTotalCents)}</Text>
+              <Text className="text-[16px] font-semibold" style={[tabular, blur()]}>{money(item.lineTotalCents)}</Text>
             </View>)}</Card>
 
             <View className="mt-4 px-1">

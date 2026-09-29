@@ -6,7 +6,8 @@ import { dueLabel, monthlyTotal, recurringCharges, upcomingCharges } from '../..
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Text } from '../ui/text'
 import { MoneyIcon, money } from './Common'
-import { tabular } from './tokens'
+import { color, tabular } from './tokens'
+import { BlurSpan, useBlurText } from '../../lib/blur'
 
 const SHORT_DATE = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
 const shortDate = (iso: string): string => SHORT_DATE.format(parseIso(iso))
@@ -15,13 +16,14 @@ const shortDate = (iso: string): string => SHORT_DATE.format(parseIso(iso))
 export function UpcomingBills({ snapshot, today }: { snapshot: MoneySnapshot; today: string }): React.ReactElement | null {
   const charges = useMemo(() => recurringCharges(snapshot.transactions, today), [snapshot.transactions, today])
   const categories = useMemo(() => new Map(snapshot.categories.map((category) => [category.id, category])), [snapshot.categories])
+  const blur = useBlurText()
   if (charges.length === 0) return null
   const soon = upcomingCharges(charges, today, 7)
   const next = charges.find((charge) => charge.nextDate > today)
   return <Card>
     <CardHeader>
       <CardTitle>Upcoming bills</CardTitle>
-      <CardDescription>{charges.length} monthly {charges.length === 1 ? 'charge' : 'charges'}, about {money(monthlyTotal(charges))} a month</CardDescription>
+      <CardDescription>{charges.length} monthly {charges.length === 1 ? 'charge' : 'charges'}, about <BlurSpan tint={color.textMuted}>{money(monthlyTotal(charges))}</BlurSpan> a month</CardDescription>
     </CardHeader>
     <CardContent className="px-2 pt-3">
       {soon.length === 0 && next && <Text className="px-3 pb-1 text-muted-foreground">
@@ -43,7 +45,7 @@ export function UpcomingBills({ snapshot, today }: { snapshot: MoneySnapshot; to
             <Text numberOfLines={1} className="text-[17px] font-semibold">{charge.title}</Text>
             <Text className="text-[14px] text-muted-foreground">{label}</Text>
           </View>
-          <Text className="ml-3 text-[17px] font-semibold" style={tabular}>{money(charge.amountCents)}</Text>
+          <Text className="ml-3 text-[17px] font-semibold" style={[tabular, blur()]}>{money(charge.amountCents)}</Text>
         </View>
       })}
     </CardContent>

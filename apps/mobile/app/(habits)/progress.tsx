@@ -8,6 +8,7 @@ import { PeriodSwipe } from '../../components/money/PeriodSwipe'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
 import { formatMonth, shiftMonth } from '../../lib/dates'
 import { useHabits } from '../../lib/habits/context'
+import { BlurBlob, BlurSpan, useBlur, useBlurText } from '../../lib/blur'
 import { habitRates, monthSummary, streaks } from '../../lib/habits/stats'
 
 function percent(done: number, possible: number): number {
@@ -22,6 +23,8 @@ function Bar({ share, thin = false }: { share: number; thin?: boolean }): React.
 
 function ProgressBody(): React.ReactElement {
   const habits = useHabits()
+  const { blurred } = useBlur()
+  const blur = useBlurText()
   const router = useRouter()
   const { log, today } = habits
   const current = today.slice(0, 7)
@@ -82,8 +85,8 @@ function ProgressBody(): React.ReactElement {
             onPress={() => setFocus(null)}
             className="mb-4 flex-row items-center self-start rounded-full bg-primary py-1.5 pl-3 pr-2.5"
           >
-            <Text className="text-[14px] text-primary-foreground">{focused.icon}</Text>
-            <Text className="ml-1.5 text-[14px] font-semibold text-primary-foreground">{focused.name}</Text>
+            {blurred ? <BlurBlob size={14} tint="#0a0a0a" /> : <Text className="text-[14px] text-primary-foreground">{focused.icon}</Text>}
+            <Text className="ml-1.5 text-[14px] font-semibold text-primary-foreground" style={blur('#0a0a0a')}>{focused.name}</Text>
             <X color="#0a0a0a" size={15} style={{ marginLeft: 6 }} />
           </Pressable>}
           <MonthCalendar
@@ -104,8 +107,8 @@ function ProgressBody(): React.ReactElement {
       </View>
       <Text className="-mt-1 px-1 text-[13px] leading-5 text-surface-500">
         {runs.unit === 'week'
-          ? focused ? `Weeks in a row with ${focused.name} on target.` : 'Weeks in a row with every weekly habit on target.'
-          : focused ? `Days in a row with ${focused.name} done.` : 'Days in a row with every daily habit done.'}
+          ? focused ? <>Weeks in a row with <BlurSpan tint="#737373">{focused.name}</BlurSpan> on target.</> : 'Weeks in a row with every weekly habit on target.'
+          : focused ? <>Days in a row with <BlurSpan tint="#737373">{focused.name}</BlurSpan> done.</> : 'Days in a row with every daily habit done.'}
       </Text>
 
       <Card className="overflow-hidden">
@@ -124,7 +127,7 @@ function ProgressBody(): React.ReactElement {
             <HabitIcon icon={habit.icon} size={40} />
             <View className="ml-3 flex-1">
               <View className="flex-row items-baseline justify-between">
-                <Text numberOfLines={1} className="flex-1 text-[16px] font-semibold text-foreground">{habit.name}</Text>
+                <Text numberOfLines={1} className="flex-1 text-[16px] font-semibold text-foreground" style={blur()}>{habit.name}</Text>
                 <Text className="ml-3 text-[14px] text-muted-foreground" style={{ fontVariant: ['tabular-nums'] }}>
                   {possible === 0
                     ? unit === 'week' ? 'No full week yet' : 'Not started'

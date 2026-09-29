@@ -9,6 +9,7 @@ import { Button } from '../../components/ui/button'
 import { Text as UiText } from '../../components/ui/text'
 import { formatIso, parseIso, shiftIso } from '../../lib/dates'
 import { useHabits } from '../../lib/habits/context'
+import { useBlurText } from '../../lib/blur'
 import { dayScore, mondayOf, rowState, type RowState } from '../../lib/habits/stats'
 
 function dayTitle(date: string, today: string): string {
@@ -56,6 +57,7 @@ function HabitRow({ habit, state, thisWeek, onTap, onTakeBack, onEdit }: {
   onTakeBack: () => void
   onEdit: () => void
 }): React.ReactElement {
+  const blur = useBlurText()
   const note = subtitle(habit, state, thisWeek)
   const settled = habit.period === 'week' ? state.today > 0 || state.met : state.met
   const toggles = habit.period === 'week' || habit.target === 1
@@ -73,7 +75,7 @@ function HabitRow({ habit, state, thisWeek, onTap, onTakeBack, onEdit }: {
   >
     <HabitIcon icon={habit.icon} />
     <View className="ml-3 flex-1">
-      <Text numberOfLines={2} className={`text-[17px] font-semibold ${settled ? 'text-surface-400' : 'text-foreground'}`}>{habit.name}</Text>
+      <Text numberOfLines={2} className={`text-[17px] font-semibold ${settled ? 'text-surface-400' : 'text-foreground'}`} style={blur(settled ? '#a3a3a3' : undefined)}>{habit.name}</Text>
       {note && <Text className="mt-0.5 text-[14px] text-muted-foreground" style={{ fontVariant: ['tabular-nums'] }}>{note}</Text>}
     </View>
     <Pressable

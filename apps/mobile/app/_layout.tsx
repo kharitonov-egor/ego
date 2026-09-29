@@ -3,6 +3,7 @@ import React from 'react'
 import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { SettingsProvider } from '../lib/settings'
+import { BlurProvider } from '../lib/blur'
 import { MoneyProvider } from '../lib/money-context'
 import { LedgerProvider } from '../lib/ledger-context'
 import { PeriodProvider } from '../lib/period-context'
@@ -13,40 +14,42 @@ import { RestTimerProvider } from '../lib/rest-timer'
 export default function RootLayout(): React.ReactElement {
   return (
     <SettingsProvider>
-      <LedgerProvider>
-        <MoneyProvider>
-          <GymProvider>
-            <RestTimerProvider>
-              <PeriodProvider>
-                <ReminderProvider>
-                  <StatusBar style="light" />
-                  <Stack
-                    screenOptions={{
-                      headerStyle: { backgroundColor: '#0a0a0a' },
-                      headerTintColor: '#fafafa',
-                      headerTitleStyle: { fontSize: 17, fontWeight: '700' },
-                      contentStyle: { backgroundColor: '#0a0a0a' }
-                    }}
-                  >
-                    <Stack.Screen name="index" options={{ headerShown: false }} />
-                    <Stack.Screen name="(money)" options={{ headerShown: false }} />
-                    <Stack.Screen name="gym" options={{ headerShown: false }} />
-                    <Stack.Screen name="health" options={{ headerShown: false }} />
-                    <Stack.Screen name="mood" options={{ title: 'Mood', headerTitleAlign: 'center' }} />
-                    <Stack.Screen name="diary" options={{ title: 'Diary', headerTitleAlign: 'center' }} />
-                    <Stack.Screen name="(study)" options={{ headerShown: false }} />
-                    <Stack.Screen name="(habits)" options={{ headerShown: false }} />
-                    <Stack.Screen name="capture" options={{ title: 'New Trello card' }} />
-                    <Stack.Screen name="settings" options={{ title: 'Settings' }} />
-                    <Stack.Screen name="auth" options={{ title: 'Sign in', headerShown: false }} />
-                    <Stack.Screen name="ai" options={{ title: 'AI', headerTitleAlign: 'center' }} />
-                  </Stack>
-                </ReminderProvider>
-              </PeriodProvider>
-            </RestTimerProvider>
-          </GymProvider>
-        </MoneyProvider>
-      </LedgerProvider>
+      <BlurProvider>
+        <LedgerProvider>
+          <MoneyProvider>
+            <GymProvider>
+              <RestTimerProvider>
+                <PeriodProvider>
+                  <ReminderProvider>
+                    <StatusBar style="light" />
+                    <Stack
+                      screenOptions={{
+                        headerStyle: { backgroundColor: '#0a0a0a' },
+                        headerTintColor: '#fafafa',
+                        headerTitleStyle: { fontSize: 17, fontWeight: '700' },
+                        contentStyle: { backgroundColor: '#0a0a0a' }
+                      }}
+                    >
+                      <Stack.Screen name="index" options={{ headerShown: false }} />
+                      <Stack.Screen name="(money)" options={{ headerShown: false }} />
+                      <Stack.Screen name="gym" options={{ headerShown: false }} />
+                      <Stack.Screen name="health" options={{ headerShown: false }} />
+                      <Stack.Screen name="mood" options={{ title: 'Mood', headerTitleAlign: 'center' }} />
+                      <Stack.Screen name="diary" options={{ title: 'Diary', headerTitleAlign: 'center' }} />
+                      <Stack.Screen name="(study)" options={{ headerShown: false }} />
+                      <Stack.Screen name="(habits)" options={{ headerShown: false }} />
+                      <Stack.Screen name="capture" options={{ title: 'New Trello card' }} />
+                      <Stack.Screen name="settings" options={{ title: 'Settings' }} />
+                      <Stack.Screen name="auth" options={{ title: 'Sign in', headerShown: false }} />
+                      <Stack.Screen name="ai" options={{ title: 'AI', headerTitleAlign: 'center' }} />
+                    </Stack>
+                  </ReminderProvider>
+                </PeriodProvider>
+              </RestTimerProvider>
+            </GymProvider>
+          </MoneyProvider>
+        </LedgerProvider>
+      </BlurProvider>
     </SettingsProvider>
   )
 }
