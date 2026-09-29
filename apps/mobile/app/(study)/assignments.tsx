@@ -15,6 +15,7 @@ import {
   type StudyView
 } from '../../lib/study/schedule'
 import type { StudyItem } from '../../lib/study/store'
+import { useBlurText } from '../../lib/blur'
 
 const VIEW_OPTIONS = [{ value: 'upcoming', label: 'Upcoming' }, { value: 'past', label: 'Past' }] as const
 
@@ -24,12 +25,14 @@ function updatedLabel(fetchedAt: string): string {
   return localDay(at) === localDay(new Date()) ? time : `${at.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}, ${time}`
 }
 
-function CourseChip({ label, tint, selected, onPress }: {
+function CourseChip({ label, tint, selected, personal = false, onPress }: {
   label: string
   tint?: string
   selected: boolean
+  personal?: boolean
   onPress: () => void
 }): React.ReactElement {
+  const blur = useBlurText()
   return <Pressable
     accessibilityRole="button"
     accessibilityState={{ selected }}
@@ -38,7 +41,10 @@ function CourseChip({ label, tint, selected, onPress }: {
     className={`flex-row items-center rounded-full border px-3.5 ${selected ? 'border-primary bg-primary' : 'border-surface-700 bg-surface-900 active:bg-surface-800'}`}
   >
     {tint && <View className="mr-2 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: tint }} />}
-    <Text className={`text-[14px] font-semibold ${selected ? 'text-primary-foreground' : 'text-surface-300'}`}>{label}</Text>
+    <Text
+      className={`text-[14px] font-semibold ${selected ? 'text-primary-foreground' : 'text-surface-300'}`}
+      style={personal ? blur(selected ? '#0a0a0a' : '#d4d4d4', 5) : undefined}
+    >{label}</Text>
   </Pressable>
 }
 
@@ -99,7 +105,7 @@ function AssignmentList(): React.ReactElement {
     </View>
     {courses.length > 1 && <View className="flex-row flex-wrap gap-2 px-4 pt-2.5">
       <CourseChip label="All" selected={course === null} onPress={() => setCourse(null)} />
-      {courses.map((code) => <CourseChip key={code} label={code} tint={tintOf(code)} selected={course === code} onPress={() => setCourse(course === code ? null : code)} />)}
+      {courses.map((code) => <CourseChip key={code} label={code} tint={tintOf(code)} selected={course === code} personal onPress={() => setCourse(course === code ? null : code)} />)}
     </View>}
     <View className="flex-row px-4 pt-1">
       <Checkbox
@@ -142,7 +148,7 @@ function AssignmentList(): React.ReactElement {
         />
       </View>}
     />
-    <Sheet visible={open !== null} title={open?.title ?? ''} onClose={() => setOpenId(null)} dismissOnBackdrop>
+    <Sheet visible={open !== null} title={open?.title ?? ''} onClose={() => setOpenId(null)} dismissOnBackdrop privateTitle>
       {open && <AssignmentDetail item={open} tint={tintOf(open.course)} overdue={isOverdue(open, now)} onToggle={(done) => void setDone(open.id, done)} />}
     </Sheet>
   </View>

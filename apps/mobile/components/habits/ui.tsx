@@ -5,6 +5,7 @@ import { ListChecks, Plus, TriangleAlert, X, type LucideIcon } from 'lucide-reac
 import type { HabitKind } from '@ego/core'
 import { useHabits } from '../../lib/habits/context'
 import { useLedger } from '../../lib/ledger-context'
+import { BlurBlob, useBlur } from '../../lib/blur'
 import { ConflictEntries } from '../ConflictEntries'
 import { HeaderIcon } from '../gym/ui'
 import { BottomSheet } from '../money/Common'
@@ -13,11 +14,14 @@ import { Button } from '../ui/button'
 import { Text as UiText } from '../ui/text'
 
 export function HabitIcon({ icon, size = 44 }: { icon: string; size?: number }): React.ReactElement {
+  const { blurred } = useBlur()
   return <View
     className="items-center justify-center rounded-2xl border border-surface-800 bg-surface-900"
     style={{ width: size, height: size }}
   >
-    <Text style={{ fontSize: Math.round(size * 0.5), color: '#fafafa' }}>{icon}</Text>
+    {blurred
+      ? <BlurBlob size={Math.round(size * 0.5)} />
+      : <Text style={{ fontSize: Math.round(size * 0.5), color: '#fafafa' }}>{icon}</Text>}
   </View>
 }
 

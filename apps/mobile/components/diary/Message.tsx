@@ -12,9 +12,11 @@ import { useChat } from './context'
 import { MediaGrid, VISUAL_KINDS } from './MediaGrid'
 import { RichText } from './RichText'
 import { Sticker, VideoNote } from './Standalone'
-import { BUBBLE_WIDTH, ink } from './theme'
+import { BUBBLE_WIDTH, MESSAGE_GUTTER, ink } from './theme'
 
 const REPLY_DISTANCE = 64
+/** The retry icon and its gap, which a failed message gives up from its width. */
+const RETRY_SPACE = 26
 
 /** Drag a bubble left to reply, the way Telegram does. Vertical drags stay with the list. */
 function SwipeToReply({ onReply, children }: { onReply: () => void; children: React.ReactNode }): React.ReactElement {
@@ -135,6 +137,7 @@ function MessageView({ message, replyTarget, highlighted, onLongPress, onReply, 
     ? message.attachments[0]
     : null
   const standalone = lone && (lone.kind === 'sticker' || lone.kind === 'videoNote') ? lone : null
+  const width = BUBBLE_WIDTH - (message.delivery === 'failed' ? RETRY_SPACE : 0)
   const longPress = (): void => {
     Vibration.vibrate(10)
     onLongPress(message)
@@ -149,21 +152,18 @@ function MessageView({ message, replyTarget, highlighted, onLongPress, onReply, 
       onLongPress={longPress}
       delayLongPress={280}
       style={{
-        width: visual.length > 0 ? BUBBLE_WIDTH : undefined,
-        maxWidth: BUBBLE_WIDTH,
-        minWidth: 96,
+        width,
         backgroundColor: highlighted ? ink.flash : ink.bubble,
         borderColor: ink.bubbleEdge,
         borderWidth: 1,
         borderRadius: 18,
-        borderBottomRightRadius: 6,
         overflow: 'hidden'
       }}
     >
       {message.forwarded && <Forwarded from={message.forwardedFrom} />}
       {replyTarget !== undefined && <ReplyQuote target={replyTarget} onJump={onJump} />}
       {visual.length > 0 && <View style={{ marginTop: message.forwarded || replyTarget !== undefined ? 6 : 0 }}>
-        <MediaGrid messageId={message.id} attachments={visual} width={BUBBLE_WIDTH - 2} onLongPress={longPress} />
+        <MediaGrid messageId={message.id} attachments={visual} width={width - 2} onLongPress={longPress} />
         {!hasText && others.length === 0 && <View style={{ position: 'absolute', right: 8, bottom: 8 }}><Meta message={message} onMedia /></View>}
       </View>}
       {others.length > 0 && <View style={{ paddingHorizontal: 10, paddingTop: 8, gap: 6 }}>
@@ -177,7 +177,7 @@ function MessageView({ message, replyTarget, highlighted, onLongPress, onReply, 
     </Pressable>
 
   return <SwipeToReply onReply={() => onReply(message)}>
-    <View style={{ paddingHorizontal: 10, paddingVertical: 3, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'flex-end', gap: 6 }}>
+    <View style={{ paddingHorizontal: MESSAGE_GUTTER, paddingVertical: 3, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'flex-end', gap: 6 }}>
       {message.delivery === 'failed' && <Pressable
         accessibilityRole="button"
         accessibilityLabel="This message did not send. Try again"

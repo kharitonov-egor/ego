@@ -16,7 +16,8 @@ import { PeriodBar } from '../../components/money/PeriodBar'
 import { PeriodSwipe } from '../../components/money/PeriodSwipe'
 import { usePeriod } from '../../lib/period-context'
 import { useRouter } from 'expo-router'
-import { tabular } from '../../components/money/tokens'
+import { color, tabular } from '../../components/money/tokens'
+import { useBlurText } from '../../lib/blur'
 
 const KIND_OPTIONS = [{ value: 'expense', label: 'Expense' }, { value: 'income', label: 'Income' }] as const
 
@@ -60,6 +61,7 @@ function CategoryNode({ category, amount, total, onOpen, onEdit }: {
   onOpen: () => void
   onEdit: () => void
 }): React.ReactElement {
+  const blur = useBlurText()
   const percent = total > 0 ? Math.round(amount / total * 100) : 0
   return <Pressable
     accessibilityRole="button"
@@ -74,8 +76,8 @@ function CategoryNode({ category, amount, total, onOpen, onEdit }: {
     <View className="h-12 w-12 items-center justify-center rounded-full" style={{ backgroundColor: amount > 0 ? category.color : alpha(category.color, '33') }}>
       <MoneyIcon name={category.icon} color={amount > 0 ? '#ffffff' : category.color} size={19} />
     </View>
-    <Text numberOfLines={1} adjustsFontSizeToFit className="mt-2 text-center text-[14px] font-bold text-surface-100" style={tabular}>{money(amount)}</Text>
-    <Text numberOfLines={1} className="text-center text-[14px] text-surface-500" style={tabular}>{percent}%</Text>
+    <Text numberOfLines={1} adjustsFontSizeToFit className="mt-2 text-center text-[14px] font-bold text-surface-100" style={[tabular, blur()]}>{money(amount)}</Text>
+    <Text numberOfLines={1} className="text-center text-[14px] text-surface-500" style={[tabular, blur(color.textFaint)]}>{percent}%</Text>
   </Pressable>
 }
 
@@ -97,6 +99,7 @@ function CategoryDonut({ mode, categories, totals, total, oppositeTotal, onToggl
   oppositeTotal: number
   onToggle: () => void
 }): React.ReactElement {
+  const blur = useBlurText()
   const radius = 68
   const circumference = 2 * Math.PI * radius
   const active = categories.filter((category) => (totals.get(category.id) ?? 0) > 0)
@@ -131,8 +134,8 @@ function CategoryDonut({ mode, categories, totals, total, oppositeTotal, onToggl
   >
     <Svg width={172} height={172} viewBox="0 0 172 172" className="absolute"><Circle cx="86" cy="86" r={radius} fill="none" stroke="#262626" strokeWidth="11" />{segments}</Svg>
     <Text className="text-[14px] font-semibold capitalize text-surface-300">{mode}</Text>
-    <Text className={`mt-0.5 text-[24px] font-bold ${income ? 'text-positive' : 'text-surface-50'}`} style={tabular}>{money(total)}</Text>
-    <Text className="mt-1 text-[14px] text-surface-400">{income ? 'Expenses' : 'Income'} {money(oppositeTotal)}</Text>
+    <Text className={`mt-0.5 text-[24px] font-bold ${income ? 'text-positive' : 'text-surface-50'}`} style={[tabular, blur(income ? color.positive : undefined, 8)]}>{money(total)}</Text>
+    <Text className="mt-1 text-[14px] text-surface-400">{income ? 'Expenses' : 'Income'} <Text style={blur(color.textMuted)}>{money(oppositeTotal)}</Text></Text>
   </Pressable>
 }
 

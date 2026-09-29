@@ -12,16 +12,19 @@ import { Button } from '../../components/ui/button'
 import { Card } from '../../components/ui/card'
 import { Text as UiText } from '../../components/ui/text'
 import { noteTitle, transactionTitle } from '../../lib/transaction-title'
+import { useBlurText } from '../../lib/blur'
 
-function Row({ label, value, first = false }: { label: string; value: string; first?: boolean }): React.ReactElement {
+function Row({ label, value, first = false, amount = false }: { label: string; value: string; first?: boolean; amount?: boolean }): React.ReactElement {
+  const blur = useBlurText()
   return <View style={{ minHeight: TOUCH + 8 }} className={`flex-row items-center justify-between px-5 py-3.5 ${first ? '' : 'border-t border-surface-800'}`}>
     <Text className="text-[15px] text-surface-400">{label}</Text>
-    <Text className="ml-4 flex-1 text-right text-[17px] leading-6 text-foreground">{value}</Text>
+    <Text className="ml-4 flex-1 text-right text-[17px] leading-6 text-foreground" style={amount ? blur() : undefined}>{value}</Text>
   </View>
 }
 
 export default function TransactionDetail(): React.ReactElement {
   const ledger = useLedger()
+  const blur = useBlurText()
   const router = useRouter()
   const params = useLocalSearchParams<{ id?: string }>()
   const [transaction, setTransaction] = useState<LocalFeedTransaction | null>(null)
@@ -98,7 +101,7 @@ export default function TransactionDetail(): React.ReactElement {
         <Text
           accessibilityLabel={`${transaction.kind} of ${money(transaction.amountCents)}`}
           className="mt-1 text-[40px] font-bold tracking-tight"
-          style={{ color: amountColor(transaction.kind) }}
+          style={[{ color: amountColor(transaction.kind) }, blur(amountColor(transaction.kind), 12)]}
         >{sign}{money(transaction.amountCents)}</Text>
         {transaction.pending !== 'none' && <Text className={`mt-1.5 text-[14px] ${transaction.pending === 'pending' ? 'text-surface-400' : 'text-amber-300'}`}>
           {transaction.pending === 'pending' ? 'Pending. Waiting for the server.' : 'Needs attention. Review it in Activity.'}
@@ -120,7 +123,7 @@ export default function TransactionDetail(): React.ReactElement {
           <Text className="ml-2 text-[17px] font-semibold text-foreground">Receipt</Text>
         </View>
         <Row label="Merchant" value={transaction.merchant ?? heading} />
-        <Row label="Receipt total" value={money(receiptTotal ?? transaction.amountCents)} />
+        <Row label="Receipt total" value={money(receiptTotal ?? transaction.amountCents)} amount />
         <Pressable
           accessibilityRole="button"
           onPress={() => router.push({ pathname: '/(money)/purchases', params: { purchaseId: transaction.purchaseId ?? '' } })}
