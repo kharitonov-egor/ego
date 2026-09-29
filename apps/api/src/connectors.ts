@@ -342,6 +342,7 @@ export async function wisprToolConfiguration(env: Env, datasetId: string): Promi
 interface GoogleTokenResponse {
   access_token?: string
   refresh_token?: string
+  id_token?: string
   expires_in?: number
   scope?: string
   token_type?: string
@@ -379,7 +380,7 @@ function hasExactGoogleScopes(value: string | undefined): boolean {
   return actual.length === expected.length && expected.every((scope, index) => actual[index] === scope)
 }
 
-async function exchangeGoogleToken(body: URLSearchParams, env: Env): Promise<GoogleTokenResponse | null> {
+export async function exchangeGoogleToken(body: URLSearchParams, env: Env): Promise<GoogleTokenResponse | null> {
   if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) return null
   body.set('client_id', env.GOOGLE_CLIENT_ID)
   body.set('client_secret', env.GOOGLE_CLIENT_SECRET)

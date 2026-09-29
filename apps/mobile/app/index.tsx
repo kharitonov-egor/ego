@@ -3,7 +3,7 @@ import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'rea
 import { useRouter, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
-  CircleCheckBig, Dumbbell, GraduationCap, HeartPulse, Settings, Wallet, type LucideIcon
+  CircleCheckBig, Dumbbell, GraduationCap, HeartPulse, Settings, Smile, Wallet, type LucideIcon
 } from 'lucide-react-native'
 import appIcon from '../assets/app-icon.png'
 import { SignInPanel } from '../components/SignInPanel'
@@ -19,6 +19,7 @@ const APPS: readonly App[] = [
   { label: 'Finance', Icon: Wallet, href: '/(money)/overview' },
   { label: 'Gym', Icon: Dumbbell, href: '/gym' },
   { label: 'Health', Icon: HeartPulse, href: '/health' },
+  { label: 'Mood', Icon: Smile, href: '/mood' },
   { label: 'Study', Icon: GraduationCap, href: '/(study)/assignments' },
   { label: 'Habits', Icon: CircleCheckBig, href: '/(habits)/home' }
 ]

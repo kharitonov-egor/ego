@@ -31,7 +31,8 @@ export default function RootLayout(): React.ReactElement {
                     <Stack.Screen name="index" options={{ headerShown: false }} />
                     <Stack.Screen name="(money)" options={{ headerShown: false }} />
                     <Stack.Screen name="gym" options={{ headerShown: false }} />
-                    <Stack.Screen name="health" options={{ title: 'Health', headerTitleAlign: 'center' }} />
+                    <Stack.Screen name="health" options={{ headerShown: false }} />
+                    <Stack.Screen name="mood" options={{ title: 'Mood', headerTitleAlign: 'center' }} />
                     <Stack.Screen name="(study)" options={{ headerShown: false }} />
                     <Stack.Screen name="(habits)" options={{ headerShown: false }} />
                     <Stack.Screen name="capture" options={{ title: 'New Trello card' }} />

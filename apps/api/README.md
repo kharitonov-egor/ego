@@ -26,6 +26,10 @@ All routes except `/v1/health`, the two sign-in routes, and the two OAuth callba
 | `GET /v1/trello/boards/:id/lists` | Lists on one board |
 | `POST /v1/trello/cards` | Creates a card |
 | `POST /v1/trello/cards/:id/attachments` | Forwards one file up to 10 MB to a card |
+| `GET /v1/health/data` | Google Health rows in D1 that changed after `since`, plus the connection state |
+| `POST /v1/health/sync` | Pulls from Google Health unless a pull just ran, then answers like `/v1/health/data` |
+| `POST /v1/health/connect` | Starts Google OAuth with the read-only Google Health scopes |
+| `DELETE /v1/health/connection` | Revokes the Google Health grant and stops syncing. Synced days stay |
 | `GET /v1/reference` | Accounts and categories, including archived ones, plus the server sequence |
 | `GET /v1/transactions` | Up to 50 feed rows, a next cursor, the matching count, and the query identity |
 | `GET /v1/transactions/:id` | One transaction with its receipt linkage |
@@ -93,6 +97,23 @@ npm run deploy --workspace @ego/api
 
 Migrations are additive so the current desktop and mobile clients keep working against the same
 tables during the migration.
+
+## Google Health
+
+The phone connects Google Health from its Health app. The Worker requests the read-only
+`activity_and_fitness`, `health_metrics_and_measurements`, `sleep`, and `settings` scopes on the
+same Google OAuth client and redirect URI as sign-in, then sends the browser to `ego://health`.
+The Worker encrypts the refresh token with the connector key and keeps it in `health_connections`.
+
+A cron trigger runs every 15 minutes. Each run reads the last ten days again, because a band syncs
+late, and one more 84-day slice of history until a year is in D1. That keeps a run at about 30
+Google requests. Rows land in `health_days`, `health_sleeps`, and `health_heart` through one
+`json_each` statement per table, and only a changed row gets a new `updated_at`, which is how the
+phone downloads just the difference. A run takes a lock in `sync_started_at`, so the cron and the
+phone never pull at the same time.
+
+Google's testing mode expires refresh tokens after seven days. Keep the OAuth consent screen in
+production. An unverified app is fine for a single user.
 
 ## Talk to AI
 

@@ -27,7 +27,8 @@ const SERVICES: Array<{ key: keyof ServiceStatus; label: string; secret: string 
   { key: 'trello', label: 'Trello', secret: 'TRELLO_API_KEY and TRELLO_TOKEN' },
   { key: 'voice', label: 'Talk to AI voice', secret: 'OPENAI_API_KEY' },
   { key: 'google', label: 'Gmail and Drive', secret: 'Connect from the desktop app' },
-  { key: 'canvas', label: 'Canvas calendar', secret: 'CANVAS_CALENDAR_URL' }
+  { key: 'canvas', label: 'Canvas calendar', secret: 'CANVAS_CALENDAR_URL' },
+  { key: 'googleHealth', label: 'Google Health', secret: 'Connect from the Health app' }
 ]
 
 const HOUR_VALUES = REMINDER_HOURS.map(String)
