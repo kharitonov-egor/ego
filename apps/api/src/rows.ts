@@ -1,10 +1,12 @@
-import type {
-  AccountKind, CategoryKind, DistanceUnit, ExerciseType, ExerciseWeightUnit, HabitEntryKind, HabitKind,
-  HabitPeriod, MoneyPurchase, MoodLevel, ReceiptItem, TransactionKind, WeightUnit
+import {
+  isDiaryAttachment,
+  type AccountKind, type CategoryKind, type DiaryAttachment, type DiaryEntity, type DiarySource, type DistanceUnit,
+  type ExerciseType, type ExerciseWeightUnit, type HabitEntryKind, type HabitKind, type HabitPeriod,
+  type MoneyPurchase, type MoodLevel, type ReceiptItem, type TransactionKind, type WeightUnit
 } from '@ego/core'
 import type {
-  AccountRecord, BudgetRecord, CategoryRecord, FeedTransaction, GymCategoryRecord, GymExerciseRecord,
-  GymSetRecord, GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord, PurchaseRecord,
+  AccountRecord, BudgetRecord, CategoryRecord, DiaryMessageRecord, FeedTransaction, GymCategoryRecord,
+  GymExerciseRecord, GymSetRecord, GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord, PurchaseRecord,
   TransactionRecord
 } from '@ego/api-contracts'
 
@@ -328,6 +330,47 @@ export function toHabitRecord(row: HabitRow): HabitRecord {
 export function toHabitEntryRecord(row: HabitEntryRow): HabitEntryRecord {
   return {
     id: row.id, habitId: row.habit_id, date: row.date, kind: row.kind, loggedAt: row.logged_at,
+    createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
+  }
+}
+
+export interface DiaryMessageRow {
+  id: string
+  sent_at: string
+  text: string
+  entities: string
+  attachments: string
+  reply_to_id: string | null
+  forwarded: number
+  forwarded_from: string | null
+  pinned_at: string | null
+  edited_at: string | null
+  source: DiarySource
+  created_at: string
+  updated_at: string
+  revision: number
+}
+
+function jsonList(raw: string): unknown[] {
+  try {
+    const value: unknown = JSON.parse(raw)
+    return Array.isArray(value) ? value : []
+  } catch {
+    return []
+  }
+}
+
+function isEntityShape(value: unknown): value is DiaryEntity {
+  return typeof value === 'object' && value !== null && 'type' in value && 'offset' in value && 'length' in value
+}
+
+export function toDiaryMessageRecord(row: DiaryMessageRow): DiaryMessageRecord {
+  return {
+    id: row.id, sentAt: row.sent_at, text: row.text,
+    entities: jsonList(row.entities).filter(isEntityShape),
+    attachments: jsonList(row.attachments).filter((item): item is DiaryAttachment => isDiaryAttachment(item)),
+    replyToId: row.reply_to_id, forwarded: row.forwarded === 1, forwardedFrom: row.forwarded_from,
+    pinnedAt: row.pinned_at, editedAt: row.edited_at, source: row.source,
     createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
   }
 }

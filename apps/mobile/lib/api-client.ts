@@ -1,5 +1,6 @@
 import type {
-  AccountBalances, ApiError, ApiErrorCode, ApiResult, BootstrapData, ChangePage, FeedCursor,
+  AccountBalances, ApiError, ApiErrorCode, ApiResult, BootstrapData, ChangePage, DiaryMediaInfo, DiaryMultipartPart,
+  DiaryMultipartStart, FeedCursor,
   HealthConnectStart, HealthSnapshot, MoneyAgentRequest, MoneyAgentResponse, OperationResponse, ReceiptDetail, ReferenceData,
   SessionInfo, SignInResult, SignInStartResult, StudyAssignmentList, StudyMark, SyncOperation,
   TransactionFilters, TransactionPage, TrelloCardRequest, TrelloCardResponse
@@ -38,7 +39,19 @@ export interface HealthApi {
   healthDisconnect: () => Promise<ApiResult<{ disconnected: true }>>
 }
 
-export interface EgoApi extends MoneyApi, StudyApi, HealthApi {
+/**
+ * Diary files. Players and image loaders fetch them by URL with the device token in a header;
+ * uploads stream straight from disk to these URLs.
+ */
+export interface DiaryMediaApi {
+  diaryMediaUrl: (mediaId: string) => string
+  diaryPartUrl: (mediaId: string, uploadId: string, partNumber: number) => string
+  authHeaders: () => Record<string, string>
+  diaryMultipartStart: (mediaId: string, contentType: string) => Promise<ApiResult<DiaryMultipartStart>>
+  diaryMultipartComplete: (mediaId: string, uploadId: string, parts: DiaryMultipartPart[]) => Promise<ApiResult<DiaryMediaInfo>>
+}
+
+export interface EgoApi extends MoneyApi, StudyApi, HealthApi, DiaryMediaApi {
   session: () => Promise<ApiResult<SessionInfo>>
   signOut: () => Promise<ApiResult<{ signedOut: true }>>
   moneyAgent: (request: MoneyAgentRequest) => Promise<ApiResult<MoneyAgentResponse>>
@@ -67,6 +80,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isKnownCode(value: unknown): value is ApiErrorCode {
   return typeof value === 'string' && (KNOWN_CODES as readonly string[]).includes(value)
+}
+
+/** Reads a response body the Worker wrote, for callers that fetch outside `send`, like a native upload. */
+export function resultFrom<T>(status: number, body: string): ApiResult<T> {
+  let payload: unknown
+  try {
+    payload = JSON.parse(body)
+  } catch {
+    return { ok: false, error: errorFrom(null, status) }
+  }
+  if (status < 200 || status >= 300 || !isRecord(payload) || payload.ok !== true) {
+    return { ok: false, error: errorFrom(payload, status) }
+  }
+  return { ok: true, data: payload.data as T }
 }
 
 function errorFrom(value: unknown, status: number): ApiError {
@@ -153,7 +180,23 @@ export function moneyApiFor(config: ApiConfig): EgoApi {
     return send<T>(base, token, path, options)
   }
 
+  const mediaPath = (mediaId: string): string => `/v1/diary/media/${encodeURIComponent(mediaId)}`
+
   return {
+    diaryMediaUrl: (mediaId) => `${base}${mediaPath(mediaId)}`,
+    diaryPartUrl: (mediaId, uploadId, partNumber) =>
+      `${base}${mediaPath(mediaId)}/multipart/${encodeURIComponent(uploadId)}/${partNumber}`,
+    authHeaders: (): Record<string, string> => (token ? { authorization: `Bearer ${token}` } : {}),
+    diaryMultipartStart: (mediaId, contentType) => call<DiaryMultipartStart>(`${mediaPath(mediaId)}/multipart`, {
+      method: 'POST',
+      body: JSON.stringify({ contentType })
+    }),
+    diaryMultipartComplete: (mediaId, uploadId, parts) =>
+      call<DiaryMediaInfo>(`${mediaPath(mediaId)}/multipart/${encodeURIComponent(uploadId)}/complete`, {
+        method: 'POST',
+        body: JSON.stringify({ parts }),
+        timeoutMs: SLOW_REQUEST_TIMEOUT_MS
+      }),
     reference: () => call<ReferenceData>('/v1/reference'),
     bootstrap: () => call<BootstrapData>('/v1/bootstrap', { timeoutMs: SLOW_REQUEST_TIMEOUT_MS }),
     transactions: (filters, cursor, limit) =>

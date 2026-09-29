@@ -3,7 +3,7 @@ import {
   BALANCES_SQL, FEED_COLUMNS, FEED_FROM, budgetTotalsSql, feedCountSql, feedPageSql, notFound,
   summarySql, transactionQueryIdentity,
   type AccountBalances, type ApiResult, type BootstrapData, type ChangePage, type ChangeRecord, type FeedCursor,
-  type AccountRecord, type BudgetRecord, type CategoryRecord, type ChangePayload,
+  type AccountRecord, type BudgetRecord, type CategoryRecord, type ChangePayload, type DiaryMessageRecord,
   type GymCategoryRecord, type GymExerciseRecord, type GymSetRecord, type GymWorkoutRecord,
   type HabitEntryRecord, type HabitRecord, type MoodRecord,
   type PeriodSummary, type PurchaseRecord, type ReceiptDetail, type ReferenceData,
@@ -11,10 +11,10 @@ import {
 } from '@ego/api-contracts'
 import type { MoneySnapshot } from '@ego/core'
 import {
-  toAccountRecord, toBudgetRecord, toCategoryRecord, toFeedTransaction, toGymCategoryRecord,
+  toAccountRecord, toBudgetRecord, toCategoryRecord, toDiaryMessageRecord, toFeedTransaction, toGymCategoryRecord,
   toGymExerciseRecord, toGymSetRecord, toGymWorkoutRecord, toHabitEntryRecord, toHabitRecord, toMoodRecord,
   toPurchaseRecord, toReceiptItem, toTransactionRecord,
-  type AccountRow, type BudgetAllocationRow, type BudgetRow, type CategoryRow, type FeedRow,
+  type AccountRow, type BudgetAllocationRow, type BudgetRow, type CategoryRow, type DiaryMessageRow, type FeedRow,
   type GymCategoryRow, type GymExerciseRow, type GymSetRow, type GymWorkoutRow, type HabitEntryRow,
   type HabitRow, type MoodRow, type PurchaseRow, type ReceiptItemRow, type TransactionRow
 } from './rows'
@@ -172,6 +172,7 @@ function toChangePayload(entity: ChangeRow['entity'], record: unknown): ChangePa
     case 'mood': return { entity, record: record as MoodRecord | null }
     case 'habit': return { entity, record: record as HabitRecord | null }
     case 'habitEntry': return { entity, record: record as HabitEntryRecord | null }
+    case 'diaryMessage': return { entity, record: record as DiaryMessageRecord | null }
   }
 }
 
@@ -256,7 +257,7 @@ async function readLiveRecords(db: D1Database): Promise<LiveRecords> {
  */
 export async function readBootstrap(db: D1Database): Promise<BootstrapData> {
   const sequence = await serverSequence(db)
-  const [records, gymCategories, gymExercises, gymSets, gymWorkouts, moods, habits, habitEntries] = await Promise.all([
+  const [records, gymCategories, gymExercises, gymSets, gymWorkouts, moods, habits, habitEntries, diaryMessages] = await Promise.all([
     readLiveRecords(db),
     query<GymCategoryRow>(db, 'SELECT * FROM gym_categories WHERE deleted_at IS NULL ORDER BY name COLLATE NOCASE'),
     query<GymExerciseRow>(db, 'SELECT * FROM gym_exercises WHERE deleted_at IS NULL ORDER BY name COLLATE NOCASE'),
@@ -264,7 +265,8 @@ export async function readBootstrap(db: D1Database): Promise<BootstrapData> {
     query<GymWorkoutRow>(db, 'SELECT * FROM gym_workouts WHERE deleted_at IS NULL ORDER BY id'),
     query<MoodRow>(db, 'SELECT * FROM mood_entries WHERE deleted_at IS NULL ORDER BY date DESC'),
     query<HabitRow>(db, 'SELECT * FROM habits WHERE deleted_at IS NULL ORDER BY position, created_at'),
-    query<HabitEntryRow>(db, 'SELECT * FROM habit_entries WHERE deleted_at IS NULL ORDER BY date, created_at')
+    query<HabitEntryRow>(db, 'SELECT * FROM habit_entries WHERE deleted_at IS NULL ORDER BY date, created_at'),
+    query<DiaryMessageRow>(db, 'SELECT * FROM diary_messages WHERE deleted_at IS NULL ORDER BY sent_at, id')
   ])
   return {
     serverSequence: sequence,
@@ -279,7 +281,8 @@ export async function readBootstrap(db: D1Database): Promise<BootstrapData> {
     gymWorkouts: gymWorkouts.map(toGymWorkoutRecord),
     moods: moods.map(toMoodRecord),
     habits: habits.map(toHabitRecord),
-    habitEntries: habitEntries.map(toHabitEntryRecord)
+    habitEntries: habitEntries.map(toHabitEntryRecord),
+    diaryMessages: diaryMessages.map(toDiaryMessageRecord)
   }
 }
 

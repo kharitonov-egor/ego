@@ -30,6 +30,11 @@ All routes except `/v1/health`, the two sign-in routes, and the two OAuth callba
 | `POST /v1/health/sync` | Pulls from Google Health unless a pull just ran, then answers like `/v1/health/data` |
 | `POST /v1/health/connect` | Starts Google OAuth with the read-only Google Health scopes |
 | `DELETE /v1/health/connection` | Revokes the Google Health grant and stops syncing. Synced days stay |
+| `PUT /v1/diary/media/:id` | Stores one diary file up to 95 MB in R2. The same ID again returns the stored file |
+| `POST /v1/diary/media/:id/multipart` | Starts a larger upload, or returns the file if it is already stored |
+| `PUT /v1/diary/media/:id/multipart/:upload/:part` | Stores one part of a larger upload |
+| `POST /v1/diary/media/:id/multipart/:upload/complete` | Joins the parts into the file |
+| `GET /v1/diary/media/:id` | Streams a diary file, with byte ranges for seeking. `HEAD` says whether it exists |
 | `GET /v1/reference` | Accounts and categories, including archived ones, plus the server sequence |
 | `GET /v1/transactions` | Up to 50 feed rows, a next cursor, the matching count, and the query identity |
 | `GET /v1/transactions/:id` | One transaction with its receipt linkage |
@@ -81,6 +86,12 @@ delete; `gymWorkout`, keyed by its date, takes save. Deleting an exercise keeps 
 them from every read, and a category with live exercises cannot be deleted. Migration `0005` adds
 the tables and rebuilds `changes` without the CHECK that listed entity names, so another app can
 join the change log without rebuilding it again.
+
+`diaryMessage` takes create, update, and delete. A message carries its formatting and attachments
+as JSON, and every media ID it names, previews and custom emoji included, must already have a row
+in `diary_media`. The Worker writes that row only after R2 has the whole file, so a message can
+never point at a file that is not there. An attachment whose `mediaId` is null is a file that never
+reached Ego, like a video Telegram left out of an export.
 
 Each command runs as one D1 batch. The statements that carry out the command share one
 precondition and run before the primary write, so a command either commits with its change-log
