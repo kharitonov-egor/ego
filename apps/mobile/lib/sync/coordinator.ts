@@ -1,5 +1,5 @@
 import {
-  MAX_OPERATIONS_PER_REQUEST, isGymEntity, isHabitEntity, isHealthEntity,
+  MAX_OPERATIONS_PER_REQUEST, isDiaryEntity, isGymEntity, isHabitEntity, isHealthEntity,
   type ApiError, type ChangeRecord, type OperationOutcome, type SyncEntity
 } from '@ego/api-contracts'
 import type { MoneyApi } from '../api-client'
@@ -10,11 +10,21 @@ import {
   markConflict, markFailed, readyOperations, scheduleRetry, toOperation
 } from './outbox'
 
+export interface MediaUploadRun {
+  error: ApiError | null
+  paused: boolean
+  uploaded: number
+  /** Queued messages whose last file just finished, now ready to deliver. */
+  released: number
+}
+
 export interface SyncDeps {
   db: LocalDatabase
   api: MoneyApi
   now: () => string
   random?: () => number
+  /** Sends files that queued messages are waiting on, before the messages go out. */
+  uploadMedia?: () => Promise<MediaUploadRun>
 }
 
 export type SyncState = 'synced' | 'pending' | 'attention' | 'paused' | 'offline'
@@ -25,6 +35,7 @@ export interface Touched {
   gym: boolean
   health: boolean
   habits: boolean
+  diary: boolean
 }
 
 export interface SyncOutcome {
@@ -38,12 +49,13 @@ export interface SyncOutcome {
   touched: Touched
 }
 
-const NOTHING_TOUCHED: Touched = { money: false, gym: false, health: false, habits: false }
+const NOTHING_TOUCHED: Touched = { money: false, gym: false, health: false, habits: false, diary: false }
 
 function touch(touched: Touched, entity: SyncEntity): void {
   if (isGymEntity(entity)) touched.gym = true
   else if (isHealthEntity(entity)) touched.health = true
   else if (isHabitEntity(entity)) touched.habits = true
+  else if (isDiaryEntity(entity)) touched.diary = true
   else touched.money = true
 }
 
@@ -56,9 +68,10 @@ interface SyncStateRow {
 /**
  * Version 1 downloaded accounts, categories, and transaction pages only, so a device that
  * bootstrapped then has no budgets and no receipt items. Version 2 downloads every money record.
- * Version 3 adds the gym log.
+ * Version 3 adds the gym log. Version 4 adds the diary: a build without it pulled diary changes
+ * it could not store and moved past them, so it has to download everything again.
  */
-export const BOOTSTRAP_VERSION = 3
+export const BOOTSTRAP_VERSION = 4
 
 async function syncStateRow(db: LocalDatabase): Promise<SyncStateRow> {
   const rows = await db.all<SyncStateRow>(
@@ -105,6 +118,7 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
   const moods = data.moods ?? []
   const habits = data.habits ?? []
   const habitEntries = data.habitEntries ?? []
+  const diaryMessages = data.diaryMessages ?? []
   const live: Record<SyncEntity, Set<string>> = {
     account: new Set(data.accounts.map((record) => record.id)),
     category: new Set(data.categories.map((record) => record.id)),
@@ -117,7 +131,8 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
     gymWorkout: new Set(gymWorkouts.map((record) => record.id)),
     mood: new Set(moods.map((record) => record.date)),
     habit: new Set(habits.map((record) => record.id)),
-    habitEntry: new Set(habitEntries.map((record) => record.id))
+    habitEntry: new Set(habitEntries.map((record) => record.id)),
+    diaryMessage: new Set(diaryMessages.map((record) => record.id))
   }
   const deletedAt = now()
   await db.transaction((tx) => withPreparedRuns(tx, async (cached) => {
@@ -133,6 +148,7 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
     for (const record of moods) if (!skip('mood', record.date)) await writeRecord(cached, { entity: 'mood', record })
     for (const record of habits) if (!skip('habit', record.id)) await writeRecord(cached, { entity: 'habit', record })
     for (const record of habitEntries) if (!skip('habitEntry', record.id)) await writeRecord(cached, { entity: 'habitEntry', record })
+    for (const record of diaryMessages) if (!skip('diaryMessage', record.id)) await writeRecord(cached, { entity: 'diaryMessage', record })
     for (const entity of Object.keys(TABLES) as SyncEntity[]) {
       const key = keyColumn(entity)
       const local = await tx.all<{ key: string }>(`SELECT ${key} AS key FROM ${TABLES[entity]} WHERE deleted_at IS NULL`)
@@ -231,7 +247,7 @@ async function outcomeFor(
   const counts = await db.all<{ status: string; total: number }>(
     'SELECT status, COUNT(*) AS total FROM outbox GROUP BY status')
   const of = (status: string): number => counts.find((row) => row.status === status)?.total ?? 0
-  const pendingCount = of('pending')
+  const pendingCount = of('pending') + of('held')
   const conflictCount = of('conflict') + of('failed')
   const state: SyncState = paused
     ? 'paused'
@@ -268,7 +284,7 @@ export function createSyncCoordinator(deps: SyncDeps): SyncCoordinator {
 
   const run = async (): Promise<SyncOutcome> => {
     const { db, now } = deps
-    const touched: Touched = { money: false, gym: false, health: false, habits: false }
+    const touched: Touched = { ...NOTHING_TOUCHED }
     if (!(await isBootstrapped(db))) {
       const error = await bootstrap(deps)
       if (error) return outcomeFor(db, error, error.code === 'AUTH_REQUIRED', 0, 0)
@@ -276,13 +292,20 @@ export function createSyncCoordinator(deps: SyncDeps): SyncCoordinator {
       touched.gym = true
       touched.health = true
       touched.habits = true
+      touched.diary = true
     }
     const delivery = await deliver(deps, touched)
     if (delivery.paused) return outcomeFor(db, delivery.error, true, delivery.delivered, 0, touched)
     const pull = await pullChanges(deps, touched)
-    const error = pull.error ?? delivery.error
+    // Files go after everything else, so a long video never holds up a logged expense.
+    const uploads = deps.uploadMedia ? await deps.uploadMedia() : { error: null, paused: false, uploaded: 0, released: 0 }
+    if (uploads.paused) return outcomeFor(db, uploads.error, true, delivery.delivered, pull.applied, touched)
+    if (uploads.uploaded > 0 || uploads.error) touched.diary = true
+    const released = uploads.released > 0 ? await deliver(deps, touched) : { error: null, delivered: 0, paused: false }
+    if (released.paused) return outcomeFor(db, released.error, true, delivery.delivered + released.delivered, pull.applied, touched)
+    const error = pull.error ?? delivery.error ?? released.error ?? uploads.error
     if (!error) await db.run('UPDATE sync_state SET last_synced_at = ? WHERE id = 1', [now()])
-    return outcomeFor(db, error, false, delivery.delivered, pull.applied, touched)
+    return outcomeFor(db, error, false, delivery.delivered + released.delivered, pull.applied, touched)
   }
 
   return {
@@ -293,7 +316,7 @@ export function createSyncCoordinator(deps: SyncDeps): SyncCoordinator {
       }
       inFlight = (async () => {
         let outcome: SyncOutcome
-        const touched: Touched = { money: false, gym: false, health: false, habits: false }
+        const touched: Touched = { ...NOTHING_TOUCHED }
         do {
           again = false
           outcome = await run()
@@ -301,6 +324,7 @@ export function createSyncCoordinator(deps: SyncDeps): SyncCoordinator {
           touched.gym ||= outcome.touched.gym
           touched.health ||= outcome.touched.health
           touched.habits ||= outcome.touched.habits
+          touched.diary ||= outcome.touched.diary
         } while (again)
         return { ...outcome, touched }
       })().finally(() => {

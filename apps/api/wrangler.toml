@@ -11,3 +11,8 @@ binding = "DB"
 database_name = "ego"
 database_id = "efd88bbb-8dca-4164-b3e5-b8040572551e"
 migrations_dir = "migrations"
+
+# Diary files. Private: the Worker serves them only to a signed-in device.
+[[r2_buckets]]
+binding = "DIARY_MEDIA"
+bucket_name = "ego-diary"

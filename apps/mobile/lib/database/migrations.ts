@@ -292,6 +292,40 @@ export const LOCAL_MIGRATIONS: readonly string[][] = [
       server_time TEXT,
       fetched_at TEXT
     )`
+  ],
+  [
+    `CREATE TABLE IF NOT EXISTS diary_messages (
+      id TEXT PRIMARY KEY,
+      sent_at TEXT NOT NULL,
+      text TEXT NOT NULL DEFAULT '',
+      entities TEXT NOT NULL DEFAULT '[]',
+      attachments TEXT NOT NULL DEFAULT '[]',
+      reply_to_id TEXT,
+      forwarded INTEGER NOT NULL DEFAULT 0,
+      forwarded_from TEXT,
+      pinned_at TEXT,
+      edited_at TEXT,
+      source TEXT NOT NULL DEFAULT 'app',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1,
+      deleted_at TEXT
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_local_diary_messages_sent ON diary_messages(sent_at) WHERE deleted_at IS NULL',
+    `CREATE TABLE IF NOT EXISTS diary_uploads (
+      media_id TEXT PRIMARY KEY,
+      message_id TEXT NOT NULL,
+      local_uri TEXT NOT NULL,
+      content_type TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      uploaded_at TEXT,
+      failed_at TEXT,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      next_attempt_at TEXT,
+      last_error TEXT,
+      created_at TEXT NOT NULL
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_local_diary_uploads_message ON diary_uploads(message_id)'
   ]
 ]
 

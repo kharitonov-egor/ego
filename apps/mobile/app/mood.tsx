@@ -7,6 +7,7 @@ import { LayoutGrid, Smile, X } from 'lucide-react-native'
 import { ConflictEntries } from '../components/ConflictEntries'
 import { DayBar } from '../components/DayBar'
 import { HeaderIcon } from '../components/gym/ui'
+import { PrivateGate } from '../components/PrivateGate'
 import { MoodDayEditor, MoodHistory } from '../components/mood/Mood'
 import { BottomSheet, ConfirmDialog } from '../components/money/Common'
 import { CalendarDialog } from '../components/money/DatePicker'
@@ -31,7 +32,11 @@ function Message({ title, detail, action, onAction }: {
   </View>
 }
 
-export default function Mood(): React.ReactElement {
+export default function MoodScreen(): React.ReactElement {
+  return <PrivateGate label="Mood"><Mood /></PrivateGate>
+}
+
+function Mood(): React.ReactElement {
   const ledger = useLedger()
   const journal = useMoodJournal()
   const router = useRouter()

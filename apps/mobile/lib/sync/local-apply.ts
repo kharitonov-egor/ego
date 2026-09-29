@@ -2,7 +2,7 @@ import type { SyncOperation } from '@ego/api-contracts'
 import type { LocalDatabase } from '../database/types'
 import { TABLES, writeRecord, writeTombstone } from '../database/writes'
 import {
-  accountRecordFrom, budgetIdFor, budgetRecordFrom, categoryRecordFrom, gymCategoryRecordFrom,
+  accountRecordFrom, budgetIdFor, budgetRecordFrom, categoryRecordFrom, diaryMessageRecordFrom, gymCategoryRecordFrom,
   gymExerciseRecordFrom, gymSetRecordFrom, gymWorkoutRecordFrom, habitEntryRecordFrom, habitRecordFrom,
   moodIdFor, moodRecordFrom, purchaseRecordFrom, purchaseTransactionInput, receiptTransactionIdFor,
   transactionRecordFrom
@@ -147,6 +147,20 @@ export async function applyCommandLocally(
     } else {
       await writeRecord(tx, { entity: 'habitEntry', record: habitEntryRecordFrom(entityId, command.payload, createdAt, now, 1) })
     }
+    return
+  }
+
+  if (command.entity === 'diaryMessage') {
+    if (command.type === 'delete') {
+      await writeTombstone(tx, 'diaryMessage', entityId, revision, now)
+      return
+    }
+    const current = await existing(tx, 'diary_messages', 'id', entityId)
+    await writeRecord(tx, {
+      entity: 'diaryMessage',
+      record: diaryMessageRecordFrom(entityId, command.payload, current?.created_at ?? now, now,
+        command.type === 'create' ? 1 : revision)
+    })
     return
   }
 

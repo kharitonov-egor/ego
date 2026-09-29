@@ -201,6 +201,48 @@ habit to break was quit, and the phone's own time on each restart. It is additiv
 habits become once a day. The fields are optional on the wire. A phone on an older build can still
 save a habit, and the Worker keeps the saved values for anything that build leaves out.
 
+## Diary
+
+The diary keeps its files in R2. R2 has to be switched on once for the Cloudflare account, in the
+dashboard under R2 Object Storage. Wrangler cannot do that step and fails with code 10042 until it
+is done. Then create the bucket, apply migration `0011_diary.sql` (`diary_messages` and
+`diary_media`, additive), and deploy. `wrangler.toml` binds the bucket as `DIARY_MEDIA`.
+
+```sh
+cd apps/api
+npx wrangler r2 bucket create ego-diary
+npm run migrate:remote
+npm run deploy
+```
+
+The bucket stays private. Nothing in it has a public URL; `GET /v1/diary/media/:id` streams a file
+to a device that presents its token, with byte ranges so a video can seek.
+
+The diary needs native modules for video, audio, recording, and the fingerprint check, so the phone
+app moved to version 0.3.0. Updates follow the app version, so an `eas update` from here on only
+reaches a 0.3.0 build, and a 0.2.0 build never loads code it cannot run. Build and install it once:
+
+```sh
+npm run build:preview --workspace @ego/mobile
+```
+
+The first sync on the new build downloads everything again (bootstrap version 4). A 0.2.0 build
+pulled diary changes it had no table for and moved past them, so pulling changes alone would miss
+them.
+
+To import a Telegram chat, export it from Telegram Desktop as JSON with the size limit raised so
+large videos come along. Then, with a throwaway device token:
+
+```sh
+node scripts/diary-import.mjs <export folder>            # the plan, and which files are missing
+EGO_API_URL=... EGO_DEVICE_TOKEN=... node scripts/diary-import.mjs <export folder> --apply
+```
+
+The script uploads each file once, checking the Worker first, then sends the messages in order.
+IDs come from Telegram's message IDs, so a second run changes nothing. A later export that includes
+files the first one left out fills them in on the existing messages. It uses `ffmpeg` for video
+posters and smaller copies of large photos, and falls back to Telegram's thumbnails without it.
+
 ## 3. Point the desktop app at it
 
 The desktop Settings screen calls this the Ego service. It takes the Worker address and a token

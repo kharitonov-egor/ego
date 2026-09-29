@@ -1,7 +1,8 @@
 import type { ChangeRecord, SyncCommand, SyncEntity, SyncOperation } from '@ego/api-contracts'
 import type { LocalDatabase, SqlParam } from '../database/types'
 
-export type OutboxStatus = 'pending' | 'failed' | 'conflict'
+/** `held` waits on something outside the outbox, like a diary message waiting for its files to upload. */
+export type OutboxStatus = 'pending' | 'held' | 'failed' | 'conflict'
 
 export interface OutboxEntry {
   operationId: string
@@ -76,17 +77,29 @@ export function toOperation(entry: OutboxEntry): SyncOperation {
 export async function commitLocalWrite(
   db: LocalDatabase,
   operation: SyncOperation,
-  applyLocally: (tx: LocalDatabase) => Promise<void>
+  applyLocally: (tx: LocalDatabase) => Promise<void>,
+  status: 'pending' | 'held' = 'pending'
 ): Promise<void> {
   await db.transaction(async (tx) => {
     await applyLocally(tx)
     await tx.run(
       `INSERT INTO outbox (operation_id, entity, entity_id, command_type, expected_revision,
         payload, created_at, attempts, next_attempt_at, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, 'pending')`,
+        VALUES (?, ?, ?, ?, ?, ?, ?, 0, NULL, ?)`,
       [operation.operationId, operation.command.entity, operation.entityId, operation.command.type,
-        operation.expectedRevision, JSON.stringify(operation.command), operation.createdAt])
+        operation.expectedRevision, JSON.stringify(operation.command), operation.createdAt, status])
   })
+}
+
+export async function entityOperations(db: LocalDatabase, entity: SyncEntity, entityId: string): Promise<OutboxEntry[]> {
+  const rows = await db.all<OutboxRow>(
+    'SELECT * FROM outbox WHERE entity = ? AND entity_id = ? ORDER BY created_at, rowid', [entity, entityId])
+  return rows.map(toEntry)
+}
+
+/** Rewrites a command that has not left the phone, so an edit folds into it instead of queueing behind it. */
+export async function replaceCommand(db: LocalDatabase, operationId: string, command: SyncCommand): Promise<void> {
+  await db.run('UPDATE outbox SET payload = ? WHERE operation_id = ?', [JSON.stringify(command), operationId])
 }
 
 export async function readyOperations(db: LocalDatabase, now: string, limit: number): Promise<OutboxEntry[]> {
@@ -110,7 +123,7 @@ export async function pendingCounts(db: LocalDatabase): Promise<{ pending: numbe
   const rows = await db.all<{ status: OutboxStatus; total: number }>(
     'SELECT status, COUNT(*) AS total FROM outbox GROUP BY status')
   const of = (status: OutboxStatus): number => rows.find((row) => row.status === status)?.total ?? 0
-  return { pending: of('pending'), failed: of('failed'), conflicts: of('conflict') }
+  return { pending: of('pending') + of('held'), failed: of('failed'), conflicts: of('conflict') }
 }
 
 export async function hasPendingFor(db: LocalDatabase, entity: SyncEntity, entityId: string): Promise<boolean> {
