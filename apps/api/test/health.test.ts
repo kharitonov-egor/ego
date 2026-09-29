@@ -129,11 +129,18 @@ function fakeGoogle(options: {
     }
     const rollup = /^\/dataTypes\/([a-z-]+)\/dataPoints:dailyRollUp$/.exec(path)
     if (rollup) {
-      const body = JSON.parse(String(init?.body)) as { range: { start: { date: { year: number; month: number; day: number } }; end: { date: { year: number; month: number; day: number } } } }
+      const body = JSON.parse(String(init?.body)) as {
+        range: { start: { date: { year: number; month: number; day: number } }; end: { date: { year: number; month: number; day: number } } }
+        windowSizeDays?: number
+        pageSize?: number
+      }
       const from = isoOf(body.range.start.date)
       const to = isoOf(body.range.end.date)
       const limit = rollup[1] === 'total-calories' || rollup[1] === 'heart-rate' ? 14 : 90
       if (Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000) > limit) return json({ error: { code: 400 } }, 400)
+      if ((body.windowSizeDays ?? 1) * (body.pageSize ?? 1440) > limit) {
+        return json({ error: { code: 400, message: 'Invalid argument in request.' } }, 400)
+      }
       const points = []
       for (let date = from; date < to; date = shift(date, 1)) {
         points.push({ civilStartTime: { date: googleDate(date) }, civilEndTime: { date: googleDate(shift(date, 1)) }, ...value(rollup[1], date) })
@@ -141,6 +148,10 @@ function fakeGoogle(options: {
       return json({ rollupDataPoints: points })
     }
     if (path === '/dataTypes/heart-rate/dataPoints:rollUp') {
+      const body = JSON.parse(String(init?.body)) as { windowSize: string; pageSize?: number }
+      if (Number.parseInt(body.windowSize, 10) * (body.pageSize ?? 1440) > 14 * 86_400) {
+        return json({ error: { code: 400, message: 'Invalid argument in request.' } }, 400)
+      }
       return json({
         rollupDataPoints: [
           { startTime: '2026-09-27T03:55:00Z', endTime: '2026-09-27T04:00:00Z', heartRate: { beatsPerMinuteAvg: 60 } },
