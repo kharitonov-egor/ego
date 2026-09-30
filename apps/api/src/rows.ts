@@ -1,13 +1,14 @@
 import {
-  isDiaryAttachment,
+  isDiaryAttachment, isTaskAttachment, isTaskReminder,
   type AccountKind, type CategoryKind, type DiaryAttachment, type DiaryEntity, type DiarySource, type DistanceUnit,
   type ExerciseType, type ExerciseWeightUnit, type HabitEntryKind, type HabitKind, type HabitPeriod,
-  type MoneyPurchase, type MoodLevel, type ReceiptItem, type TransactionKind, type WeightUnit
+  type MoneyPurchase, type MoodLevel, type ReceiptItem, type TaskActivity, type TaskAttachment, type TaskChecklist,
+  type TaskLabelColor, type TaskPriority, type TransactionKind, type WeightUnit
 } from '@ego/core'
 import type {
   AccountRecord, BudgetRecord, CategoryRecord, DiaryMessageRecord, FeedTransaction, GymCategoryRecord,
   GymExerciseRecord, GymSetRecord, GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord, PurchaseRecord,
-  TransactionRecord
+  TaskBoardRecord, TaskCardRecord, TaskLabelRecord, TaskListRecord, TransactionRecord
 } from '@ego/api-contracts'
 
 export interface AccountRow {
@@ -371,6 +372,106 @@ export function toDiaryMessageRecord(row: DiaryMessageRow): DiaryMessageRecord {
     attachments: jsonList(row.attachments).filter((item): item is DiaryAttachment => isDiaryAttachment(item)),
     replyToId: row.reply_to_id, forwarded: row.forwarded === 1, forwardedFrom: row.forwarded_from,
     pinnedAt: row.pinned_at, editedAt: row.edited_at, source: row.source,
+    createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
+  }
+}
+
+export interface TaskBoardRow {
+  id: string
+  name: string
+  icon: string
+  position: number
+  hide_done: number
+  archived_at: string | null
+  created_at: string
+  updated_at: string
+  revision: number
+}
+
+export interface TaskListRow {
+  id: string
+  board_id: string
+  name: string
+  position: number
+  archived_at: string | null
+  created_at: string
+  updated_at: string
+  revision: number
+}
+
+export interface TaskLabelRow {
+  id: string
+  board_id: string
+  name: string
+  color: TaskLabelColor
+  position: number
+  created_at: string
+  updated_at: string
+  revision: number
+}
+
+export interface TaskCardRow {
+  id: string
+  board_id: string
+  list_id: string
+  title: string
+  description: string
+  position: number
+  label_ids: string
+  priority: TaskPriority
+  due_date: string | null
+  due_time: string | null
+  reminder_minutes: number | null
+  done_at: string | null
+  archived_at: string | null
+  checklists: string
+  attachments: string
+  activity: string
+  created_at: string
+  updated_at: string
+  revision: number
+}
+
+export function toTaskBoardRecord(row: TaskBoardRow): TaskBoardRecord {
+  return {
+    id: row.id, name: row.name, icon: row.icon, position: row.position, hideDone: row.hide_done === 1,
+    archivedAt: row.archived_at, createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
+  }
+}
+
+export function toTaskListRecord(row: TaskListRow): TaskListRecord {
+  return {
+    id: row.id, boardId: row.board_id, name: row.name, position: row.position, archivedAt: row.archived_at,
+    createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
+  }
+}
+
+export function toTaskLabelRecord(row: TaskLabelRow): TaskLabelRecord {
+  return {
+    id: row.id, boardId: row.board_id, name: row.name, color: row.color, position: row.position,
+    createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
+  }
+}
+
+function isChecklistShape(value: unknown): value is TaskChecklist {
+  return typeof value === 'object' && value !== null && 'id' in value && 'title' in value && 'items' in value
+}
+
+function isActivityShape(value: unknown): value is TaskActivity {
+  return typeof value === 'object' && value !== null && 'at' in value && 'kind' in value && 'text' in value
+}
+
+export function toTaskCardRecord(row: TaskCardRow): TaskCardRecord {
+  return {
+    id: row.id, boardId: row.board_id, listId: row.list_id, title: row.title, description: row.description,
+    position: row.position,
+    labelIds: jsonList(row.label_ids).filter((item): item is string => typeof item === 'string'),
+    priority: row.priority, dueDate: row.due_date, dueTime: row.due_time,
+    reminderMinutes: isTaskReminder(row.reminder_minutes) ? row.reminder_minutes : null,
+    doneAt: row.done_at, archivedAt: row.archived_at,
+    checklists: jsonList(row.checklists).filter(isChecklistShape),
+    attachments: jsonList(row.attachments).filter((item): item is TaskAttachment => isTaskAttachment(item)),
+    activity: jsonList(row.activity).filter(isActivityShape),
     createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
   }
 }

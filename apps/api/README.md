@@ -40,6 +40,7 @@ All routes except `/v1/health`, the two sign-in routes, and the two OAuth callba
 | `PUT /v1/diary/media/:id/multipart/:upload/:part` | Stores one part of a larger upload |
 | `POST /v1/diary/media/:id/multipart/:upload/complete` | Joins the parts into the file |
 | `GET /v1/diary/media/:id` | Streams a diary file, with byte ranges for seeking. `HEAD` says whether it exists |
+| `/v1/tasks/media/...` | The same four upload routes and the download route for task attachments, under `tasks/` in R2 |
 | `GET /v1/reference` | Accounts and categories, including archived ones, plus the server sequence |
 | `GET /v1/transactions` | Up to 50 feed rows, a next cursor, the matching count, and the query identity |
 | `GET /v1/transactions/:id` | One transaction with its receipt linkage |
@@ -97,6 +98,13 @@ as JSON, and every media ID it names, previews and custom emoji included, must a
 in `diary_media`. The Worker writes that row only after R2 has the whole file, so a message can
 never point at a file that is not there. An attachment whose `mediaId` is null is a file that never
 reached Ego, like a video Telegram left out of an export.
+
+`taskBoard`, `taskList`, `taskLabel`, and `taskCard` take create, update, and delete. Archiving is
+an update that sets `archivedAt`. A list or label cannot move to another board. A card names its
+board and list, and the list has to be live and on that board; label IDs are not checked, since a
+label deleted on another device just stops showing. Every media ID a card's attachments name must
+have a row in `task_media`. Deleting a board or list keeps the rows under it, and every read joins
+on live parents.
 
 Each command runs as one D1 batch. The statements that carry out the command share one
 precondition and run before the primary write, so a command either commits with its change-log

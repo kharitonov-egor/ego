@@ -1,7 +1,8 @@
 import type { SyncCommand, SyncOperation } from '@ego/api-contracts'
 import type {
   AccountInput, BudgetInput, CategoryInput, DiaryMessageInput, GymCategoryInput, GymExerciseInput, GymSetInput,
-  GymWorkoutInput, HabitEntryInput, HabitInput, MoodInput, PurchaseInput, TransactionInput
+  GymWorkoutInput, HabitEntryInput, HabitInput, MoodInput, PurchaseInput, TaskBoardInput, TaskCardInput, TaskLabelInput,
+  TaskListInput, TransactionInput
 } from '@ego/core'
 import type { LocalDatabase } from '../database/types'
 import { applyCommandLocally } from './local-apply'
@@ -180,6 +181,80 @@ export async function deleteDiaryMessage(
     for (const entry of operations) await removeOperation(tx, entry.operationId)
     await tx.run('DELETE FROM diary_uploads WHERE message_id = ?', [id])
     await tx.run('DELETE FROM diary_messages WHERE id = ?', [id])
+    return files.map((file) => file.local_uri)
+  })
+}
+
+export const createTaskBoard = (db: LocalDatabase, input: TaskBoardInput, now: string, id = newId()) =>
+  submit(db, id, null, { entity: 'taskBoard', type: 'create', payload: input }, now)
+
+export const updateTaskBoard = (db: LocalDatabase, id: string, revision: number, input: TaskBoardInput, now: string) =>
+  submit(db, id, revision, { entity: 'taskBoard', type: 'update', payload: input }, now)
+
+export const deleteTaskBoard = (db: LocalDatabase, id: string, revision: number, now: string) =>
+  submit(db, id, revision, { entity: 'taskBoard', type: 'delete' }, now)
+
+export const createTaskList = (db: LocalDatabase, input: TaskListInput, now: string, id = newId()) =>
+  submit(db, id, null, { entity: 'taskList', type: 'create', payload: input }, now)
+
+export const updateTaskList = (db: LocalDatabase, id: string, revision: number, input: TaskListInput, now: string) =>
+  submit(db, id, revision, { entity: 'taskList', type: 'update', payload: input }, now)
+
+export const deleteTaskList = (db: LocalDatabase, id: string, revision: number, now: string) =>
+  submit(db, id, revision, { entity: 'taskList', type: 'delete' }, now)
+
+export const createTaskLabel = (db: LocalDatabase, input: TaskLabelInput, now: string, id = newId()) =>
+  submit(db, id, null, { entity: 'taskLabel', type: 'create', payload: input }, now)
+
+export const updateTaskLabel = (db: LocalDatabase, id: string, revision: number, input: TaskLabelInput, now: string) =>
+  submit(db, id, revision, { entity: 'taskLabel', type: 'update', payload: input }, now)
+
+export const deleteTaskLabel = (db: LocalDatabase, id: string, revision: number, now: string) =>
+  submit(db, id, revision, { entity: 'taskLabel', type: 'delete' }, now)
+
+/**
+ * Saves a card, creating it when `revision` is null. A card with files still uploading waits in the
+ * outbox as `held`, and any edit made meanwhile folds into that operation: a second one queued
+ * behind it would reach the server first and lose to it.
+ */
+export async function saveTaskCard(
+  db: LocalDatabase, id: string, revision: number | null, input: TaskCardInput, now: string, held = false
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    const waiting = (await entityOperations(tx, 'taskCard', id)).find((entry) => entry.status === 'held')
+    if (!waiting) {
+      const command: SyncCommand = revision === null
+        ? { entity: 'taskCard', type: 'create', payload: input }
+        : { entity: 'taskCard', type: 'update', payload: input }
+      await submit(tx, id, revision, command, now, held ? 'held' : 'pending')
+      return
+    }
+    const command: SyncCommand = waiting.commandType === 'create'
+      ? { entity: 'taskCard', type: 'create', payload: input }
+      : { entity: 'taskCard', type: 'update', payload: input }
+    await replaceCommand(tx, waiting.operationId, command)
+    await applyCommandLocally(tx, { ...waiting, command }, now)
+  })
+}
+
+/**
+ * A card the server never saw is dropped here with its queued files, whose local copies are
+ * returned for the caller to remove. Otherwise any held edit is dropped and the delete goes out
+ * against the revision the server holds.
+ */
+export async function deleteTaskCard(db: LocalDatabase, id: string, revision: number, now: string): Promise<string[]> {
+  return db.transaction(async (tx) => {
+    const operations = await entityOperations(tx, 'taskCard', id)
+    const unsent = operations.filter((entry) => entry.status === 'held' || entry.status === 'failed')
+    const files = await tx.all<{ local_uri: string }>('SELECT local_uri FROM diary_uploads WHERE message_id = ? AND uploaded_at IS NULL', [id])
+    await tx.run('DELETE FROM diary_uploads WHERE message_id = ? AND uploaded_at IS NULL', [id])
+    for (const entry of unsent) await removeOperation(tx, entry.operationId)
+    if (unsent.some((entry) => entry.commandType === 'create')) {
+      for (const entry of operations) await removeOperation(tx, entry.operationId)
+      await tx.run('DELETE FROM task_cards WHERE id = ?', [id])
+      return files.map((file) => file.local_uri)
+    }
+    await submit(tx, id, unsent[0]?.expectedRevision ?? revision, { entity: 'taskCard', type: 'delete' }, now)
     return files.map((file) => file.local_uri)
   })
 }

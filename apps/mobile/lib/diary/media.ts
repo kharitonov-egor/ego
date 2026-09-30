@@ -1,5 +1,6 @@
 import { Platform } from 'react-native'
 import { Directory, File, Paths } from 'expo-file-system'
+import type { MediaScope } from '@ego/api-contracts'
 import type { DiaryAttachment } from '@ego/core'
 import type { DiaryMediaApi } from '../api-client'
 import { outsideApp } from '../private-lock'
@@ -60,11 +61,16 @@ export interface MediaSource {
 }
 
 /** A local copy when this phone has one, otherwise the Worker URL with the device token. */
-export function mediaSource(api: DiaryMediaApi, local: ReadonlyMap<string, string>, mediaId: string): MediaSource {
+export function mediaSource(
+  api: DiaryMediaApi, local: ReadonlyMap<string, string>, mediaId: string, scope: MediaScope = 'diary'
+): MediaSource {
   const copy = local.get(mediaId)
   if (copy) return { uri: copy }
-  return { uri: api.diaryMediaUrl(mediaId), headers: api.authHeaders() }
+  return { uri: api.mediaUrl(mediaId, scope), headers: api.authHeaders() }
 }
+
+/** What opening a file needs to know about it, shared by diary and task attachments. */
+export type OpenableFile = Pick<DiaryAttachment, 'mediaId' | 'mimeType' | 'fileName' | 'size'>
 
 /** Animated stickers are Lottie JSON, which the player takes as an object rather than a URL with headers. */
 export async function readLottie(api: DiaryMediaApi, local: ReadonlyMap<string, string>, mediaId: string): Promise<object | null> {
@@ -80,7 +86,7 @@ export async function readLottie(api: DiaryMediaApi, local: ReadonlyMap<string, 
   }
 }
 
-function safeName(attachment: DiaryAttachment): string {
+function safeName(attachment: OpenableFile): string {
   const base = (attachment.fileName ?? attachment.mediaId ?? 'file').replace(/[\\/:*?"<>|]/g, '_')
   const extension = extensionFor(attachment.mimeType, attachment.fileName)
   return base.toLowerCase().endsWith(extension) ? base : `${base}${extension}`
@@ -88,8 +94,8 @@ function safeName(attachment: DiaryAttachment): string {
 
 /** Downloads a file once into the cache, keeping its real name so the app that opens it shows one. */
 export async function fileForOpening(
-  api: DiaryMediaApi, local: ReadonlyMap<string, string>, attachment: DiaryAttachment,
-  onProgress?: (share: number) => void
+  api: DiaryMediaApi, local: ReadonlyMap<string, string>, attachment: OpenableFile,
+  onProgress?: (share: number) => void, scope: MediaScope = 'diary'
 ): Promise<File> {
   const mediaId = attachment.mediaId
   if (!mediaId) throw new Error('This file was never uploaded')
@@ -97,7 +103,7 @@ export async function fileForOpening(
   if (copy) return new File(copy)
   const target = new File(directory(mediaId, directory('diary-open', Paths.cache)), safeName(attachment))
   if (target.exists && (attachment.size === null || target.size === attachment.size)) return target
-  const source = mediaSource(api, local, mediaId)
+  const source = mediaSource(api, local, mediaId, scope)
   return File.downloadFileAsync(source.uri, target, {
     headers: source.headers,
     idempotent: true,

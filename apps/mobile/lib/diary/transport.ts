@@ -28,7 +28,7 @@ async function put<T>(file: File, url: string, headers: Record<string, string>, 
  * streamed from there, so at most one part is ever held in memory.
  */
 async function putInParts(api: DiaryMediaApi, file: File, upload: PendingUpload): Promise<ApiResult<DiaryMediaInfo>> {
-  const start = await api.diaryMultipartStart(upload.mediaId, upload.contentType)
+  const start = await api.mediaMultipartStart(upload.mediaId, upload.contentType, upload.scope)
   if (!start.ok) return start
   if (start.data.media) return { ok: true, data: start.data.media }
   const uploadId = start.data.uploadId
@@ -43,7 +43,7 @@ async function putInParts(api: DiaryMediaApi, file: File, upload: PendingUpload)
       const chunk = new File(Paths.cache, `diary-part-${upload.mediaId}-${number}`)
       chunk.create({ overwrite: true })
       chunk.write(handle.readBytes(Math.min(DIARY_PART_SIZE, upload.size - offset)))
-      const result = await put<DiaryMultipartPart>(chunk, api.diaryPartUrl(upload.mediaId, uploadId, number),
+      const result = await put<DiaryMultipartPart>(chunk, api.mediaPartUrl(upload.mediaId, uploadId, number, upload.scope),
         { ...api.authHeaders(), 'content-type': 'application/octet-stream' },
         (sent) => reportUploadProgress(upload.mediaId, (offset + sent) / upload.size))
       chunk.delete()
@@ -53,7 +53,7 @@ async function putInParts(api: DiaryMediaApi, file: File, upload: PendingUpload)
   } finally {
     handle.close()
   }
-  return api.diaryMultipartComplete(upload.mediaId, uploadId, parts)
+  return api.mediaMultipartComplete(upload.mediaId, uploadId, parts, upload.scope)
 }
 
 export function diaryUploadTransport(api: DiaryMediaApi): UploadTransport {
@@ -63,7 +63,7 @@ export function diaryUploadTransport(api: DiaryMediaApi): UploadTransport {
     reportUploadProgress(upload.mediaId, 0)
     try {
       if (upload.size > DIARY_SINGLE_UPLOAD_LIMIT) return await putInParts(api, file, upload)
-      return await put<DiaryMediaInfo>(file, api.diaryMediaUrl(upload.mediaId),
+      return await put<DiaryMediaInfo>(file, api.mediaUrl(upload.mediaId, upload.scope),
         { ...api.authHeaders(), 'content-type': upload.contentType },
         (sent) => reportUploadProgress(upload.mediaId, sent / Math.max(upload.size, 1)))
     } finally {

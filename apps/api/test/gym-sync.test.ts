@@ -104,7 +104,7 @@ describe('gym log between the phone and the Worker', () => {
 
     const outcome = await coordinator.sync()
     expect(outcome.state).toBe('synced')
-    expect(outcome.touched).toEqual({ money: false, gym: true, health: false, habits: false, diary: false })
+    expect(outcome.touched).toEqual({ money: false, gym: true, health: false, habits: false, diary: false, tasks: false })
     expect(await allOperations(device!)).toHaveLength(0)
     const sets = await serverRows<{ id: string; weight: number; revision: number }>('SELECT id, weight, revision FROM gym_sets ORDER BY position')
     expect(sets).toEqual([{ id: 'gs-1', weight: 25, revision: 1 }, { id: 'gs-2', weight: 30, revision: 1 }])

@@ -25,7 +25,7 @@ import { trelloAddAttachment, trelloBoards, trelloCreateCard, trelloLists } from
 import { assistantRoute } from './assistant'
 import { markStudyAssignment, readStudyAssignments } from './study'
 import { completeHealthConnect, disconnectHealth, readHealth, startHealthConnect, syncHealthRequest } from './health'
-import { diaryMediaRoute } from './diary'
+import { mediaRoute } from './diary'
 import { readAppBuilds, receiveBuildWebhook } from './app-builds'
 
 function json(body: unknown, status = 200): Response {
@@ -139,7 +139,7 @@ export async function handle(request: Request, env: Env): Promise<Response> {
     await disconnectHealth(env, device.data.datasetId)
     return ok({ disconnected: true })
   }
-  const media = diaryMediaRoute(request, env, path, now)
+  const media = mediaRoute(request, env, path, now)
   if (media) return media
   if (request.method === 'POST' && path === '/v1/live/sessions') {
     return createLiveSession(request, env, device.data)

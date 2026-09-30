@@ -1,6 +1,6 @@
 import type {
   DiaryMessage, GymCategory, GymExercise, GymSet, GymWorkout, Habit, HabitEntry, MoneyAccount, MoneyCategory,
-  MoneyPurchase, MoneyTransaction, MonthlyBudget, MoodEntry, TransactionKind
+  MoneyPurchase, MoneyTransaction, MonthlyBudget, MoodEntry, TaskBoard, TaskCard, TaskLabel, TaskList, TransactionKind
 } from '@ego/core'
 
 export const API_VERSION = 1
@@ -21,6 +21,10 @@ export type MoodRecord = MoodEntry & { revision: number }
 export type HabitRecord = Habit & { revision: number }
 export type HabitEntryRecord = HabitEntry & { revision: number }
 export type DiaryMessageRecord = DiaryMessage & { revision: number }
+export type TaskBoardRecord = TaskBoard & { revision: number }
+export type TaskListRecord = TaskList & { revision: number }
+export type TaskLabelRecord = TaskLabel & { revision: number }
+export type TaskCardRecord = TaskCard & { revision: number }
 
 export interface ReferenceData {
   accounts: AccountRecord[]
@@ -64,6 +68,11 @@ export interface BootstrapData {
   habits: HabitRecord[]
   habitEntries: HabitEntryRecord[]
   diaryMessages: DiaryMessageRecord[]
+  /** Workers from before Tasks leave these out. */
+  taskBoards?: TaskBoardRecord[]
+  taskLists?: TaskListRecord[]
+  taskLabels?: TaskLabelRecord[]
+  taskCards?: TaskCardRecord[]
 }
 
 export interface TransactionDetail {
@@ -102,7 +111,10 @@ export type GymEntity = 'gymCategory' | 'gymExercise' | 'gymSet' | 'gymWorkout'
 export type HealthEntity = 'mood'
 export type HabitEntity = 'habit' | 'habitEntry'
 export type DiaryEntity = 'diaryMessage'
-export type SyncEntity = MoneyEntity | GymEntity | HealthEntity | HabitEntity | DiaryEntity
+export type TaskEntity = 'taskBoard' | 'taskList' | 'taskLabel' | 'taskCard'
+export type SyncEntity = MoneyEntity | GymEntity | HealthEntity | HabitEntity | DiaryEntity | TaskEntity
+
+export const TASK_ENTITIES: readonly TaskEntity[] = ['taskBoard', 'taskList', 'taskLabel', 'taskCard']
 
 export const GYM_ENTITIES: readonly GymEntity[] = ['gymCategory', 'gymExercise', 'gymSet', 'gymWorkout']
 
@@ -120,6 +132,10 @@ export function isHabitEntity(entity: SyncEntity): entity is HabitEntity {
 
 export function isDiaryEntity(entity: SyncEntity): entity is DiaryEntity {
   return entity === 'diaryMessage'
+}
+
+export function isTaskEntity(entity: SyncEntity): entity is TaskEntity {
+  return (TASK_ENTITIES as readonly string[]).includes(entity)
 }
 
 interface ChangeBase {
@@ -145,6 +161,10 @@ export type ChangePayload =
   | { entity: 'habit'; record: HabitRecord | null }
   | { entity: 'habitEntry'; record: HabitEntryRecord | null }
   | { entity: 'diaryMessage'; record: DiaryMessageRecord | null }
+  | { entity: 'taskBoard'; record: TaskBoardRecord | null }
+  | { entity: 'taskList'; record: TaskListRecord | null }
+  | { entity: 'taskLabel'; record: TaskLabelRecord | null }
+  | { entity: 'taskCard'; record: TaskCardRecord | null }
 
 export type ChangeRecord = ChangeBase & ChangePayload
 
