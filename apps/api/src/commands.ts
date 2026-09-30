@@ -4,18 +4,20 @@ import {
   type SyncCommand, type SyncEntity, type SyncOperation
 } from '@ego/api-contracts'
 import {
-  HABIT_TARGET_LIMIT, diaryMediaIds, entryKindFits,
+  HABIT_TARGET_LIMIT, diaryMediaIds, entryKindFits, taskMediaIds,
   type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type DiaryMessageInput,
-  type GymSetInput, type HabitInput, type MoodInput, type PurchaseInput, type TransactionInput
+  type GymSetInput, type HabitInput, type MoodInput, type PurchaseInput, type TaskBoardInput, type TaskCardInput,
+  type TaskLabelInput, type TaskListInput, type TransactionInput
 } from '@ego/core'
 import { query, readLatestChange, serverSequence } from './reads'
 import {
   toAccountRecord, toBudgetRecord, toCategoryRecord, toDiaryMessageRecord, toGymCategoryRecord, toGymExerciseRecord,
   toGymSetRecord, toGymWorkoutRecord, toHabitEntryRecord, toHabitRecord, toMoodRecord, toPurchaseRecord,
-  toReceiptItem, toTransactionRecord,
+  toReceiptItem, toTaskBoardRecord, toTaskCardRecord, toTaskLabelRecord, toTaskListRecord, toTransactionRecord,
   type AccountRow, type BudgetAllocationRow, type BudgetRow, type CategoryRow, type DiaryMessageRow, type GymCategoryRow,
   type GymExerciseRow, type GymSetRow, type GymWorkoutRow, type HabitEntryRow, type HabitRow, type MoodRow,
-  type PurchaseRow, type ReceiptItemRow, type TransactionRow
+  type PurchaseRow, type ReceiptItemRow, type TaskBoardRow, type TaskCardRow, type TaskLabelRow, type TaskListRow,
+  type TransactionRow
 } from './rows'
 
 interface Statement {
@@ -50,7 +52,11 @@ const TABLES: Record<SyncEntity, string> = {
   mood: 'mood_entries',
   habit: 'habits',
   habitEntry: 'habit_entries',
-  diaryMessage: 'diary_messages'
+  diaryMessage: 'diary_messages',
+  taskBoard: 'task_boards',
+  taskList: 'task_lists',
+  taskLabel: 'task_labels',
+  taskCard: 'task_cards'
 }
 
 /** Budgets are keyed by month and mood entries by date, so each has one row per period. */
@@ -67,7 +73,11 @@ const KEYS: Record<SyncEntity, string> = {
   mood: 'date',
   habit: 'id',
   habitEntry: 'id',
-  diaryMessage: 'id'
+  diaryMessage: 'id',
+  taskBoard: 'id',
+  taskList: 'id',
+  taskLabel: 'id',
+  taskCard: 'id'
 }
 
 function canonical(value: unknown): unknown {
@@ -1108,6 +1118,218 @@ async function planDiaryMessage(
   }
 }
 
+function taskBoardRowFrom(id: string, input: TaskBoardInput, createdAt: string, updatedAt: string, revision: number): TaskBoardRow {
+  return {
+    id, name: input.name.trim(), icon: input.icon.trim(), position: input.position, hide_done: input.hideDone ? 1 : 0,
+    archived_at: input.archivedAt, created_at: createdAt, updated_at: updatedAt, revision
+  }
+}
+
+async function planTaskBoard(
+  db: D1Database, operation: SyncOperation, command: Extract<SyncCommand, { entity: 'taskBoard' }>, now: string
+): Promise<ApiResult<Plan>> {
+  const id = operation.entityId
+  if (command.type === 'create') {
+    const row = taskBoardRowFrom(id, command.payload, now, now, 1)
+    return {
+      ok: true,
+      data: upsertPlan('taskBoard', id, 1, { entity: 'taskBoard', record: toTaskBoardRecord(row) }, {
+        sql: `INSERT INTO task_boards (id, name, icon, position, hide_done, archived_at, created_at, updated_at, revision)
+          SELECT ?, ?, ?, ?, ?, ?, ?, ?, 1`,
+        params: [id, row.name, row.icon, row.position, row.hide_done, row.archived_at, now, now]
+      }, null)
+    }
+  }
+  const current = await liveRow<TaskBoardRow>(db, 'taskBoard', id)
+  if (!current) return notFound('That board was not found')
+  const expected = operation.expectedRevision ?? 0
+  const guard = guardFor('taskBoard', id, expected)
+  if (command.type === 'delete') {
+    return { ok: true, data: deletePlan('taskBoard', id, expected, now, guard, { entity: 'taskBoard', record: null }) }
+  }
+  const revision = expected + 1
+  const row = taskBoardRowFrom(id, command.payload, current.created_at, now, revision)
+  return {
+    ok: true,
+    data: upsertPlan('taskBoard', id, revision, { entity: 'taskBoard', record: toTaskBoardRecord(row) }, {
+      sql: `UPDATE task_boards SET name = ?, icon = ?, position = ?, hide_done = ?, archived_at = ?, updated_at = ?,
+        revision = revision + 1 WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+      params: [row.name, row.icon, row.position, row.hide_done, row.archived_at, now, id, expected]
+    }, guard)
+  }
+}
+
+function taskListRowFrom(id: string, input: TaskListInput, createdAt: string, updatedAt: string, revision: number): TaskListRow {
+  return {
+    id, board_id: input.boardId, name: input.name.trim(), position: input.position, archived_at: input.archivedAt,
+    created_at: createdAt, updated_at: updatedAt, revision
+  }
+}
+
+async function planTaskList(
+  db: D1Database, operation: SyncOperation, command: Extract<SyncCommand, { entity: 'taskList' }>, now: string
+): Promise<ApiResult<Plan>> {
+  const id = operation.entityId
+  if (command.type === 'create') {
+    const input = command.payload
+    if (!await liveRow<TaskBoardRow>(db, 'taskBoard', input.boardId)) return conflict('That board was deleted on another device')
+    const parent = liveGuard('taskBoard', input.boardId)
+    const row = taskListRowFrom(id, input, now, now, 1)
+    return {
+      ok: true,
+      data: upsertPlan('taskList', id, 1, { entity: 'taskList', record: toTaskListRecord(row) }, guarded({
+        sql: `INSERT INTO task_lists (id, board_id, name, position, archived_at, created_at, updated_at, revision)
+          SELECT ?, ?, ?, ?, ?, ?, ?, 1`,
+        params: [id, row.board_id, row.name, row.position, row.archived_at, now, now]
+      }, parent), parent)
+    }
+  }
+  const current = await liveRow<TaskListRow>(db, 'taskList', id)
+  if (!current) return notFound('That list was not found')
+  const expected = operation.expectedRevision ?? 0
+  const guard = guardFor('taskList', id, expected)
+  if (command.type === 'delete') {
+    return { ok: true, data: deletePlan('taskList', id, expected, now, guard, { entity: 'taskList', record: null }) }
+  }
+  if (command.payload.boardId !== current.board_id) return invalid('A list cannot move to another board')
+  const revision = expected + 1
+  const row = taskListRowFrom(id, command.payload, current.created_at, now, revision)
+  return {
+    ok: true,
+    data: upsertPlan('taskList', id, revision, { entity: 'taskList', record: toTaskListRecord(row) }, {
+      sql: `UPDATE task_lists SET name = ?, position = ?, archived_at = ?, updated_at = ?, revision = revision + 1
+        WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+      params: [row.name, row.position, row.archived_at, now, id, expected]
+    }, guard)
+  }
+}
+
+function taskLabelRowFrom(id: string, input: TaskLabelInput, createdAt: string, updatedAt: string, revision: number): TaskLabelRow {
+  return {
+    id, board_id: input.boardId, name: input.name.trim(), color: input.color, position: input.position,
+    created_at: createdAt, updated_at: updatedAt, revision
+  }
+}
+
+async function planTaskLabel(
+  db: D1Database, operation: SyncOperation, command: Extract<SyncCommand, { entity: 'taskLabel' }>, now: string
+): Promise<ApiResult<Plan>> {
+  const id = operation.entityId
+  if (command.type === 'create') {
+    const input = command.payload
+    if (!await liveRow<TaskBoardRow>(db, 'taskBoard', input.boardId)) return conflict('That board was deleted on another device')
+    const parent = liveGuard('taskBoard', input.boardId)
+    const row = taskLabelRowFrom(id, input, now, now, 1)
+    return {
+      ok: true,
+      data: upsertPlan('taskLabel', id, 1, { entity: 'taskLabel', record: toTaskLabelRecord(row) }, guarded({
+        sql: `INSERT INTO task_labels (id, board_id, name, color, position, created_at, updated_at, revision)
+          SELECT ?, ?, ?, ?, ?, ?, ?, 1`,
+        params: [id, row.board_id, row.name, row.color, row.position, now, now]
+      }, parent), parent)
+    }
+  }
+  const current = await liveRow<TaskLabelRow>(db, 'taskLabel', id)
+  if (!current) return notFound('That label was not found')
+  const expected = operation.expectedRevision ?? 0
+  const guard = guardFor('taskLabel', id, expected)
+  if (command.type === 'delete') {
+    return { ok: true, data: deletePlan('taskLabel', id, expected, now, guard, { entity: 'taskLabel', record: null }) }
+  }
+  if (command.payload.boardId !== current.board_id) return invalid('A label cannot move to another board')
+  const revision = expected + 1
+  const row = taskLabelRowFrom(id, command.payload, current.created_at, now, revision)
+  return {
+    ok: true,
+    data: upsertPlan('taskLabel', id, revision, { entity: 'taskLabel', record: toTaskLabelRecord(row) }, {
+      sql: `UPDATE task_labels SET name = ?, color = ?, position = ?, updated_at = ?, revision = revision + 1
+        WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+      params: [row.name, row.color, row.position, now, id, expected]
+    }, guard)
+  }
+}
+
+/** The files a card names that have not finished uploading. */
+async function missingTaskMedia(db: D1Database, input: TaskCardInput): Promise<string[]> {
+  const ids = taskMediaIds(input)
+  if (ids.length === 0) return []
+  const rows = await query<{ id: string }>(db,
+    `SELECT id FROM task_media WHERE id IN (${ids.map(() => '?').join(', ')})`, ids)
+  const found = new Set(rows.map((row) => row.id))
+  return ids.filter((id) => !found.has(id))
+}
+
+function taskCardRowFrom(id: string, input: TaskCardInput, createdAt: string, updatedAt: string, revision: number): TaskCardRow {
+  return {
+    id, board_id: input.boardId, list_id: input.listId, title: input.title.trim(), description: input.description,
+    position: input.position, label_ids: JSON.stringify(input.labelIds), priority: input.priority,
+    due_date: input.dueDate, due_time: input.dueTime, reminder_minutes: input.reminderMinutes,
+    done_at: input.doneAt, archived_at: input.archivedAt,
+    checklists: JSON.stringify(input.checklists), attachments: JSON.stringify(input.attachments),
+    activity: JSON.stringify(input.activity), created_at: createdAt, updated_at: updatedAt, revision
+  }
+}
+
+const TASK_CARD_COLUMNS = [
+  'board_id', 'list_id', 'title', 'description', 'position', 'label_ids', 'priority', 'due_date', 'due_time',
+  'reminder_minutes', 'done_at', 'archived_at', 'checklists', 'attachments', 'activity'
+] as const
+
+function taskCardValues(row: TaskCardRow): unknown[] {
+  return TASK_CARD_COLUMNS.map((column) => row[column])
+}
+
+/**
+ * Label IDs are not checked: a label deleted on another device just stops showing. The list is,
+ * because a card in a list that is gone, or on another board, would vanish from every screen.
+ */
+async function planTaskCard(
+  db: D1Database, operation: SyncOperation, command: Extract<SyncCommand, { entity: 'taskCard' }>, now: string
+): Promise<ApiResult<Plan>> {
+  const id = operation.entityId
+  if (command.type === 'delete') {
+    if (!await liveRow<TaskCardRow>(db, 'taskCard', id)) return notFound('That card was not found')
+    const expected = operation.expectedRevision ?? 0
+    return {
+      ok: true,
+      data: deletePlan('taskCard', id, expected, now, guardFor('taskCard', id, expected), { entity: 'taskCard', record: null })
+    }
+  }
+  const input = command.payload
+  const list = await liveRow<TaskListRow>(db, 'taskList', input.listId)
+  if (!list || !await liveRow<TaskBoardRow>(db, 'taskBoard', input.boardId)) return conflict('That list was deleted on another device')
+  if (list.board_id !== input.boardId) return invalid('That list is on another board')
+  const missing = await missingTaskMedia(db, input)
+  if (missing.length > 0) {
+    return invalid(missing.length === 1 ? 'Upload the attached file before saving' : `Upload the ${missing.length} attached files before saving`)
+  }
+  const parents = both(liveGuard('taskList', input.listId), liveGuard('taskBoard', input.boardId))
+  if (command.type === 'create') {
+    const row = taskCardRowFrom(id, input, now, now, 1)
+    return {
+      ok: true,
+      data: upsertPlan('taskCard', id, 1, { entity: 'taskCard', record: toTaskCardRecord(row) }, guarded({
+        sql: `INSERT INTO task_cards (id, ${TASK_CARD_COLUMNS.join(', ')}, created_at, updated_at, revision)
+          SELECT ?, ${TASK_CARD_COLUMNS.map(() => '?').join(', ')}, ?, ?, 1`,
+        params: [id, ...taskCardValues(row), now, now]
+      }, parents), parents)
+    }
+  }
+  const current = await liveRow<TaskCardRow>(db, 'taskCard', id)
+  if (!current) return notFound('That card was not found')
+  const expected = operation.expectedRevision ?? 0
+  const revision = expected + 1
+  const row = taskCardRowFrom(id, input, current.created_at, now, revision)
+  return {
+    ok: true,
+    data: upsertPlan('taskCard', id, revision, { entity: 'taskCard', record: toTaskCardRecord(row) }, guarded({
+      sql: `UPDATE task_cards SET ${TASK_CARD_COLUMNS.map((column) => `${column} = ?`).join(', ')}, updated_at = ?,
+        revision = revision + 1 WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+      params: [...taskCardValues(row), now, id, expected]
+    }, parents), both(guardFor('taskCard', id, expected), parents))
+  }
+}
+
 function planFor(db: D1Database, operation: SyncOperation, now: string): Promise<ApiResult<Plan>> {
   switch (operation.command.entity) {
     case 'account': return planAccount(db, operation, operation.command, now)
@@ -1123,6 +1345,10 @@ function planFor(db: D1Database, operation: SyncOperation, now: string): Promise
     case 'habit': return planHabit(db, operation, operation.command, now)
     case 'habitEntry': return planHabitEntry(db, operation, operation.command, now)
     case 'diaryMessage': return planDiaryMessage(db, operation, operation.command, now)
+    case 'taskBoard': return planTaskBoard(db, operation, operation.command, now)
+    case 'taskList': return planTaskList(db, operation, operation.command, now)
+    case 'taskLabel': return planTaskLabel(db, operation, operation.command, now)
+    case 'taskCard': return planTaskCard(db, operation, operation.command, now)
   }
 }
 

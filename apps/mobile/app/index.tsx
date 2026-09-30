@@ -3,7 +3,8 @@ import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'rea
 import { useRouter, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
-  BookOpen, CircleCheckBig, Dumbbell, GraduationCap, HeartPulse, Settings, Smile, Sparkles, Wallet, type LucideIcon
+  BookOpen, CircleCheckBig, Dumbbell, GraduationCap, HeartPulse, Settings, Smile, Sparkles, SquareKanban, Wallet,
+  type LucideIcon
 } from 'lucide-react-native'
 import appIcon from '../assets/app-icon.png'
 import { SignInPanel } from '../components/SignInPanel'
@@ -23,7 +24,8 @@ const APPS: readonly App[] = [
   { label: 'Mood', Icon: Smile, href: '/mood' },
   { label: 'Diary', Icon: BookOpen, href: '/diary' },
   { label: 'Study', Icon: GraduationCap, href: '/(study)/assignments' },
-  { label: 'Habits', Icon: CircleCheckBig, href: '/(habits)/home' }
+  { label: 'Habits', Icon: CircleCheckBig, href: '/(habits)/home' },
+  { label: 'Tasks', Icon: SquareKanban, href: '/tasks' }
 ]
 
 function AppTile({ label, Icon, onPress }: { label: string; Icon: LucideIcon; onPress: () => void }): React.ReactElement {

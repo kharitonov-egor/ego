@@ -22,7 +22,9 @@ calls the matching read tool, then answers with the number. Tell it "Publix $42 
 
 - Money writes stop on a Confirm card listing every transaction the message named, with account,
   category, and date. Nothing is saved until you tap Confirm. Typing a new message drops the card.
-- Mood, habit, gym, and study writes apply at once. The reply carries an Undo line for each.
+- Mood, habit, gym, study, and task card writes apply at once. The reply carries an Undo line for
+  each. "Add call the landlord to To Do for Friday 5pm" adds a card; "mark pay rent done" or "what's
+  due this week" works on the boards.
 - Under each reply, a short trail says what was read or changed, like "Read mood for yesterday".
 - The paperclip attaches a receipt photo from the camera, the gallery, or the clipboard. Ego sends
   it to the model once and keeps only a note that an image was attached.
@@ -30,7 +32,7 @@ calls the matching read tool, then answers with the number. Tell it "Publix $42 
   latest. The diary is out of reach: the assistant has no tool for it.
 
 The Worker runs the loop. It holds the OpenRouter key, builds the system prompt from the accounts,
-categories, habits, and exercises in D1, runs each tool against D1, and streams the reply back
+categories, habits, exercises, and task boards in D1, runs each tool against D1, and streams the reply back
 while the model writes it. The default model is `openai/gpt-6-sol`; set `ASSISTANT_MODEL` on the
 Worker to change it. Arguments are checked against each tool's schema before anything runs, tool
 results are marked untrusted in the prompt, and a turn stops after eight model calls. Chats,
@@ -227,6 +229,44 @@ A daily habit is due every day from its start date, so adding one never counts a
 days. Habits use the same local database, outbox, and change log as the other apps. A check-off
 shows at once and reaches D1 in `habits` and `habit_entries` on the next sync. Deleting a habit
 hides its entries on every device.
+
+## Tasks
+
+The phone's start screen has a Tasks tile: Trello's boards, lists, and cards, in black and white.
+
+- Boards lists every board with its emoji, open cards, and what is overdue or due soon. Hold a
+  board to drag it into a new order. A new board starts with To Do, Doing, and Done. The bell sets
+  up notifications; the plus makes a board.
+- A board shows its lists side by side, one screen wide each, and snaps from list to list as you
+  swipe. Hold a card to lift it and drop it anywhere: higher or lower in its list, or into another
+  list. Resting at the side of the screen turns to the next list, and resting at the top or bottom
+  of a list scrolls it. Hold a list's name to move the whole list. Each list ends with "Add a card",
+  and the last column adds a list. The round button on a card marks it done.
+- A card has its title, a Done button, labels, priority, dates, a Markdown description, any number
+  of checklists, attachments, and an activity log. The first photo on a card becomes its cover.
+  Checkboxes in the description tick with a tap. The menu moves the card to any list on any board,
+  copies it (with or without its labels, checklists, and attachments), archives it, or deletes it.
+- Labels belong to a board: a name, or none, and one of eight muted colors. Priority runs None,
+  Low, Medium, High, Urgent, drawn as signal bars. A due date can have a time, and a reminder from
+  "at due time" to two days before. A date-only card reminds at 9 AM.
+- The board menu edits the name and emoji, manages labels, hides done cards, and opens the board's
+  activity and its archived cards and lists. The filter narrows cards by text, label, priority,
+  and due date.
+- Upcoming lists every open card with a due date from every board, in Overdue, Today, Tomorrow,
+  This week, and Later.
+
+Reminders are local notifications. Every change to a card, including one synced from another
+device or made by the AI, cancels what Tasks scheduled and schedules again, so a done, moved, or
+archived card never rings. Tapping a reminder opens its card. The morning digest, off by default,
+sends one notification at 9 AM with the cards due that day, and date-only cards then wait for it
+instead of reminding on their own.
+
+Tasks uses the same local database, outbox, and change log as the other apps, as `taskBoard`,
+`taskList`, `taskLabel`, and `taskCard`. A card is one row with its checklists, attachments, and
+activity inside it, so each edit is one operation and the log always matches the card. Positions
+are fractions, so a drag rewrites only the card that moved. Attachments go to R2 under `tasks/`
+through the same upload queue as the diary, and a card edit that adds files waits until they are
+up. Deleting a board or a list hides everything under it on every device.
 
 ## Quick tools
 

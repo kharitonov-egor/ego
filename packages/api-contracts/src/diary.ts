@@ -1,4 +1,7 @@
-/** What the Worker keeps about one uploaded file. The bytes are in R2 under `diary/<id>`. */
+/** Which app a file belongs to. Each keeps its files under its own R2 prefix and route. */
+export type MediaScope = 'diary' | 'tasks'
+
+/** What the Worker keeps about one uploaded file. The bytes are in R2 under `<scope>/<id>`. */
 export interface DiaryMediaInfo {
   id: string
   contentType: string

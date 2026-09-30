@@ -1,12 +1,12 @@
-import type { ApiResult, DiaryMediaInfo } from '@ego/api-contracts'
+import type { ApiResult, DiaryMediaInfo, MediaScope } from '@ego/api-contracts'
 import type { LocalDatabase } from '../database/types'
 import type { MediaUploadRun } from '../sync/coordinator'
 import { retryDelayMs } from '../sync/outbox'
 
 /**
- * Files wait here until they are in R2. A message with files sits in the outbox as `held` and is
- * released to `pending` once its last file is up, so the server never sees a message pointing at
- * a file it does not have.
+ * Files wait here until they are in R2. A diary message or a task card with files sits in the
+ * outbox as `held` and is released to `pending` once its last file is up, so the server never
+ * sees a record pointing at a file it does not have. `messageId` is the card's ID for a task file.
  */
 
 export interface QueuedUpload {
@@ -15,7 +15,11 @@ export interface QueuedUpload {
   localUri: string
   contentType: string
   size: number
+  /** Leaving it out means a diary file. */
+  scope?: MediaScope
 }
+
+const HOLDERS = "('diaryMessage', 'taskCard')"
 
 export interface PendingUpload extends QueuedUpload {
   attempts: number
@@ -31,24 +35,26 @@ interface UploadRow {
   content_type: string
   size: number
   attempts: number
+  scope: MediaScope
 }
 
 export async function queueUploads(db: LocalDatabase, uploads: readonly QueuedUpload[], now: string): Promise<void> {
   for (const upload of uploads) {
-    await db.run(`INSERT OR IGNORE INTO diary_uploads (media_id, message_id, local_uri, content_type, size, created_at)
-      VALUES (?, ?, ?, ?, ?, ?)`, [upload.mediaId, upload.messageId, upload.localUri, upload.contentType, upload.size, now])
+    await db.run(`INSERT OR IGNORE INTO diary_uploads (media_id, message_id, local_uri, content_type, size, created_at, scope)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [upload.mediaId, upload.messageId, upload.localUri, upload.contentType, upload.size, now, upload.scope ?? 'diary'])
   }
 }
 
 /** Every file this phone still has a copy of, by media ID. */
-export async function localMediaFiles(db: LocalDatabase): Promise<Map<string, string>> {
-  const rows = await db.all<{ media_id: string; local_uri: string }>('SELECT media_id, local_uri FROM diary_uploads')
+export async function localMediaFiles(db: LocalDatabase, scope: MediaScope = 'diary'): Promise<Map<string, string>> {
+  const rows = await db.all<{ media_id: string; local_uri: string }>('SELECT media_id, local_uri FROM diary_uploads WHERE scope = ?', [scope])
   return new Map(rows.map((row) => [row.media_id, row.local_uri]))
 }
 
 export async function releaseReadyMessages(db: LocalDatabase): Promise<number> {
   const result = await db.run(`UPDATE outbox SET status = 'pending', next_attempt_at = NULL
-    WHERE status = 'held' AND entity = 'diaryMessage'
+    WHERE status = 'held' AND entity IN ${HOLDERS}
       AND NOT EXISTS (SELECT 1 FROM diary_uploads u WHERE u.message_id = outbox.entity_id AND u.uploaded_at IS NULL)`)
   return result.changes
 }
@@ -63,6 +69,25 @@ export async function retryMessageUploads(db: LocalDatabase, messageId: string):
   })
 }
 
+/** Puts a card whose files failed back in line. */
+export async function retryCardUploads(db: LocalDatabase, cardId: string): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx.run(`UPDATE diary_uploads SET failed_at = NULL, attempts = 0, next_attempt_at = NULL, last_error = NULL
+      WHERE message_id = ? AND uploaded_at IS NULL`, [cardId])
+    await tx.run(`UPDATE outbox SET status = 'held', last_error = NULL, next_attempt_at = NULL
+      WHERE entity = 'taskCard' AND entity_id = ? AND status = 'failed'`, [cardId])
+  })
+}
+
+/** Stops waiting on files the card no longer has, like a photo removed before it finished uploading. */
+export async function dropUnusedUploads(db: LocalDatabase, cardId: string, keep: readonly string[]): Promise<string[]> {
+  const rows = await db.all<{ media_id: string; local_uri: string }>(
+    'SELECT media_id, local_uri FROM diary_uploads WHERE message_id = ? AND uploaded_at IS NULL', [cardId])
+  const dropped = rows.filter((row) => !keep.includes(row.media_id))
+  for (const row of dropped) await db.run('DELETE FROM diary_uploads WHERE media_id = ?', [row.media_id])
+  return dropped.map((row) => row.local_uri)
+}
+
 const RETRYABLE = new Set(['OFFLINE', 'SERVER_ERROR', 'RATE_LIMITED', 'UPSTREAM_ERROR', 'NOT_CONFIGURED', 'NOT_FOUND'])
 
 /**
@@ -75,7 +100,7 @@ export async function uploadPendingMedia(
   let released = await releaseReadyMessages(db)
   let uploaded = 0
   for (;;) {
-    const rows = await db.all<UploadRow>(`SELECT media_id, message_id, local_uri, content_type, size, attempts
+    const rows = await db.all<UploadRow>(`SELECT media_id, message_id, local_uri, content_type, size, attempts, scope
       FROM diary_uploads WHERE uploaded_at IS NULL AND failed_at IS NULL
         AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
       ORDER BY created_at, size, media_id LIMIT 1`, [now()])
@@ -83,7 +108,7 @@ export async function uploadPendingMedia(
     if (!row) return { error: null, paused: false, uploaded, released }
     const result = await transport({
       mediaId: row.media_id, messageId: row.message_id, localUri: row.local_uri,
-      contentType: row.content_type, size: row.size, attempts: row.attempts
+      contentType: row.content_type, size: row.size, attempts: row.attempts, scope: row.scope
     })
     if (result.ok) {
       await db.run('UPDATE diary_uploads SET uploaded_at = ?, last_error = NULL WHERE media_id = ?', [now(), row.media_id])
@@ -102,7 +127,7 @@ export async function uploadPendingMedia(
     await db.transaction(async (tx) => {
       await tx.run('UPDATE diary_uploads SET failed_at = ?, last_error = ? WHERE media_id = ?', [now(), error.message, row.media_id])
       await tx.run(`UPDATE outbox SET status = 'failed', last_error = ?
-        WHERE entity = 'diaryMessage' AND entity_id = ? AND status = 'held'`, [error.message, row.message_id])
+        WHERE entity IN ${HOLDERS} AND entity_id = ? AND status = 'held'`, [error.message, row.message_id])
     })
   }
 }

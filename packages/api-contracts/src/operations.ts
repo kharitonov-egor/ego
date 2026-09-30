@@ -1,10 +1,11 @@
 import {
   isAccountInput, isBudgetInput, isCategoryInput, isDateString, isDiaryMessageInput, isGymCategoryInput,
   isGymExerciseInput, isGymSetInput, isGymWorkoutInput, isHabitEntryInput, isHabitInput, isMonthString,
-  isMoodInput, isPurchaseInput, isTransactionInput,
+  isMoodInput, isPurchaseInput, isTaskBoardInput, isTaskCardInput, isTaskLabelInput, isTaskListInput, isTransactionInput,
   type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type DiaryMessageInput,
   type GymCategoryInput, type GymExerciseInput, type GymSetInput, type GymWorkoutInput, type HabitEntryInput,
-  type HabitInput, type MoodInput, type PurchaseInput, type TransactionInput
+  type HabitInput, type MoodInput, type PurchaseInput, type TaskBoardInput, type TaskCardInput, type TaskLabelInput,
+  type TaskListInput, type TransactionInput
 } from '@ego/core'
 import type { ApiError } from './errors'
 import type { SyncEntity } from './records'
@@ -44,6 +45,18 @@ export type SyncCommand =
   | { entity: 'diaryMessage'; type: 'create'; payload: DiaryMessageInput }
   | { entity: 'diaryMessage'; type: 'update'; payload: DiaryMessageInput }
   | { entity: 'diaryMessage'; type: 'delete' }
+  | { entity: 'taskBoard'; type: 'create'; payload: TaskBoardInput }
+  | { entity: 'taskBoard'; type: 'update'; payload: TaskBoardInput }
+  | { entity: 'taskBoard'; type: 'delete' }
+  | { entity: 'taskList'; type: 'create'; payload: TaskListInput }
+  | { entity: 'taskList'; type: 'update'; payload: TaskListInput }
+  | { entity: 'taskList'; type: 'delete' }
+  | { entity: 'taskLabel'; type: 'create'; payload: TaskLabelInput }
+  | { entity: 'taskLabel'; type: 'update'; payload: TaskLabelInput }
+  | { entity: 'taskLabel'; type: 'delete' }
+  | { entity: 'taskCard'; type: 'create'; payload: TaskCardInput }
+  | { entity: 'taskCard'; type: 'update'; payload: TaskCardInput }
+  | { entity: 'taskCard'; type: 'delete' }
 
 /**
  * The device generates `operationId` and `entityId` once and reuses them on every retry,
@@ -134,6 +147,18 @@ function isCommand(value: unknown): value is SyncCommand {
     case 'diaryMessage.create':
     case 'diaryMessage.update':
       return isDiaryMessageInput(payload)
+    case 'taskBoard.create':
+    case 'taskBoard.update':
+      return isTaskBoardInput(payload)
+    case 'taskList.create':
+    case 'taskList.update':
+      return isTaskListInput(payload)
+    case 'taskLabel.create':
+    case 'taskLabel.update':
+      return isTaskLabelInput(payload)
+    case 'taskCard.create':
+    case 'taskCard.update':
+      return isTaskCardInput(payload)
     case 'transaction.delete':
     case 'purchase.delete':
     case 'budget.delete':
@@ -144,6 +169,10 @@ function isCommand(value: unknown): value is SyncCommand {
     case 'habit.delete':
     case 'habitEntry.delete':
     case 'diaryMessage.delete':
+    case 'taskBoard.delete':
+    case 'taskList.delete':
+    case 'taskLabel.delete':
+    case 'taskCard.delete':
       return payload === undefined
     default:
       return false

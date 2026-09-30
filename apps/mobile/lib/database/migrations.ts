@@ -326,6 +326,68 @@ export const LOCAL_MIGRATIONS: readonly string[][] = [
       created_at TEXT NOT NULL
     )`,
     'CREATE INDEX IF NOT EXISTS idx_local_diary_uploads_message ON diary_uploads(message_id)'
+  ],
+  [
+    `CREATE TABLE IF NOT EXISTS task_boards (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      icon TEXT NOT NULL DEFAULT '',
+      position REAL NOT NULL,
+      hide_done INTEGER NOT NULL DEFAULT 0,
+      archived_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1,
+      deleted_at TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS task_lists (
+      id TEXT PRIMARY KEY,
+      board_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      position REAL NOT NULL,
+      archived_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1,
+      deleted_at TEXT
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_local_task_lists_board ON task_lists(board_id) WHERE deleted_at IS NULL',
+    `CREATE TABLE IF NOT EXISTS task_labels (
+      id TEXT PRIMARY KEY,
+      board_id TEXT NOT NULL,
+      name TEXT NOT NULL DEFAULT '',
+      color TEXT NOT NULL,
+      position REAL NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1,
+      deleted_at TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS task_cards (
+      id TEXT PRIMARY KEY,
+      board_id TEXT NOT NULL,
+      list_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      position REAL NOT NULL,
+      label_ids TEXT NOT NULL DEFAULT '[]',
+      priority TEXT NOT NULL DEFAULT 'none',
+      due_date TEXT,
+      due_time TEXT,
+      reminder_minutes INTEGER,
+      done_at TEXT,
+      archived_at TEXT,
+      checklists TEXT NOT NULL DEFAULT '[]',
+      attachments TEXT NOT NULL DEFAULT '[]',
+      activity TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1,
+      deleted_at TEXT
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_local_task_cards_list ON task_cards(list_id, position) WHERE deleted_at IS NULL',
+    // Task attachments reuse the diary upload queue. The column says which route a file goes to.
+    "ALTER TABLE diary_uploads ADD COLUMN scope TEXT NOT NULL DEFAULT 'diary'"
   ]
 ]
 

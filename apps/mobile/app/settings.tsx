@@ -244,8 +244,8 @@ export default function Settings(): React.ReactElement {
       />}>
         <Text className="mt-3 text-[15px] leading-6 text-muted-foreground">
           {privacy.blurred
-            ? 'Amounts in Finance, moods and their notes, habits, and Canvas assignments are blurred. Mood entries can be edited again once this is off.'
-            : 'Blurs amounts in Finance, moods and their notes, habits, and Canvas assignments, for showing the app to someone.'}
+            ? 'Amounts in Finance, moods and their notes, habits, Canvas assignments, and task cards are blurred. Mood entries and card titles can be edited again once this is off.'
+            : 'Blurs amounts in Finance, moods and their notes, habits, Canvas assignments, and task cards, for showing the app to someone.'}
         </Text>
       </Section>
 
