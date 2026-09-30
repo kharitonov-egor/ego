@@ -15,5 +15,7 @@ export default function GymLayout(): React.ReactElement {
     <Stack.Screen name="exercises" options={{ title: 'All exercises' }} />
     <Stack.Screen name="exercise-editor" options={{ title: 'Exercise' }} />
     <Stack.Screen name="track" options={{ title: '' }} />
+    <Stack.Screen name="plans" options={{ title: 'Plans' }} />
+    <Stack.Screen name="plan-editor" options={{ title: 'Plan' }} />
   </Stack>
 }

@@ -43,9 +43,18 @@ export interface GymWorkoutView {
   notes: string
 }
 
+export interface GymPlanView {
+  id: string
+  name: string
+  exerciseOrder: string[]
+  supersets: string[][]
+  revision: number
+}
+
 export interface GymDay {
   date: string
   workout: GymWorkoutView | null
+  /** Exercises with sets that day, and any the day's order lists without sets yet, like a started plan. */
   exercises: WorkoutExercise[]
   /** Superset groups limited to exercises done that day, in workout order. */
   supersets: string[][]
@@ -111,6 +120,14 @@ interface WorkoutRow {
   notes: string
 }
 
+interface PlanRow {
+  id: string
+  name: string
+  exercise_order: string
+  supersets: string
+  revision: number
+}
+
 interface HistoryCache {
   version: number
   exercises: Map<string, Promise<GymSetView[]>>
@@ -171,12 +188,16 @@ function strings(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
 }
 
+function supersetGroups(raw: string): string[][] {
+  const groups = parseList(raw)
+  return Array.isArray(groups) ? groups.map(strings).filter((group) => group.length >= 2) : []
+}
+
 function toWorkout(row: WorkoutRow): GymWorkoutView {
-  const groups = parseList(row.supersets)
   return {
     revision: row.revision,
     exerciseOrder: strings(parseList(row.exercise_order)),
-    supersets: Array.isArray(groups) ? groups.map(strings).filter((group) => group.length >= 2) : [],
+    supersets: supersetGroups(row.supersets),
     notes: row.notes
   }
 }
@@ -195,6 +216,18 @@ export async function gymExercises(db: LocalDatabase): Promise<GymExerciseView[]
   return rows.map(toExercise)
 }
 
+export async function gymPlans(db: LocalDatabase): Promise<GymPlanView[]> {
+  const rows = await db.all<PlanRow>(`SELECT id, name, exercise_order, supersets, revision FROM gym_plans
+    WHERE deleted_at IS NULL ORDER BY name COLLATE NOCASE`)
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    exerciseOrder: strings(parseList(row.exercise_order)),
+    supersets: supersetGroups(row.supersets),
+    revision: row.revision
+  }))
+}
+
 export async function gymWorkout(db: LocalDatabase, date: string): Promise<GymWorkoutView | null> {
   const rows = await db.all<WorkoutRow>(
     'SELECT revision, exercise_order, supersets, notes FROM gym_workouts WHERE id = ? AND deleted_at IS NULL', [date])
@@ -206,15 +239,16 @@ export async function gymWorkout(db: LocalDatabase, date: string): Promise<GymWo
  * in the order its first set was logged.
  */
 export async function gymDay(db: LocalDatabase, date: string): Promise<GymDay> {
-  const [setRows, exerciseRows, workout] = await Promise.all([
+  const [setRows, workout] = await Promise.all([
     db.all<SetRow>(`SELECT s.* FROM gym_sets s
       JOIN gym_exercises e ON e.id = s.exercise_id AND e.deleted_at IS NULL
       WHERE s.date = ? AND s.deleted_at IS NULL
       ORDER BY s.position, s.created_at, s.id`, [date]),
-    db.all<ExerciseRow>(`SELECT ${EXERCISE_COLUMNS} ${EXERCISE_FROM}
-      AND e.id IN (SELECT exercise_id FROM gym_sets WHERE date = ? AND deleted_at IS NULL)`, [date]),
     gymWorkout(db, date)
   ])
+  const ids = [...new Set([...setRows.map((row) => row.exercise_id), ...(workout?.exerciseOrder ?? [])])]
+  const exerciseRows = ids.length === 0 ? [] : await db.all<ExerciseRow>(
+    `SELECT ${EXERCISE_COLUMNS} ${EXERCISE_FROM} AND e.id IN (${ids.map(() => '?').join(', ')})`, ids)
   const sets = new Map<string, GymSetView[]>()
   const firstLogged = new Map<string, string>()
   for (const row of setRows) {
@@ -290,6 +324,41 @@ export async function exerciseTrackSets(
   }
 }
 
+/**
+ * The names of the exercises this one was supersetted with, by date. A partner counts only on a day
+ * both have sets, the same rule the day view uses.
+ */
+export async function exerciseSupersetPartners(db: LocalDatabase, exerciseId: string): Promise<Map<string, string[]>> {
+  const quoted = JSON.stringify(exerciseId)
+  const [workouts, logged] = await Promise.all([
+    db.all<{ id: string; supersets: string }>(`SELECT id, supersets FROM gym_workouts
+      WHERE deleted_at IS NULL AND instr(supersets, ?) > 0`, [quoted]),
+    db.all<{ date: string; exercise_id: string; name: string }>(`SELECT DISTINCT s.date, s.exercise_id, e.name
+      FROM gym_sets s
+      JOIN gym_exercises e ON e.id = s.exercise_id AND e.deleted_at IS NULL
+      JOIN gym_workouts w ON w.id = s.date AND w.deleted_at IS NULL AND instr(w.supersets, ?) > 0
+      WHERE s.deleted_at IS NULL`, [quoted])
+  ])
+  const present = new Map<string, Map<string, string>>()
+  for (const row of logged) {
+    const day = present.get(row.date) ?? new Map<string, string>()
+    day.set(row.exercise_id, row.name)
+    present.set(row.date, day)
+  }
+  const partners = new Map<string, string[]>()
+  for (const workout of workouts) {
+    const day = present.get(workout.id)
+    const group = supersetGroups(workout.supersets).find((members) => members.includes(exerciseId))
+    if (!day || !group || !day.has(exerciseId)) continue
+    const names = group.flatMap((id) => {
+      const name = id === exerciseId ? undefined : day.get(id)
+      return name === undefined ? [] : [name]
+    })
+    if (names.length > 0) partners.set(workout.id, names)
+  }
+  return partners
+}
+
 /** A bounded slice for History. Graph and record calculations use their own reads. */
 export async function exerciseSetsPage(
   db: LocalDatabase, exerciseId: string, pageSize: number, offset = 0
@@ -333,7 +402,7 @@ export async function nextSetPosition(db: LocalDatabase, exerciseId: string, dat
 }
 
 export async function gymRevision(
-  db: LocalDatabase, table: 'gym_categories' | 'gym_exercises' | 'gym_sets', id: string
+  db: LocalDatabase, table: 'gym_categories' | 'gym_exercises' | 'gym_sets' | 'gym_plans', id: string
 ): Promise<number | null> {
   const rows = await db.all<{ revision: number }>(`SELECT revision FROM ${table} WHERE id = ? AND deleted_at IS NULL`, [id])
   return rows[0]?.revision ?? null

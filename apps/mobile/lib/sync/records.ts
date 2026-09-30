@@ -1,12 +1,12 @@
 import type {
-  AccountRecord, BudgetRecord, CategoryRecord, DiaryMessageRecord, GymCategoryRecord, GymExerciseRecord, GymSetRecord,
-  GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord, PurchaseRecord, TaskBoardRecord, TaskCardRecord,
-  TaskLabelRecord, TaskListRecord, TransactionRecord
+  AccountRecord, BudgetRecord, CategoryRecord, DiaryMessageRecord, GymCategoryRecord, GymExerciseRecord, GymPlanRecord,
+  GymSetRecord, GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord, PurchaseRecord, TaskBoardRecord,
+  TaskCardRecord, TaskLabelRecord, TaskListRecord, TransactionRecord
 } from '@ego/api-contracts'
 import type {
-  AccountInput, BudgetInput, CategoryInput, DiaryMessageInput, GymCategoryInput, GymExerciseInput, GymSetInput,
-  GymWorkoutInput, HabitEntryInput, HabitInput, MoodInput, PurchaseInput, ReceiptItem, TaskBoardInput, TaskCardInput,
-  TaskLabelInput, TaskListInput, TransactionInput
+  AccountInput, BudgetInput, CategoryInput, DiaryMessageInput, GymCategoryInput, GymExerciseInput, GymPlanInput,
+  GymSetInput, GymWorkoutInput, HabitEntryInput, HabitInput, MoodInput, PurchaseInput, ReceiptItem, TaskBoardInput,
+  TaskCardInput, TaskLabelInput, TaskListInput, TransactionInput
 } from '@ego/core'
 
 /**
@@ -192,6 +192,20 @@ export function gymWorkoutRecordFrom(
     exerciseOrder: [...input.exerciseOrder],
     supersets: input.supersets.map((group) => [...group]),
     notes: input.notes.trim(),
+    createdAt,
+    updatedAt,
+    revision
+  }
+}
+
+export function gymPlanRecordFrom(
+  id: string, input: GymPlanInput, createdAt: string, updatedAt: string, revision: number
+): GymPlanRecord {
+  return {
+    id,
+    name: input.name.trim(),
+    exerciseOrder: [...input.exerciseOrder],
+    supersets: input.supersets.map((group) => [...group]),
     createdAt,
     updatedAt,
     revision

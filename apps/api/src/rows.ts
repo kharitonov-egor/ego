@@ -7,8 +7,8 @@ import {
 } from '@ego/core'
 import type {
   AccountRecord, BudgetRecord, CategoryRecord, DiaryMessageRecord, FeedTransaction, GymCategoryRecord,
-  GymExerciseRecord, GymSetRecord, GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord, PurchaseRecord,
-  TaskBoardRecord, TaskCardRecord, TaskLabelRecord, TaskListRecord, TransactionRecord
+  GymExerciseRecord, GymPlanRecord, GymSetRecord, GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord,
+  PurchaseRecord, TaskBoardRecord, TaskCardRecord, TaskLabelRecord, TaskListRecord, TransactionRecord
 } from '@ego/api-contracts'
 
 export interface AccountRow {
@@ -263,6 +263,16 @@ export interface GymWorkoutRow {
   revision: number
 }
 
+export interface GymPlanRow {
+  id: string
+  name: string
+  exercise_order: string
+  supersets: string
+  created_at: string
+  updated_at: string
+  revision: number
+}
+
 export function toGymCategoryRecord(row: GymCategoryRow): GymCategoryRecord {
   return {
     id: row.id, name: row.name, color: row.color, createdAt: row.created_at,
@@ -313,6 +323,14 @@ export function toGymWorkoutRecord(row: GymWorkoutRow): GymWorkoutRecord {
     notes: row.notes, createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
   }
 }
+
+export function toGymPlanRecord(row: GymPlanRow): GymPlanRecord {
+  return {
+    id: row.id, name: row.name, exerciseOrder: stringList(row.exercise_order), supersets: groups(row.supersets),
+    createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
+  }
+}
+
 export function toMoodRecord(row: MoodRow): MoodRecord {
   return {
     id: row.id, date: row.date, mood: row.mood, note: row.note,

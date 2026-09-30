@@ -100,6 +100,17 @@ describe('gym operations', () => {
     expect(isSyncOperation(operation({ entityId: 'workout', command: save }))).toBe(false)
   })
 
+  it('accepts plan creates, updates, and deletes with the usual revision rules', () => {
+    const plan = { name: 'Push', exerciseOrder: ['ge-bench', 'ge-dips'], supersets: [['ge-bench', 'ge-dips']] }
+    expect(isSyncOperation(operation({ entityId: 'gp-1', command: { entity: 'gymPlan', type: 'create', payload: plan } }))).toBe(true)
+    expect(isSyncOperation(operation({ entityId: 'gp-1', expectedRevision: 3, command: { entity: 'gymPlan', type: 'update', payload: plan } }))).toBe(true)
+    expect(isSyncOperation(operation({ entityId: 'gp-1', command: { entity: 'gymPlan', type: 'update', payload: plan } }))).toBe(false)
+    expect(isSyncOperation(operation({ entityId: 'gp-1', expectedRevision: 3, command: { entity: 'gymPlan', type: 'delete' } }))).toBe(true)
+    expect(isSyncOperation(operation({
+      entityId: 'gp-1', command: { entity: 'gymPlan', type: 'create', payload: { ...plan, name: '' } }
+    }))).toBe(false)
+  })
+
   it('checks exercise and category payloads', () => {
     expect(isSyncOperation(operation({
       entityId: 'ge-x-1', command: { entity: 'gymExercise', type: 'create', payload: { name: 'Корова', categoryId: 'gc-triceps', type: 'weight_reps', weightUnit: 'default', notes: '' } }

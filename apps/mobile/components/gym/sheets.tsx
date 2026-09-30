@@ -3,6 +3,7 @@ import { Pressable, TextInput, View } from 'react-native'
 import { Check } from 'lucide-react-native'
 import { GYM_CATEGORY_COLORS } from '@ego/core'
 import { useGym } from '../../lib/gym-context'
+import { planNameProblem } from '../../lib/gym/plans'
 import type { GymCategoryView } from '../../lib/repositories/gym'
 import { BottomSheet, inputClass } from '../money/Common'
 import { color } from '../money/tokens'
@@ -113,6 +114,46 @@ export function CategorySheet({ visible, category, onClose, onSaved }: {
     </View>
     {problem && <Text className="mt-4 text-[15px] text-destructive">{problem}</Text>}
     <Button size="lg" disabled={gym.writing} onPress={() => void save()} className="mt-6"><Text>Save category</Text></Button>
+  </BottomSheet>
+}
+
+/** Names a new plan made from a logged day. */
+export function PlanNameSheet({ visible, onClose, onSave }: {
+  visible: boolean
+  onClose: () => void
+  onSave: (name: string) => void
+}): React.ReactElement {
+  const gym = useGym()
+  const [name, setName] = useState('')
+  const [problem, setProblem] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!visible) return
+    setName('')
+    setProblem(null)
+  }, [visible])
+
+  const save = (): void => {
+    const issue = planNameProblem(name, gym.plans, null)
+    if (issue) return setProblem(issue)
+    onSave(name.trim())
+  }
+
+  return <BottomSheet visible={visible} title="Save as plan" onClose={onClose}>
+    <Text className="mb-2 text-[15px] font-medium text-surface-200">Name</Text>
+    <TextInput
+      value={name}
+      onChangeText={setName}
+      autoFocus
+      maxLength={60}
+      placeholder="Push day"
+      placeholderTextColor={color.textFaint}
+      onSubmitEditing={save}
+      className={inputClass}
+    />
+    <Text className="mt-2 text-[14px] leading-5 text-muted-foreground">The plan keeps this day's exercises, their order, and supersets. Sets stay with the day.</Text>
+    {problem && <Text className="mt-4 text-[15px] text-destructive">{problem}</Text>}
+    <Button size="lg" disabled={gym.writing} onPress={save} className="mt-6"><Text>Save plan</Text></Button>
   </BottomSheet>
 }
 
