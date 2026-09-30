@@ -1,16 +1,27 @@
 import {
   DIARY_PART_SIZE, DIARY_SINGLE_UPLOAD_LIMIT, HTTP_STATUS, isDiaryMultipartComplete,
-  type ApiErrorCode, type DiaryMediaInfo, type DiaryMultipartPart, type DiaryMultipartStart
+  type ApiErrorCode, type DiaryMediaInfo, type DiaryMultipartPart, type DiaryMultipartStart, type MediaScope
 } from '@ego/api-contracts'
 import { DIARY_FILE_SIZE_LIMIT, isDiaryMediaId, isDiaryMimeType } from '@ego/core'
 import type { Env } from './auth'
 import { query } from './reads'
 
 /**
- * Diary files in R2. The bucket is private and every route sits behind the device token, so a
- * file is only readable through this Worker. A media ID is written once and never changes, which
- * lets the phone cache a download forever.
+ * Diary and Tasks files in R2. The bucket is private and every route sits behind the device token,
+ * so a file is only readable through this Worker. A media ID is written once and never changes,
+ * which lets the phone cache a download forever. Each app keeps its files under its own prefix
+ * and records finished uploads in its own table.
  */
+
+interface MediaStore {
+  scope: MediaScope
+  table: 'diary_media' | 'task_media'
+}
+
+const STORES: readonly MediaStore[] = [
+  { scope: 'diary', table: 'diary_media' },
+  { scope: 'tasks', table: 'task_media' }
+]
 
 interface MediaRow {
   id: string
@@ -35,8 +46,8 @@ function failure(code: ApiErrorCode, message: string): Response {
   return json({ ok: false, error: { code, message } }, HTTP_STATUS[code])
 }
 
-export function diaryMediaKey(id: string): string {
-  return `diary/${id}`
+function mediaKey(store: MediaStore, id: string): string {
+  return `${store.scope}/${id}`
 }
 
 function bucketFor(env: Env): R2Bucket | null {
@@ -44,17 +55,17 @@ function bucketFor(env: Env): R2Bucket | null {
 }
 
 function notConfigured(): Response {
-  return failure('NOT_CONFIGURED', 'Diary storage is not set up on the server')
+  return failure('NOT_CONFIGURED', 'File storage is not set up on the server')
 }
 
-async function storedMedia(db: D1Database, id: string): Promise<DiaryMediaInfo | null> {
-  const rows = await query<MediaRow>(db, 'SELECT id, content_type, size FROM diary_media WHERE id = ?', [id])
+async function storedMedia(db: D1Database, store: MediaStore, id: string): Promise<DiaryMediaInfo | null> {
+  const rows = await query<MediaRow>(db, `SELECT id, content_type, size FROM ${store.table} WHERE id = ?`, [id])
   const row = rows[0]
   return row ? { id: row.id, contentType: row.content_type, size: row.size } : null
 }
 
-async function recordMedia(db: D1Database, media: DiaryMediaInfo, now: string): Promise<void> {
-  await db.prepare('INSERT OR IGNORE INTO diary_media (id, content_type, size, created_at) VALUES (?, ?, ?, ?)')
+async function recordMedia(db: D1Database, store: MediaStore, media: DiaryMediaInfo, now: string): Promise<void> {
+  await db.prepare(`INSERT OR IGNORE INTO ${store.table} (id, content_type, size, created_at) VALUES (?, ?, ?, ?)`)
     .bind(media.id, media.contentType, media.size, now).run()
 }
 
@@ -70,11 +81,11 @@ function declaredLength(request: Request): number | null {
 }
 
 /** One request, one file. Sending the same ID again answers with the stored file untouched. */
-export async function putDiaryMedia(request: Request, env: Env, id: string, now: string): Promise<Response> {
+async function putMedia(request: Request, env: Env, store: MediaStore, id: string, now: string): Promise<Response> {
   const bucket = bucketFor(env)
   if (!bucket) return notConfigured()
   if (!isDiaryMediaId(id)) return failure('INVALID_REQUEST', 'That media ID is not valid')
-  const existing = await storedMedia(env.DB, id)
+  const existing = await storedMedia(env.DB, store, id)
   if (existing) return ok(existing)
   const contentType = contentTypeOf(request)
   if (!contentType) return failure('INVALID_REQUEST', 'Send the file with its content type')
@@ -82,13 +93,13 @@ export async function putDiaryMedia(request: Request, env: Env, id: string, now:
   if (length === null) return failure('INVALID_REQUEST', 'Send the file with its length')
   if (length > DIARY_SINGLE_UPLOAD_LIMIT) return failure('INVALID_REQUEST', 'Send a file this large in parts')
   if (!request.body) return failure('INVALID_REQUEST', 'The file is empty')
-  const object = await bucket.put(diaryMediaKey(id), request.body, { httpMetadata: { contentType } })
+  const object = await bucket.put(mediaKey(store, id), request.body, { httpMetadata: { contentType } })
   if (object.size !== length) {
-    await bucket.delete(diaryMediaKey(id))
+    await bucket.delete(mediaKey(store, id))
     return failure('INVALID_REQUEST', 'The upload was cut short')
   }
   const media: DiaryMediaInfo = { id, contentType, size: object.size }
-  await recordMedia(env.DB, media, now)
+  await recordMedia(env.DB, store, media, now)
   return ok(media)
 }
 
@@ -100,21 +111,21 @@ async function readJson(request: Request): Promise<unknown> {
   }
 }
 
-export async function startDiaryMultipart(request: Request, env: Env, id: string): Promise<Response> {
+async function startMultipart(request: Request, env: Env, store: MediaStore, id: string): Promise<Response> {
   const bucket = bucketFor(env)
   if (!bucket) return notConfigured()
   if (!isDiaryMediaId(id)) return failure('INVALID_REQUEST', 'That media ID is not valid')
-  const existing = await storedMedia(env.DB, id)
+  const existing = await storedMedia(env.DB, store, id)
   if (existing) return ok<DiaryMultipartStart>({ uploadId: null, media: existing })
   const body = await readJson(request)
   const contentType = typeof body === 'object' && body !== null && 'contentType' in body ? body.contentType : null
   if (!isDiaryMimeType(contentType)) return failure('INVALID_REQUEST', 'Send the file with its content type')
-  const upload = await bucket.createMultipartUpload(diaryMediaKey(id), { httpMetadata: { contentType: contentType.toLowerCase() } })
+  const upload = await bucket.createMultipartUpload(mediaKey(store, id), { httpMetadata: { contentType: contentType.toLowerCase() } })
   return ok<DiaryMultipartStart>({ uploadId: upload.uploadId, media: null })
 }
 
-export async function putDiaryPart(
-  request: Request, env: Env, id: string, uploadId: string, partNumber: number
+async function putPart(
+  request: Request, env: Env, store: MediaStore, id: string, uploadId: string, partNumber: number
 ): Promise<Response> {
   const bucket = bucketFor(env)
   if (!bucket) return notConfigured()
@@ -126,27 +137,27 @@ export async function putDiaryPart(
   if (length === null || length > DIARY_SINGLE_UPLOAD_LIMIT) return failure('INVALID_REQUEST', 'Send each part with its length')
   if (!request.body) return failure('INVALID_REQUEST', 'The part is empty')
   try {
-    const part = await bucket.resumeMultipartUpload(diaryMediaKey(id), uploadId).uploadPart(partNumber, request.body)
+    const part = await bucket.resumeMultipartUpload(mediaKey(store, id), uploadId).uploadPart(partNumber, request.body)
     return ok<DiaryMultipartPart>({ partNumber: part.partNumber, etag: part.etag })
   } catch {
     return failure('NOT_FOUND', 'That upload expired. Start it again')
   }
 }
 
-export async function completeDiaryMultipart(
-  request: Request, env: Env, id: string, uploadId: string, now: string
+async function completeMultipart(
+  request: Request, env: Env, store: MediaStore, id: string, uploadId: string, now: string
 ): Promise<Response> {
   const bucket = bucketFor(env)
   if (!bucket) return notConfigured()
   if (!isDiaryMediaId(id) || uploadId.length === 0) return failure('INVALID_REQUEST', 'That upload is not valid')
-  const existing = await storedMedia(env.DB, id)
+  const existing = await storedMedia(env.DB, store, id)
   if (existing) return ok(existing)
   const body = await readJson(request)
   if (!isDiaryMultipartComplete(body)) return failure('INVALID_REQUEST', 'List the uploaded parts')
   const parts = [...body.parts].sort((left, right) => left.partNumber - right.partNumber)
   let object: R2Object
   try {
-    object = await bucket.resumeMultipartUpload(diaryMediaKey(id), uploadId).complete(parts)
+    object = await bucket.resumeMultipartUpload(mediaKey(store, id), uploadId).complete(parts)
   } catch {
     return failure('NOT_FOUND', 'That upload expired. Start it again')
   }
@@ -154,7 +165,7 @@ export async function completeDiaryMultipart(
   const media: DiaryMediaInfo = {
     id, contentType: isDiaryMimeType(contentType) ? contentType : 'application/octet-stream', size: object.size
   }
-  await recordMedia(env.DB, media, now)
+  await recordMedia(env.DB, store, media, now)
   return ok(media)
 }
 
@@ -178,11 +189,11 @@ export function parseByteRange(header: string | null, size: number): ByteRange |
   return { offset: start, length: end - start + 1 }
 }
 
-export async function serveDiaryMedia(request: Request, env: Env, id: string): Promise<Response> {
+async function serveMedia(request: Request, env: Env, store: MediaStore, id: string): Promise<Response> {
   const bucket = bucketFor(env)
   if (!bucket) return notConfigured()
   if (!isDiaryMediaId(id)) return failure('NOT_FOUND', 'That file does not exist')
-  const head = await bucket.head(diaryMediaKey(id))
+  const head = await bucket.head(mediaKey(store, id))
   if (!head) return failure('NOT_FOUND', 'That file does not exist')
   const headers = new Headers({
     'content-type': head.httpMetadata?.contentType ?? 'application/octet-stream',
@@ -200,15 +211,16 @@ export async function serveDiaryMedia(request: Request, env: Env, id: string): P
   if (range) headers.set('content-range', `bytes ${range.offset}-${range.offset + range.length - 1}/${head.size}`)
   const status = range ? 206 : 200
   if (request.method === 'HEAD') return new Response(null, { status, headers })
-  const object = await bucket.get(diaryMediaKey(id), range ? { range } : undefined)
+  const object = await bucket.get(mediaKey(store, id), range ? { range } : undefined)
   if (!object) return failure('NOT_FOUND', 'That file does not exist')
   return new Response(object.body, { status, headers })
 }
 
-/** Routes under `/v1/diary/media/`. Null means the path is not one of them. */
-export function diaryMediaRoute(request: Request, env: Env, path: string, now: string): Promise<Response> | null {
-  const prefix = '/v1/diary/media/'
-  if (!path.startsWith(prefix)) return null
+/** Routes under `/v1/diary/media/` and `/v1/tasks/media/`. Null means the path is not one of them. */
+export function mediaRoute(request: Request, env: Env, path: string, now: string): Promise<Response> | null {
+  const store = STORES.find((candidate) => path.startsWith(`/v1/${candidate.scope}/media/`))
+  if (!store) return null
+  const prefix = `/v1/${store.scope}/media/`
   const parts = path.slice(prefix.length).split('/').map((part) => {
     try {
       return decodeURIComponent(part)
@@ -219,12 +231,12 @@ export function diaryMediaRoute(request: Request, env: Env, path: string, now: s
   const [id, section, uploadId, last] = parts
   const method = request.method
   if (parts.length === 1) {
-    if (method === 'GET' || method === 'HEAD') return serveDiaryMedia(request, env, id)
-    if (method === 'PUT') return putDiaryMedia(request, env, id, now)
+    if (method === 'GET' || method === 'HEAD') return serveMedia(request, env, store, id)
+    if (method === 'PUT') return putMedia(request, env, store, id, now)
   }
   if (section !== 'multipart') return null
-  if (parts.length === 2 && method === 'POST') return startDiaryMultipart(request, env, id)
-  if (parts.length === 4 && last === 'complete' && method === 'POST') return completeDiaryMultipart(request, env, id, uploadId, now)
-  if (parts.length === 4 && method === 'PUT') return putDiaryPart(request, env, id, uploadId, Number(last))
+  if (parts.length === 2 && method === 'POST') return startMultipart(request, env, store, id)
+  if (parts.length === 4 && last === 'complete' && method === 'POST') return completeMultipart(request, env, store, id, uploadId, now)
+  if (parts.length === 4 && method === 'PUT') return putPart(request, env, store, id, uploadId, Number(last))
   return null
 }

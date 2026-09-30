@@ -1,5 +1,5 @@
 import {
-  MAX_OPERATIONS_PER_REQUEST, isDiaryEntity, isGymEntity, isHabitEntity, isHealthEntity,
+  MAX_OPERATIONS_PER_REQUEST, isDiaryEntity, isGymEntity, isHabitEntity, isHealthEntity, isTaskEntity,
   type ApiError, type ChangeRecord, type OperationOutcome, type SyncEntity
 } from '@ego/api-contracts'
 import type { MoneyApi } from '../api-client'
@@ -36,6 +36,7 @@ export interface Touched {
   health: boolean
   habits: boolean
   diary: boolean
+  tasks: boolean
 }
 
 export interface SyncOutcome {
@@ -49,13 +50,14 @@ export interface SyncOutcome {
   touched: Touched
 }
 
-const NOTHING_TOUCHED: Touched = { money: false, gym: false, health: false, habits: false, diary: false }
+const NOTHING_TOUCHED: Touched = { money: false, gym: false, health: false, habits: false, diary: false, tasks: false }
 
 function touch(touched: Touched, entity: SyncEntity): void {
   if (isGymEntity(entity)) touched.gym = true
   else if (isHealthEntity(entity)) touched.health = true
   else if (isHabitEntity(entity)) touched.habits = true
   else if (isDiaryEntity(entity)) touched.diary = true
+  else if (isTaskEntity(entity)) touched.tasks = true
   else touched.money = true
 }
 
@@ -69,9 +71,10 @@ interface SyncStateRow {
  * Version 1 downloaded accounts, categories, and transaction pages only, so a device that
  * bootstrapped then has no budgets and no receipt items. Version 2 downloads every money record.
  * Version 3 adds the gym log. Version 4 adds the diary: a build without it pulled diary changes
- * it could not store and moved past them, so it has to download everything again.
+ * it could not store and moved past them, so it has to download everything again. Version 5 does
+ * the same for Tasks.
  */
-export const BOOTSTRAP_VERSION = 4
+export const BOOTSTRAP_VERSION = 5
 
 async function syncStateRow(db: LocalDatabase): Promise<SyncStateRow> {
   const rows = await db.all<SyncStateRow>(
@@ -119,6 +122,10 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
   const habits = data.habits ?? []
   const habitEntries = data.habitEntries ?? []
   const diaryMessages = data.diaryMessages ?? []
+  const taskBoards = data.taskBoards ?? []
+  const taskLists = data.taskLists ?? []
+  const taskLabels = data.taskLabels ?? []
+  const taskCards = data.taskCards ?? []
   const live: Record<SyncEntity, Set<string>> = {
     account: new Set(data.accounts.map((record) => record.id)),
     category: new Set(data.categories.map((record) => record.id)),
@@ -132,7 +139,11 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
     mood: new Set(moods.map((record) => record.date)),
     habit: new Set(habits.map((record) => record.id)),
     habitEntry: new Set(habitEntries.map((record) => record.id)),
-    diaryMessage: new Set(diaryMessages.map((record) => record.id))
+    diaryMessage: new Set(diaryMessages.map((record) => record.id)),
+    taskBoard: new Set(taskBoards.map((record) => record.id)),
+    taskList: new Set(taskLists.map((record) => record.id)),
+    taskLabel: new Set(taskLabels.map((record) => record.id)),
+    taskCard: new Set(taskCards.map((record) => record.id))
   }
   const deletedAt = now()
   await db.transaction((tx) => withPreparedRuns(tx, async (cached) => {
@@ -149,6 +160,10 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
     for (const record of habits) if (!skip('habit', record.id)) await writeRecord(cached, { entity: 'habit', record })
     for (const record of habitEntries) if (!skip('habitEntry', record.id)) await writeRecord(cached, { entity: 'habitEntry', record })
     for (const record of diaryMessages) if (!skip('diaryMessage', record.id)) await writeRecord(cached, { entity: 'diaryMessage', record })
+    for (const record of taskBoards) if (!skip('taskBoard', record.id)) await writeRecord(cached, { entity: 'taskBoard', record })
+    for (const record of taskLists) if (!skip('taskList', record.id)) await writeRecord(cached, { entity: 'taskList', record })
+    for (const record of taskLabels) if (!skip('taskLabel', record.id)) await writeRecord(cached, { entity: 'taskLabel', record })
+    for (const record of taskCards) if (!skip('taskCard', record.id)) await writeRecord(cached, { entity: 'taskCard', record })
     for (const entity of Object.keys(TABLES) as SyncEntity[]) {
       const key = keyColumn(entity)
       const local = await tx.all<{ key: string }>(`SELECT ${key} AS key FROM ${TABLES[entity]} WHERE deleted_at IS NULL`)
@@ -293,6 +308,7 @@ export function createSyncCoordinator(deps: SyncDeps): SyncCoordinator {
       touched.health = true
       touched.habits = true
       touched.diary = true
+      touched.tasks = true
     }
     const delivery = await deliver(deps, touched)
     if (delivery.paused) return outcomeFor(db, delivery.error, true, delivery.delivered, 0, touched)
@@ -300,7 +316,10 @@ export function createSyncCoordinator(deps: SyncDeps): SyncCoordinator {
     // Files go after everything else, so a long video never holds up a logged expense.
     const uploads = deps.uploadMedia ? await deps.uploadMedia() : { error: null, paused: false, uploaded: 0, released: 0 }
     if (uploads.paused) return outcomeFor(db, uploads.error, true, delivery.delivered, pull.applied, touched)
-    if (uploads.uploaded > 0 || uploads.error) touched.diary = true
+    if (uploads.uploaded > 0 || uploads.error) {
+      touched.diary = true
+      touched.tasks = true
+    }
     const released = uploads.released > 0 ? await deliver(deps, touched) : { error: null, delivered: 0, paused: false }
     if (released.paused) return outcomeFor(db, released.error, true, delivery.delivered + released.delivered, pull.applied, touched)
     const error = pull.error ?? delivery.error ?? released.error ?? uploads.error
@@ -325,6 +344,7 @@ export function createSyncCoordinator(deps: SyncDeps): SyncCoordinator {
           touched.health ||= outcome.touched.health
           touched.habits ||= outcome.touched.habits
           touched.diary ||= outcome.touched.diary
+          touched.tasks ||= outcome.touched.tasks
         } while (again)
         return { ...outcome, touched }
       })().finally(() => {

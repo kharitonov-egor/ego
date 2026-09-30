@@ -243,6 +243,23 @@ IDs come from Telegram's message IDs, so a second run changes nothing. A later e
 files the first one left out fills them in on the existing messages. It uses `ffmpeg` for video
 posters and smaller copies of large photos, and falls back to Telegram's thumbnails without it.
 
+## Tasks
+
+Migration `0014_tasks.sql` adds `task_boards`, `task_lists`, `task_labels`, `task_cards`, and
+`task_media`. It is additive. Attachments share the `ego-diary` bucket under a `tasks/` prefix, so
+there is nothing to create in R2. Apply the migration and deploy:
+
+```sh
+cd apps/api
+npm run migrate:remote
+npm run deploy
+```
+
+Tasks needs no new native module: file picking, notifications, and the photo picker were already
+in the 0.4.0 build, so an `eas update` is enough. The first sync after the update downloads
+everything again (bootstrap version 5), so a phone that pulled task changes before it had the
+tables picks them up.
+
 ## AI
 
 Migration `0012_assistant.sql` adds `assistant_chats`, `assistant_messages`, and

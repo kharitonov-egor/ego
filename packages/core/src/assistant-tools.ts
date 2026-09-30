@@ -14,12 +14,15 @@ export type AssistantToolName =
   | 'search_transactions'
   | 'read_transaction'
   | 'read_study'
+  | 'read_tasks'
   | 'record_transactions'
   | 'save_mood'
   | 'log_habit'
   | 'unlog_habit'
   | 'log_gym_sets'
   | 'mark_study'
+  | 'add_task_card'
+  | 'update_task_card'
 
 export type AssistantToolAccess = 'read' | 'write'
 
@@ -33,6 +36,7 @@ export interface AssistantToolDefinition {
 }
 
 const DATE_PATTERN = '^\\d{4}-\\d{2}-\\d{2}$'
+const TIME_PATTERN = '^([01]\\d|2[0-3]):[0-5]\\d$'
 const MONTH_PATTERN = '^\\d{4}-\\d{2}$'
 
 const date: ToolSchema = { type: 'string', pattern: DATE_PATTERN, description: 'YYYY-MM-DD' }
@@ -40,6 +44,8 @@ const nullableDate: ToolSchema = { type: ['string', 'null'], pattern: DATE_PATTE
 const id: ToolSchema = { type: 'string', minLength: 1, maxLength: 64 }
 const nullableId: ToolSchema = { type: ['string', 'null'], minLength: 1, maxLength: 64 }
 const cents: ToolSchema = { type: 'integer', minimum: 0, description: 'Integer cents' }
+const nullableTime: ToolSchema = { type: ['string', 'null'], pattern: TIME_PATTERN, description: '24-hour HH:MM, or null' }
+const priority: ToolSchema = { type: ['string', 'null'], enum: ['none', 'low', 'medium', 'high', 'urgent', null] }
 
 function object(properties: Record<string, ToolSchema>, description?: string): ToolSchema {
   return { type: 'object', properties, required: Object.keys(properties), additionalProperties: false, description }
@@ -174,6 +180,18 @@ export const ASSISTANT_TOOLS: Record<AssistantToolName, AssistantToolDefinition>
     parameters: object({}),
     access: 'read', confirm: false
   },
+  read_tasks: {
+    name: 'read_tasks',
+    description: 'Cards from the Tasks boards with their list, labels, priority, due date, checklist progress, and the start of the description. Open cards only unless includeDone. Due dates narrow to cards due in that range; query matches titles and descriptions. Up to 150 cards.',
+    parameters: object({
+      boardId: nullableId,
+      includeDone: { type: ['boolean', 'null'] },
+      dueFrom: nullableDate,
+      dueTo: nullableDate,
+      query: { type: ['string', 'null'], maxLength: 120 }
+    }),
+    access: 'read', confirm: false
+  },
   record_transactions: {
     name: 'record_transactions',
     description: 'Record one or more incomes or expenses. Put every transaction the user mentioned in one call. The user confirms on screen before anything is saved.',
@@ -208,6 +226,37 @@ export const ASSISTANT_TOOLS: Record<AssistantToolName, AssistantToolDefinition>
     name: 'mark_study',
     description: 'Check off a Canvas assignment, or uncheck it.',
     parameters: object({ assignmentId: { type: 'string', minLength: 1, maxLength: 200 }, done: { type: 'boolean' } }),
+    access: 'write', confirm: false
+  },
+  add_task_card: {
+    name: 'add_task_card',
+    description: 'Add a card to the bottom of a Tasks list. A due date gets the usual reminder. labelIds come from that board. checklist makes one checklist of these items.',
+    parameters: object({
+      listId: id,
+      title: { type: 'string', minLength: 1, maxLength: 500 },
+      description: { type: ['string', 'null'], maxLength: 4000, description: 'Markdown, or null' },
+      dueDate: nullableDate,
+      dueTime: nullableTime,
+      priority,
+      labelIds: { type: ['array', 'null'], maxItems: 10, items: id },
+      checklist: { type: ['array', 'null'], maxItems: 50, items: { type: 'string', minLength: 1, maxLength: 500 } }
+    }),
+    access: 'write', confirm: false
+  },
+  update_task_card: {
+    name: 'update_task_card',
+    description: 'Change one Tasks card. Null leaves a field as it is. done marks it done or not done; listId moves it to the bottom of another list on the same board; clearDue removes the due date; archived archives it or brings it back.',
+    parameters: object({
+      cardId: id,
+      done: { type: ['boolean', 'null'] },
+      listId: nullableId,
+      title: { type: ['string', 'null'], minLength: 1, maxLength: 500 },
+      dueDate: nullableDate,
+      dueTime: nullableTime,
+      clearDue: { type: ['boolean', 'null'] },
+      priority,
+      archived: { type: ['boolean', 'null'] }
+    }),
     access: 'write', confirm: false
   }
 }

@@ -2,7 +2,7 @@ import type { ApiResult, DeviceIdentity } from '@ego/api-contracts'
 
 export interface Env {
   DB: D1Database
-  /** Diary photos, videos, voice notes, and files. */
+  /** Diary photos, videos, voice notes, and files, and Tasks attachments. */
   DIARY_MEDIA?: R2Bucket
   OPENAI_API_KEY?: string
   CONNECTOR_TOKEN_KEY?: string
