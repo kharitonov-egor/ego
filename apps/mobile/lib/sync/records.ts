@@ -1,10 +1,12 @@
 import type {
   AccountRecord, BudgetRecord, CategoryRecord, DiaryMessageRecord, GymCategoryRecord, GymExerciseRecord, GymSetRecord,
-  GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord, PurchaseRecord, TransactionRecord
+  GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord, PurchaseRecord, TaskBoardRecord, TaskCardRecord,
+  TaskLabelRecord, TaskListRecord, TransactionRecord
 } from '@ego/api-contracts'
 import type {
   AccountInput, BudgetInput, CategoryInput, DiaryMessageInput, GymCategoryInput, GymExerciseInput, GymSetInput,
-  GymWorkoutInput, HabitEntryInput, HabitInput, MoodInput, PurchaseInput, ReceiptItem, TransactionInput
+  GymWorkoutInput, HabitEntryInput, HabitInput, MoodInput, PurchaseInput, ReceiptItem, TaskBoardInput, TaskCardInput,
+  TaskLabelInput, TaskListInput, TransactionInput
 } from '@ego/core'
 
 /**
@@ -250,4 +252,28 @@ export function diaryMessageRecordFrom(
     replyToId: input.replyToId, forwarded: input.forwarded, forwardedFrom: input.forwardedFrom,
     pinnedAt: input.pinnedAt, editedAt: input.editedAt, source: input.source, createdAt, updatedAt, revision
   }
+}
+
+export function taskBoardRecordFrom(
+  id: string, input: TaskBoardInput, createdAt: string, updatedAt: string, revision: number
+): TaskBoardRecord {
+  return { id, ...input, name: input.name.trim(), icon: input.icon.trim(), createdAt, updatedAt, revision }
+}
+
+export function taskListRecordFrom(
+  id: string, input: TaskListInput, createdAt: string, updatedAt: string, revision: number
+): TaskListRecord {
+  return { id, ...input, name: input.name.trim(), createdAt, updatedAt, revision }
+}
+
+export function taskLabelRecordFrom(
+  id: string, input: TaskLabelInput, createdAt: string, updatedAt: string, revision: number
+): TaskLabelRecord {
+  return { id, ...input, name: input.name.trim(), createdAt, updatedAt, revision }
+}
+
+export function taskCardRecordFrom(
+  id: string, input: TaskCardInput, createdAt: string, updatedAt: string, revision: number
+): TaskCardRecord {
+  return { id, ...input, title: input.title.trim(), createdAt, updatedAt, revision }
 }

@@ -37,7 +37,7 @@ function spread(touches: readonly Touch[]): number {
  * Pinch to zoom, drag while zoomed, double tap to toggle. At normal size a one-finger swipe is
  * left alone so the pager behind it turns the page.
  */
-function ZoomableImage({ full, preview, width, height, onZoom, onTap }: {
+export function ZoomableImage({ full, preview, width, height, onZoom, onTap }: {
   full: MediaSource
   preview: MediaSource | null
   width: number
@@ -141,7 +141,7 @@ function ZoomableImage({ full, preview, width, height, onZoom, onTap }: {
   </View>
 }
 
-function PlayingVideo({ source, loop, width, height }: { source: MediaSource; loop: boolean; width: number; height: number }): React.ReactElement {
+export function PlayingVideo({ source, loop, width, height }: { source: MediaSource; loop: boolean; width: number; height: number }): React.ReactElement {
   const player = useVideoPlayer({ uri: source.uri, headers: source.headers, useCaching: true }, (created) => {
     created.loop = loop
     created.play()

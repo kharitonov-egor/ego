@@ -1,7 +1,7 @@
 import type {
   AccountBalances, ApiError, ApiErrorCode, ApiResult, AppBuildStatus, AssistantChatList, AssistantConfirmRequest,
   AssistantHistory, AssistantStreamEvent, AssistantTurnRequest, AssistantUndoRequest, AssistantUndoResponse, BootstrapData,
-  ChangePage, DiaryMediaInfo, DiaryMultipartPart, DiaryMultipartStart, FeedCursor,
+  ChangePage, DiaryMediaInfo, DiaryMultipartPart, DiaryMultipartStart, FeedCursor, MediaScope,
   HealthConnectStart, HealthSnapshot, OperationResponse, ReceiptDetail, ReferenceData,
   SessionInfo, SignInResult, SignInStartResult, StudyAssignmentList, StudyMark, SyncOperation,
   TransactionFilters, TransactionPage, TrelloCardRequest, TrelloCardResponse
@@ -41,15 +41,15 @@ export interface HealthApi {
 }
 
 /**
- * Diary files. Players and image loaders fetch them by URL with the device token in a header;
- * uploads stream straight from disk to these URLs.
+ * Diary and Tasks files. Players and image loaders fetch them by URL with the device token in a
+ * header; uploads stream straight from disk to these URLs. The scope defaults to the diary.
  */
 export interface DiaryMediaApi {
-  diaryMediaUrl: (mediaId: string) => string
-  diaryPartUrl: (mediaId: string, uploadId: string, partNumber: number) => string
+  mediaUrl: (mediaId: string, scope?: MediaScope) => string
+  mediaPartUrl: (mediaId: string, uploadId: string, partNumber: number, scope?: MediaScope) => string
   authHeaders: () => Record<string, string>
-  diaryMultipartStart: (mediaId: string, contentType: string) => Promise<ApiResult<DiaryMultipartStart>>
-  diaryMultipartComplete: (mediaId: string, uploadId: string, parts: DiaryMultipartPart[]) => Promise<ApiResult<DiaryMediaInfo>>
+  mediaMultipartStart: (mediaId: string, contentType: string, scope?: MediaScope) => Promise<ApiResult<DiaryMultipartStart>>
+  mediaMultipartComplete: (mediaId: string, uploadId: string, parts: DiaryMultipartPart[], scope?: MediaScope) => Promise<ApiResult<DiaryMediaInfo>>
 }
 
 export type AssistantEventHandler = (event: AssistantStreamEvent) => void
@@ -269,19 +269,19 @@ export function moneyApiFor(config: ApiConfig, options: { streamFetch?: StreamFe
     return send<T>(base, token, path, options)
   }
 
-  const mediaPath = (mediaId: string): string => `/v1/diary/media/${encodeURIComponent(mediaId)}`
+  const mediaPath = (mediaId: string, scope: MediaScope = 'diary'): string => `/v1/${scope}/media/${encodeURIComponent(mediaId)}`
 
   return {
-    diaryMediaUrl: (mediaId) => `${base}${mediaPath(mediaId)}`,
-    diaryPartUrl: (mediaId, uploadId, partNumber) =>
-      `${base}${mediaPath(mediaId)}/multipart/${encodeURIComponent(uploadId)}/${partNumber}`,
+    mediaUrl: (mediaId, scope) => `${base}${mediaPath(mediaId, scope)}`,
+    mediaPartUrl: (mediaId, uploadId, partNumber, scope) =>
+      `${base}${mediaPath(mediaId, scope)}/multipart/${encodeURIComponent(uploadId)}/${partNumber}`,
     authHeaders: (): Record<string, string> => (token ? { authorization: `Bearer ${token}` } : {}),
-    diaryMultipartStart: (mediaId, contentType) => call<DiaryMultipartStart>(`${mediaPath(mediaId)}/multipart`, {
+    mediaMultipartStart: (mediaId, contentType, scope) => call<DiaryMultipartStart>(`${mediaPath(mediaId, scope)}/multipart`, {
       method: 'POST',
       body: JSON.stringify({ contentType })
     }),
-    diaryMultipartComplete: (mediaId, uploadId, parts) =>
-      call<DiaryMediaInfo>(`${mediaPath(mediaId)}/multipart/${encodeURIComponent(uploadId)}/complete`, {
+    mediaMultipartComplete: (mediaId, uploadId, parts, scope) =>
+      call<DiaryMediaInfo>(`${mediaPath(mediaId, scope)}/multipart/${encodeURIComponent(uploadId)}/complete`, {
         method: 'POST',
         body: JSON.stringify({ parts }),
         timeoutMs: SLOW_REQUEST_TIMEOUT_MS

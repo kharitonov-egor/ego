@@ -5,7 +5,7 @@ import {
   accountRecordFrom, budgetIdFor, budgetRecordFrom, categoryRecordFrom, diaryMessageRecordFrom, gymCategoryRecordFrom,
   gymExerciseRecordFrom, gymSetRecordFrom, gymWorkoutRecordFrom, habitEntryRecordFrom, habitRecordFrom,
   moodIdFor, moodRecordFrom, purchaseRecordFrom, purchaseTransactionInput, receiptTransactionIdFor,
-  transactionRecordFrom
+  taskBoardRecordFrom, taskCardRecordFrom, taskLabelRecordFrom, taskListRecordFrom, transactionRecordFrom
 } from './records'
 
 interface Existing {
@@ -161,6 +161,27 @@ export async function applyCommandLocally(
       record: diaryMessageRecordFrom(entityId, command.payload, current?.created_at ?? now, now,
         command.type === 'create' ? 1 : revision)
     })
+    return
+  }
+
+  if (command.entity === 'taskBoard' || command.entity === 'taskList' || command.entity === 'taskLabel' ||
+    command.entity === 'taskCard') {
+    if (command.type === 'delete') {
+      await writeTombstone(tx, command.entity, entityId, revision, now)
+      return
+    }
+    const current = await existing(tx, TABLES[command.entity], 'id', entityId)
+    const createdAt = current?.created_at ?? now
+    const nextRevision = command.type === 'create' ? 1 : revision
+    if (command.entity === 'taskBoard') {
+      await writeRecord(tx, { entity: 'taskBoard', record: taskBoardRecordFrom(entityId, command.payload, createdAt, now, nextRevision) })
+    } else if (command.entity === 'taskList') {
+      await writeRecord(tx, { entity: 'taskList', record: taskListRecordFrom(entityId, command.payload, createdAt, now, nextRevision) })
+    } else if (command.entity === 'taskLabel') {
+      await writeRecord(tx, { entity: 'taskLabel', record: taskLabelRecordFrom(entityId, command.payload, createdAt, now, nextRevision) })
+    } else {
+      await writeRecord(tx, { entity: 'taskCard', record: taskCardRecordFrom(entityId, command.payload, createdAt, now, nextRevision) })
+    }
     return
   }
 

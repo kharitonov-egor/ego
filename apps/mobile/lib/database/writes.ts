@@ -1,7 +1,7 @@
 import type {
   AccountRecord, BudgetRecord, CategoryRecord, ChangePayload, DiaryMessageRecord, FeedTransaction, GymCategoryRecord,
   GymExerciseRecord, GymSetRecord, GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord,
-  PurchaseRecord, SyncEntity, TransactionRecord
+  PurchaseRecord, SyncEntity, TaskBoardRecord, TaskCardRecord, TaskLabelRecord, TaskListRecord, TransactionRecord
 } from '@ego/api-contracts'
 import type { LocalDatabase } from './types'
 
@@ -18,7 +18,11 @@ export const TABLES: Record<SyncEntity, string> = {
   mood: 'mood_entries',
   habit: 'habits',
   habitEntry: 'habit_entries',
-  diaryMessage: 'diary_messages'
+  diaryMessage: 'diary_messages',
+  taskBoard: 'task_boards',
+  taskList: 'task_lists',
+  taskLabel: 'task_labels',
+  taskCard: 'task_cards'
 }
 
 /** Budgets are keyed by month and mood entries by date; every other record by its ID. */
@@ -219,6 +223,61 @@ async function writeDiaryMessage(tx: LocalDatabase, record: DiaryMessageRecord):
     record.createdAt, record.updatedAt, record.revision])
 }
 
+async function writeTaskBoard(tx: LocalDatabase, record: TaskBoardRecord): Promise<void> {
+  await tx.run(`INSERT INTO task_boards (id, name, icon, position, hide_done, archived_at, created_at, updated_at,
+    revision, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+    ON CONFLICT(id) DO UPDATE SET name = excluded.name, icon = excluded.icon, position = excluded.position,
+      hide_done = excluded.hide_done, archived_at = excluded.archived_at, created_at = excluded.created_at,
+      updated_at = excluded.updated_at, revision = excluded.revision, deleted_at = NULL
+    WHERE excluded.revision >= task_boards.revision`,
+  [record.id, record.name, record.icon, record.position, record.hideDone ? 1 : 0, record.archivedAt,
+    record.createdAt, record.updatedAt, record.revision])
+}
+
+async function writeTaskList(tx: LocalDatabase, record: TaskListRecord): Promise<void> {
+  await tx.run(`INSERT INTO task_lists (id, board_id, name, position, archived_at, created_at, updated_at, revision,
+    deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
+    ON CONFLICT(id) DO UPDATE SET board_id = excluded.board_id, name = excluded.name, position = excluded.position,
+      archived_at = excluded.archived_at, created_at = excluded.created_at, updated_at = excluded.updated_at,
+      revision = excluded.revision, deleted_at = NULL
+    WHERE excluded.revision >= task_lists.revision`,
+  [record.id, record.boardId, record.name, record.position, record.archivedAt, record.createdAt, record.updatedAt,
+    record.revision])
+}
+
+async function writeTaskLabel(tx: LocalDatabase, record: TaskLabelRecord): Promise<void> {
+  await tx.run(`INSERT INTO task_labels (id, board_id, name, color, position, created_at, updated_at, revision,
+    deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
+    ON CONFLICT(id) DO UPDATE SET board_id = excluded.board_id, name = excluded.name, color = excluded.color,
+      position = excluded.position, created_at = excluded.created_at, updated_at = excluded.updated_at,
+      revision = excluded.revision, deleted_at = NULL
+    WHERE excluded.revision >= task_labels.revision`,
+  [record.id, record.boardId, record.name, record.color, record.position, record.createdAt, record.updatedAt,
+    record.revision])
+}
+
+async function writeTaskCard(tx: LocalDatabase, record: TaskCardRecord): Promise<void> {
+  await tx.run(`INSERT INTO task_cards (id, board_id, list_id, title, description, position, label_ids, priority,
+    due_date, due_time, reminder_minutes, done_at, archived_at, checklists, attachments, activity, created_at,
+    updated_at, revision, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+    ON CONFLICT(id) DO UPDATE SET board_id = excluded.board_id, list_id = excluded.list_id, title = excluded.title,
+      description = excluded.description, position = excluded.position, label_ids = excluded.label_ids,
+      priority = excluded.priority, due_date = excluded.due_date, due_time = excluded.due_time,
+      reminder_minutes = excluded.reminder_minutes, done_at = excluded.done_at, archived_at = excluded.archived_at,
+      checklists = excluded.checklists, attachments = excluded.attachments, activity = excluded.activity,
+      created_at = excluded.created_at, updated_at = excluded.updated_at, revision = excluded.revision,
+      deleted_at = NULL
+    WHERE excluded.revision >= task_cards.revision`,
+  [record.id, record.boardId, record.listId, record.title, record.description, record.position,
+    JSON.stringify(record.labelIds), record.priority, record.dueDate, record.dueTime, record.reminderMinutes,
+    record.doneAt, record.archivedAt, JSON.stringify(record.checklists), JSON.stringify(record.attachments),
+    JSON.stringify(record.activity), record.createdAt, record.updatedAt, record.revision])
+}
+
 /** Applies a record only when it is at least as new as the stored revision. */
 export async function writeRecord(tx: LocalDatabase, payload: ChangePayload): Promise<void> {
   if (payload.record === null) return
@@ -236,6 +295,10 @@ export async function writeRecord(tx: LocalDatabase, payload: ChangePayload): Pr
     case 'habit': return writeHabit(tx, payload.record)
     case 'habitEntry': return writeHabitEntry(tx, payload.record)
     case 'diaryMessage': return writeDiaryMessage(tx, payload.record)
+    case 'taskBoard': return writeTaskBoard(tx, payload.record)
+    case 'taskList': return writeTaskList(tx, payload.record)
+    case 'taskLabel': return writeTaskLabel(tx, payload.record)
+    case 'taskCard': return writeTaskCard(tx, payload.record)
   }
 }
 
