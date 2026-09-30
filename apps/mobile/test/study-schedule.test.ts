@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  courseColors, courseList, courseSummaries, dayHeading, dueDay, dueWithin, isOverdue, overdueCount, studySections,
-  type StudyFilter
+  courseColors, courseList, courseSummaries, dayHeading, dueClock, dueDay, dueSentence, dueWithin, isOverdue,
+  overdueCount, studySections, type StudyFilter
 } from '../lib/study/schedule'
 import type { StudyItem } from '../lib/study/store'
 
@@ -26,6 +26,13 @@ describe('study days', () => {
   it('puts a deadline on the day it falls on this phone', () => {
     expect(dueDay(item('x', { kind: 'time', at: local(25, 22, 59) }))).toBe('2026-09-25')
     expect(dueDay(item('x', { kind: 'day', date: '2026-09-25' }))).toBe('2026-09-25')
+  })
+
+  it('shows an all-day item at 11:59 PM, the time Canvas turned into all day', () => {
+    const allDay = item('x', { kind: 'day', date: '2026-09-28' })
+    expect(dueClock(allDay)).toBe('11:59 PM')
+    expect(dueSentence(allDay)).toBe('Due Mon, Sep 28 at 11:59 PM')
+    expect(dueClock(item('x', { kind: 'time', at: local(28, 9) }))).toBe('9:00 AM')
   })
 
   it('treats an all-day item as due at the end of its day', () => {

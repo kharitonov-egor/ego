@@ -118,6 +118,7 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
   const gymExercises = data.gymExercises ?? []
   const gymSets = data.gymSets ?? []
   const gymWorkouts = data.gymWorkouts ?? []
+  const gymPlans = data.gymPlans ?? []
   const moods = data.moods ?? []
   const habits = data.habits ?? []
   const habitEntries = data.habitEntries ?? []
@@ -136,6 +137,7 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
     gymExercise: new Set(gymExercises.map((record) => record.id)),
     gymSet: new Set(gymSets.map((record) => record.id)),
     gymWorkout: new Set(gymWorkouts.map((record) => record.id)),
+    gymPlan: new Set(gymPlans.map((record) => record.id)),
     mood: new Set(moods.map((record) => record.date)),
     habit: new Set(habits.map((record) => record.id)),
     habitEntry: new Set(habitEntries.map((record) => record.id)),
@@ -156,6 +158,7 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
     for (const record of gymExercises) if (!skip('gymExercise', record.id)) await writeRecord(cached, { entity: 'gymExercise', record })
     for (const record of gymSets) if (!skip('gymSet', record.id)) await writeRecord(cached, { entity: 'gymSet', record })
     for (const record of gymWorkouts) if (!skip('gymWorkout', record.id)) await writeRecord(cached, { entity: 'gymWorkout', record })
+    for (const record of gymPlans) if (!skip('gymPlan', record.id)) await writeRecord(cached, { entity: 'gymPlan', record })
     for (const record of moods) if (!skip('mood', record.date)) await writeRecord(cached, { entity: 'mood', record })
     for (const record of habits) if (!skip('habit', record.id)) await writeRecord(cached, { entity: 'habit', record })
     for (const record of habitEntries) if (!skip('habitEntry', record.id)) await writeRecord(cached, { entity: 'habitEntry', record })

@@ -128,13 +128,13 @@ export function dayHeading(day: string, today: string): string {
   return shortDay(day)
 }
 
+/** Canvas files an assignment due at 11:59 PM as an all-day event, so that is the time an all-day item shows. */
 export function dueClock(item: Dated): string {
   return item.due.kind === 'day'
-    ? 'All day'
+    ? '11:59 PM'
     : new Date(item.due.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 }
 
 export function dueSentence(item: Dated): string {
-  const day = shortDay(dueDay(item))
-  return item.due.kind === 'day' ? `Due ${day}, any time` : `Due ${day} at ${dueClock(item)}`
+  return `Due ${shortDay(dueDay(item))} at ${dueClock(item)}`
 }

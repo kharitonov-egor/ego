@@ -1,5 +1,5 @@
 import type {
-  DiaryMessage, GymCategory, GymExercise, GymSet, GymWorkout, Habit, HabitEntry, MoneyAccount, MoneyCategory,
+  DiaryMessage, GymCategory, GymExercise, GymPlan, GymSet, GymWorkout, Habit, HabitEntry, MoneyAccount, MoneyCategory,
   MoneyPurchase, MoneyTransaction, MonthlyBudget, MoodEntry, TaskBoard, TaskCard, TaskLabel, TaskList, TransactionKind
 } from '@ego/core'
 
@@ -17,6 +17,7 @@ export type GymCategoryRecord = GymCategory & { revision: number }
 export type GymExerciseRecord = GymExercise & { revision: number }
 export type GymSetRecord = GymSet & { revision: number }
 export type GymWorkoutRecord = GymWorkout & { revision: number }
+export type GymPlanRecord = GymPlan & { revision: number }
 export type MoodRecord = MoodEntry & { revision: number }
 export type HabitRecord = Habit & { revision: number }
 export type HabitEntryRecord = HabitEntry & { revision: number }
@@ -64,6 +65,7 @@ export interface BootstrapData {
   gymExercises: GymExerciseRecord[]
   gymSets: GymSetRecord[]
   gymWorkouts: GymWorkoutRecord[]
+  gymPlans: GymPlanRecord[]
   moods: MoodRecord[]
   habits: HabitRecord[]
   habitEntries: HabitEntryRecord[]
@@ -107,7 +109,7 @@ export interface PeriodSummary {
 
 export type ChangeAction = 'upsert' | 'delete'
 export type MoneyEntity = 'account' | 'category' | 'transaction' | 'purchase' | 'budget'
-export type GymEntity = 'gymCategory' | 'gymExercise' | 'gymSet' | 'gymWorkout'
+export type GymEntity = 'gymCategory' | 'gymExercise' | 'gymSet' | 'gymWorkout' | 'gymPlan'
 export type HealthEntity = 'mood'
 export type HabitEntity = 'habit' | 'habitEntry'
 export type DiaryEntity = 'diaryMessage'
@@ -116,7 +118,7 @@ export type SyncEntity = MoneyEntity | GymEntity | HealthEntity | HabitEntity | 
 
 export const TASK_ENTITIES: readonly TaskEntity[] = ['taskBoard', 'taskList', 'taskLabel', 'taskCard']
 
-export const GYM_ENTITIES: readonly GymEntity[] = ['gymCategory', 'gymExercise', 'gymSet', 'gymWorkout']
+export const GYM_ENTITIES: readonly GymEntity[] = ['gymCategory', 'gymExercise', 'gymSet', 'gymWorkout', 'gymPlan']
 
 export function isGymEntity(entity: SyncEntity): entity is GymEntity {
   return (GYM_ENTITIES as readonly string[]).includes(entity)
@@ -157,6 +159,7 @@ export type ChangePayload =
   | { entity: 'gymExercise'; record: GymExerciseRecord | null }
   | { entity: 'gymSet'; record: GymSetRecord | null }
   | { entity: 'gymWorkout'; record: GymWorkoutRecord | null }
+  | { entity: 'gymPlan'; record: GymPlanRecord | null }
   | { entity: 'mood'; record: MoodRecord | null }
   | { entity: 'habit'; record: HabitRecord | null }
   | { entity: 'habitEntry'; record: HabitEntryRecord | null }

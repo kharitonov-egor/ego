@@ -4,22 +4,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
   ArrowDown, ArrowUp, EllipsisVertical, House, Link2, Plus, Trash2, Unlink
 } from 'lucide-react-native'
-import { joinSuperset, supersetOf, withoutSuperset } from '@ego/core'
+import { linkSuperset, supersetOf, withoutSuperset } from '@ego/core'
 import { useGym } from '../../lib/gym-context'
 import { setCountLabel } from '../../lib/gym/format'
 import type { GymDay } from '../../lib/repositories/gym'
+import { moveItem } from '../../lib/utils'
 import { ConfirmDialog } from '../money/Common'
 import { color, useReducedMotion } from '../money/tokens'
 import { Text } from '../ui/text'
 import { PickerSheet } from './sheets'
 import { MenuSheet, type MenuItem } from './ui'
-
-function move<T>(list: readonly T[], from: number, to: number): T[] {
-  const next = [...list]
-  const [item] = next.splice(from, 1)
-  next.splice(to, 0, item)
-  return next
-}
 
 function Action({ Icon, label, onPress }: { Icon: typeof Plus; label: string; onPress: () => void }): React.ReactElement {
   return <Pressable accessibilityRole="button" onPress={onPress} className="min-h-14 flex-row items-center px-5 active:bg-surface-800">
@@ -66,8 +60,8 @@ export function WorkoutDrawer({ visible, day, currentId, onClose, onSelect, onAd
     const index = ids.indexOf(id)
     const group = supersetOf(supersets, id)
     const items: MenuItem[] = [
-      { label: 'Move up', Icon: ArrowUp, disabled: index <= 0, onPress: () => void gym.arrange(day!.date, (current) => ({ ...current, exerciseOrder: move(current.exerciseOrder, index, index - 1) })) },
-      { label: 'Move down', Icon: ArrowDown, disabled: index === -1 || index >= ids.length - 1, onPress: () => void gym.arrange(day!.date, (current) => ({ ...current, exerciseOrder: move(current.exerciseOrder, index, index + 1) })) },
+      { label: 'Move up', Icon: ArrowUp, disabled: index <= 0, onPress: () => void gym.arrange(day!.date, (current) => ({ ...current, exerciseOrder: moveItem(current.exerciseOrder, index, index - 1) })) },
+      { label: 'Move down', Icon: ArrowDown, disabled: index === -1 || index >= ids.length - 1, onPress: () => void gym.arrange(day!.date, (current) => ({ ...current, exerciseOrder: moveItem(current.exerciseOrder, index, index + 1) })) },
       { label: 'Add to superset', Icon: Link2, disabled: ids.length < 2, onPress: () => setPairingFor(id) }
     ]
     if (group) items.push({ label: 'Remove from superset', Icon: Unlink, onPress: () => void gym.arrange(day!.date, (current) => ({ ...current, supersets: withoutSuperset(current.supersets, id) })) })
@@ -78,15 +72,7 @@ export function WorkoutDrawer({ visible, day, currentId, onClose, onSelect, onAd
   const pairWith = (other: string): void => {
     const first = pairingFor
     if (!first || !day) return
-    void gym.arrange(day.date, (current) => {
-      const joined = joinSuperset(current.supersets, first, other)
-      const group = supersetOf(joined, first) ?? []
-      const anchor = Math.min(...group.map((id) => current.exerciseOrder.indexOf(id)).filter((index) => index >= 0))
-      const rest = current.exerciseOrder.filter((id) => !group.includes(id))
-      const members = current.exerciseOrder.filter((id) => group.includes(id))
-      rest.splice(Math.min(anchor, rest.length), 0, ...members)
-      return { exerciseOrder: rest, supersets: joined }
-    })
+    void gym.arrange(day.date, (current) => linkSuperset(current, first, other))
   }
 
   const removeFromWorkout = async (): Promise<void> => {
@@ -94,12 +80,18 @@ export function WorkoutDrawer({ visible, day, currentId, onClose, onSelect, onAd
     setRemoving(null)
     const item = exercises.find((entry) => entry.exercise.id === id)
     if (!item || !day) return
-    await gym.deleteSets(item.sets.map((set) => set.id))
-    if (supersetOf(supersets, item.exercise.id)) {
-      await gym.arrange(day.date, (current) => ({ ...current, supersets: withoutSuperset(current.supersets, item.exercise.id) }))
+    const exerciseId = item.exercise.id
+    if (item.sets.length > 0 && !await gym.deleteSets(item.sets.map((set) => set.id))) return
+    if (day.workout?.exerciseOrder.includes(exerciseId) || supersetOf(supersets, exerciseId)) {
+      await gym.arrange(day.date, (current) => ({
+        exerciseOrder: current.exerciseOrder.filter((entry) => entry !== exerciseId),
+        supersets: withoutSuperset(current.supersets, exerciseId)
+      }))
     }
-    if (item.exercise.id === currentId) onClose()
+    if (exerciseId === currentId) onClose()
   }
+
+  const removingSets = exercises.find((entry) => entry.exercise.id === removing)?.sets.length ?? 0
 
   return <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
     <View className="flex-1 flex-row">
@@ -143,7 +135,7 @@ export function WorkoutDrawer({ visible, day, currentId, onClose, onSelect, onAd
                 </Pressable>
               </Pressable>
             })}
-            {exercises.length === 0 && <Text className="px-5 py-6 text-[15px] leading-6 text-muted-foreground">Nothing logged this day yet. Save a set and it shows up here.</Text>}
+            {exercises.length === 0 && <Text className="px-5 py-6 text-[15px] leading-6 text-muted-foreground">Nothing logged this day yet. Save a set or start a plan and it shows up here.</Text>}
           </ScrollView>
           <View className="border-t border-border bg-surface-900">
             <Action Icon={Plus} label="ADD EXERCISE" onPress={() => { onClose(); onAddExercise() }} />
@@ -168,9 +160,11 @@ export function WorkoutDrawer({ visible, day, currentId, onClose, onSelect, onAd
     />
     <ConfirmDialog
       visible={removing !== null}
-      title="Delete from this workout?"
-      detail={`The ${removing ? nameOf(removing) : ''} sets logged this day are deleted. Other days keep theirs.`}
-      confirmLabel="Delete sets"
+      title={removingSets > 0 ? 'Delete from this workout?' : 'Remove from this workout?'}
+      detail={removingSets > 0
+        ? `The ${removing ? nameOf(removing) : ''} sets logged this day are deleted. Other days keep theirs.`
+        : `${removing ? nameOf(removing) : 'It'} leaves this day's list.`}
+      confirmLabel={removingSets > 0 ? 'Delete sets' : 'Remove'}
       destructive
       hideNavigation={false}
       onCancel={() => setRemoving(null)}

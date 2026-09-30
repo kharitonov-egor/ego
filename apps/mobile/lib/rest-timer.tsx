@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { AppState, PermissionsAndroid, Platform, Vibration, type Permission } from 'react-native'
 import * as SecureStore from 'expo-secure-store'
 import { requireOptionalNativeModule } from 'expo'
+import { hideRestCountdown, showRestCountdown } from '../modules/rest-countdown'
 
 type Notifications = typeof import('expo-notifications')
 
@@ -92,7 +93,8 @@ async function askForNotifications(): Promise<void> {
 
 /**
  * While the app is open the phone vibrates at zero. When it goes to the background a notification
- * is scheduled for the same moment, and cancelled again when the app returns.
+ * is scheduled for the same moment, and cancelled again when the app returns. The ongoing countdown
+ * notification is separate and shows for as long as the timer runs.
  */
 async function scheduleNotification(endsAt: number): Promise<void> {
   if (!AVAILABLE || endsAt <= Date.now()) return
@@ -147,6 +149,11 @@ export function RestTimerProvider({ children }: { children: React.ReactNode }): 
   }, [endsAt])
 
   useEffect(() => {
+    if (endsAt === null) hideRestCountdown()
+    else showRestCountdown(endsAt)
+  }, [endsAt])
+
+  useEffect(() => {
     if (!finished) return
     const clear = setTimeout(() => setFinished(false), 4000)
     return () => clearTimeout(clear)
@@ -169,7 +176,9 @@ export function RestTimerProvider({ children }: { children: React.ReactNode }): 
     setNow(current)
     setFinished(false)
     setEndsAt(current + (seconds ?? preference.seconds) * 1000)
-    void askForNotifications().catch(() => undefined)
+    void askForNotifications().then(() => {
+      if (endsAtRef.current !== null) showRestCountdown(endsAtRef.current)
+    }).catch(() => undefined)
   }, [preference.seconds])
 
   const stop = useCallback(() => {

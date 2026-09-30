@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { GymSetLike } from '@ego/core'
 import {
-  dayBarLabel, draftFrom, historyHeader, setParts, stepDraft, valuesFromDraft, type EntryDraft
+  beatsRecord, dayBarLabel, draftFrom, historyHeader, setParts, stepDraft, valuesFromDraft, type EntryDraft
 } from '../lib/gym/format'
 
 const squat: GymSetLike = {
@@ -57,5 +57,35 @@ describe('entry fields', () => {
     expect(valuesFromDraft({ weight: '', reps: '', distance: '', time: '0:00:40' }, 'time', 'lbs', 'mi')).toMatchObject({
       ok: true, values: { durationSeconds: 40, weight: null }
     })
+  })
+})
+
+describe('new records', () => {
+  const lift = (weight: number, reps: number) => ({
+    date: '2026-09-28', weight, weightUnit: 'lbs' as const, reps, distance: null, distanceUnit: null, durationSeconds: null
+  })
+
+  it('celebrates a heavier weight for the same reps, or more reps than ever before', () => {
+    expect(beatsRecord([squat], lift(30, 12), 'weight_reps', 'lbs', 'mi')).toBe(true)
+    expect(beatsRecord([squat], lift(20, 15), 'weight_reps', 'lbs', 'mi')).toBe(true)
+  })
+
+  it('does not celebrate a tie, a lighter set, or the first set ever', () => {
+    expect(beatsRecord([squat], lift(25, 12), 'weight_reps', 'lbs', 'mi')).toBe(false)
+    expect(beatsRecord([squat], lift(20, 10), 'weight_reps', 'lbs', 'mi')).toBe(false)
+    expect(beatsRecord([], lift(100, 5), 'weight_reps', 'lbs', 'mi')).toBe(false)
+  })
+
+  it('compares across units', () => {
+    const kilos = { ...lift(12, 12), weightUnit: 'kg' as const }
+    expect(beatsRecord([squat], kilos, 'weight_reps', 'lbs', 'mi')).toBe(true)
+    expect(beatsRecord([squat], { ...kilos, weight: 11 }, 'weight_reps', 'lbs', 'mi')).toBe(false)
+  })
+
+  it('uses the single field for one-field exercises', () => {
+    const plank = { ...squat, weight: null, weightUnit: null, reps: null, durationSeconds: 60 }
+    const hold = (seconds: number) => ({ ...lift(0, 0), weight: null, weightUnit: null, reps: null, durationSeconds: seconds })
+    expect(beatsRecord([plank], hold(75), 'time', 'lbs', 'mi')).toBe(true)
+    expect(beatsRecord([plank], hold(60), 'time', 'lbs', 'mi')).toBe(false)
   })
 })

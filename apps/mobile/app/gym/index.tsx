@@ -3,7 +3,8 @@ import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native'
 import { Stack, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
-  AlarmClock, CalendarDays, ChevronLeft, ChevronRight, EllipsisVertical, LayoutGrid, Library, Plus, Settings
+  AlarmClock, BookmarkPlus, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, EllipsisVertical, LayoutGrid,
+  Library, ListPlus, Plus, Settings
 } from 'lucide-react-native'
 import { DEFAULT_DISTANCE_UNIT, exerciseRecords } from '@ego/core'
 import { CalendarDialog } from '../../components/money/DatePicker'
@@ -12,11 +13,13 @@ import { color } from '../../components/money/tokens'
 import { GymReviewSheet } from '../../components/gym/GymSync'
 import { SyncButton } from '../../components/money/SyncButton'
 import { RestTimerButton, RestTimerSheet } from '../../components/gym/RestTimer'
+import { PickerSheet, PlanNameSheet } from '../../components/gym/sheets'
 import { GymGate, HeaderIcon, MenuSheet, SetMarks, SetValues } from '../../components/gym/ui'
 import { Button } from '../../components/ui/button'
 import { Text } from '../../components/ui/text'
 import { shiftIso } from '../../lib/dates'
 import { dayBarLabel, unitFor } from '../../lib/gym/format'
+import { exerciseCountLabel, planExercises, startLabel } from '../../lib/gym/plans'
 import { useGym, useGymQuery } from '../../lib/gym-context'
 import { cachedExerciseSets, gymDay, type GymDay, type WorkoutExercise } from '../../lib/repositories/gym'
 import { useRestTimer } from '../../lib/rest-timer'
@@ -58,6 +61,7 @@ function ExerciseCard({ item, records, grouped, onPress }: {
         <Text className="text-[18px] font-medium">{exercise.name}</Text>
       </View>
       <View className="px-4 py-1.5">
+        {sets.length === 0 && <Text className="py-1.5 text-[15px] text-muted-foreground">No sets yet</Text>}
         {sets.map((set) => <View key={set.id} className="py-1.5">
           <View className="min-h-8 flex-row items-center">
             <View className="flex-1"><SetMarks record={records.has(set.id)} comment={set.comment} /></View>
@@ -82,7 +86,11 @@ function groupPosition(day: GymDay, index: number): 'none' | 'first' | 'middle' 
   return 'none'
 }
 
-function LoggedDayBody({ day, onOpen }: { day: GymDay; onOpen: (exerciseId: string) => void }): React.ReactElement {
+function LoggedDayBody({ day, onOpen, onStartPlan }: {
+  day: GymDay
+  onOpen: (exerciseId: string) => void
+  onStartPlan: () => void
+}): React.ReactElement {
   const gym = useGym()
   const router = useRouter()
   const insets = useSafeAreaInsets()
@@ -99,6 +107,9 @@ function LoggedDayBody({ day, onOpen }: { day: GymDay; onOpen: (exerciseId: stri
       {noLibrary
         ? <Button size="lg" disabled={gym.writing} onPress={() => void gym.addLibrary()} className="mt-6"><Library color={color.screen} size={19} /><Text>Add standard exercises</Text></Button>
         : <Button size="lg" onPress={() => router.push('/gym/exercises')} className="mt-6"><Plus color={color.screen} size={19} /><Text>Start new workout</Text></Button>}
+      {!noLibrary && gym.plans.length > 0 && <Button variant="outline" size="lg" onPress={onStartPlan} className="mt-3">
+        <ClipboardList color={color.text} size={19} /><Text>Start from a plan</Text>
+      </Button>}
     </ScrollView>
   }
   return <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}>
@@ -112,13 +123,16 @@ function LoggedDayBody({ day, onOpen }: { day: GymDay; onOpen: (exerciseId: stri
   </ScrollView>
 }
 
-function DayBody({ onOpen }: { onOpen: (exerciseId: string) => void }): React.ReactElement {
+function DayBody({ day, onOpen, onStartPlan }: {
+  day: GymDay | null
+  onOpen: (exerciseId: string) => void
+  onStartPlan: () => void
+}): React.ReactElement {
   const gym = useGym()
-  const day = useGymQuery((db) => gymDay(db, gym.date), [gym.date])
   if (!day || day.date !== gym.date) {
     return <View className="flex-1 items-center justify-center"><ActivityIndicator color={color.text} /></View>
   }
-  return <LoggedDayBody day={day} onOpen={onOpen} />
+  return <LoggedDayBody day={day} onOpen={onOpen} onStartPlan={onStartPlan} />
 }
 
 /** FitNotes' home: one day's workout, a card per exercise, days a swipe apart. */
@@ -130,7 +144,19 @@ export default function GymLog(): React.ReactElement {
   const [resting, setResting] = useState(false)
   const [picking, setPicking] = useState(false)
   const [reviewing, setReviewing] = useState(false)
+  const [choosingPlan, setChoosingPlan] = useState(false)
+  const [naming, setNaming] = useState(false)
+  const day = useGymQuery((db) => gymDay(db, gym.date), [gym.date])
+  const shown = day && day.date === gym.date ? day : null
   const step = (days: number): void => gym.setDate(shiftIso(gym.date, days))
+
+  const saveAsPlan = async (name: string): Promise<void> => {
+    if (!shown) return
+    const saved = await gym.savePlan(null, {
+      name, exerciseOrder: shown.exercises.map((item) => item.exercise.id), supersets: shown.supersets
+    })
+    if (saved) setNaming(false)
+  }
 
   return <>
     <Stack.Screen options={{
@@ -158,14 +184,35 @@ export default function GymLog(): React.ReactElement {
         </Pressable>
       </View>
       <PeriodSwipe onStep={(delta) => step(-delta)}>
-        <DayBody onOpen={(exerciseId) => router.push({ pathname: '/gym/track', params: { exerciseId } })} />
+        <DayBody
+          day={day}
+          onOpen={(exerciseId) => router.push({ pathname: '/gym/track', params: { exerciseId } })}
+          onStartPlan={() => setChoosingPlan(true)}
+        />
       </PeriodSwipe>
     </GymGate>
     <MenuSheet visible={menu} title="Gym" onClose={() => setMenu(false)} items={[
       { label: 'Rest timer', Icon: AlarmClock, onPress: () => setResting(true) },
+      { label: 'Plans', Icon: ClipboardList, onPress: () => router.push('/gym/plans') },
+      { label: 'Start from a plan', Icon: ListPlus, disabled: gym.plans.length === 0, onPress: () => setChoosingPlan(true) },
+      { label: 'Save day as plan', Icon: BookmarkPlus, disabled: !shown || shown.exercises.length === 0, onPress: () => setNaming(true) },
       { label: 'All exercises', Icon: Library, onPress: () => router.push('/gym/exercises') },
       { label: 'Settings', Icon: Settings, onPress: () => router.push('/settings') }
     ]} />
+    <PickerSheet
+      visible={choosingPlan}
+      title={startLabel(gym.date)}
+      options={gym.plans.map((plan) => ({
+        value: plan.id, label: plan.name, detail: exerciseCountLabel(planExercises(plan, gym.exercises).length)
+      }))}
+      value={null}
+      onPick={(id) => {
+        const plan = gym.plans.find((item) => item.id === id)
+        if (plan) void gym.startPlan(gym.date, plan)
+      }}
+      onClose={() => setChoosingPlan(false)}
+    />
+    <PlanNameSheet visible={naming} onClose={() => setNaming(false)} onSave={(name) => void saveAsPlan(name)} />
     <RestTimerSheet visible={resting} onClose={() => setResting(false)} />
     <GymReviewSheet visible={reviewing} onClose={() => setReviewing(false)} />
     <CalendarDialog

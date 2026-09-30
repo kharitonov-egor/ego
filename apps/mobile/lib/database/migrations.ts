@@ -388,6 +388,18 @@ export const LOCAL_MIGRATIONS: readonly string[][] = [
     'CREATE INDEX IF NOT EXISTS idx_local_task_cards_list ON task_cards(list_id, position) WHERE deleted_at IS NULL',
     // Task attachments reuse the diary upload queue. The column says which route a file goes to.
     "ALTER TABLE diary_uploads ADD COLUMN scope TEXT NOT NULL DEFAULT 'diary'"
+  ],
+  [
+    `CREATE TABLE IF NOT EXISTS gym_plans (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      exercise_order TEXT NOT NULL DEFAULT '[]',
+      supersets TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1,
+      deleted_at TEXT
+    )`
   ]
 ]
 

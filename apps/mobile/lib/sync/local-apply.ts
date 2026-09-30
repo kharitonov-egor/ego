@@ -3,8 +3,8 @@ import type { LocalDatabase } from '../database/types'
 import { TABLES, writeRecord, writeTombstone } from '../database/writes'
 import {
   accountRecordFrom, budgetIdFor, budgetRecordFrom, categoryRecordFrom, diaryMessageRecordFrom, gymCategoryRecordFrom,
-  gymExerciseRecordFrom, gymSetRecordFrom, gymWorkoutRecordFrom, habitEntryRecordFrom, habitRecordFrom,
-  moodIdFor, moodRecordFrom, purchaseRecordFrom, purchaseTransactionInput, receiptTransactionIdFor,
+  gymExerciseRecordFrom, gymPlanRecordFrom, gymSetRecordFrom, gymWorkoutRecordFrom, habitEntryRecordFrom,
+  habitRecordFrom, moodIdFor, moodRecordFrom, purchaseRecordFrom, purchaseTransactionInput, receiptTransactionIdFor,
   taskBoardRecordFrom, taskCardRecordFrom, taskLabelRecordFrom, taskListRecordFrom, transactionRecordFrom
 } from './records'
 
@@ -105,7 +105,8 @@ export async function applyCommandLocally(
     return
   }
 
-  if (command.entity === 'gymCategory' || command.entity === 'gymExercise' || command.entity === 'gymSet') {
+  if (command.entity === 'gymCategory' || command.entity === 'gymExercise' || command.entity === 'gymSet' ||
+    command.entity === 'gymPlan') {
     if (command.type === 'delete') {
       await writeTombstone(tx, command.entity, entityId, revision, now)
       return
@@ -117,6 +118,8 @@ export async function applyCommandLocally(
       await writeRecord(tx, { entity: 'gymCategory', record: gymCategoryRecordFrom(entityId, command.payload, createdAt, now, nextRevision) })
     } else if (command.entity === 'gymExercise') {
       await writeRecord(tx, { entity: 'gymExercise', record: gymExerciseRecordFrom(entityId, command.payload, createdAt, now, nextRevision) })
+    } else if (command.entity === 'gymPlan') {
+      await writeRecord(tx, { entity: 'gymPlan', record: gymPlanRecordFrom(entityId, command.payload, createdAt, now, nextRevision) })
     } else {
       await writeRecord(tx, { entity: 'gymSet', record: gymSetRecordFrom(entityId, command.payload, createdAt, now, nextRevision) })
     }
