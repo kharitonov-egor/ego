@@ -4,7 +4,7 @@ import {
   summarySql, transactionQueryIdentity,
   type AccountBalances, type ApiResult, type BootstrapData, type ChangePage, type ChangeRecord, type FeedCursor,
   type AccountRecord, type BudgetRecord, type CategoryRecord, type ChangePayload, type DiaryMessageRecord,
-  type GymCategoryRecord, type GymExerciseRecord, type GymSetRecord, type GymWorkoutRecord,
+  type GymCategoryRecord, type GymExerciseRecord, type GymPlanRecord, type GymSetRecord, type GymWorkoutRecord,
   type HabitEntryRecord, type HabitRecord, type MoodRecord, type TaskBoardRecord, type TaskCardRecord,
   type TaskLabelRecord, type TaskListRecord,
   type PeriodSummary, type PurchaseRecord, type ReceiptDetail, type ReferenceData,
@@ -13,11 +13,11 @@ import {
 import type { MoneySnapshot } from '@ego/core'
 import {
   toAccountRecord, toBudgetRecord, toCategoryRecord, toDiaryMessageRecord, toFeedTransaction, toGymCategoryRecord,
-  toGymExerciseRecord, toGymSetRecord, toGymWorkoutRecord, toHabitEntryRecord, toHabitRecord, toMoodRecord,
-  toPurchaseRecord, toReceiptItem, toTaskBoardRecord, toTaskCardRecord, toTaskLabelRecord, toTaskListRecord,
-  toTransactionRecord,
+  toGymExerciseRecord, toGymPlanRecord, toGymSetRecord, toGymWorkoutRecord, toHabitEntryRecord, toHabitRecord,
+  toMoodRecord, toPurchaseRecord, toReceiptItem, toTaskBoardRecord, toTaskCardRecord, toTaskLabelRecord,
+  toTaskListRecord, toTransactionRecord,
   type AccountRow, type BudgetAllocationRow, type BudgetRow, type CategoryRow, type DiaryMessageRow, type FeedRow,
-  type GymCategoryRow, type GymExerciseRow, type GymSetRow, type GymWorkoutRow, type HabitEntryRow,
+  type GymCategoryRow, type GymExerciseRow, type GymPlanRow, type GymSetRow, type GymWorkoutRow, type HabitEntryRow,
   type HabitRow, type MoodRow, type PurchaseRow, type ReceiptItemRow, type TaskBoardRow, type TaskCardRow,
   type TaskLabelRow, type TaskListRow, type TransactionRow
 } from './rows'
@@ -172,6 +172,7 @@ function toChangePayload(entity: ChangeRow['entity'], record: unknown): ChangePa
     case 'gymExercise': return { entity, record: record as GymExerciseRecord | null }
     case 'gymSet': return { entity, record: record as GymSetRecord | null }
     case 'gymWorkout': return { entity, record: record as GymWorkoutRecord | null }
+    case 'gymPlan': return { entity, record: record as GymPlanRecord | null }
     case 'mood': return { entity, record: record as MoodRecord | null }
     case 'habit': return { entity, record: record as HabitRecord | null }
     case 'habitEntry': return { entity, record: record as HabitEntryRecord | null }
@@ -289,12 +290,15 @@ export async function readTaskRows(db: D1Database): Promise<TaskRows> {
  */
 export async function readBootstrap(db: D1Database): Promise<BootstrapData> {
   const sequence = await serverSequence(db)
-  const [records, gymCategories, gymExercises, gymSets, gymWorkouts, moods, habits, habitEntries, diaryMessages, tasks] = await Promise.all([
+  const [
+    records, gymCategories, gymExercises, gymSets, gymWorkouts, gymPlans, moods, habits, habitEntries, diaryMessages, tasks
+  ] = await Promise.all([
     readLiveRecords(db),
     query<GymCategoryRow>(db, 'SELECT * FROM gym_categories WHERE deleted_at IS NULL ORDER BY name COLLATE NOCASE'),
     query<GymExerciseRow>(db, 'SELECT * FROM gym_exercises WHERE deleted_at IS NULL ORDER BY name COLLATE NOCASE'),
     query<GymSetRow>(db, 'SELECT * FROM gym_sets WHERE deleted_at IS NULL ORDER BY date, exercise_id, position'),
     query<GymWorkoutRow>(db, 'SELECT * FROM gym_workouts WHERE deleted_at IS NULL ORDER BY id'),
+    query<GymPlanRow>(db, 'SELECT * FROM gym_plans WHERE deleted_at IS NULL ORDER BY name COLLATE NOCASE'),
     query<MoodRow>(db, 'SELECT * FROM mood_entries WHERE deleted_at IS NULL ORDER BY date DESC'),
     query<HabitRow>(db, 'SELECT * FROM habits WHERE deleted_at IS NULL ORDER BY position, created_at'),
     query<HabitEntryRow>(db, 'SELECT * FROM habit_entries WHERE deleted_at IS NULL ORDER BY date, created_at'),
@@ -312,6 +316,7 @@ export async function readBootstrap(db: D1Database): Promise<BootstrapData> {
     gymExercises: gymExercises.map(toGymExerciseRecord),
     gymSets: gymSets.map(toGymSetRecord),
     gymWorkouts: gymWorkouts.map(toGymWorkoutRecord),
+    gymPlans: gymPlans.map(toGymPlanRecord),
     moods: moods.map(toMoodRecord),
     habits: habits.map(toHabitRecord),
     habitEntries: habitEntries.map(toHabitEntryRecord),

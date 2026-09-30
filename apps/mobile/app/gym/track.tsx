@@ -5,13 +5,14 @@ import {
 } from 'react-native'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { ArrowLeft, ArrowRight, Info, Menu, MessageSquare, Minus, Plus, Trophy } from 'lucide-react-native'
+import { ArrowLeft, ArrowRight, Info, Link2, Menu, MessageSquare, Minus, Plus, Trophy } from 'lucide-react-native'
 import {
   DEFAULT_DISTANCE_UNIT, EXERCISE_TYPE_LABELS, exerciseRecords, fieldsFor, supersetOf,
   type DistanceUnit, type SetField
 } from '@ego/core'
 import { BottomSheet } from '../../components/money/Common'
 import { color, tabular } from '../../components/money/tokens'
+import { Confetti } from '../../components/gym/Confetti'
 import { ExerciseGraph } from '../../components/gym/ExerciseGraph'
 import { RecordsSheet } from '../../components/gym/RecordsSheet'
 import { RestTimerButton, RestTimerSheet } from '../../components/gym/RestTimer'
@@ -21,11 +22,11 @@ import { Dot, GymGate, HeaderIcon, SectionLabel, SetMarks, SetValues } from '../
 import { Button } from '../../components/ui/button'
 import { Text } from '../../components/ui/text'
 import {
-  EMPTY_DRAFT, draftFrom, historyHeader, stepDraft, unitFor, valuesFromDraft, type EntryDraft
+  EMPTY_DRAFT, beatsRecord, draftFrom, historyHeader, stepDraft, unitFor, valuesFromDraft, type EntryDraft
 } from '../../lib/gym/format'
 import { useGym, useGymQuery } from '../../lib/gym-context'
 import {
-  cachedExerciseSets, exerciseSetsPage, exerciseTrackSets, gymDay,
+  cachedExerciseSets, exerciseSetsPage, exerciseSupersetPartners, exerciseTrackSets, gymDay,
   type ExerciseTrackSets, type GymExerciseView, type GymSetView
 } from '../../lib/repositories/gym'
 import { useRestTimer } from '../../lib/rest-timer'
@@ -75,13 +76,16 @@ function Stepper({ label, value, keyboard, onChange, onStep }: {
   </View>
 }
 
-function TrackPage({ exercise, date, history, records, nextInSuperset, onNext }: {
+function TrackPage({ exercise, date, history, lifetime, records, nextInSuperset, onNext, onRecord }: {
   exercise: GymExerciseView
   date: string
   history: readonly GymSetView[]
+  /** Every set of the exercise, once loaded. Deciding whether a new set breaks a record needs all of them. */
+  lifetime: readonly GymSetView[] | null
   records: Set<string>
   nextInSuperset: GymExerciseView | null
   onNext: () => void
+  onRecord: () => void
 }): React.ReactElement {
   const gym = useGym()
   const timer = useRestTimer()
@@ -137,8 +141,12 @@ function TrackPage({ exercise, date, history, records, nextInSuperset, onNext }:
       if (saved) setSelectedId(null)
       return
     }
+    const record = lifetime !== null &&
+      beatsRecord(lifetime, { date, ...parsed.values }, exercise.type, unit, distanceUnit)
     const saved = await gym.logSet({ exerciseId: exercise.id, date, comment: '', ...parsed.values })
-    if (saved && timer.preference.autoStart) timer.start()
+    if (!saved) return
+    if (record) onRecord()
+    if (timer.preference.autoStart) timer.start()
   }
 
   const clear = async (): Promise<void> => {
@@ -228,6 +236,7 @@ function HistoryPage({ exercise, records, onOpenDay }: {
   const [loading, setLoading] = useState(false)
   const loadingRef = useRef(false)
   const request = useRef(0)
+  const partners = useGymQuery((db) => exerciseSupersetPartners(db, exercise.id), [exercise.id])
 
   const load = async (offset: number): Promise<void> => {
     if (!gym.db || loadingRef.current) return
@@ -278,19 +287,36 @@ function HistoryPage({ exercise, records, onOpenDay }: {
     initialNumToRender={30}
     onEndReachedThreshold={0.6}
     onEndReached={() => { if (nextOffset !== null) void load(nextOffset) }}
-    contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 24 }}
-    renderSectionHeader={({ section }) => <Pressable
-      accessibilityRole="button"
-      accessibilityHint="Opens this day in Track"
-      onPress={() => onOpenDay(section.date)}
-      className="pt-6 active:opacity-70"
-    ><SectionLabel>{historyHeader(section.date)}</SectionLabel></Pressable>}
-    renderItem={({ item }) => <View className="py-1.5">
-      <View className="min-h-9 flex-row items-center">
-        <View className="flex-1"><SetMarks record={records.has(item.id)} comment={item.comment} /></View>
-        <SetValues set={item} type={exercise.type} unit={unit} />
+    contentContainerStyle={{ paddingLeft: 8, paddingRight: 20, paddingBottom: insets.bottom + 24 }}
+    renderSectionHeader={({ section }) => {
+      const partnerNames = partners?.get(section.date)
+      return <Pressable
+        accessibilityRole="button"
+        accessibilityHint="Opens this day in Track"
+        onPress={() => onOpenDay(section.date)}
+        className="pl-3 pt-6 active:opacity-70"
+      >
+        <SectionLabel>{historyHeader(section.date)}</SectionLabel>
+        {partnerNames && <View className="flex-row items-center pt-2">
+          <Link2 color={color.textMuted} size={15} />
+          <Text numberOfLines={1} className="ml-1.5 flex-1 text-[14px] text-muted-foreground">Superset with {partnerNames.join(', ')}</Text>
+        </View>}
+      </Pressable>
+    }}
+    renderItem={({ item, index, section }) => <View className="flex-row">
+      <View className="w-3">
+        {partners?.has(section.date) && <View style={{
+          position: 'absolute', left: 2, width: 3, borderRadius: 2, backgroundColor: color.text,
+          top: index === 0 ? 8 : 0, bottom: index === section.data.length - 1 ? 8 : 0
+        }} />}
       </View>
-      {item.comment !== '' && <Text className="text-right text-[14px] text-muted-foreground">{item.comment}</Text>}
+      <View className="flex-1 py-1.5">
+        <View className="min-h-9 flex-row items-center">
+          <View className="flex-1"><SetMarks record={records.has(item.id)} comment={item.comment} /></View>
+          <SetValues set={item} type={exercise.type} unit={unit} />
+        </View>
+        {item.comment !== '' && <Text className="text-right text-[14px] text-muted-foreground">{item.comment}</Text>}
+      </View>
     </View>}
     ListFooterComponent={loading ? <ActivityIndicator color={color.text} className="py-5" /> : null}
   />
@@ -327,6 +353,7 @@ export default function Track(): React.ReactElement {
   const [showRecords, setShowRecords] = useState(false)
   const [showInfo, setShowInfo] = useState(false)
   const [resting, setResting] = useState(false)
+  const [celebration, setCelebration] = useState(0)
   const exercise = gym.exercises.find((item) => item.id === exerciseId) ?? null
   const track = useGymQuery(async (db) => ({
     exerciseId, sets: await exerciseTrackSets(db, exerciseId, gym.date)
@@ -405,9 +432,11 @@ export default function Track(): React.ReactElement {
                 exercise={exercise}
                 date={gym.date}
                 history={[...trackSets.today, ...(trackSets.previous ? [trackSets.previous] : [])]}
+                lifetime={history}
                 records={records?.recordSetIds ?? new Set<string>()}
                 nextInSuperset={nextInSuperset}
                 onNext={() => nextInSuperset && switchTo(nextInSuperset.id)}
+                onRecord={() => setCelebration((count) => count + 1)}
               />}
             </View>
             <View style={{ width, height: pageHeight }}>
@@ -428,6 +457,7 @@ export default function Track(): React.ReactElement {
           </ScrollView>
         </>}
     </GymGate>
+    {celebration > 0 && <Confetti key={celebration} onDone={() => setCelebration(0)} />}
     <WorkoutDrawer
       visible={drawer}
       day={day}

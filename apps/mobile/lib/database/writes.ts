@@ -1,6 +1,6 @@
 import type {
   AccountRecord, BudgetRecord, CategoryRecord, ChangePayload, DiaryMessageRecord, FeedTransaction, GymCategoryRecord,
-  GymExerciseRecord, GymSetRecord, GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord,
+  GymExerciseRecord, GymPlanRecord, GymSetRecord, GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord,
   PurchaseRecord, SyncEntity, TaskBoardRecord, TaskCardRecord, TaskLabelRecord, TaskListRecord, TransactionRecord
 } from '@ego/api-contracts'
 import type { LocalDatabase } from './types'
@@ -15,6 +15,7 @@ export const TABLES: Record<SyncEntity, string> = {
   gymExercise: 'gym_exercises',
   gymSet: 'gym_sets',
   gymWorkout: 'gym_workouts',
+  gymPlan: 'gym_plans',
   mood: 'mood_entries',
   habit: 'habits',
   habitEntry: 'habit_entries',
@@ -171,6 +172,17 @@ async function writeGymWorkout(tx: LocalDatabase, record: GymWorkoutRecord): Pro
     record.createdAt, record.updatedAt, record.revision])
 }
 
+async function writeGymPlan(tx: LocalDatabase, record: GymPlanRecord): Promise<void> {
+  await tx.run(`INSERT INTO gym_plans (id, name, exercise_order, supersets, created_at, updated_at, revision, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
+    ON CONFLICT(id) DO UPDATE SET name = excluded.name, exercise_order = excluded.exercise_order,
+      supersets = excluded.supersets, created_at = excluded.created_at, updated_at = excluded.updated_at,
+      revision = excluded.revision, deleted_at = NULL
+    WHERE excluded.revision >= gym_plans.revision`,
+  [record.id, record.name, JSON.stringify(record.exerciseOrder), JSON.stringify(record.supersets),
+    record.createdAt, record.updatedAt, record.revision])
+}
+
 async function writeMood(tx: LocalDatabase, record: MoodRecord): Promise<void> {
   await tx.run(`INSERT INTO mood_entries (id, date, mood, note, created_at, updated_at, revision, deleted_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
@@ -291,6 +303,7 @@ export async function writeRecord(tx: LocalDatabase, payload: ChangePayload): Pr
     case 'gymExercise': return writeGymExercise(tx, payload.record)
     case 'gymSet': return writeGymSet(tx, payload.record)
     case 'gymWorkout': return writeGymWorkout(tx, payload.record)
+    case 'gymPlan': return writeGymPlan(tx, payload.record)
     case 'mood': return writeMood(tx, payload.record)
     case 'habit': return writeHabit(tx, payload.record)
     case 'habitEntry': return writeHabitEntry(tx, payload.record)

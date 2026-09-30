@@ -6,10 +6,10 @@ import {
 } from '@ego/core'
 import { filterQuery, type MoneyApi } from '../../mobile/lib/api-client'
 import type { LocalDatabase } from '../../mobile/lib/database/types'
-import { exerciseSets, gymCalendar, gymCategories, gymDay, gymExercises } from '../../mobile/lib/repositories/gym'
+import { exerciseSets, gymCalendar, gymCategories, gymDay, gymExercises, gymPlans } from '../../mobile/lib/repositories/gym'
 import {
-  createGymCategory, createGymExercise, createGymSet, deleteGymCategory, deleteGymExercise, deleteGymSet,
-  saveGymWorkout, updateGymSet
+  createGymCategory, createGymExercise, createGymPlan, createGymSet, deleteGymCategory, deleteGymExercise,
+  deleteGymPlan, deleteGymSet, saveGymWorkout, updateGymPlan, updateGymSet
 } from '../../mobile/lib/sync/commands'
 import { createSyncCoordinator } from '../../mobile/lib/sync/coordinator'
 import { allOperations } from '../../mobile/lib/sync/outbox'
@@ -206,6 +206,45 @@ describe('gym log between the phone and the Worker', () => {
     expect(await serverRows('SELECT exercise_order, revision FROM gym_workouts')).toEqual([
       { exercise_order: '["ge-squat","ge-press"]', revision: 2 }
     ])
+  })
+
+  it('syncs a plan through create, edit, and delete, and a new phone downloads it', async () => {
+    const coordinator = await pair()
+    await coordinator.sync()
+    await createGymCategory(device!, legs, NOW, 'gc-legs')
+    await createGymExercise(device!, squat(), NOW, 'ge-squat')
+    await createGymExercise(device!, squat({ name: 'Leg Press' }), NOW, 'ge-press')
+    const plan = { name: ' Legs A ', exerciseOrder: ['ge-squat', 'ge-press'], supersets: [['ge-squat', 'ge-press']] }
+    await createGymPlan(device!, plan, NOW, 'gp-legs')
+    expect((await gymPlans(device!)).map((item) => [item.name, item.exerciseOrder, item.revision])).toEqual([
+      ['Legs A', ['ge-squat', 'ge-press'], 1]
+    ])
+
+    const outcome = await coordinator.sync()
+    expect(outcome.state).toBe('synced')
+    expect(outcome.touched.gym).toBe(true)
+    expect(await serverRows('SELECT name, exercise_order, supersets, revision FROM gym_plans')).toEqual([
+      { name: 'Legs A', exercise_order: '["ge-squat","ge-press"]', supersets: '[["ge-squat","ge-press"]]', revision: 1 }
+    ])
+
+    await updateGymPlan(device!, 'gp-legs', 1, { ...plan, name: 'Legs', supersets: [] }, NOW)
+    await coordinator.sync()
+    expect(await serverRows('SELECT name, supersets, revision FROM gym_plans')).toEqual([{ name: 'Legs', supersets: '[]', revision: 2 }])
+
+    const fresh = await openTestLedger()
+    try {
+      await createSyncCoordinator({ db: fresh, api: apiOver(server!.db), now: () => NOW }).sync()
+      expect((await gymPlans(fresh)).map((item) => [item.id, item.name])).toEqual([['gp-legs', 'Legs']])
+    } finally {
+      await fresh.close()
+    }
+
+    await deleteGymPlan(device!, 'gp-legs', 2, NOW)
+    await coordinator.sync()
+    expect(await gymPlans(device!)).toEqual([])
+    expect(await serverRows('SELECT COUNT(*) AS total FROM gym_plans WHERE deleted_at IS NULL')).toEqual([{ total: 0 }])
+    const changes = await readChanges(server!.db, 0, 20)
+    expect(changes.changes.filter((change) => change.entity === 'gymPlan').map((change) => change.action)).toEqual(['upsert', 'upsert', 'delete'])
   })
 
   it('imports a FitNotes export through the operations endpoint, and a second run changes nothing', async () => {

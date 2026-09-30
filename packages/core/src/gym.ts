@@ -123,6 +123,19 @@ export interface GymWorkout extends GymWorkoutInput {
   updatedAt: string
 }
 
+/** A named list of exercises, in order and with supersets, that can start any day's workout. */
+export interface GymPlanInput {
+  name: string
+  exerciseOrder: string[]
+  supersets: string[][]
+}
+
+export interface GymPlan extends GymPlanInput {
+  id: string
+  createdAt: string
+  updatedAt: string
+}
+
 const MAX_WEIGHT = 10000
 const MAX_REPS = 100000
 const MAX_DISTANCE = 100000
@@ -191,13 +204,13 @@ export function isGymSetInput(value: unknown): value is GymSetInput {
   return typeof value.comment === 'string' && value.comment.length <= 500
 }
 
-export function isGymWorkoutInput(value: unknown): value is GymWorkoutInput {
-  if (!isRecord(value) || !isDate(value.date) || typeof value.notes !== 'string' || value.notes.length > 1000) return false
-  if (!Array.isArray(value.exerciseOrder) || value.exerciseOrder.length > 200 ||
-    !value.exerciseOrder.every(isIdentifier) || new Set(value.exerciseOrder).size !== value.exerciseOrder.length) return false
-  if (!Array.isArray(value.supersets) || value.supersets.length > 50) return false
+/** An exercise order without repeats, and superset groups that never share an exercise. */
+function isArrangement(exerciseOrder: unknown, supersets: unknown): boolean {
+  if (!Array.isArray(exerciseOrder) || exerciseOrder.length > 200 ||
+    !exerciseOrder.every(isIdentifier) || new Set(exerciseOrder).size !== exerciseOrder.length) return false
+  if (!Array.isArray(supersets) || supersets.length > 50) return false
   const grouped = new Set<string>()
-  return value.supersets.every((group) => {
+  return supersets.every((group) => {
     if (!Array.isArray(group) || group.length < 2 || group.length > 20 || !group.every(isIdentifier)) return false
     for (const id of group) {
       if (grouped.has(id)) return false
@@ -205,6 +218,15 @@ export function isGymWorkoutInput(value: unknown): value is GymWorkoutInput {
     }
     return true
   })
+}
+
+export function isGymWorkoutInput(value: unknown): value is GymWorkoutInput {
+  if (!isRecord(value) || !isDate(value.date) || typeof value.notes !== 'string' || value.notes.length > 1000) return false
+  return isArrangement(value.exerciseOrder, value.supersets)
+}
+
+export function isGymPlanInput(value: unknown): value is GymPlanInput {
+  return isRecord(value) && isName(value.name, 60) && isArrangement(value.exerciseOrder, value.supersets)
 }
 
 export function fieldsFor(type: ExerciseType): readonly SetField[] {
@@ -505,4 +527,44 @@ export function joinSuperset(supersets: readonly string[][], first: string, seco
   const secondGroup = supersetOf(supersets, second)
   const merged = [...new Set([...(firstGroup ?? [first]), ...(secondGroup ?? [second])])]
   return [...supersets.filter((group) => group !== firstGroup && group !== secondGroup), merged]
+}
+
+/** The order of a day or a plan and its superset groups. */
+export interface GymArrangement {
+  exerciseOrder: string[]
+  supersets: string[][]
+}
+
+/** Moves each superset's exercises next to each other, where the first of them stands. */
+export function gatherSupersets(arrangement: GymArrangement): GymArrangement {
+  let order = [...arrangement.exerciseOrder]
+  for (const group of arrangement.supersets) {
+    const members = order.filter((id) => group.includes(id))
+    if (members.length < 2) continue
+    const anchor = order.indexOf(members[0])
+    const rest = order.filter((id) => !group.includes(id))
+    rest.splice(anchor, 0, ...members)
+    order = rest
+  }
+  return { exerciseOrder: order, supersets: arrangement.supersets.map((group) => [...group]) }
+}
+
+export function linkSuperset(arrangement: GymArrangement, first: string, second: string): GymArrangement {
+  return gatherSupersets({
+    exerciseOrder: arrangement.exerciseOrder,
+    supersets: joinSuperset(arrangement.supersets, first, second)
+  })
+}
+
+/**
+ * A day with a plan added. Exercises the day lacks follow in the plan's order, and the plan's
+ * supersets join the day's, merging where they share an exercise.
+ */
+export function addPlan(day: GymArrangement, plan: GymArrangement): GymArrangement {
+  const exerciseOrder = [...day.exerciseOrder, ...plan.exerciseOrder.filter((id) => !day.exerciseOrder.includes(id))]
+  let supersets = day.supersets.map((group) => [...group])
+  for (const group of plan.supersets) {
+    for (const id of group.slice(1)) supersets = joinSuperset(supersets, group[0], id)
+  }
+  return gatherSupersets({ exerciseOrder, supersets })
 }

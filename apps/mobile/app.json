@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ego",
     "slug": "ego",
-    "version": "0.4.0",
+    "version": "0.5.0",
     "orientation": "portrait",
     "icon": "./assets/app-icon.png",
     "scheme": "ego",
@@ -28,7 +28,12 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png"
+        }
+      ],
       [
         "expo-image-picker",
         {

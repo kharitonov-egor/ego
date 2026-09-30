@@ -1,8 +1,8 @@
 import type { SyncCommand, SyncOperation } from '@ego/api-contracts'
 import type {
-  AccountInput, BudgetInput, CategoryInput, DiaryMessageInput, GymCategoryInput, GymExerciseInput, GymSetInput,
-  GymWorkoutInput, HabitEntryInput, HabitInput, MoodInput, PurchaseInput, TaskBoardInput, TaskCardInput, TaskLabelInput,
-  TaskListInput, TransactionInput
+  AccountInput, BudgetInput, CategoryInput, DiaryMessageInput, GymCategoryInput, GymExerciseInput, GymPlanInput,
+  GymSetInput, GymWorkoutInput, HabitEntryInput, HabitInput, MoodInput, PurchaseInput, TaskBoardInput, TaskCardInput,
+  TaskLabelInput, TaskListInput, TransactionInput
 } from '@ego/core'
 import type { LocalDatabase } from '../database/types'
 import { applyCommandLocally } from './local-apply'
@@ -114,6 +114,16 @@ export const deleteGymSet = (db: LocalDatabase, id: string, revision: number, no
 export const saveGymWorkout = (
   db: LocalDatabase, input: GymWorkoutInput, revision: number | null, now: string
 ) => submit(db, input.date, revision, { entity: 'gymWorkout', type: 'save', payload: input }, now)
+
+export const createGymPlan = (db: LocalDatabase, input: GymPlanInput, now: string, id = newId()) =>
+  submit(db, id, null, { entity: 'gymPlan', type: 'create', payload: input }, now)
+
+export const updateGymPlan = (
+  db: LocalDatabase, id: string, revision: number, input: GymPlanInput, now: string
+) => submit(db, id, revision, { entity: 'gymPlan', type: 'update', payload: input }, now)
+
+export const deleteGymPlan = (db: LocalDatabase, id: string, revision: number, now: string) =>
+  submit(db, id, revision, { entity: 'gymPlan', type: 'delete' }, now)
 
 export const saveMood = (
   db: LocalDatabase, input: MoodInput, revision: number | null, now: string

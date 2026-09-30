@@ -1,11 +1,11 @@
 import {
   isAccountInput, isBudgetInput, isCategoryInput, isDateString, isDiaryMessageInput, isGymCategoryInput,
-  isGymExerciseInput, isGymSetInput, isGymWorkoutInput, isHabitEntryInput, isHabitInput, isMonthString,
+  isGymExerciseInput, isGymPlanInput, isGymSetInput, isGymWorkoutInput, isHabitEntryInput, isHabitInput, isMonthString,
   isMoodInput, isPurchaseInput, isTaskBoardInput, isTaskCardInput, isTaskLabelInput, isTaskListInput, isTransactionInput,
   type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type DiaryMessageInput,
-  type GymCategoryInput, type GymExerciseInput, type GymSetInput, type GymWorkoutInput, type HabitEntryInput,
-  type HabitInput, type MoodInput, type PurchaseInput, type TaskBoardInput, type TaskCardInput, type TaskLabelInput,
-  type TaskListInput, type TransactionInput
+  type GymCategoryInput, type GymExerciseInput, type GymPlanInput, type GymSetInput, type GymWorkoutInput,
+  type HabitEntryInput, type HabitInput, type MoodInput, type PurchaseInput, type TaskBoardInput, type TaskCardInput,
+  type TaskLabelInput, type TaskListInput, type TransactionInput
 } from '@ego/core'
 import type { ApiError } from './errors'
 import type { SyncEntity } from './records'
@@ -35,6 +35,9 @@ export type SyncCommand =
   | { entity: 'gymSet'; type: 'update'; payload: GymSetInput }
   | { entity: 'gymSet'; type: 'delete' }
   | { entity: 'gymWorkout'; type: 'save'; payload: GymWorkoutInput }
+  | { entity: 'gymPlan'; type: 'create'; payload: GymPlanInput }
+  | { entity: 'gymPlan'; type: 'update'; payload: GymPlanInput }
+  | { entity: 'gymPlan'; type: 'delete' }
   | { entity: 'mood'; type: 'save'; payload: MoodInput }
   | { entity: 'mood'; type: 'delete' }
   | { entity: 'habit'; type: 'create'; payload: HabitInput }
@@ -137,6 +140,9 @@ function isCommand(value: unknown): value is SyncCommand {
       return isGymSetInput(payload)
     case 'gymWorkout.save':
       return isGymWorkoutInput(payload)
+    case 'gymPlan.create':
+    case 'gymPlan.update':
+      return isGymPlanInput(payload)
     case 'mood.save':
       return isMoodInput(payload)
     case 'habit.create':
@@ -165,6 +171,7 @@ function isCommand(value: unknown): value is SyncCommand {
     case 'gymCategory.delete':
     case 'gymExercise.delete':
     case 'gymSet.delete':
+    case 'gymPlan.delete':
     case 'mood.delete':
     case 'habit.delete':
     case 'habitEntry.delete':
