@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
-  convertWeight, estimatedOneRepMax, exerciseRecords, formatSetDuration, formatWeight, graphMetricsFor,
-  graphPoints, isGymExerciseInput, isGymSetInput, isGymWorkoutInput, joinSuperset, parseDuration,
-  withoutSuperset, type GymSetInput, type GymSetLike
+  addPlan, convertWeight, estimatedOneRepMax, exerciseRecords, formatSetDuration, formatWeight, gatherSupersets,
+  graphMetricsFor, graphPoints, isGymExerciseInput, isGymPlanInput, isGymSetInput, isGymWorkoutInput, joinSuperset,
+  linkSuperset, parseDuration, withoutSuperset, type GymSetInput, type GymSetLike
 } from '../src/gym'
 import {
   GYM_LIBRARY_CATEGORIES, GYM_LIBRARY_EXERCISES, customExerciseId, libraryExerciseId, slugify
@@ -50,6 +50,16 @@ describe('gym input validation', () => {
     expect(isGymWorkoutInput({ ...workout, supersets: [['a', 'b'], ['b', 'c']] })).toBe(false)
     expect(isGymWorkoutInput({ ...workout, supersets: [['a']] })).toBe(false)
     expect(isGymWorkoutInput({ ...workout, exerciseOrder: ['a', 'a'] })).toBe(false)
+  })
+
+  it('accepts a named plan with the same rules for order and supersets', () => {
+    const plan = { name: ' Push day ', exerciseOrder: ['a', 'b', 'c'], supersets: [['b', 'c']] }
+    expect(isGymPlanInput(plan)).toBe(true)
+    expect(isGymPlanInput({ ...plan, exerciseOrder: [], supersets: [] })).toBe(true)
+    expect(isGymPlanInput({ ...plan, name: '   ' })).toBe(false)
+    expect(isGymPlanInput({ ...plan, name: 'x'.repeat(61) })).toBe(false)
+    expect(isGymPlanInput({ ...plan, supersets: [['a', 'b'], ['b', 'c']] })).toBe(false)
+    expect(isGymPlanInput({ ...plan, exerciseOrder: ['a', 'a'] })).toBe(false)
   })
 })
 
@@ -126,6 +136,23 @@ describe('supersets', () => {
     const joined = joinSuperset([['a', 'b']], 'c', 'a')
     expect(joined).toEqual([['c', 'a', 'b']])
     expect(withoutSuperset([['a', 'b']], 'a')).toEqual([])
+  })
+
+  it('pulls a new superset together where its first exercise stands', () => {
+    const linked = linkSuperset({ exerciseOrder: ['a', 'b', 'c', 'd'], supersets: [] }, 'd', 'b')
+    expect(linked).toEqual({ exerciseOrder: ['a', 'b', 'd', 'c'], supersets: [['d', 'b']] })
+    expect(gatherSupersets({ exerciseOrder: ['a', 'b', 'c'], supersets: [['c', 'a']] }).exerciseOrder).toEqual(['a', 'c', 'b'])
+  })
+
+  it('adds a plan after what the day already has and merges shared supersets', () => {
+    expect(addPlan({ exerciseOrder: [], supersets: [] }, { exerciseOrder: ['a', 'b', 'c'], supersets: [['b', 'c']] }))
+      .toEqual({ exerciseOrder: ['a', 'b', 'c'], supersets: [['b', 'c']] })
+    const merged = addPlan(
+      { exerciseOrder: ['x', 'b', 'y'], supersets: [['x', 'y']] },
+      { exerciseOrder: ['a', 'b', 'c'], supersets: [['b', 'c']] }
+    )
+    expect(merged.exerciseOrder).toEqual(['x', 'y', 'b', 'c', 'a'])
+    expect(merged.supersets).toEqual([['x', 'y'], ['b', 'c']])
   })
 })
 

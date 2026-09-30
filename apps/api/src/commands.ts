@@ -6,18 +6,18 @@ import {
 import {
   HABIT_TARGET_LIMIT, diaryMediaIds, entryKindFits, taskMediaIds,
   type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type DiaryMessageInput,
-  type GymSetInput, type HabitInput, type MoodInput, type PurchaseInput, type TaskBoardInput, type TaskCardInput,
-  type TaskLabelInput, type TaskListInput, type TransactionInput
+  type GymPlanInput, type GymSetInput, type HabitInput, type MoodInput, type PurchaseInput, type TaskBoardInput,
+  type TaskCardInput, type TaskLabelInput, type TaskListInput, type TransactionInput
 } from '@ego/core'
 import { query, readLatestChange, serverSequence } from './reads'
 import {
   toAccountRecord, toBudgetRecord, toCategoryRecord, toDiaryMessageRecord, toGymCategoryRecord, toGymExerciseRecord,
-  toGymSetRecord, toGymWorkoutRecord, toHabitEntryRecord, toHabitRecord, toMoodRecord, toPurchaseRecord,
+  toGymPlanRecord, toGymSetRecord, toGymWorkoutRecord, toHabitEntryRecord, toHabitRecord, toMoodRecord, toPurchaseRecord,
   toReceiptItem, toTaskBoardRecord, toTaskCardRecord, toTaskLabelRecord, toTaskListRecord, toTransactionRecord,
   type AccountRow, type BudgetAllocationRow, type BudgetRow, type CategoryRow, type DiaryMessageRow, type GymCategoryRow,
-  type GymExerciseRow, type GymSetRow, type GymWorkoutRow, type HabitEntryRow, type HabitRow, type MoodRow,
-  type PurchaseRow, type ReceiptItemRow, type TaskBoardRow, type TaskCardRow, type TaskLabelRow, type TaskListRow,
-  type TransactionRow
+  type GymExerciseRow, type GymPlanRow, type GymSetRow, type GymWorkoutRow, type HabitEntryRow, type HabitRow,
+  type MoodRow, type PurchaseRow, type ReceiptItemRow, type TaskBoardRow, type TaskCardRow, type TaskLabelRow,
+  type TaskListRow, type TransactionRow
 } from './rows'
 
 interface Statement {
@@ -49,6 +49,7 @@ const TABLES: Record<SyncEntity, string> = {
   gymExercise: 'gym_exercises',
   gymSet: 'gym_sets',
   gymWorkout: 'gym_workouts',
+  gymPlan: 'gym_plans',
   mood: 'mood_entries',
   habit: 'habits',
   habitEntry: 'habit_entries',
@@ -70,6 +71,7 @@ const KEYS: Record<SyncEntity, string> = {
   gymExercise: 'id',
   gymSet: 'id',
   gymWorkout: 'id',
+  gymPlan: 'id',
   mood: 'date',
   habit: 'id',
   habitEntry: 'id',
@@ -904,6 +906,47 @@ async function planGymWorkout(
   }
 }
 
+function gymPlanRowFrom(id: string, input: GymPlanInput, createdAt: string, updatedAt: string, revision: number): GymPlanRow {
+  return {
+    id, name: input.name.trim(), exercise_order: JSON.stringify(input.exerciseOrder),
+    supersets: JSON.stringify(input.supersets), created_at: createdAt, updated_at: updatedAt, revision
+  }
+}
+
+async function planGymPlan(
+  db: D1Database, operation: SyncOperation, command: Extract<SyncCommand, { entity: 'gymPlan' }>, now: string
+): Promise<ApiResult<Plan>> {
+  const id = operation.entityId
+  if (command.type === 'create') {
+    const row = gymPlanRowFrom(id, command.payload, now, now, 1)
+    return {
+      ok: true,
+      data: upsertPlan('gymPlan', id, 1, { entity: 'gymPlan', record: toGymPlanRecord(row) }, {
+        sql: `INSERT INTO gym_plans (id, name, exercise_order, supersets, created_at, updated_at, revision)
+          SELECT ?, ?, ?, ?, ?, ?, 1`,
+        params: [id, row.name, row.exercise_order, row.supersets, now, now]
+      }, null)
+    }
+  }
+  const current = await liveRow<GymPlanRow>(db, 'gymPlan', id)
+  if (!current) return notFound('That plan was not found')
+  const expected = operation.expectedRevision ?? 0
+  const guard = guardFor('gymPlan', id, expected)
+  if (command.type === 'delete') {
+    return { ok: true, data: deletePlan('gymPlan', id, expected, now, guard, { entity: 'gymPlan', record: null }) }
+  }
+  const revision = expected + 1
+  const row = gymPlanRowFrom(id, command.payload, current.created_at, now, revision)
+  return {
+    ok: true,
+    data: upsertPlan('gymPlan', id, revision, { entity: 'gymPlan', record: toGymPlanRecord(row) }, {
+      sql: `UPDATE gym_plans SET name = ?, exercise_order = ?, supersets = ?, updated_at = ?, revision = revision + 1
+        WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+      params: [row.name, row.exercise_order, row.supersets, now, id, expected]
+    }, guard)
+  }
+}
+
 async function planMood(
   db: D1Database, operation: SyncOperation, command: Extract<SyncCommand, { entity: 'mood' }>, now: string
 ): Promise<ApiResult<Plan>> {
@@ -1341,6 +1384,7 @@ function planFor(db: D1Database, operation: SyncOperation, now: string): Promise
     case 'gymExercise': return planGymExercise(db, operation, operation.command, now)
     case 'gymSet': return planGymSet(db, operation, operation.command, now)
     case 'gymWorkout': return planGymWorkout(db, operation, operation.command, now)
+    case 'gymPlan': return planGymPlan(db, operation, operation.command, now)
     case 'mood': return planMood(db, operation, operation.command, now)
     case 'habit': return planHabit(db, operation, operation.command, now)
     case 'habitEntry': return planHabitEntry(db, operation, operation.command, now)

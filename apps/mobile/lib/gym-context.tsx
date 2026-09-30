@@ -1,24 +1,20 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  GYM_LIBRARY_CATEGORIES, GYM_LIBRARY_EXERCISES,
-  type GymCategoryInput, type GymExerciseInput, type GymSetInput
+  GYM_LIBRARY_CATEGORIES, GYM_LIBRARY_EXERCISES, addPlan,
+  type GymArrangement, type GymCategoryInput, type GymExerciseInput, type GymPlanInput, type GymSetInput
 } from '@ego/core'
 import { isoToday } from './dates'
 import type { LocalDatabase } from './database/types'
 import { useLedger, type LocalWrite } from './ledger-context'
 import {
-  gymCategories, gymDay, gymExercises, gymRevision, gymWorkout, nextSetPosition,
-  type GymCategoryView, type GymExerciseView
+  gymCategories, gymDay, gymExercises, gymPlans, gymRevision, gymWorkout, nextSetPosition,
+  type GymCategoryView, type GymExerciseView, type GymPlanView
 } from './repositories/gym'
 import {
-  createGymCategory, createGymExercise, createGymSet, deleteGymCategory, deleteGymExercise, deleteGymSet,
-  newId, saveGymWorkout, updateGymCategory, updateGymExercise, updateGymSet
+  createGymCategory, createGymExercise, createGymPlan, createGymSet, deleteGymCategory, deleteGymExercise,
+  deleteGymPlan, deleteGymSet, newId, saveGymWorkout, updateGymCategory, updateGymExercise, updateGymPlan,
+  updateGymSet
 } from './sync/commands'
-
-export interface Arrangement {
-  exerciseOrder: string[]
-  supersets: string[][]
-}
 
 interface GymContextValue {
   /** The local copy holds a complete download. */
@@ -32,6 +28,7 @@ interface GymContextValue {
   setDate: (date: string) => void
   categories: GymCategoryView[]
   exercises: GymExerciseView[]
+  plans: GymPlanView[]
   error: string | null
   dismissError: () => void
   logSet: (input: Omit<GymSetInput, 'position'>) => Promise<boolean>
@@ -42,7 +39,11 @@ interface GymContextValue {
   saveCategory: (id: string | null, input: GymCategoryInput) => Promise<string | null>
   deleteCategory: (id: string) => Promise<boolean>
   /** Reorders a day or changes its supersets, starting from the order the log shows now. */
-  arrange: (date: string, change: (current: Arrangement) => Arrangement) => Promise<boolean>
+  arrange: (date: string, change: (current: GymArrangement) => GymArrangement) => Promise<boolean>
+  savePlan: (id: string | null, input: GymPlanInput) => Promise<string | null>
+  deletePlan: (id: string) => Promise<boolean>
+  /** Adds a plan's exercises and supersets to a day, after whatever the day already has. */
+  startPlan: (date: string, plan: GymPlanView) => Promise<boolean>
   addLibrary: () => Promise<boolean>
 }
 
@@ -51,7 +52,7 @@ const GymContext = createContext<GymContextValue | null>(null)
 class RejectedWrite extends Error {}
 
 async function revisionOf(
-  db: LocalDatabase, table: 'gym_categories' | 'gym_exercises' | 'gym_sets', id: string, label: string
+  db: LocalDatabase, table: 'gym_categories' | 'gym_exercises' | 'gym_sets' | 'gym_plans', id: string, label: string
 ): Promise<number> {
   const revision = await gymRevision(db, table, id)
   if (revision === null) throw new RejectedWrite(`${label} was deleted on another device.`)
@@ -65,6 +66,7 @@ export function GymProvider({ children }: { children: React.ReactNode }): React.
   const [date, setDate] = useState(isoToday)
   const [categories, setCategories] = useState<GymCategoryView[]>([])
   const [exercises, setExercises] = useState<GymExerciseView[]>([])
+  const [plans, setPlans] = useState<GymPlanView[]>([])
   const [error, setError] = useState<string | null>(null)
   const generation = useRef(0)
 
@@ -72,14 +74,16 @@ export function GymProvider({ children }: { children: React.ReactNode }): React.
     if (!db || !ready) {
       setCategories([])
       setExercises([])
+      setPlans([])
       return
     }
     generation.current += 1
     const started = generation.current
-    void Promise.all([gymCategories(db), gymExercises(db)]).then(([nextCategories, nextExercises]) => {
+    void Promise.all([gymCategories(db), gymExercises(db), gymPlans(db)]).then(([nextCategories, nextExercises, nextPlans]) => {
       if (started !== generation.current) return
       setCategories(nextCategories)
       setExercises(nextExercises)
+      setPlans(nextPlans)
     }).catch((failure: unknown) => {
       if (started === generation.current) setError(failure instanceof Error ? failure.message : 'This phone could not read the gym log')
     })
@@ -145,13 +149,34 @@ export function GymProvider({ children }: { children: React.ReactNode }): React.
     await deleteGymCategory(database, id, await revisionOf(database, 'gym_categories', id, 'That category'), now)
   }), [run])
 
-  const arrange = useCallback((day: string, change: (current: Arrangement) => Arrangement) => run(async (database, now) => {
+  const arrange = useCallback((day: string, change: (current: GymArrangement) => GymArrangement) => run(async (database, now) => {
     const [shown, stored] = await Promise.all([gymDay(database, day), gymWorkout(database, day)])
     const next = change({ exerciseOrder: shown.exercises.map((item) => item.exercise.id), supersets: shown.supersets })
     await saveGymWorkout(database, {
       date: day, exerciseOrder: next.exerciseOrder, supersets: next.supersets, notes: stored?.notes ?? ''
     }, stored?.revision ?? null, now)
   }), [run])
+
+  const savePlan = useCallback(async (id: string | null, input: GymPlanInput): Promise<string | null> => {
+    const target = id ?? newId()
+    const saved = await run(async (database, now) => {
+      if (id) await updateGymPlan(database, id, await revisionOf(database, 'gym_plans', id, 'That plan'), input, now)
+      else await createGymPlan(database, input, now, target)
+    })
+    return saved ? target : null
+  }, [run])
+
+  const deletePlan = useCallback((id: string) => run(async (database, now) => {
+    await deleteGymPlan(database, id, await revisionOf(database, 'gym_plans', id, 'That plan'), now)
+  }), [run])
+
+  const startPlan = useCallback((day: string, plan: GymPlanView) => {
+    const live = new Set(exercises.map((exercise) => exercise.id))
+    return arrange(day, (current) => addPlan(current, {
+      exerciseOrder: plan.exerciseOrder.filter((id) => live.has(id)),
+      supersets: plan.supersets.map((group) => group.filter((id) => live.has(id))).filter((group) => group.length >= 2)
+    }))
+  }, [arrange, exercises])
 
   const addLibrary = useCallback(() => run((database, now) => database.transaction(async (tx) => {
     const existing = new Set((await tx.all<{ id: string }>('SELECT id FROM gym_categories UNION SELECT id FROM gym_exercises')).map((row) => row.id))
@@ -172,6 +197,7 @@ export function GymProvider({ children }: { children: React.ReactNode }): React.
     setDate,
     categories,
     exercises,
+    plans,
     error,
     dismissError: () => setError(null),
     logSet,
@@ -182,9 +208,13 @@ export function GymProvider({ children }: { children: React.ReactNode }): React.
     saveCategory,
     deleteCategory,
     arrange,
+    savePlan,
+    deletePlan,
+    startPlan,
     addLibrary
-  }), [addLibrary, arrange, categories, date, db, deleteCategory, deleteExercise, deleteSets, error, exercises,
-    gymVersion, ledger.writing, logSet, ready, saveCategory, saveExercise, updateSet])
+  }), [addLibrary, arrange, categories, date, db, deleteCategory, deleteExercise, deletePlan, deleteSets, error,
+    exercises, gymVersion, ledger.writing, logSet, plans, ready, saveCategory, saveExercise, savePlan, startPlan,
+    updateSet])
 
   return <GymContext.Provider value={value}>{children}</GymContext.Provider>
 }

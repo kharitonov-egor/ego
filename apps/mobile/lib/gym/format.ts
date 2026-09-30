@@ -1,6 +1,6 @@
 import {
-  DEFAULT_DISTANCE_UNIT, DEFAULT_WEIGHT_UNIT, displayWeightUnit, fieldsFor, formatDistance, formatSetDuration,
-  formatWeight, parseDuration, roundTo, setWeightIn,
+  DEFAULT_DISTANCE_UNIT, DEFAULT_WEIGHT_UNIT, displayWeightUnit, exerciseRecords, fieldsFor, formatDistance,
+  formatSetDuration, formatWeight, parseDuration, roundTo, setWeightIn,
   type DistanceUnit, type ExerciseType, type ExerciseWeightUnit, type GymSetInput, type GymSetLike, type SetField,
   type WeightUnit
 } from '@ego/core'
@@ -146,4 +146,22 @@ export function stepDraft(draft: EntryDraft, field: SetField, direction: -1 | 1,
       return { ...draft, time: formatSetDuration(next) }
     }
   }
+}
+
+const CANDIDATE_ID = 'unsaved-set'
+
+/**
+ * Whether a set about to be logged would earn the trophy, taking it from an earlier set. The first
+ * set of an exercise holds every record by default, so it does not count.
+ */
+export function beatsRecord(
+  history: readonly GymSetLike[],
+  candidate: Omit<GymSetLike, 'id' | 'position' | 'createdAt'>,
+  type: ExerciseType,
+  unit: WeightUnit,
+  distanceUnit: DistanceUnit
+): boolean {
+  if (history.length === 0) return false
+  const next: GymSetLike = { ...candidate, id: CANDIDATE_ID, position: Number.MAX_SAFE_INTEGER, createdAt: '9999-12-31T23:59:59.999Z' }
+  return exerciseRecords([...history, next], type, unit, distanceUnit).recordSetIds.has(CANDIDATE_ID)
 }
