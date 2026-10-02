@@ -1,4 +1,5 @@
 import type { Env } from './auth'
+import { BACKUP_CRON, runScheduledBackup } from './backup'
 import { runScheduledHealthSync } from './health'
 import { handle } from './router'
 
@@ -15,6 +16,8 @@ export default {
   },
 
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    ctx.waitUntil(runScheduledHealthSync(env, new Date(controller.scheduledTime)))
+    const now = new Date(controller.scheduledTime)
+    if (controller.cron === BACKUP_CRON) ctx.waitUntil(runScheduledBackup(env, now))
+    else ctx.waitUntil(runScheduledHealthSync(env, now))
   }
 }

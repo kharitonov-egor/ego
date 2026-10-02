@@ -4,7 +4,12 @@ compatibility_date = "2026-09-01"
 
 # Pulls Google Health into D1 so the phone finds fresh numbers without waiting on Google.
 [triggers]
-crons = ["*/15 * * * *"]
+# The second one backs D1 up to R2 at 07:00 UTC. It must match BACKUP_CRON in src/backup.ts.
+crons = ["*/15 * * * *", "0 7 * * *"]
+
+[vars]
+D1_ACCOUNT_ID = "92315e9c86dc9762b0924de19d20b10b"
+D1_DATABASE_ID = "efd88bbb-8dca-4164-b3e5-b8040572551e"
 
 [[d1_databases]]
 binding = "DB"
@@ -16,3 +21,8 @@ migrations_dir = "migrations"
 [[r2_buckets]]
 binding = "DIARY_MEDIA"
 bucket_name = "ego-diary"
+
+# Daily D1 dumps. No lifecycle rule, so they are kept forever.
+[[r2_buckets]]
+binding = "BACKUPS"
+bucket_name = "ego-backups"
