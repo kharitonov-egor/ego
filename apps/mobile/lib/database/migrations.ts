@@ -428,6 +428,9 @@ export const LOCAL_MIGRATIONS: readonly string[][] = [
       deleted_at TEXT
     )`,
     'CREATE INDEX IF NOT EXISTS idx_local_sheet_rows_sheet ON sheet_rows(sheet_id) WHERE deleted_at IS NULL'
+  ],
+  [
+    'CREATE TABLE diary_draft (id INTEGER PRIMARY KEY CHECK (id = 1), text TEXT NOT NULL)'
   ]
 ]
 
