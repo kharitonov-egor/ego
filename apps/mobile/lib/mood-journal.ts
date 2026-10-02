@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import type { MoodRecord } from '@ego/api-contracts'
 import { isMoodInput, type MoodInput } from '@ego/core'
 import { useLedger } from './ledger-context'
-import { localMoodRevision, localMoods } from './repositories/moods'
-import { deleteMood, saveMood } from './sync/commands'
+import { localMoodRevision, localMoods } from '@ego/local/repositories/moods'
+import { deleteMood, saveMood } from '@ego/local/sync/commands'
 
 export interface MoodJournal {
   /** Signed in, so entries live in the synced local database. */

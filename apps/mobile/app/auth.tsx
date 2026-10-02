@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, Text, View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { CircleAlert } from 'lucide-react-native'
 import { apiUrlFor, useSettings } from '../lib/settings'
-import { moneyApiFor } from '../lib/api-client'
+import { moneyApiFor } from '@ego/local/api-client'
 import { abandonGoogleSignIn, finishGoogleSignIn, signInErrorMessage } from '../lib/sign-in'
 import { TOUCH } from '../components/money/tokens'
 

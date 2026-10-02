@@ -4,7 +4,7 @@ import type { HabitEntryRecord, HabitRecord } from '@ego/api-contracts'
 import {
   buildLog, dayScore, habitRates, heatLevel, monthDates, monthSummary, monthWeeks, mondayOf, quitClock, quitStart,
   rowState, splitDuration, streaks, weekDates
-} from '../lib/habits/stats'
+} from '../src/habits/stats'
 
 const AT = '2026-09-01T12:00:00.000Z'
 const HOUR = 60 * 60 * 1000

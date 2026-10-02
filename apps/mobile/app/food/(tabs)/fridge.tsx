@@ -16,7 +16,7 @@ import { Blurred } from '../../../lib/blur'
 import { useFood } from '../../../lib/food/context'
 import { addedLabel } from '../../../lib/food/drafts'
 import { chooseFoodPhoto, takeFoodPhoto } from '../../../lib/food/photo'
-import { newId } from '../../../lib/sync/commands'
+import { newId } from '@ego/local/sync/commands'
 
 const SOURCE_LABELS: Record<FridgeItemRecord['source'], string | null> = {
   receipt: 'from a receipt', barcode: 'scanned', photo: 'from a photo', assistant: 'from the AI', manual: null

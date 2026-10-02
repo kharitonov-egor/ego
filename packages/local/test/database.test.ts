@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { withPreparedRuns, type LocalDatabase } from '../lib/database/types'
+import { withPreparedRuns, type LocalDatabase } from '../src/database/types'
 import { openTestLedger } from './local-db'
 
 let db: LocalDatabase | null = null

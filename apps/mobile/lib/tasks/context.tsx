@@ -6,19 +6,19 @@ import {
   type TaskAttachment, type TaskBoardInput, type TaskCardInput, type TaskGoalInput, type TaskLabelColor, type TaskLabelInput,
   type TaskListInput, type TaskNames
 } from '@ego/core'
-import type { LocalDatabase } from '../database/types'
+import type { LocalDatabase } from '@ego/local/database/types'
 import { persistDraft, type DraftFile } from '../diary/compose'
 import { deleteLocalFiles } from '../diary/media'
-import { dropUnusedUploads, localMediaFiles, queueUploads, retryRecordUploads, type QueuedUpload } from '../diary/uploads'
+import { dropUnusedUploads, localMediaFiles, queueUploads, retryRecordUploads, type QueuedUpload } from '@ego/local/diary/uploads'
 import { useLedger, type LocalWrite } from '../ledger-context'
 import {
   createTaskBoard, createTaskGoal, createTaskLabel, createTaskList, deleteTaskBoard, deleteTaskCard, deleteTaskGoal,
   deleteTaskLabel, deleteTaskList, newId, saveTaskCard, updateTaskBoard, updateTaskGoal, updateTaskLabel, updateTaskList
-} from '../sync/commands'
+} from '@ego/local/sync/commands'
 import {
   boardLabels, boardLists, cardInput, carryLabels, endPosition, listCards, liveBoards, placeAt, startPosition
-} from './board'
-import { localTaskRevision, localTasks, type TaskData, type TaskTable } from './repository'
+} from '@ego/local/tasks/board'
+import { localTaskRevision, localTasks, type TaskData, type TaskTable } from '@ego/local/tasks/repository'
 
 export const DEFAULT_LISTS = ['To Do', 'Doing', 'Done'] as const
 

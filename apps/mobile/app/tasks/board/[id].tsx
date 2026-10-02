@@ -11,7 +11,7 @@ import { color } from '../../../components/money/tokens'
 import { DragBoard } from '../../../components/tasks/DragBoard'
 import { BoardSheet, FilterSheet, LabelSheet, TextSheet } from '../../../components/tasks/sheets'
 import { TasksError, TasksGate, TasksHeaderRight, TasksMessage } from '../../../components/tasks/ui'
-import { boardLabels, boardLists, isFiltering, listCards, matchesFilter, NO_FILTER, type CardFilter } from '../../../lib/tasks/board'
+import { boardLabels, boardLists, isFiltering, listCards, matchesFilter, NO_FILTER, type CardFilter } from '@ego/local/tasks/board'
 import { useTasks } from '../../../lib/tasks/context'
 
 function Board({ boardId }: { boardId: string }): React.ReactElement {

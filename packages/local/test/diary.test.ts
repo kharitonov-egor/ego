@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { ApiResult, DiaryMediaInfo, DiaryMessageRecord } from '@ego/api-contracts'
 import type { DiaryAttachment, DiaryMessageInput } from '@ego/core'
-import type { LocalDatabase } from '../lib/database/types'
-import { localDiaryMessages, localDiaryRevision } from '../lib/diary/repository'
+import type { LocalDatabase } from '../src/database/types'
+import { localDiaryMessages, localDiaryRevision } from '../src/diary/repository'
 import {
   localMediaFiles, queueUploads, retryMessageUploads, uploadPendingMedia, type PendingUpload, type UploadTransport
-} from '../lib/diary/uploads'
-import { createDiaryMessage, deleteDiaryMessage, updateDiaryMessage } from '../lib/sync/commands'
-import { BOOTSTRAP_VERSION, bootstrap, createSyncCoordinator } from '../lib/sync/coordinator'
-import { allOperations } from '../lib/sync/outbox'
+} from '../src/diary/uploads'
+import { createDiaryMessage, deleteDiaryMessage, updateDiaryMessage } from '../src/sync/commands'
+import { BOOTSTRAP_VERSION, bootstrap, createSyncCoordinator } from '../src/sync/coordinator'
+import { allOperations } from '../src/sync/outbox'
 import { emptyBootstrap, fakeApi } from './fake-api'
 import { openTestLedger } from './local-db'
 

@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 import type { TaskBoardRecord, TaskCardRecord, TaskListRecord } from '@ego/api-contracts'
 import {
   NO_FILTER, carryLabels, dueBadge, matchesFilter, placeAt, upcomingSections
-} from '../lib/tasks/board'
-import { parseInline, parseMarkdown, prefixLines, toggleTaskLine, wrapSelection } from '../lib/tasks/markdown'
-import { cardIdFromNotification, taskNotificationPlan } from '../lib/tasks/reminders'
-import type { TaskData } from '../lib/tasks/repository'
+} from '../src/tasks/board'
+import { parseInline, parseMarkdown, prefixLines, toggleTaskLine, wrapSelection } from '../src/tasks/markdown'
+import { cardIdFromNotification, taskNotificationPlan } from '../src/tasks/reminders'
+import type { TaskData } from '../src/tasks/repository'
 
 const STAMP = '2026-09-01T00:00:00.000Z'
 

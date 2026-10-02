@@ -2,14 +2,14 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { AppState } from 'react-native'
 import type { HabitEntryRecord, HabitRecord } from '@ego/api-contracts'
 import { isHabitInput, type HabitInput, type HabitKind } from '@ego/core'
-import { isoToday } from '../dates'
-import type { LocalDatabase } from '../database/types'
+import { isoToday } from '@ego/local/dates'
+import type { LocalDatabase } from '@ego/local/database/types'
 import { useLedger, type LocalWrite } from '../ledger-context'
-import { localHabitEntries, localHabits, localRevision } from '../repositories/habits'
+import { localHabitEntries, localHabits, localRevision } from '@ego/local/repositories/habits'
 import {
   createHabit, createHabitEntry, deleteHabit, deleteHabitEntry, newId, updateHabit
-} from '../sync/commands'
-import { buildLog, type HabitLog } from './stats'
+} from '@ego/local/sync/commands'
+import { buildLog, type HabitLog } from '@ego/local/habits/stats'
 
 export interface EditorTarget {
   kind: HabitKind

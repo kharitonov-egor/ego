@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MoneyTransaction } from '@ego/core'
-import { dueLabel, monthlyTotal, recurringCharges, upcomingCharges, type RecurringCharge } from '../lib/recurring'
+import { dueLabel, monthlyTotal, recurringCharges, upcomingCharges, type RecurringCharge } from '../src/recurring'
 
 const TODAY = '2026-09-27'
 

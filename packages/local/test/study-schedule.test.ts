@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   courseColors, courseList, courseSummaries, dayHeading, dueClock, dueDay, dueSentence, dueWithin, isOverdue,
   overdueCount, studySections, type StudyFilter
-} from '../lib/study/schedule'
-import type { StudyItem } from '../lib/study/store'
+} from '../src/study/schedule'
+import type { StudyItem } from '../src/study/store'
 
 const local = (day: number, hour: number, minute = 0): string => new Date(2026, 8, day, hour, minute).toISOString()
 const NOW = new Date(2026, 8, 28, 12, 0)

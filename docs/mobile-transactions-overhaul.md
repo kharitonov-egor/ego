@@ -35,7 +35,7 @@ Phase 2 now exists in the repository as `packages/api-contracts` and `apps/api`,
 
 Three follow-up fixes named in the writes section are also done: the provider's mutation wrapper takes a callback and starts the request only after the read-only, configuration, and busy checks; busy state uses try/finally; request generations stop a superseded refresh from overwriting a newer snapshot. The mobile snapshot cache key is now derived from the connection, so a failing new connection cannot show the previous connection's ledger.
 
-Phases 3 and 4 now exist as well. The phone has its own SQLite database (`apps/mobile/lib/database`), local feed, detail, and aggregate queries (`apps/mobile/lib/repositories`), and an outbox with a sync coordinator (`apps/mobile/lib/sync`). Activity reads and writes that database when the storage-mode switch in Settings is on, showing Pending and Needs attention states with Keep mine and Use saved version. The desktop app can route its money transport through the Worker as a narrow compatibility change, keeping its snapshot UI. See [the setup guide](ledger-setup.md).
+Phases 3 and 4 now exist as well. The phone has its own SQLite database (`packages/local/src/database`), local feed, detail, and aggregate queries (`packages/local/src/repositories`), and an outbox with a sync coordinator (`packages/local/src/sync`). Activity reads and writes that database when the storage-mode switch in Settings is on, showing Pending and Needs attention states with Keep mine and Use saved version. The desktop app can route its money transport through the Worker as a narrow compatibility change, keeping its snapshot UI. See [the setup guide](ledger-setup.md).
 
 221 tests cover the repository now, including ten that run the real Worker against the real device sync code over `node:sqlite`: one operation delivered twice creates one transaction, a transfer moves both balances and agrees with the server, a receipt and its items save as one command, another device's edit and deletion arrive on the next sync, a stale edit comes back as a conflict, and the local and remote feeds return the same order. That integration test also caught a real defect: the device kept its own `created_at` after the server acknowledged a write, which would have desynchronised the feed's sort key between devices.
 
@@ -180,9 +180,9 @@ Suggested ownership:
 | `packages/core` | Money types, validation, amount rules, balance rules, receipt invariants |
 | `packages/api-contracts` | Request and response schemas, cursor validation, sync operation types |
 | `apps/api` | Worker routes, device authorization, domain commands, D1 migrations |
-| `apps/mobile/lib/database` | SQLite initialization, migrations, transactions, dataset identity |
-| `apps/mobile/lib/repositories` | Local feed, detail, lookup, and aggregate queries |
-| `apps/mobile/lib/sync` | Outbox delivery, remote change application, retries, conflicts |
+| `packages/local/src/database` | SQLite initialization, migrations, transactions, dataset identity |
+| `packages/local/src/repositories` | Local feed, detail, lookup, and aggregate queries |
+| `packages/local/src/sync` | Outbox delivery, remote change application, retries, conflicts |
 | `apps/mobile/components/money` | Rows, date headers, filters, detail and editor UI |
 
 Use narrow subscriptions. The feed subscribes to feed changes, an account header to its balance, and the editor to reference data. Keep temporary UI state out of database records. Keep network code out of transaction rows.

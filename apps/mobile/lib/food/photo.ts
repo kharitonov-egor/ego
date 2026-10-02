@@ -4,9 +4,9 @@ import * as ImagePicker from 'expo-image-picker'
 import type { FoodImage } from '@ego/api-contracts'
 import type { FoodPhoto } from '@ego/core'
 import { deleteLocalFiles, localCopyFor } from '../diary/media'
-import type { QueuedUpload } from '../diary/uploads'
+import type { QueuedUpload } from '@ego/local/diary/uploads'
 import { outsideApp } from '../private-lock'
-import { newId } from '../sync/commands'
+import { newId } from '@ego/local/sync/commands'
 
 /** Big enough for the model to read a nutrition label, small enough to send from a phone. */
 const PHOTO_EDGE = 1600

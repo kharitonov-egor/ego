@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { planExercises, planNameProblem, startLabel } from '../lib/gym/plans'
-import type { GymExerciseView, GymPlanView } from '../lib/repositories/gym'
+import { planExercises, planNameProblem, startLabel } from '../src/gym/plans'
+import type { GymExerciseView, GymPlanView } from '../src/repositories/gym'
 
 const plan = (overrides: Partial<GymPlanView> = {}): GymPlanView => ({
   id: 'gp-1', name: 'Push', exerciseOrder: ['bench', 'gone', 'dips'], supersets: [], revision: 1, ...overrides

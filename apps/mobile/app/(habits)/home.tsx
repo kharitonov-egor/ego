@@ -7,10 +7,10 @@ import { HabitIcon, HabitsError, HabitsGate } from '../../components/habits/ui'
 import { WeekStrip } from '../../components/habits/WeekStrip'
 import { Button } from '../../components/ui/button'
 import { Text as UiText } from '../../components/ui/text'
-import { formatIso, parseIso, shiftIso } from '../../lib/dates'
+import { formatIso, parseIso, shiftIso } from '@ego/local/dates'
 import { useHabits } from '../../lib/habits/context'
 import { Blurred } from '../../lib/blur'
-import { dayScore, mondayOf, rowState, type RowState } from '../../lib/habits/stats'
+import { dayScore, mondayOf, rowState, type RowState } from '@ego/local/habits/stats'
 
 function dayTitle(date: string, today: string): string {
   if (date === today) return 'Today'

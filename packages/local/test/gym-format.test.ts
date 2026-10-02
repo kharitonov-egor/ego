@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { GymSetLike } from '@ego/core'
 import {
   beatsRecord, dayBarLabel, draftFrom, historyHeader, setParts, stepDraft, valuesFromDraft, type EntryDraft
-} from '../lib/gym/format'
+} from '../src/gym/format'
 
 const squat: GymSetLike = {
   id: 'gs-1', date: '2026-09-27', position: 0, weight: 25, weightUnit: 'lbs', reps: 12,

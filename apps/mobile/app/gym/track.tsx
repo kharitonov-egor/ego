@@ -24,12 +24,12 @@ import { Button } from '../../components/ui/button'
 import { Text } from '../../components/ui/text'
 import {
   EMPTY_DRAFT, beatsRecord, draftFrom, historyHeader, stepDraft, unitFor, valuesFromDraft, type EntryDraft
-} from '../../lib/gym/format'
+} from '@ego/local/gym/format'
 import { useGym, useGymQuery } from '../../lib/gym-context'
 import {
   cachedExerciseSets, exerciseSetsPage, exerciseSupersetPartners, exerciseTrackSets, gymDay,
   type ExerciseTrackSets, type GymExerciseView, type GymSetView
-} from '../../lib/repositories/gym'
+} from '@ego/local/repositories/gym'
 import { useRestTimer } from '../../lib/rest-timer'
 
 const TABS = ['TRACK', 'HISTORY', 'GRAPH'] as const

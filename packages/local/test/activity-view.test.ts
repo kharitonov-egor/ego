@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_ACTIVITY_VIEW, activityChips, activityFilters, clearFilters, filterCount, hasFilters,
   parsePreferences, storedPreferences, toggleIn, viewIdentity, type ActivityView
-} from '../lib/activity-view'
-import { rangeForPeriod } from '../lib/periods'
+} from '../src/activity-view'
+import { rangeForPeriod } from '../src/periods'
 
 const labels = {
   account: (id: string) => (id === 'acc-check' ? 'Checking' : 'Savings'),

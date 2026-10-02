@@ -9,7 +9,7 @@ import { CategorySheet, PickerSheet } from '../../components/gym/sheets'
 import { Dot, GymGate, HeaderIcon, MenuSheet } from '../../components/gym/ui'
 import { Text } from '../../components/ui/text'
 import { useGym } from '../../lib/gym-context'
-import type { GymCategoryView, GymExerciseView } from '../../lib/repositories/gym'
+import type { GymCategoryView, GymExerciseView } from '@ego/local/repositories/gym'
 
 const ALL = '__all__'
 

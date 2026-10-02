@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { transactionDetail, transactionTitle, type TitleSource } from '../lib/transaction-title'
+import { transactionDetail, transactionTitle, type TitleSource } from '../src/transaction-title'
 
 const row = (overrides: Partial<TitleSource> = {}): TitleSource => ({
   kind: 'expense',

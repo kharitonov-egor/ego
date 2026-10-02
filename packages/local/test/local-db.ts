@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
-import { migrate } from '../lib/database/migrations'
-import type { LocalDatabase, SqlParam } from '../lib/database/types'
+import { migrate } from '../src/database/migrations'
+import type { LocalDatabase, SqlParam } from '../src/database/types'
 
 /**
  * The same LocalDatabase surface Expo SQLite provides on the phone, backed by node:sqlite so

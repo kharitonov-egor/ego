@@ -12,7 +12,7 @@ import { BoardSheet } from '../../components/tasks/sheets'
 import { Button } from '../../components/ui/button'
 import { Text as UiText } from '../../components/ui/text'
 import { useSheets } from '../../lib/sheets/context'
-import { sheetSummary } from '../../lib/sheets/view'
+import { sheetSummary } from '@ego/local/sheets/view'
 
 function SheetRow({ sheet, lifted }: { sheet: SheetRecord; lifted: boolean }): React.ReactElement {
   const { data } = useSheets()

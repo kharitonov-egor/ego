@@ -12,7 +12,7 @@ import * as ImagePicker from 'expo-image-picker'
 import { captureToTrello, type CardAttachment } from '@ego/core'
 import { isTrelloReady, useSettings } from '../lib/settings'
 import { useLedger } from '../lib/ledger-context'
-import { trelloClientFor } from '../lib/trello'
+import { trelloClientFor } from '@ego/local/trello'
 
 interface PickedImage {
   uri: string

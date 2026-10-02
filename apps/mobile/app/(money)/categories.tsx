@@ -4,7 +4,7 @@ import { Plus } from 'lucide-react-native'
 import Svg, { Circle } from 'react-native-svg'
 import type { CategoryInput, CategoryKind, MoneyCategory } from '@ego/core'
 import { useMoney, useMoneyQuery } from '../../lib/money-context'
-import { localSnapshot } from '../../lib/repositories/snapshot'
+import { localSnapshot } from '@ego/local/repositories/snapshot'
 import {
   COLORS, ColorPicker, ConfirmDialog, EntityPreview, IconPicker, Label, MoneyIcon, MoneyScreen,
   PrimaryButton, Sheet, filteredTransactions, inputClass, money

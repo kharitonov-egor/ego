@@ -3,7 +3,7 @@ import { Platform } from 'react-native'
 import * as Application from 'expo-application'
 import { Directory, File, Paths } from 'expo-file-system'
 import type { AppBuild, AppBuildStatus } from '@ego/api-contracts'
-import type { EgoApi } from './api-client'
+import type { EgoApi } from '@ego/local/api-client'
 import { outsideApp } from './private-lock'
 
 const APK_TYPE = 'application/vnd.android.package-archive'

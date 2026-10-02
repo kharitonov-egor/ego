@@ -13,15 +13,15 @@ import { HERO_AMOUNT, amountColor, amountSign, color, tabular } from '../../comp
 import { Badge } from '../../components/ui/badge'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../../components/ui/card'
 import { Text } from '../../components/ui/text'
-import { averagesFor, bucketFlows, elapsedDays, flowOf, projectedSpend } from '../../lib/cash-flow'
-import { formatIso, isoToday, shiftIso } from '../../lib/dates'
-import { bucketSizeFor, chartBuckets, comparisonSpan, isStepped, type Comparison, type Span } from '../../lib/periods'
+import { averagesFor, bucketFlows, elapsedDays, flowOf, projectedSpend } from '@ego/local/cash-flow'
+import { formatIso, isoToday, shiftIso } from '@ego/local/dates'
+import { bucketSizeFor, chartBuckets, comparisonSpan, isStepped, type Comparison, type Span } from '@ego/local/periods'
 import { usePeriod } from '../../lib/period-context'
 import { BlurSpan, Blurred } from '../../lib/blur'
 import { useMoneyQuery } from '../../lib/money-context'
-import { localBalanceAt, localTransactionBounds, localTransactionsInRange } from '../../lib/repositories/snapshot'
-import { localMerchantNames } from '../../lib/repositories/transactions'
-import { transactionDetail, transactionTitle } from '../../lib/transaction-title'
+import { localBalanceAt, localTransactionBounds, localTransactionsInRange } from '@ego/local/repositories/snapshot'
+import { localMerchantNames } from '@ego/local/repositories/transactions'
+import { transactionDetail, transactionTitle } from '@ego/local/transaction-title'
 
 /** Transactions arrive newest first, so the earliest date is the last row, not a sort away. */
 function earliestDate(snapshot: MoneySnapshot, transactionDate: string | null): string | undefined {

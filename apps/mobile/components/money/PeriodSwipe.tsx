@@ -1,7 +1,7 @@
 import React, { useMemo, useRef } from 'react'
 import { Animated, PanResponder, type StyleProp, type ViewStyle } from 'react-native'
 import { usePeriod } from '../../lib/period-context'
-import { isHorizontalSwipe, swipeStep } from '../../lib/periods'
+import { isHorizontalSwipe, swipeStep } from '@ego/local/periods'
 import { useReducedMotion } from './tokens'
 
 /**

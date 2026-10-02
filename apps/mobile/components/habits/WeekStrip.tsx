@@ -1,9 +1,9 @@
 import React from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { ChevronLeft, ChevronRight } from 'lucide-react-native'
-import { parseIso, shiftIso } from '../../lib/dates'
-import { mondayOf, weekDates, type DayScore } from '../../lib/habits/stats'
-import { formatSpan } from '../../lib/periods'
+import { parseIso, shiftIso } from '@ego/local/dates'
+import { mondayOf, weekDates, type DayScore } from '@ego/local/habits/stats'
+import { formatSpan } from '@ego/local/periods'
 import { PeriodSwipe } from '../money/PeriodSwipe'
 import { Ring } from './Ring'
 

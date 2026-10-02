@@ -5,7 +5,7 @@ import {
   GRAPH_METRIC_LABELS, formatSetDuration, formatWeight, graphMetricsFor, graphPoints,
   type DistanceUnit, type ExerciseType, type GraphMetric, type GraphPoint, type GymSetLike, type WeightUnit
 } from '@ego/core'
-import { formatIso, isoToday, parseIso, shiftIso } from '../../lib/dates'
+import { formatIso, isoToday, parseIso, shiftIso } from '@ego/local/dates'
 import { Chips } from '../money/Common'
 import { color, tabular } from '../money/tokens'
 import { Text } from '../ui/text'

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { ApiResult, StudyAssignment, StudyAssignmentList, StudyMark } from '@ego/api-contracts'
-import type { StudyApi } from '../lib/api-client'
-import { cachedStudy, deliverStudyMarks, markStudyItem, refreshStudy, saveStudyList } from '../lib/study/store'
+import type { StudyApi } from '../src/api-client'
+import { cachedStudy, deliverStudyMarks, markStudyItem, refreshStudy, saveStudyList } from '../src/study/store'
 import { openTestLedger } from './local-db'
 
 const FETCHED = '2026-09-28T12:00:00.000Z'

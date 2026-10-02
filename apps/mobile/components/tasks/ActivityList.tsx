@@ -6,7 +6,7 @@ import {
 } from 'lucide-react-native'
 import type { TaskActivity, TaskActivityKind } from '@ego/core'
 import { Blurred } from '../../lib/blur'
-import { activityTime } from '../../lib/tasks/board'
+import { activityTime } from '@ego/local/tasks/board'
 import { color } from '../money/tokens'
 
 const ICONS: Record<TaskActivityKind, LucideIcon> = {

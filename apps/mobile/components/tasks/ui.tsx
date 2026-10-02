@@ -11,7 +11,7 @@ import { TASK_PRIORITY_LABELS, type TaskLabelColor, type TaskPriority } from '@e
 import { useLedger } from '../../lib/ledger-context'
 import { BlurBlob, Blurred, useBlur } from '../../lib/blur'
 import { mediaSource } from '../../lib/diary/media'
-import { cardBadges, coverOf, type DueBadge } from '../../lib/tasks/board'
+import { cardBadges, coverOf, type DueBadge } from '@ego/local/tasks/board'
 import { useTasks } from '../../lib/tasks/context'
 import { ConflictEntries } from '../ConflictEntries'
 import { BottomSheet } from '../money/Common'

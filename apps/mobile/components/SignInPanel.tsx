@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { ActivityIndicator, Pressable, TextInput, View } from 'react-native'
 import { Server } from 'lucide-react-native'
-import { normalizeApiUrl } from '../lib/api-client'
+import { normalizeApiUrl } from '@ego/local/api-client'
 import { apiUrlFor, useSettings } from '../lib/settings'
 import { beginGoogleSignIn } from '../lib/sign-in'
 import { inputClass } from './money/Common'
