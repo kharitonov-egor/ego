@@ -9,7 +9,7 @@ import { keepMine, useSavedVersion } from '@ego/local/sync/conflicts'
 import { deleteTransaction, newId } from '@ego/local/sync/commands'
 import type { SyncOutcome, Touched } from '@ego/local/sync/coordinator'
 import { allOperations, type OutboxEntry } from '@ego/local/sync/outbox'
-import type { LedgerEvent, LedgerState, RemoteApi, SignedInAccount } from '../../shared/local'
+import type { LedgerState, RemoteApi, SignedInAccount } from '../../shared/local'
 import { remoteApi, remoteDatabase } from './remote'
 
 export type LocalWrite = (db: LocalDatabase, now: string) => Promise<void>
@@ -25,7 +25,7 @@ const EVERYTHING: Touched = {
 const FOCUS_SYNC_GAP_MS = 60 * 1000
 
 const SIGNED_OUT: LedgerState = {
-  signedIn: false, apiUrl: '', account: null, ready: false, current: false, syncing: false, status: null, error: null
+  signedIn: false, apiUrl: '', account: null, ready: false, current: false, syncing: false, status: null, error: null, syncError: null
 }
 
 interface LedgerContextValue {
@@ -39,7 +39,10 @@ interface LedgerContextValue {
   current: boolean
   syncing: boolean
   writing: boolean
+  /** The database did not open; nothing can be read until it does. */
   error: string | null
+  /** The last sync stopped on something other than the network. Local data still works. */
+  syncError: string | null
   status: SyncOutcome | null
   apiUrl: string
   account: SignedInAccount | null
@@ -98,6 +101,8 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
   const [sheetsVersion, setSheetsVersion] = useState(0)
   const writingRef = useRef(false)
   const lastSync = useRef(0)
+  /** Set until a full re-read has run against a ready database: at launch and after sign-in or a server change. */
+  const needsFullRefresh = useRef(true)
   const db = state.signedIn && !state.error ? remoteDatabase : null
 
   const refreshLocal = useCallback(async (scope: Touched): Promise<void> => {
@@ -124,26 +129,32 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
 
   useEffect(() => {
     let active = true
-    const apply = (event: LedgerEvent): void => {
-      setState(event.state)
-      if (!event.state.signedIn || event.state.error) {
+    const refreshWhenReady = (state: LedgerState, touched: Touched | null): void => {
+      if (!state.signedIn || state.error) {
         setReference(null)
         setBalances([])
         setConflicts([])
         return
       }
-      if (!event.state.ready) return
-      if (event.reopened) void refreshLocal(EVERYTHING).catch(() => undefined)
-      else if (event.touched) void refreshLocal(event.touched).catch(() => undefined)
+      if (!state.ready) return
+      if (needsFullRefresh.current) {
+        needsFullRefresh.current = false
+        void refreshLocal(EVERYTHING).catch(() => { needsFullRefresh.current = true })
+      } else if (touched) {
+        void refreshLocal(touched).catch(() => undefined)
+      }
     }
     const unsubscribe = window.api.onLedgerEvent((event) => {
-      if (active) apply(event)
+      if (!active) return
+      if (event.reopened) needsFullRefresh.current = true
+      setState(event.state)
+      refreshWhenReady(event.state, event.touched)
     })
     void window.api.ledgerState().then((initial) => {
       if (!active) return
       setState(initial)
       setLoaded(true)
-      if (initial.signedIn && initial.ready && !initial.error) void refreshLocal(EVERYTHING).catch(() => undefined)
+      refreshWhenReady(initial, null)
       if (initial.signedIn) void sync()
     })
     return () => {
@@ -201,6 +212,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     syncing: state.syncing,
     writing,
     error: state.error,
+    syncError: state.syncError,
     status: state.status,
     apiUrl: state.apiUrl,
     account: state.account,

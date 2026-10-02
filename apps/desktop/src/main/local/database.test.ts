@@ -97,6 +97,25 @@ describe('the main-process ledger database', () => {
     expect(await bodies(db)).toEqual([])
   })
 
+  it('reports a commit for a transaction that already rolled back, instead of claiming it saved', async () => {
+    const db = await open()
+    const transaction = await db.begin()
+    await db.run(transaction, 'INSERT INTO notes (body) VALUES (?)', ['lost on reload'])
+    db.abandonRendererTransactions()
+    expect(() => db.finish(transaction, true)).toThrow('rolled back')
+    expect(() => db.finish(transaction, false)).not.toThrow()
+  })
+
+  it('lets go at once of a begin the old page was still waiting on when it reloaded', async () => {
+    const db = await open()
+    const held = await db.begin()
+    const waiting = db.begin()
+    db.abandonRendererTransactions()
+    await expect(waiting).rejects.toThrow('gone')
+    expect(await bodies(db)).toEqual([])
+    db.finish(held, false)
+  })
+
   it('runs the phone commands unchanged, writing the record and its outbox entry together', async () => {
     const db = await open()
     await writeRecord(db.local, {

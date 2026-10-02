@@ -24,6 +24,9 @@ export function QuickAddSettings(): React.ReactElement {
   const [trelloError, setTrelloError] = useState<string | null>(null)
   const apiKeyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const tokenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** Only the newest request may fill the picker, so a slow answer for the old board is dropped. */
+  const boardsRequest = useRef(0)
+  const listsRequest = useRef(0)
 
   const credsReady = Boolean(trelloApiKey && trelloToken)
   const ready = credsReady && Boolean(trelloListId) && Boolean(quickAddHotkey)
@@ -38,8 +41,10 @@ export function QuickAddSettings(): React.ReactElement {
   }, [])
 
   const loadBoards = async (): Promise<void> => {
+    const request = (boardsRequest.current += 1)
     setBoardsLoading(true)
     const result = await window.api.listTrelloBoards()
+    if (request !== boardsRequest.current) return
     setBoardsLoading(false)
     if (result.ok && result.data) {
       setBoards(result.data)
@@ -51,12 +56,14 @@ export function QuickAddSettings(): React.ReactElement {
   }
 
   const loadLists = async (boardId: string): Promise<void> => {
+    const request = (listsRequest.current += 1)
     if (!boardId) {
       setLists([])
       return
     }
     setListsLoading(true)
     const result = await window.api.listTrelloLists(boardId)
+    if (request !== listsRequest.current) return
     setListsLoading(false)
     if (result.ok && result.data) {
       setLists(result.data)

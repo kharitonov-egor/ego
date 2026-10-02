@@ -1,5 +1,6 @@
-import { shell } from 'electron'
+import { app, shell } from 'electron'
 import { hostname } from 'node:os'
+import { resolve } from 'node:path'
 import { SIGN_IN_RETURN_URL } from '@ego/api-contracts'
 import { exchangeSignIn, moneyApiFor, normalizeApiUrl, startSignIn } from '@ego/local/api-client'
 import { signInErrorMessage } from '@ego/local/sign-in'
@@ -16,6 +17,18 @@ interface PendingSignIn {
 /** Held in memory: the tray app keeps running while the browser is in front. */
 let pending: PendingSignIn | null = null
 
+/**
+ * Makes this copy of Ego the one Windows hands ego:// links to. It runs again before each sign-in,
+ * because a dev run started since then may have taken the links over.
+ */
+export function registerSignInLinks(): void {
+  if (process.defaultApp && process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient('ego', process.execPath, [resolve(process.argv[1])])
+  } else {
+    app.setAsDefaultProtocolClient('ego')
+  }
+}
+
 function isWorkerAddress(address: string): boolean {
   return /^https:\/\//.test(address)
 }
@@ -31,6 +44,7 @@ async function useConnection(apiUrl: string, token: string): Promise<void> {
 export async function beginGoogleSignIn(apiUrl: string): Promise<SignInOutcome> {
   const address = normalizeApiUrl(apiUrl)
   if (!isWorkerAddress(address)) return { ok: false, message: 'Enter the Worker address, starting with https://' }
+  registerSignInLinks()
   const started = await startSignIn(address, hostname())
   if (!started.ok) return { ok: false, message: started.error.message }
   pending = { apiUrl: address, exchangeSecret: started.data.exchangeSecret, expiresAt: started.data.expiresAt }

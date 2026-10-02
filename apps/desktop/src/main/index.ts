@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, Notification, Tray, Menu, net, shell } from 'electron'
-import { join, resolve } from 'path'
+import { join } from 'path'
 import { exec } from 'child_process'
 import { readdirSync } from 'fs'
 import { registerHotkey, unregisterHotkey, unregisterAll } from './hotkeys'
@@ -48,7 +48,7 @@ import { setupToolPaletteIpc, showToolPalette } from './toolPalette'
 import { setupLocalIpc } from './local/ipc'
 import { ledgerApi, ledgerDatabase, onLedgerEvent, onMediaProgress, startLedger, stopLedger } from './local/ledger'
 import { handleMediaRequests, registerMediaScheme } from './local/media'
-import { finishGoogleSignIn, signInLinkIn } from './local/signIn'
+import { finishGoogleSignIn, registerSignInLinks, signInLinkIn } from './local/signIn'
 
 async function withBudgetAlerts(request: Promise<MoneyResult<MoneySnapshot>>): Promise<MoneyResult<MoneySnapshot>> {
   const before = getMoneyCache()
@@ -89,7 +89,8 @@ function createWindow(): void {
   mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback, details) => {
     const mediaTypes = 'mediaTypes' in details ? details.mediaTypes ?? [] : []
     const microphoneOnly = permission === 'media' && mediaTypes.includes('audio') && !mediaTypes.includes('video')
-    callback(Boolean(mainWindow && !mainWindow.isDestroyed() && webContents.id === mainWindow.webContents.id && microphoneOnly))
+    const allowed = microphoneOnly || permission === 'clipboard-sanitized-write'
+    callback(Boolean(mainWindow && !mainWindow.isDestroyed() && webContents.id === mainWindow.webContents.id && allowed))
   })
 
   mainWindow.on('close', (e) => {
@@ -112,6 +113,17 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(PACKAGED_RENDERER_ENTRY)
   }
+
+  // The window holds the whole IPC bridge, so it never leaves Ego's own pages. Web links open in the browser.
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const page = (address: string): string => address.split('#')[0]
+    // Every file: URL shares the origin "null", so only a reload of the same page may pass.
+    if (page(url) !== page(mainWindow?.webContents.getURL() || url)) event.preventDefault()
+  })
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//.test(url)) void shell.openExternal(url)
+    return { action: 'deny' }
+  })
 }
 
 function showMainWindow(): void {
@@ -131,29 +143,29 @@ function isNotifyInput(value: unknown): value is NotifyInput {
 }
 
 /** Screens keep running while the window hides in the tray, so their reminders arrive through here. */
+/** Held until dismissed, so a notification is not collected before its click arrives. */
+const shownNotifications = new Set<Notification>()
+
 function notify(input: NotifyInput): void {
   if (!Notification.isSupported()) return
   const notification = new Notification({ title: input.title, body: input.body, icon: getAppIconPath(), silent: input.silent })
+  shownNotifications.add(notification)
+  const forget = (): void => { shownNotifications.delete(notification) }
   notification.on('click', () => {
+    forget()
     showMainWindow()
     if (input.route) mainWindow?.webContents.send('navigate', input.route)
   })
+  notification.on('close', forget)
+  notification.on('failed', forget)
   notification.show()
 }
 
 /** Google sends the browser back to ego://auth, and Windows starts a second Ego with that link. */
 async function handleSignInLink(link: string): Promise<void> {
-  const outcome = await finishGoogleSignIn(link)
   showMainWindow()
+  const outcome = await finishGoogleSignIn(link)
   mainWindow?.webContents.send('sign-in-finished', outcome)
-}
-
-function registerSignInLinks(): void {
-  if (process.defaultApp && process.argv.length >= 2) {
-    app.setAsDefaultProtocolClient('ego', process.execPath, [resolve(process.argv[1])])
-  } else {
-    app.setAsDefaultProtocolClient('ego')
-  }
 }
 
 function createTray(): void {
@@ -316,7 +328,17 @@ function setupIpcHandlers(): void {
     (_event, shortcuts: QuickAddListShortcut[]) => saveQuickAddListShortcuts(shortcuts)
   )
 
-  ipcMain.handle('open-external-url', (_event, url: string) => shell.openExternal(url))
+  ipcMain.handle('open-external-url', (_event, url: unknown) => {
+    if (typeof url !== 'string') return
+    let protocol: string
+    try {
+      protocol = new URL(url).protocol
+    } catch {
+      return
+    }
+    // A link typed into a sheet or a card syncs from other devices, so only these schemes leave Ego.
+    if (['https:', 'http:', 'mailto:', 'tel:', 'sms:'].includes(protocol)) return shell.openExternal(url)
+  })
 
   ipcMain.handle('build-and-install', async () => {
     if (app.isPackaged) return { success: false, error: 'Cannot build in production' }
@@ -374,6 +396,8 @@ if (!gotSingleInstanceLock) {
 } else {
   registerSignInLinks()
   registerMediaScheme()
+  // Windows matches toasts to the installer's Start menu shortcut by this ID; a dev run has no shortcut.
+  if (process.platform === 'win32') app.setAppUserModelId(app.isPackaged ? 'com.kharitonovegor.ego' : process.execPath)
 
   app.on('second-instance', (_event, argv) => {
     const link = signInLinkIn(argv)

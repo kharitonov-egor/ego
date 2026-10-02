@@ -1,13 +1,13 @@
 import React from 'react'
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router'
-import { ChartNoAxesCombined, Landmark, PiggyBank, ReceiptText, ScanLine, Tags } from 'lucide-react'
+import { ChartNoAxesCombined, Landmark, PiggyBank, ReceiptText, ScanLine, Tags, Wallet } from 'lucide-react'
 import TitleBar from './components/TitleBar'
 import TalkToAIView from './components/TalkToAIView'
 import MoneyWorkspace, { type MoneyView } from './components/money/MoneyWorkspace'
-import { Screen, ScreenHeader, TabLinks } from './components/screen'
+import { CenteredMessage, Screen, ScreenHeader, TabLinks } from './components/screen'
 import { Sidebar } from './components/Sidebar'
 import { BlurProvider } from './lib/blur'
-import { LedgerProvider } from './lib/ledger'
+import { LedgerProvider, useLedger } from './lib/ledger'
 import Home from './screens/Home'
 import Settings from './screens/Settings'
 
@@ -28,8 +28,12 @@ function isMoneyView(value: string | undefined): value is MoneyView {
 
 function Finance(): React.ReactElement {
   const navigate = useNavigate()
+  const ledger = useLedger()
   const { view } = useParams()
   if (!isMoneyView(view)) return <Navigate to="/money/overview" replace />
+  if (ledger.loaded && !ledger.enabled) {
+    return <CenteredMessage Icon={Wallet} title="Sign in to see your money" detail="Sign in once with Google on Home. The ledger downloads to this computer and keeps working offline." action="Go to sign in" onAction={() => navigate('/')} />
+  }
   return <Screen>
     <ScreenHeader title="Finance" tabs={<TabLinks items={MONEY_TABS} />} />
     <div className="min-h-0 flex-1">

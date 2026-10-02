@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { Blurred } from '../../lib/blur'
@@ -11,13 +11,26 @@ const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select
 const layers: symbol[] = []
 
 /**
- * A layer over the window: Escape closes it, focus moves inside and returns afterwards, and Tab
- * stays within it. A click on the backdrop closes it only when asked, so a half-filled form
+ * The last element focused outside any dialog. A field with `autoFocus` takes focus before the
+ * dialog's effect runs, so the effect cannot ask the document what was focused before it opened.
+ */
+let focusedOutside: HTMLElement | null = null
+if (typeof document !== 'undefined') {
+  document.addEventListener('focusin', (event) => {
+    if (event.target instanceof HTMLElement && !event.target.closest('[role="dialog"]')) focusedOutside = event.target
+  }, true)
+}
+
+/**
+ * A layer over the window: Escape closes it, focus moves inside and returns afterwards, and focus
+ * cannot leave it. A click on the backdrop closes it only when asked, so a half-filled form
  * survives a stray click.
  */
-export function Modal({ visible, onClose, dismissOnBackdrop = false, labelledBy, className, children }: {
+export function Modal({ visible, onClose, onEscape, dismissOnBackdrop = false, labelledBy, className, children }: {
   visible: boolean
   onClose: () => void
+  /** What Escape does when it should differ from closing, like dropping a draft the close button would keep. */
+  onEscape?: () => void
   dismissOnBackdrop?: boolean
   labelledBy?: string
   className?: string
@@ -26,25 +39,38 @@ export function Modal({ visible, onClose, dismissOnBackdrop = false, labelledBy,
   const panel = useRef<HTMLDivElement>(null)
   const closeRef = useRef(onClose)
   closeRef.current = onClose
+  const escapeRef = useRef(onEscape)
+  escapeRef.current = onEscape
 
   useEffect(() => {
     if (!visible) return
     const layer = Symbol('layer')
     layers.push(layer)
-    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    const first = panel.current?.querySelector<HTMLElement>('[autofocus], input, textarea, select') ??
-      panel.current?.querySelector<HTMLElement>(FOCUSABLE)
-    first?.focus()
+    const previous = focusedOutside
+    const isTop = (): boolean => layers[layers.length - 1] === layer
+    const focusInside = (): void => {
+      const target = panel.current?.querySelector<HTMLElement>('[data-autofocus], input, textarea, select') ??
+        panel.current?.querySelector<HTMLElement>(FOCUSABLE) ?? panel.current
+      target?.focus()
+    }
+    if (!panel.current?.contains(document.activeElement)) focusInside()
+    const onFocus = (event: FocusEvent): void => {
+      if (isTop() && event.target instanceof Node && !panel.current?.contains(event.target)) focusInside()
+    }
     const onKey = (event: KeyboardEvent): void => {
-      if (layers[layers.length - 1] !== layer) return
+      if (!isTop()) return
       if (event.key === 'Escape') {
         event.stopPropagation()
-        closeRef.current()
+        ;(escapeRef.current ?? closeRef.current)()
         return
       }
       if (event.key !== 'Tab' || !panel.current) return
       const focusable = [...panel.current.querySelectorAll<HTMLElement>(FOCUSABLE)]
-      if (focusable.length === 0) return
+      if (focusable.length === 0 || !panel.current.contains(document.activeElement) || document.activeElement === panel.current) {
+        event.preventDefault()
+        ;(event.shiftKey ? focusable[focusable.length - 1] : focusable[0])?.focus()
+        return
+      }
       const head = focusable[0]
       const tail = focusable[focusable.length - 1]
       if (event.shiftKey && document.activeElement === head) {
@@ -56,10 +82,12 @@ export function Modal({ visible, onClose, dismissOnBackdrop = false, labelledBy,
       }
     }
     document.addEventListener('keydown', onKey, true)
+    document.addEventListener('focusin', onFocus, true)
     return () => {
       document.removeEventListener('keydown', onKey, true)
+      document.removeEventListener('focusin', onFocus, true)
       layers.splice(layers.indexOf(layer), 1)
-      previous?.focus()
+      if (layers.length === 0) previous?.focus()
     }
   }, [visible])
 
@@ -70,22 +98,21 @@ export function Modal({ visible, onClose, dismissOnBackdrop = false, labelledBy,
       if (dismissOnBackdrop && event.target === event.currentTarget) onClose()
     }}
   >
-    <div ref={panel} role="dialog" aria-modal="true" aria-labelledby={labelledBy} className={className}>
+    <div ref={panel} role="dialog" aria-modal="true" aria-labelledby={labelledBy} tabIndex={-1} className={cn('outline-none', className)}>
       {children}
     </div>
   </div>, document.body)
 }
 
-let sheetCount = 0
-
 /**
  * The phone's bottom sheet, drawn as a panel in the middle of the window: a title, a close
  * button, and a body that scrolls.
  */
-export function Sheet({ visible, title, onClose, dismissOnBackdrop = false, privateTitle = false, wide = false, footer, children }: {
+export function Sheet({ visible, title, onClose, onEscape, dismissOnBackdrop = false, privateTitle = false, wide = false, footer, children }: {
   visible: boolean
   title: string
   onClose: () => void
+  onEscape?: () => void
   dismissOnBackdrop?: boolean
   /** Blurs the title while Blur is on, for a sheet named after personal data. */
   privateTitle?: boolean
@@ -94,10 +121,11 @@ export function Sheet({ visible, title, onClose, dismissOnBackdrop = false, priv
   footer?: React.ReactNode
   children: React.ReactNode
 }): React.ReactElement | null {
-  const titleId = useRef(`sheet-title-${(sheetCount += 1)}`).current
+  const titleId = useId()
   return <Modal
     visible={visible}
     onClose={onClose}
+    onEscape={onEscape}
     dismissOnBackdrop={dismissOnBackdrop}
     labelledBy={titleId}
     className={cn('flex max-h-[88vh] w-full flex-col rounded-[28px] border border-surface-800 bg-background shadow-2xl', wide ? 'max-w-3xl' : 'max-w-lg')}
@@ -126,8 +154,9 @@ export function ConfirmDialog({ visible, title, detail, confirmLabel, destructiv
   onCancel: () => void
   onConfirm: () => void
 }): React.ReactElement | null {
-  return <Modal visible={visible} onClose={onCancel} dismissOnBackdrop className="w-full max-w-md rounded-3xl border border-surface-800 bg-card p-6">
-    <h2 className="text-[22px] font-bold">{title}</h2>
+  const titleId = useId()
+  return <Modal visible={visible} onClose={onCancel} dismissOnBackdrop labelledBy={titleId} className="w-full max-w-md rounded-3xl border border-surface-800 bg-card p-6">
+    <h2 id={titleId} className="text-[22px] font-bold">{title}</h2>
     <p className="mt-2 text-[16px] leading-6 text-muted-foreground">{detail}</p>
     <div className="mt-6 flex gap-3">
       <Button variant="outline" size="lg" disabled={busy} onClick={onCancel} className="flex-1">Cancel</Button>

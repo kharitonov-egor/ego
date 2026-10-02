@@ -26,14 +26,19 @@ interface Session {
 
 let session: Session | null = null
 let opening: Promise<Session | null> | null = null
+let closing: Promise<void> | null = null
 let coordinator: { key: string; value: SyncCoordinator } | null = null
 let client: { key: string; value: EgoApi } | null = null
 let inFlight: Promise<LedgerState> | null = null
+let again = false
 let status: SyncOutcome | null = null
 let ready = false
 let current = false
 let syncing = false
-let error: string | null = null
+/** The database did not open, so nothing can be read. */
+let openError: string | null = null
+/** The last sync stopped on something other than the network; the next run clears it. */
+let syncError: string | null = null
 let timer: ReturnType<typeof setInterval> | null = null
 const listeners = new Set<(event: LedgerEvent) => void>()
 const progressListeners = new Set<(progress: MediaProgress) => void>()
@@ -65,7 +70,8 @@ export function ledgerState(): LedgerState {
     current: signedIn && ready && current,
     syncing,
     status: signedIn ? status : null,
-    error
+    error: openError,
+    syncError: signedIn ? syncError : null
   }
 }
 
@@ -80,9 +86,9 @@ export function onMediaProgress(listener: (progress: MediaProgress) => void): ()
   return () => progressListeners.delete(listener)
 }
 
-const transport = mediaUploadTransport(ledgerApi, (mediaId, share) => {
+function reportProgress(mediaId: string, share: number | null): void {
   for (const listener of progressListeners) listener({ mediaId, share })
-})
+}
 
 function emit(touched: Touched | null, reopened = false): void {
   const event: LedgerEvent = { state: ledgerState(), touched, reopened }
@@ -90,13 +96,16 @@ function emit(touched: Touched | null, reopened = false): void {
 }
 
 async function closeSession(): Promise<void> {
-  const closing = session
+  const ending = session
   session = null
   coordinator = null
-  if (closing) await closing.database.close().catch(() => undefined)
+  if (!ending) return
+  closing = ending.database.close().catch(() => undefined).finally(() => { closing = null })
+  await closing
 }
 
 async function ensureSession(): Promise<Session | null> {
+  if (closing) await closing
   if (!isSignedIn()) {
     await closeSession()
     return null
@@ -115,11 +124,11 @@ async function ensureSession(): Promise<Session | null> {
         [datasetId])
       ready = await hasDownloaded(database.local)
       current = await isBootstrapped(database.local)
-      error = null
+      openError = null
       session = { datasetId, database }
       return session
     } catch (failure: unknown) {
-      error = failure instanceof Error ? failure.message : 'The local database did not open'
+      openError = failure instanceof Error ? failure.message : 'The local database did not open'
       return null
     } finally {
       opening = null
@@ -139,9 +148,11 @@ function coordinatorFor(active: Session): SyncCoordinator {
   if (coordinator?.key !== key) {
     const now = (): string => new Date().toISOString()
     const db = active.database.local
+    const api = ledgerApi()
+    const transport = mediaUploadTransport(api, reportProgress)
     coordinator = {
       key,
-      value: createSyncCoordinator({ db, api: ledgerApi(), now, uploadMedia: () => uploadPendingMedia(db, transport, now) })
+      value: createSyncCoordinator({ db, api, now, uploadMedia: () => uploadPendingMedia(db, transport, now) })
     }
   }
   return coordinator.value
@@ -154,6 +165,7 @@ async function runSync(): Promise<LedgerState> {
     return ledgerState()
   }
   syncing = true
+  syncError = null
   emit(null)
   let touched: Touched | null = null
   try {
@@ -171,7 +183,7 @@ async function runSync(): Promise<LedgerState> {
       sheets: outcome.touched.sheets || outcome.delivered > 0
     }
   } catch (failure: unknown) {
-    error = failure instanceof Error ? failure.message : 'Sync stopped unexpectedly'
+    syncError = failure instanceof Error ? failure.message : 'Sync stopped unexpectedly'
   } finally {
     syncing = false
   }
@@ -180,15 +192,24 @@ async function runSync(): Promise<LedgerState> {
 }
 
 /**
- * One run at a time. A request during a run waits for it; the coordinator itself runs once more
- * when a change was saved after delivery started.
+ * One run at a time. A request during a run asks for one more pass and waits for it, so a change
+ * saved while a long upload runs still goes out before the promise settles.
  */
 export function syncLedger(): Promise<LedgerState> {
-  if (!inFlight) {
-    inFlight = runSync().finally(() => {
-      inFlight = null
-    })
+  if (inFlight) {
+    again = true
+    return inFlight
   }
+  inFlight = (async () => {
+    let state: LedgerState
+    do {
+      again = false
+      state = await runSync()
+    } while (again && isSignedIn())
+    return state
+  })().finally(() => {
+    inFlight = null
+  })
   return inFlight
 }
 
@@ -199,7 +220,8 @@ export async function reopenLedger(): Promise<void> {
   status = null
   ready = false
   current = false
-  error = null
+  openError = null
+  syncError = null
   emit(null, true)
   void syncLedger()
 }

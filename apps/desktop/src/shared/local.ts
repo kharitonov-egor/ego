@@ -52,8 +52,10 @@ export interface LedgerState {
   current: boolean
   syncing: boolean
   status: SyncOutcome | null
-  /** Why the local database did not open. */
+  /** Why the local database did not open. Screens cannot read anything while it is set. */
   error: string | null
+  /** Why the last sync stopped, when it was not the network. The data on this computer still works. */
+  syncError: string | null
 }
 
 export interface LedgerEvent {

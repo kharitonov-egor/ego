@@ -50,7 +50,7 @@ function useSession(): { session: SessionInfo | null; error: string | null } {
       }
     })
     return () => { cancelled = true }
-  }, [ledger.api, ledger.enabled, ledger.apiUrl, ledger.account])
+  }, [ledger.api, ledger.enabled, ledger.apiUrl, ledger.account?.deviceId, ledger.account?.email])
   return { session, error }
 }
 
@@ -106,8 +106,8 @@ function BlurSection(): React.ReactElement {
   return <Section Icon={EyeOff} title="Blur personal data" right={<Switch label="Blur personal data" checked={privacy.blurred} onCheckedChange={privacy.setBlurred} />}>
     <SectionNote>
       {privacy.blurred
-        ? 'Amounts in Finance, moods and their notes, habits, Canvas assignments, and task cards are blurred. Ctrl+Shift+B turns it off.'
-        : 'Blurs amounts in Finance, moods and their notes, habits, Canvas assignments, and task cards, for showing the app to someone. Ctrl+Shift+B turns it on from any screen.'}
+        ? 'Personal numbers and entries are blurred. Ctrl+Shift+B turns it off.'
+        : 'Blurs personal numbers and entries, for showing the app to someone. Ctrl+Shift+B turns it on from any screen.'}
     </SectionNote>
   </Section>
 }
@@ -117,7 +117,7 @@ function SyncSection(): React.ReactElement {
   return <Section Icon={RefreshCw} title="Sync">
     <p className="mt-3 text-[17px]">{ledger.syncing ? 'Syncing...' : syncLabel(ledger.status)}</p>
     {ledger.status?.message && ledger.status.state !== 'synced' && <p className="mt-1 text-[15px] leading-5 text-muted-foreground">{ledger.status.message}</p>}
-    {ledger.error && <p className="mt-1 text-[15px] leading-5 text-destructive">{ledger.error}</p>}
+    {(ledger.error ?? ledger.syncError) && <p className="mt-1 text-[15px] leading-5 text-destructive">{ledger.error ?? ledger.syncError}</p>}
     <SectionNote className="mt-1">Changes save on this computer first and reach the server when it is reachable.</SectionNote>
     <Button variant="outline" size="lg" disabled={ledger.syncing} onClick={() => void ledger.sync()} className="mt-4 w-full">Sync now</Button>
   </Section>

@@ -48,7 +48,7 @@ function turnstile(): <T>(work: () => Promise<T>) => Promise<T> {
 }
 
 export async function openLedgerDatabase(file: string): Promise<LedgerDatabase> {
-  const sqlite = new DatabaseSync(file)
+  const sqlite = new DatabaseSync(file, { timeout: 5000 })
   sqlite.exec('PRAGMA journal_mode = WAL')
   const statements = new Map<string, StatementSync>()
   const statement = (sql: string): StatementSync => {
@@ -107,11 +107,16 @@ export async function openLedgerDatabase(file: string): Promise<LedgerDatabase> 
   await migrate(local)
 
   let nextTransaction = 0
+  /** Bumped when the renderer reloads, so a begin still waiting from the old page lets go at once. */
+  let generation = 0
   const open = new Map<number, OpenTransaction>()
 
   const finish = (transaction: number, commit: boolean): void => {
     const entry = open.get(transaction)
-    if (!entry) return
+    if (!entry) {
+      if (commit) throw new Error('That transaction already ended and was rolled back')
+      return
+    }
     open.delete(transaction)
     clearTimeout(entry.timer)
     try {
@@ -144,7 +149,13 @@ export async function openLedgerDatabase(file: string): Promise<LedgerDatabase> 
       ? local.run(sql, params)
       : within(transaction, () => runSql(sql, params)),
     begin: () => new Promise<number>((opened, failed) => {
+      const asked = generation
       void turn(() => new Promise<void>((release) => {
+        if (asked !== generation) {
+          release()
+          failed(new Error('The page that asked for this transaction is gone'))
+          return
+        }
         nextTransaction += 1
         const id = nextTransaction
         try {
@@ -154,15 +165,24 @@ export async function openLedgerDatabase(file: string): Promise<LedgerDatabase> 
           failed(error)
           return
         }
-        open.set(id, { release, timer: setTimeout(() => finish(id, false), RENDERER_TRANSACTION_LIMIT_MS) })
+        const expire = (): void => {
+          try {
+            finish(id, false)
+          } catch {
+            // The rollback failing leaves nothing more to undo; the turn is released either way.
+          }
+        }
+        open.set(id, { release, timer: setTimeout(expire, RENDERER_TRANSACTION_LIMIT_MS) })
         opened(id)
       }))
     }),
     finish,
     abandonRendererTransactions: () => {
+      generation += 1
       for (const id of [...open.keys()]) finish(id, false)
     },
     close: async () => {
+      generation += 1
       for (const id of [...open.keys()]) finish(id, false)
       await turn(async () => sqlite.close())
     }

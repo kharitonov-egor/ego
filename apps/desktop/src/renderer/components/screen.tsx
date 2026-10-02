@@ -25,8 +25,8 @@ export function ScreenHeader({ title, back, tabs, right }: {
     {back !== undefined && <IconButton label="Go back" onClick={() => navigate(back)} className="-ml-2">
       <ArrowLeft size={20} />
     </IconButton>}
-    <h1 className="min-w-0 truncate text-[17px] font-bold">{title}</h1>
-    {tabs && <div className="ml-3 flex min-w-0 items-center">{tabs}</div>}
+    <h1 className={cn('truncate text-[17px] font-bold', tabs ? 'shrink-0' : 'min-w-0')}>{title}</h1>
+    {tabs && <div className="ml-3 flex min-w-0 items-center overflow-x-auto">{tabs}</div>}
     <div className="ml-auto flex shrink-0 items-center gap-1">{right}</div>
   </header>
 }
