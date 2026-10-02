@@ -13,9 +13,10 @@ import { RestTimerProvider } from '../lib/rest-timer'
 import { TasksProvider } from '../lib/tasks/context'
 import { TaskNotificationsProvider } from '../lib/tasks/notifications'
 import { SheetsProvider } from '../lib/sheets/context'
+import { KeyboardViewport } from '../components/ui/keyboard'
 
 function Screens(): React.ReactElement {
-  return <>
+  return <KeyboardViewport style={{ backgroundColor: '#0a0a0a' }}>
     <StatusBar style="light" />
     <Stack
       screenOptions={{
@@ -40,7 +41,7 @@ function Screens(): React.ReactElement {
       <Stack.Screen name="auth" options={{ title: 'Sign in', headerShown: false }} />
       <Stack.Screen name="ai" options={{ title: 'AI', headerTitleAlign: 'center' }} />
     </Stack>
-  </>
+  </KeyboardViewport>
 }
 
 export default function RootLayout(): React.ReactElement {

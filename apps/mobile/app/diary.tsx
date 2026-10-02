@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ActivityIndicator, BackHandler, Dimensions, FlatList, Keyboard, KeyboardAvoidingView, Platform, Pressable, TextInput, View,
+  ActivityIndicator, BackHandler, FlatList, Keyboard, Pressable, TextInput, View,
   type ViewToken
 } from 'react-native'
+import { useKeyboardVisible } from '../components/ui/keyboard'
 import { Stack, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as Clipboard from 'expo-clipboard'
@@ -87,24 +88,6 @@ function Notice({ title, detail, action, onAction }: {
   </View>
 }
 
-/** Android draws under the keyboard on edge-to-edge builds, so the screen makes room itself. */
-function useKeyboardOverlap(): { shown: boolean; overlap: number } {
-  const [keyboard, setKeyboard] = useState({ shown: false, overlap: 0 })
-  useEffect(() => {
-    const shown = Keyboard.addListener('keyboardDidShow', (event) => {
-      const top = event.endCoordinates.screenY
-      const overlap = Dimensions.get('window').height <= top ? 0 : Math.max(0, Dimensions.get('screen').height - top)
-      setKeyboard({ shown: true, overlap: Platform.OS === 'android' ? overlap : 0 })
-    })
-    const hidden = Keyboard.addListener('keyboardDidHide', () => setKeyboard({ shown: false, overlap: 0 }))
-    return () => {
-      shown.remove()
-      hidden.remove()
-    }
-  }, [])
-  return keyboard
-}
-
 export default function DiaryScreen(): React.ReactElement {
   return <PrivateGate label="Diary"><DiaryAudioProvider><DiaryChat /></DiaryAudioProvider></PrivateGate>
 }
@@ -114,7 +97,7 @@ function DiaryChat(): React.ReactElement {
   const diary = useDiary()
   const router = useRouter()
   const insets = useSafeAreaInsets()
-  const keyboard = useKeyboardOverlap()
+  const keyboardVisible = useKeyboardVisible()
   const list = useRef<FlatList<Row>>(null)
   const [replyTo, setReplyTo] = useState<LocalDiaryMessage | null>(null)
   const [editing, setEditing] = useState<LocalDiaryMessage | null>(null)
@@ -313,10 +296,7 @@ function DiaryChat(): React.ReactElement {
   }
 
   return <ChatContext.Provider value={chat}>
-    <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: ink.screen, paddingBottom: keyboard.overlap }}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <View style={{ flex: 1, backgroundColor: ink.screen }}>
       {header}
       {review}
       {searching && <View style={{ flex: 1 }}>
@@ -391,7 +371,7 @@ function DiaryChat(): React.ReactElement {
         <Composer
           replyTo={replyTo}
           editing={editing}
-          bottomInset={keyboard.shown ? 0 : insets.bottom}
+          bottomInset={keyboardVisible ? 0 : insets.bottom}
           onCancelReply={() => setReplyTo(null)}
           onCancelEdit={() => setEditing(null)}
           onSend={async (draft) => {
@@ -418,7 +398,7 @@ function DiaryChat(): React.ReactElement {
         }}
       />
       <MediaViewer items={viewerItems} start={viewerStart} onClose={() => setViewerStart(null)} />
-    </KeyboardAvoidingView>
+    </View>
   </ChatContext.Provider>
 }
 
