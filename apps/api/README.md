@@ -128,6 +128,35 @@ npm run deploy --workspace @ego/api
 Migrations are additive so the current desktop and mobile clients keep working against the same
 tables during the migration.
 
+## Backups
+
+A second cron trigger runs at 07:00 UTC every day. It asks Cloudflare's D1 export API for a SQL
+dump, the same file `wrangler d1 export` writes, and streams it into the private `ego-backups`
+bucket as `d1/YYYY-MM-DD.sql`. The bucket has no lifecycle rule, so every dump is kept. Each object
+carries the Time Travel bookmark it was taken at in its `bookmark` metadata.
+
+The export API is not reachable through the D1 binding, so the Worker needs a Cloudflare API token.
+Create one in the dashboard with Account, D1, Edit on this account only, then:
+
+```sh
+cd apps/api
+npx wrangler r2 bucket create ego-backups   # once
+npx wrangler secret put D1_EXPORT_TOKEN
+```
+
+A failed run throws, so it shows as an error on the Worker's cron events. To restore, download a
+dump and load it into an empty database:
+
+```sh
+npx wrangler r2 object get ego-backups/d1/2026-10-02.sql --remote --file ego.sql
+npx wrangler d1 create ego-restore
+npx wrangler d1 execute ego-restore --remote --file ego.sql
+```
+
+Point `database_id` in `wrangler.toml` and `D1_DATABASE_ID` at the new database once it checks out.
+For a mistake inside the Time Travel window (7 days on the free plan, 30 on Workers Paid),
+`wrangler d1 time-travel restore ego` is faster.
+
 ## Google Health
 
 The phone connects Google Health from its Health app. The Worker requests the read-only
