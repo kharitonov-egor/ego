@@ -2,7 +2,7 @@ import type {
   AccountBalances, ApiResult, BootstrapData, ChangePage, ChangeRecord, FeedTransaction,
   OperationOutcome, OperationResponse, ReceiptDetail, ReferenceData, SyncOperation, TransactionPage
 } from '@ego/api-contracts'
-import type { MoneyApi } from '../lib/api-client'
+import type { MoneyApi } from '../src/api-client'
 
 export interface FakeApiScript {
   bootstrap?: Array<ApiResult<BootstrapData>>

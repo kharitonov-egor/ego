@@ -6,7 +6,7 @@ import { FileText, Play, RotateCcw, Trash2, TriangleAlert, X } from 'lucide-reac
 import type { TaskCardRecord } from '@ego/api-contracts'
 import type { TaskAttachment } from '@ego/core'
 import { useBlur } from '../../lib/blur'
-import { extensionLabel, sizeLabel } from '../../lib/diary/format'
+import { extensionLabel, sizeLabel } from '@ego/local/diary/format'
 import { fileForOpening, mediaSource, openWithAnotherApp } from '../../lib/diary/media'
 import { useLedger } from '../../lib/ledger-context'
 import { useTasks } from '../../lib/tasks/context'

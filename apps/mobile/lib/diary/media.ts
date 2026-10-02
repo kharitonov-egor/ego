@@ -2,7 +2,7 @@ import { Platform } from 'react-native'
 import { Directory, File, Paths } from 'expo-file-system'
 import type { MediaScope } from '@ego/api-contracts'
 import type { DiaryAttachment } from '@ego/core'
-import type { DiaryMediaApi } from '../api-client'
+import type { DiaryMediaApi } from '@ego/local/api-client'
 import { outsideApp } from '../private-lock'
 
 const EXTENSIONS: Record<string, string> = {

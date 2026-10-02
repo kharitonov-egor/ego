@@ -7,13 +7,13 @@ import {
   type TransactionInput
 } from '@ego/core'
 import { useLedger, type LocalWrite } from './ledger-context'
-import { localBudgetBreaches, localRevision, localSnapshot, type RevisionTable } from './repositories/snapshot'
+import { localBudgetBreaches, localRevision, localSnapshot, type RevisionTable } from '@ego/local/repositories/snapshot'
 import {
   archiveAccount, archiveCategory, createAccount, createCategory, createPurchase, createTransaction,
   deleteBudget, deletePurchase, deleteTransaction, newId, saveBudget, updateAccount, updateCategory,
   updatePurchase, updateTransaction
-} from './sync/commands'
-import type { LocalDatabase } from './database/types'
+} from '@ego/local/sync/commands'
+import type { LocalDatabase } from '@ego/local/database/types'
 
 interface MoneyContextValue {
   snapshot: MoneySnapshot | null

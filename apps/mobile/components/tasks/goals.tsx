@@ -6,7 +6,7 @@ import {
   goalProgress, nextGoalMilestone, TASK_GOAL_HORIZONS, TASK_GOAL_STATUSES,
   type TaskGoalHorizon, type TaskGoalInput, type TaskGoalStatus
 } from '@ego/core'
-import { formatIso, isoToday } from '../../lib/dates'
+import { formatIso, isoToday } from '@ego/local/dates'
 import { BottomSheet, inputClass } from '../money/Common'
 import { CalendarDialog } from '../money/DatePicker'
 import { color } from '../money/tokens'

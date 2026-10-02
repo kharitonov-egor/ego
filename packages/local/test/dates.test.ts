@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { formatIso, isoFromParts, isoToday, monthGrid, relativeDayLabel, shiftIso } from '../lib/dates'
+import { formatIso, isoFromParts, isoToday, monthGrid, relativeDayLabel, shiftIso } from '../src/dates'
 
 afterEach(() => {
   vi.useRealTimers()

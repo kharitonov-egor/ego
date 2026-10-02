@@ -3,12 +3,12 @@ import { AppState, Platform } from 'react-native'
 import * as SecureStore from 'expo-secure-store'
 import { requireOptionalNativeModule } from 'expo'
 import { useRootNavigationState, useRouter } from 'expo-router'
-import { isoToday } from './dates'
+import { isoToday } from '@ego/local/dates'
 import { useLedger } from './ledger-context'
-import { hasTransactionOnDate } from './repositories/transactions'
+import { hasTransactionOnDate } from '@ego/local/repositories/transactions'
 import {
   DEFAULT_REMINDER, REMINDER_PREFIX, parseReminder, reminderId, reminderPlan, type ReminderPreference
-} from './reminders'
+} from '@ego/local/reminders'
 
 type Notifications = typeof import('expo-notifications')
 

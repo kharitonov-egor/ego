@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { MoneySnapshot, MoneyTransaction } from '@ego/core'
-import { averagesFor, balanceAt, bucketFlows, elapsedDays, flowOf, heatLevels, projectedSpend } from '../lib/cash-flow'
-import { chartBuckets, periodSpan } from '../lib/periods'
+import { averagesFor, balanceAt, bucketFlows, elapsedDays, flowOf, heatLevels, projectedSpend } from '../src/cash-flow'
+import { chartBuckets, periodSpan } from '../src/periods'
 
 function transaction(overrides: Partial<MoneyTransaction>): MoneyTransaction {
   return {

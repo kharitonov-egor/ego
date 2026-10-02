@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_REMINDER, hourLabel, parseReminder, reminderId, reminderPlan } from '../lib/reminders'
+import { DEFAULT_REMINDER, hourLabel, parseReminder, reminderId, reminderPlan } from '../src/reminders'
 
 const at = (day: number, hour: number, minute = 0): Date => new Date(2026, 8, day, hour, minute)
 

@@ -4,7 +4,7 @@ import {
   fieldsFor, formatDistance, formatSetDuration, formatWeight,
   type DistanceUnit, type ExerciseRecords, type ExerciseType, type RecordValue, type WeightUnit
 } from '@ego/core'
-import { formatIso } from '../../lib/dates'
+import { formatIso } from '@ego/local/dates'
 import { BottomSheet } from '../money/Common'
 import { tabular } from '../money/tokens'
 import { Text } from '../ui/text'

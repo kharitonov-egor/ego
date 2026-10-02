@@ -11,8 +11,8 @@ import { color } from '../../../components/money/tokens'
 import { Button } from '../../../components/ui/button'
 import { Text as UiText } from '../../../components/ui/text'
 import { TextSheet } from '../../../components/tasks/sheets'
-import { formatIso } from '../../../lib/dates'
-import { newId } from '../../../lib/sync/commands'
+import { formatIso } from '@ego/local/dates'
+import { newId } from '@ego/local/sync/commands'
 import { useTasks } from '../../../lib/tasks/context'
 
 function GoalDetail({ goalId }: { goalId: string }): React.ReactElement {

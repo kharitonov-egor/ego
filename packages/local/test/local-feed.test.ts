@@ -1,15 +1,15 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { NO_TRANSACTION_FILTERS, decodeCursor, type TransactionFilters } from '@ego/api-contracts'
 import { calculateAccountBalance, type MoneyTransaction } from '@ego/core'
-import { writeFeedTransaction, writeRecord, writeTombstone } from '../lib/database/writes'
-import type { LocalDatabase } from '../lib/database/types'
+import { writeFeedTransaction, writeRecord, writeTombstone } from '../src/database/writes'
+import type { LocalDatabase } from '../src/database/types'
 import {
   localBalances, localPurchasePage, localReceipt, localReference, localSummary, localTransaction, localTransactionPage
-} from '../lib/repositories/transactions'
+} from '../src/repositories/transactions'
 import {
   localBalanceAt, localBudgetBreaches, localTransactionBounds, localTransactionsInRange
-} from '../lib/repositories/snapshot'
-import { createTransaction } from '../lib/sync/commands'
+} from '../src/repositories/snapshot'
+import { createTransaction } from '../src/sync/commands'
 import { openTestLedger } from './local-db'
 import { feedRow } from './fake-api'
 

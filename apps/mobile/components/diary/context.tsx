@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react'
-import type { DiaryMediaApi } from '../../lib/api-client'
+import type { DiaryMediaApi } from '@ego/local/api-client'
 
 export interface ChatContextValue {
   api: DiaryMediaApi

@@ -8,9 +8,9 @@ import { color } from '../../components/money/tokens'
 import { GymGate, HeaderIcon, MenuSheet } from '../../components/gym/ui'
 import { Button } from '../../components/ui/button'
 import { Text } from '../../components/ui/text'
-import { planExercises, startLabel } from '../../lib/gym/plans'
+import { planExercises, startLabel } from '@ego/local/gym/plans'
 import { useGym } from '../../lib/gym-context'
-import type { GymPlanView } from '../../lib/repositories/gym'
+import type { GymPlanView } from '@ego/local/repositories/gym'
 
 /** Named lists of exercises that can start any day's workout. */
 export default function Plans(): React.ReactElement {

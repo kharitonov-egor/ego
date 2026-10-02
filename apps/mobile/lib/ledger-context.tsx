@@ -4,20 +4,20 @@ import type {
   AccountBalance, FeedCursor, ReferenceData, TransactionFilters
 } from '@ego/api-contracts'
 import { fetch as expoFetch } from 'expo/fetch'
-import { moneyApiFor, type EgoApi } from './api-client'
+import { moneyApiFor, type EgoApi } from '@ego/local/api-client'
 import { datasetIdFor, openLocalDatabase } from './database'
-import type { LocalDatabase } from './database/types'
+import type { LocalDatabase } from '@ego/local/database/types'
 import {
   localBalances, localPurchasePage, localReceipt, localReference, localTransaction, localTransactionPage,
   type LocalPurchasePage, type LocalReceipt, type LocalFeedTransaction, type LocalTransactionPage
-} from './repositories/transactions'
-import { keepMine, useSavedVersion } from './sync/conflicts'
-import { deleteTransaction, newId } from './sync/commands'
-import { createSyncCoordinator, hasDownloaded, isBootstrapped, type SyncOutcome } from './sync/coordinator'
-import { allOperations, type OutboxEntry } from './sync/outbox'
+} from '@ego/local/repositories/transactions'
+import { keepMine, useSavedVersion } from '@ego/local/sync/conflicts'
+import { deleteTransaction, newId } from '@ego/local/sync/commands'
+import { createSyncCoordinator, hasDownloaded, isBootstrapped, type SyncOutcome } from '@ego/local/sync/coordinator'
+import { allOperations, type OutboxEntry } from '@ego/local/sync/outbox'
 import { apiUrlFor, isSignedIn, useSettings } from './settings'
 import { diaryUploadTransport } from './diary/transport'
-import { uploadPendingMedia } from './diary/uploads'
+import { uploadPendingMedia } from '@ego/local/diary/uploads'
 
 export type LocalWrite = (db: LocalDatabase, now: string) => Promise<void>
 

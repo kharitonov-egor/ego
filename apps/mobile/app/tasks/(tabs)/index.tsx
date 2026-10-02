@@ -12,7 +12,7 @@ import { BoardIcon, TasksError, TasksGate, TasksHeaderRight } from '../../../com
 import { Button } from '../../../components/ui/button'
 import { Text as UiText } from '../../../components/ui/text'
 import { Blurred } from '../../../lib/blur'
-import { boardSummary, liveBoards } from '../../../lib/tasks/board'
+import { boardSummary, liveBoards } from '@ego/local/tasks/board'
 import { useTasks } from '../../../lib/tasks/context'
 
 function summaryText(open: number, dueSoon: number, overdue: number): string {

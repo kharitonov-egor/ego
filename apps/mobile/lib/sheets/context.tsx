@@ -6,19 +6,19 @@ import {
   nextShade,
   type SheetCellValue, type SheetColumn, type SheetInput, type SheetRowInput
 } from '@ego/core'
-import type { LocalDatabase } from '../database/types'
+import type { LocalDatabase } from '@ego/local/database/types'
 import { useLedger, type LocalWrite } from '../ledger-context'
 import {
   createSheet as createSheetCommand, createSheetRow, deleteSheet as deleteSheetCommand, deleteSheetRow, newId,
   updateSheet as updateSheetCommand, updateSheetRow
-} from '../sync/commands'
-import { endPosition, placeAt } from '../tasks/board'
+} from '@ego/local/sync/commands'
+import { endPosition, placeAt } from '@ego/local/tasks/board'
 import {
   blankSheet, connectionsSheet, copiedRows, keptCells, removeColumn, removeRowType, replaceColumn, rowInput, sheetInput,
   shiftColumn, turnOnTypes, withCell, type RowWrite, type SheetEdit
-} from './edits'
-import { localSheetRevision, localSheets, type SheetData, type SheetTable } from './repository'
-import { rowName } from './view'
+} from '@ego/local/sheets/edits'
+import { localSheetRevision, localSheets, type SheetData, type SheetTable } from '@ego/local/sheets/repository'
+import { rowName } from '@ego/local/sheets/view'
 
 /** How long a deleted row waits, hidden, for Undo before the delete is written. */
 const UNDO_MS = 5000

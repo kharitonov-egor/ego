@@ -8,10 +8,10 @@ import { HabitIcon, HabitsError, HabitsGate } from '../../components/habits/ui'
 import { Button } from '../../components/ui/button'
 import { Card } from '../../components/ui/card'
 import { Text as UiText } from '../../components/ui/text'
-import { momentLabel, runLabel, runSpoken, twoDigits } from '../../lib/habits/format'
+import { momentLabel, runLabel, runSpoken, twoDigits } from '@ego/local/habits/format'
 import { useHabits } from '../../lib/habits/context'
 import { Blurred } from '../../lib/blur'
-import { quitClock, splitDuration } from '../../lib/habits/stats'
+import { quitClock, splitDuration } from '@ego/local/habits/stats'
 
 const TABULAR = { fontVariant: ['tabular-nums' as const] }
 

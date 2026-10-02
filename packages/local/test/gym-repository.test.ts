@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import type { LocalDatabase } from '../lib/database/types'
-import { exerciseSetsPage, exerciseSupersetPartners, exerciseTrackSets, gymDay } from '../lib/repositories/gym'
+import type { LocalDatabase } from '../src/database/types'
+import { exerciseSetsPage, exerciseSupersetPartners, exerciseTrackSets, gymDay } from '../src/repositories/gym'
 import { openTestLedger } from './local-db'
 
 let db: LocalDatabase | null = null

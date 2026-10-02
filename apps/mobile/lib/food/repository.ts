@@ -3,7 +3,7 @@ import {
   FOOD_GOAL_ID, isFoodPart, isFoodPhoto,
   type FoodPart, type FoodPhoto, type FoodSource, type FridgeSource
 } from '@ego/core'
-import type { LocalDatabase } from '../database/types'
+import type { LocalDatabase } from '@ego/local/database/types'
 
 export interface FoodData {
   entries: FoodEntryRecord[]

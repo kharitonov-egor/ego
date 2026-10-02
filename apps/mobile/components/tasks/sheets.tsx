@@ -7,8 +7,8 @@ import {
   defaultTaskReminder, taskReminderLabel,
   type TaskLabelColor, type TaskPriority, type TaskReminder
 } from '@ego/core'
-import { formatIso, isoToday, shiftIso } from '../../lib/dates'
-import { boardLabels, boardLists, liveBoards, type CardFilter, type DueFilter, NO_FILTER } from '../../lib/tasks/board'
+import { formatIso, isoToday, shiftIso } from '@ego/local/dates'
+import { boardLabels, boardLists, liveBoards, type CardFilter, type DueFilter, NO_FILTER } from '@ego/local/tasks/board'
 import { useTasks } from '../../lib/tasks/context'
 import { useTaskNotifications } from '../../lib/tasks/notifications'
 import { BottomSheet, inputClass } from '../money/Common'

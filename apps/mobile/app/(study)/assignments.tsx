@@ -13,8 +13,8 @@ import { useStudy } from '../../lib/study/context'
 import {
   courseList, dayHeading, dueWithin, isDone, isOverdue, localDay, overdueCount, studySections, type StudySection,
   type StudyView
-} from '../../lib/study/schedule'
-import type { StudyItem } from '../../lib/study/store'
+} from '@ego/local/study/schedule'
+import type { StudyItem } from '@ego/local/study/store'
 import { Blurred } from '../../lib/blur'
 
 const VIEW_OPTIONS = [{ value: 'upcoming', label: 'Upcoming' }, { value: 'past', label: 'Past' }] as const

@@ -3,10 +3,10 @@ import type { SheetRecord, SheetRowRecord } from '@ego/api-contracts'
 import type { SheetColumn, SheetView } from '@ego/core'
 import {
   connectionsSheet, removeRowType, replaceColumn, rowInput, sheetInput, shiftColumn, turnOnTypes, withCell
-} from '../lib/sheets/edits'
+} from '../src/sheets/edits'
 import {
   activeFilters, cellState, cleanView, dateLabel, gridColumns, linkLabel, linkUrl, sheetGrid, sortRows
-} from '../lib/sheets/view'
+} from '../src/sheets/view'
 
 const STAMP = '2026-09-01T00:00:00.000Z'
 const TODAY = new Date(2026, 9, 2)

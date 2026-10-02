@@ -11,11 +11,11 @@ import { Field } from '../../../components/sheets/Fields'
 import { SheetsError, SheetsGate, SheetsHeaderRight, SheetsMessage } from '../../../components/sheets/ui'
 import { Button } from '../../../components/ui/button'
 import { Text as UiText } from '../../../components/ui/text'
-import { formatIso, timeAgo } from '../../../lib/dates'
-import { withCell } from '../../../lib/sheets/edits'
+import { formatIso, timeAgo } from '@ego/local/dates'
+import { withCell } from '@ego/local/sheets/edits'
 import { useSheets } from '../../../lib/sheets/context'
-import { formColumns, nameColumn, rowName } from '../../../lib/sheets/view'
-import { localDay } from '../../../lib/tasks/board'
+import { formColumns, nameColumn, rowName } from '@ego/local/sheets/view'
+import { localDay } from '@ego/local/tasks/board'
 
 function TypeChoice({ sheet, typeId, onChange }: { sheet: SheetRecord; typeId: string | null; onChange: (typeId: string) => void }): React.ReactElement {
   return <View className="mb-6 flex-row flex-wrap gap-2">

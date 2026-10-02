@@ -7,7 +7,7 @@ import { useTasks } from './context'
 import {
   DEFAULT_TASK_NOTIFICATIONS, TASK_DIGEST_PREFIX, TASK_REMINDER_PREFIX, cardIdFromNotification, parseTaskNotifications,
   taskNotificationPlan, type TaskNotificationPreference
-} from './reminders'
+} from '@ego/local/tasks/reminders'
 
 type Notifications = typeof import('expo-notifications')
 

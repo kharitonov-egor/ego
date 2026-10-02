@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   addMonths, bucketSizeFor, canStepForward, chartBuckets, comparisonSpan, formatSpan, isCurrentPeriod, isHorizontalSwipe,
   parseSavedPeriod, periodSpan, periodTitle, rangeForPeriod, relativePeriodName, stepAnchor, swipeStep
-} from '../lib/periods'
+} from '../src/periods'
 
 const TODAY = '2026-09-27'
 const none = { from: null, to: null }

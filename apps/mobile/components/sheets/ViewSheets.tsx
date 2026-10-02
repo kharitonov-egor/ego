@@ -6,10 +6,10 @@ import {
   SHEET_FILTER_LIMIT, SHEET_FILTER_TEXT_LIMIT, SHEET_SORT_LIMIT, parseSheetNumber,
   type SheetColumn, type SheetFilter, type SheetFilterOperator, type SheetSort
 } from '@ego/core'
-import { isoToday } from '../../lib/dates'
+import { isoToday } from '@ego/local/dates'
 import { useSheets } from '../../lib/sheets/context'
-import { OPERATOR_LABELS, dateLabel, operatorTakesValue, operatorsFor, sortLabels } from '../../lib/sheets/view'
-import { newId } from '../../lib/sync/commands'
+import { OPERATOR_LABELS, dateLabel, operatorTakesValue, operatorsFor, sortLabels } from '@ego/local/sheets/view'
+import { newId } from '@ego/local/sync/commands'
 import { BottomSheet, inputClass } from '../money/Common'
 import { CalendarDialog } from '../money/DatePicker'
 import { Button } from '../ui/button'

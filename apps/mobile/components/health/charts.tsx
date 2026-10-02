@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native'
 import Svg, { Circle, Line, Path, Rect, Text as SvgText } from 'react-native-svg'
 import type { HealthSleepStage, HealthSleepStageKind } from '@ego/api-contracts'
-import { ticksFor, type ChartPoint, type MetricSpec } from '../../lib/health/metrics'
+import { ticksFor, type ChartPoint, type MetricSpec } from '@ego/local/health/metrics'
 import { color } from '../money/tokens'
 
 /** One series per chart, so the ink stays in the app's grays: the chosen mark in white, the rest a step down. */

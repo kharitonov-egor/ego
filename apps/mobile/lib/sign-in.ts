@@ -2,7 +2,7 @@ import { Linking, Platform } from 'react-native'
 import * as SecureStore from 'expo-secure-store'
 import Constants from 'expo-constants'
 import type { SignInResult } from '@ego/api-contracts'
-import { exchangeSignIn, startSignIn } from './api-client'
+import { exchangeSignIn, startSignIn } from '@ego/local/api-client'
 
 const PENDING_KEY = 'ego.signin.pending'
 

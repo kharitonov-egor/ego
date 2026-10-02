@@ -6,9 +6,9 @@ import {
   SHEET_COLUMN_TYPE_LABELS, SHEET_TEXT_LIMIT, parseSheetNumber,
   type SheetCellValue, type SheetColumn
 } from '@ego/core'
-import { isoToday } from '../../lib/dates'
+import { isoToday } from '@ego/local/dates'
 import { useSheets } from '../../lib/sheets/context'
-import { cellState, dateLabel, numberLabel, rowName } from '../../lib/sheets/view'
+import { cellState, dateLabel, numberLabel, rowName } from '@ego/local/sheets/view'
 import { BottomSheet, inputClass } from '../money/Common'
 import { CalendarDialog } from '../money/DatePicker'
 import { Button } from '../ui/button'

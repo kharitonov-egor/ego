@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Modal, Pressable, Text, View } from 'react-native'
 import { CalendarDays, ChevronLeft, ChevronRight, Moon, Sun } from 'lucide-react-native'
-import { WEEKDAYS, formatIso, isoFromParts, isoToday, monthGrid, parseIso, shiftIso } from '../../lib/dates'
+import { WEEKDAYS, formatIso, isoFromParts, isoToday, monthGrid, parseIso, shiftIso } from '@ego/local/dates'
 import { Button } from '../ui/button'
 import { Text as UiText } from '../ui/text'
 import { BottomSheet, inputClass } from './Common'

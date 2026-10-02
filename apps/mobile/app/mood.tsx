@@ -15,7 +15,7 @@ import { CalendarDialog } from '../components/money/DatePicker'
 import { SyncButton } from '../components/money/SyncButton'
 import { Button } from '../components/ui/button'
 import { Text } from '../components/ui/text'
-import { isoToday } from '../lib/dates'
+import { isoToday } from '@ego/local/dates'
 import { useLedger } from '../lib/ledger-context'
 import { useMoodJournal } from '../lib/mood-journal'
 

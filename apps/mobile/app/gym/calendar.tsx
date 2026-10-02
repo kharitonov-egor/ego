@@ -6,9 +6,9 @@ import { CalendarCheck, ChevronLeft, ChevronRight } from 'lucide-react-native'
 import { color } from '../../components/money/tokens'
 import { Dot, GymGate, HeaderIcon } from '../../components/gym/ui'
 import { Text } from '../../components/ui/text'
-import { isoFromParts, isoToday, shiftMonth } from '../../lib/dates'
+import { isoFromParts, isoToday, shiftMonth } from '@ego/local/dates'
 import { useGym, useGymQuery } from '../../lib/gym-context'
-import { gymCalendar } from '../../lib/repositories/gym'
+import { gymCalendar } from '@ego/local/repositories/gym'
 
 const WEEKDAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
 const TITLE_HEIGHT = 56

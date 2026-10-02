@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { ApiResult, HealthConnection, HealthDay, HealthSleep, HealthSnapshot } from '@ego/api-contracts'
-import type { HealthApi } from '../lib/api-client'
-import { cachedHealth, refreshHealth, saveHealthSnapshot } from '../lib/health/store'
+import type { HealthApi } from '../src/api-client'
+import { cachedHealth, refreshHealth, saveHealthSnapshot } from '../src/health/store'
 import {
   buildHealthIndex, latestValue, mainSleep, metricSeries, metricValue, periodFor, seriesStats, shiftPeriod,
   ticksFor, weekZoneMinutes
-} from '../lib/health/metrics'
+} from '../src/health/metrics'
 import { openTestLedger } from './local-db'
 
 const TODAY = '2026-09-28'

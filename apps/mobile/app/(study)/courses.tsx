@@ -7,7 +7,7 @@ import { color, tabular } from '../../components/money/tokens'
 import { useCourseColors } from '../../components/study/Assignment'
 import { StudyGate, StudyMessage } from '../../components/study/StudyGate'
 import { useStudy } from '../../lib/study/context'
-import { courseSummaries, dueDay, shortDay, type CourseSummary } from '../../lib/study/schedule'
+import { courseSummaries, dueDay, shortDay, type CourseSummary } from '@ego/local/study/schedule'
 import { BlurSpan, Blurred } from '../../lib/blur'
 
 function CourseCard({ summary, tint, showOverdue, onPress }: {

@@ -16,7 +16,7 @@ Reviewed on September 28, 2026, at commit `66d5b6d`. The review covers the mobil
 
 **1. Transaction pagination spends most of its time recounting rows.**
 
-[`localTransactionPage`](../apps/mobile/lib/repositories/transactions.ts) fetches a page and then runs a joined `COUNT(*)` across every matching transaction. It repeats that count on every page. [`loadOlder`](../apps/mobile/components/money/LocalActivity.tsx) does not even use the returned count.
+[`localTransactionPage`](../packages/local/src/repositories/transactions.ts) fetches a page and then runs a joined `COUNT(*)` across every matching transaction. It repeats that count on every page. [`loadOlder`](../apps/mobile/components/money/LocalActivity.tsx) does not even use the returned count.
 
 | Synthetic transactions | Complete local page, 50 items | Joined count alone | Shared page SQL alone, 51 rows |
 | --- | ---: | ---: | ---: |
@@ -59,7 +59,7 @@ Simply putting the historical reads in `Promise.all` still reads and converts al
 
 **3. Money snapshots load every transaction and receipt item.**
 
-[`localSnapshot`](../apps/mobile/lib/repositories/snapshot.ts) issues eight sequential queries. It reads all transactions, purchases, receipt items, budgets, and allocations, then constructs a complete JavaScript snapshot. [`MoneyProvider`](../apps/mobile/lib/money-context.tsx) runs this when the ledger becomes ready and when the money version changes. It lives in the [root layout](../apps/mobile/app/_layout.tsx), so the work starts even if the user wants Gym or Study.
+[`localSnapshot`](../packages/local/src/repositories/snapshot.ts) issues eight sequential queries. It reads all transactions, purchases, receipt items, budgets, and allocations, then constructs a complete JavaScript snapshot. [`MoneyProvider`](../apps/mobile/lib/money-context.tsx) runs this when the ledger becomes ready and when the money version changes. It lives in the [root layout](../apps/mobile/app/_layout.tsx), so the work starts even if the user wants Gym or Study.
 
 | Synthetic transactions | Snapshot time | JSON size of snapshot |
 | --- | ---: | ---: |
@@ -79,7 +79,7 @@ Budget warnings and validation also consume snapshots today. Preserve those rule
 
 **4. First download performs one prepared-write cycle per record.**
 
-The Worker [`readBootstrap`](../apps/api/src/reads.ts) returns all live money, gym, and mood records in one response. Mobile [`bootstrap`](../apps/mobile/lib/sync/coordinator.ts) applies them one at a time inside one transaction. A synthetic 10,030-record download issued 10,041 statements inside that transaction and took 260 ms in the Node adapter, excluding download time.
+The Worker [`readBootstrap`](../apps/api/src/reads.ts) returns all live money, gym, and mood records in one response. Mobile [`bootstrap`](../packages/local/src/sync/coordinator.ts) applies them one at a time inside one transaction. A synthetic 10,030-record download issued 10,041 statements inside that transaction and took 260 ms in the Node adapter, excluding download time.
 
 The transaction already avoids a disk commit per row. The remaining issue is repeated statement preparation and native calls. [`database/index.ts`](../apps/mobile/lib/database/index.ts) delegates each write to Expo's `runAsync`. The installed Expo implementation prepares, executes, and finalizes a statement for each call.
 

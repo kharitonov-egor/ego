@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { amountToExpression, evaluateAmount, formatAmountExpression, pressAmountKey } from '../lib/amount-input'
+import { amountToExpression, evaluateAmount, formatAmountExpression, pressAmountKey } from '../src/amount-input'
 
 function type(keys: string): string {
   return keys.split(' ').reduce((expression, key) => pressAmountKey(expression, key), '')

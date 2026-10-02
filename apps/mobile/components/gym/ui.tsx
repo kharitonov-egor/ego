@@ -5,7 +5,7 @@ import { Dumbbell, MessageSquare, Trophy, X, type LucideIcon } from 'lucide-reac
 import type { ExerciseType, GymSetLike, WeightUnit } from '@ego/core'
 import { useGym } from '../../lib/gym-context'
 import { useLedger } from '../../lib/ledger-context'
-import { setParts } from '../../lib/gym/format'
+import { setParts } from '@ego/local/gym/format'
 import { BottomSheet } from '../money/Common'
 import { color, tabular } from '../money/tokens'
 import { Button } from '../ui/button'
