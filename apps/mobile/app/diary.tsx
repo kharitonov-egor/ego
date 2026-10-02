@@ -279,7 +279,7 @@ function DiaryChat(): React.ReactElement {
     /></>
   }
   if (ledger.error) return <>{header}<Notice title="This phone cannot open its database" detail={ledger.error} /></>
-  if (!messages) {
+  if (!messages || !ledger.db) {
     const stopped = !ledger.ready && Boolean(ledger.status) && !ledger.syncing
     if (stopped && ledger.status?.state === 'paused') {
       return <>{header}<Notice title="Sign in again" detail="The server stopped accepting this device." action="Open settings" onAction={() => router.push('/settings')} /></>
@@ -369,6 +369,7 @@ function DiaryChat(): React.ReactElement {
           ><ChevronDown color={ink.text} size={22} /></Pressable>}
         </View>
         <Composer
+          db={ledger.db}
           replyTo={replyTo}
           editing={editing}
           bottomInset={keyboardVisible ? 0 : insets.bottom}
