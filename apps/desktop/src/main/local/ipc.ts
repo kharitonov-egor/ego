@@ -32,6 +32,13 @@ function isSqlParams(value: unknown): value is SqlParam[] {
     item === null || typeof item === 'string' || (typeof item === 'number' && Number.isFinite(item)))
 }
 
+/** The screens only read and write ledger rows; attaching another file or writing one out is never theirs to do. */
+const OUTSIDE_THE_LEDGER = /^\s*(ATTACH|DETACH)\b|\bVACUUM\b|\bload_extension\b/i
+
+function isLedgerSql(value: unknown): value is string {
+  return typeof value === 'string' && !OUTSIDE_THE_LEDGER.test(value)
+}
+
 function transactionId(value: unknown): number | null {
   if (value === null) return null
   if (typeof value === 'number' && Number.isSafeInteger(value)) return value
@@ -44,7 +51,9 @@ function transactionId(value: unknown): number | null {
  */
 export function setupLocalIpc(isMainWindow: (sender: WebContents) => boolean): void {
   const guard = (event: IpcMainInvokeEvent): void => {
-    if (!isMainWindow(event.sender)) throw new Error('Only the main Ego window can read the ledger')
+    if (!isMainWindow(event.sender) || event.senderFrame !== event.sender.mainFrame) {
+      throw new Error('Only the main Ego window can read the ledger')
+    }
   }
   const database = async () => {
     const opened = await ledgerDatabase()
@@ -54,12 +63,12 @@ export function setupLocalIpc(isMainWindow: (sender: WebContents) => boolean): v
 
   ipcMain.handle('local-all', async (event, transaction: unknown, sql: unknown, params: unknown) => {
     guard(event)
-    if (typeof sql !== 'string' || !isSqlParams(params)) throw new Error('Invalid query')
+    if (!isLedgerSql(sql) || !isSqlParams(params)) throw new Error('Invalid query')
     return (await database()).all(transactionId(transaction), sql, params)
   })
   ipcMain.handle('local-run', async (event, transaction: unknown, sql: unknown, params: unknown) => {
     guard(event)
-    if (typeof sql !== 'string' || !isSqlParams(params)) throw new Error('Invalid statement')
+    if (!isLedgerSql(sql) || !isSqlParams(params)) throw new Error('Invalid statement')
     return (await database()).run(transactionId(transaction), sql, params)
   })
   ipcMain.handle('local-begin', async (event) => {

@@ -30,7 +30,7 @@ export function BlurProvider({ children }: { children: React.ReactNode }): React
   }, [])
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (!event.ctrlKey || !event.shiftKey || event.altKey || event.key.toLowerCase() !== 'b') return
+      if (!event.ctrlKey || !event.shiftKey || event.altKey || event.code !== 'KeyB') return
       event.preventDefault()
       setBlurred(!blurred)
     }

@@ -6,6 +6,7 @@
   "exports": {
     "./*": {
       "types": "./dist/*.d.ts",
+      "react-native": "./src/*.ts",
       "default": "./dist/*.js"
     }
   },

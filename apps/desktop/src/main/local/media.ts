@@ -1,7 +1,7 @@
 import { app, net, protocol, shell } from 'electron'
 import { createReadStream } from 'node:fs'
 import { copyFile, mkdir, open, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { Readable } from 'node:stream'
 import {
   DIARY_PART_SIZE, DIARY_SINGLE_UPLOAD_LIMIT,
@@ -50,6 +50,13 @@ function folder(name: string): string {
   return join(app.getPath('userData'), 'ledger', name)
 }
 
+/** A file this computer staged sits directly in the media folder; nothing else is served, opened, or sent from disk. */
+function isStagedPath(path: string): boolean {
+  const parent = dirname(resolve(path))
+  const media = resolve(folder('media'))
+  return process.platform === 'win32' ? parent.toLowerCase() === media.toLowerCase() : parent === media
+}
+
 export interface MediaDeps {
   database: () => Promise<LocalDatabase | null>
   api: () => DiaryMediaApi
@@ -83,8 +90,12 @@ function byteRange(header: string | null, size: number): ByteRange | 'unsatisfia
 
 async function fromDisk(path: string, contentType: string, rangeHeader: string | null): Promise<Response> {
   const { size } = await stat(path)
-  const range = byteRange(rangeHeader, size)
   const headers = new Headers({ 'content-type': contentType, 'accept-ranges': 'bytes', 'cache-control': 'no-store' })
+  if (size === 0) {
+    headers.set('content-length', '0')
+    return new Response(null, { status: 200, headers })
+  }
+  const range = byteRange(rangeHeader, size)
   if (range === 'unsatisfiable') {
     headers.set('content-range', `bytes */${size}`)
     return new Response(null, { status: 416, headers })
@@ -106,30 +117,32 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-const downloads = new Map<string, Promise<string | null>>()
+const caching = new Map<string, Promise<string | null>>()
 
-/** Downloads one whole file into the cache. Two screens asking at once share the download. */
-function cacheCopy(deps: MediaDeps, scope: MediaScope, mediaId: string): Promise<string | null> {
+/**
+ * Fetches a whole file. One with a known length under the limit is kept in the cache and served
+ * from there, and a second request while it saves waits for that copy; anything else streams through.
+ */
+async function download(deps: MediaDeps, scope: MediaScope, mediaId: string): Promise<Response> {
   const key = `${scope}/${mediaId}`
-  const running = downloads.get(key)
-  if (running) return running
-  const work = (async () => {
-    const target = join(folder('media-cache'), scope, mediaId)
-    if (await exists(target)) return target
-    const api = deps.api()
-    const response = await net.fetch(api.mediaUrl(mediaId, scope), { headers: api.authHeaders() })
-    if (!response.ok) return null
-    const length = Number(response.headers.get('content-length') ?? '0')
-    if (length > CACHE_LIMIT) return null
+  const target = join(folder('media-cache'), scope, mediaId)
+  const pending = caching.get(key)
+  if (pending && await pending) return fromDisk(target, await cachedType(target), null)
+  const api = deps.api()
+  const response = await net.fetch(api.mediaUrl(mediaId, scope), { headers: api.authHeaders() })
+  const length = Number(response.headers.get('content-length') ?? '')
+  if (!response.ok || !Number.isFinite(length) || length <= 0 || length > CACHE_LIMIT) return response
+  const type = response.headers.get('content-type') ?? 'application/octet-stream'
+  const saving = (async () => {
     const bytes = Buffer.from(await response.arrayBuffer())
     await mkdir(join(folder('media-cache'), scope), { recursive: true })
     await writeFile(`${target}.part`, bytes)
-    await writeFile(`${target}.type`, response.headers.get('content-type') ?? 'application/octet-stream')
+    await writeFile(`${target}.type`, type)
     await rename(`${target}.part`, target)
     return target
-  })().catch(() => null).finally(() => downloads.delete(key))
-  downloads.set(key, work)
-  return work
+  })().catch(() => null).finally(() => caching.delete(key))
+  caching.set(key, saving)
+  return await saving ? fromDisk(target, type, null) : new Response(null, { status: 502 })
 }
 
 async function cachedType(path: string): Promise<string> {
@@ -151,13 +164,11 @@ export function handleMediaRequests(deps: MediaDeps): void {
     if (!db) return new Response(null, { status: 401 })
     const local = await db.all<{ local_uri: string; content_type: string }>(
       'SELECT local_uri, content_type FROM diary_uploads WHERE media_id = ?', [mediaId])
-    if (local[0] && await exists(local[0].local_uri)) return fromDisk(local[0].local_uri, local[0].content_type, range)
+    const sent = local[0]
+    if (sent && isStagedPath(sent.local_uri) && await exists(sent.local_uri)) return fromDisk(sent.local_uri, sent.content_type, range)
     const cached = join(folder('media-cache'), scope, mediaId)
     if (await exists(cached)) return fromDisk(cached, await cachedType(cached), range)
-    if (!range) {
-      const copy = await cacheCopy(deps, scope, mediaId)
-      if (copy) return fromDisk(copy, await cachedType(copy), null)
-    }
+    if (!range) return download(deps, scope, mediaId)
     const api = deps.api()
     return net.fetch(api.mediaUrl(mediaId, scope), {
       headers: { ...api.authHeaders(), ...(range ? { range } : {}) }
@@ -188,9 +199,8 @@ export async function stageMediaFile(input: MediaPathInput): Promise<StagedMedia
 
 /** Files this computer staged and no longer needs, like a photo removed from a draft. */
 export async function deleteStagedMedia(paths: readonly string[]): Promise<void> {
-  const directory = folder('media')
   for (const path of paths) {
-    if (path.startsWith(directory)) await rm(path, { force: true })
+    if (isStagedPath(path)) await rm(path, { force: true })
   }
 }
 
@@ -205,7 +215,8 @@ export async function openMedia(deps: MediaDeps, input: MediaOpenInput): Promise
   if (!MEDIA_ID.test(input.mediaId) || !isScope(input.scope)) return 'This file cannot be opened'
   const db = await deps.database()
   const local = db ? await db.all<{ local_uri: string }>('SELECT local_uri FROM diary_uploads WHERE media_id = ?', [input.mediaId]) : []
-  let path = local[0] && await exists(local[0].local_uri) ? local[0].local_uri : null
+  const sent = local[0]?.local_uri
+  let path = sent && isStagedPath(sent) && await exists(sent) ? sent : null
   if (!path) {
     const directory = join(folder('media-open'), input.mediaId)
     path = join(directory, safeName(input))
@@ -223,9 +234,14 @@ export async function openMedia(deps: MediaDeps, input: MediaOpenInput): Promise
 
 const OFFLINE: ApiResult<never> = { ok: false, error: { code: 'OFFLINE', message: 'The Ego server is unreachable' } }
 
+/** Gives a slow connection time to finish: at least a minute, plus a second for every 100 KB. */
+const uploadTimeout = (bytes: number): number => Math.max(60000, bytes / 100)
+
 async function put<T>(url: string, headers: Record<string, string>, body: Buffer): Promise<ApiResult<T>> {
   try {
-    const response = await net.fetch(url, { method: 'PUT', headers, body: new Uint8Array(body) })
+    const response = await net.fetch(url, {
+      method: 'PUT', headers, body: new Uint8Array(body), signal: AbortSignal.timeout(uploadTimeout(body.length))
+    })
     return resultFrom<T>(response.status, await response.text())
   } catch {
     return OFFLINE
@@ -243,39 +259,44 @@ async function readSlice(path: string, offset: number, length: number): Promise<
   }
 }
 
+async function send(client: DiaryMediaApi, upload: PendingUpload, onProgress: (mediaId: string, share: number | null) => void): Promise<ApiResult<DiaryMediaInfo>> {
+  if (upload.size <= DIARY_SINGLE_UPLOAD_LIMIT) {
+    return put<DiaryMediaInfo>(client.mediaUrl(upload.mediaId, upload.scope),
+      { ...client.authHeaders(), 'content-type': upload.contentType }, await readFile(upload.localUri))
+  }
+  const start = await client.mediaMultipartStart(upload.mediaId, upload.contentType, upload.scope)
+  if (!start.ok) return start
+  if (start.data.media) return { ok: true, data: start.data.media }
+  const uploadId = start.data.uploadId
+  if (!uploadId) return { ok: false, error: { code: 'SERVER_ERROR', message: 'The server did not start the upload' } }
+  const parts: DiaryMultipartPart[] = []
+  const count = Math.ceil(upload.size / DIARY_PART_SIZE)
+  for (let number = 1; number <= count; number += 1) {
+    const offset = (number - 1) * DIARY_PART_SIZE
+    const chunk = await readSlice(upload.localUri, offset, Math.min(DIARY_PART_SIZE, upload.size - offset))
+    const result = await put<DiaryMultipartPart>(client.mediaPartUrl(upload.mediaId, uploadId, number, upload.scope),
+      { ...client.authHeaders(), 'content-type': 'application/octet-stream' }, chunk)
+    if (!result.ok) return result
+    parts.push(result.data)
+    onProgress(upload.mediaId, (offset + chunk.length) / upload.size)
+  }
+  return client.mediaMultipartComplete(upload.mediaId, uploadId, parts, upload.scope)
+}
+
 /**
- * The phone's upload transport, reading from disk here. Past one request's limit the file goes up
- * in parts, with one part in memory at a time.
+ * The phone's upload transport, reading from disk here, bound to the server the sync run talks
+ * to. Past one request's limit the file goes up in parts, with one part in memory at a time.
  */
-export function mediaUploadTransport(api: () => DiaryMediaApi, onProgress: (mediaId: string, share: number | null) => void): UploadTransport {
+export function mediaUploadTransport(client: DiaryMediaApi, onProgress: (mediaId: string, share: number | null) => void): UploadTransport {
   return async (upload: PendingUpload): Promise<ApiResult<DiaryMediaInfo>> => {
-    if (!await exists(upload.localUri)) {
+    if (!isStagedPath(upload.localUri) || !await exists(upload.localUri)) {
       return { ok: false, error: { code: 'INVALID_REQUEST', message: 'This file is no longer on this computer' } }
     }
-    const client = api()
     onProgress(upload.mediaId, 0)
     try {
-      if (upload.size <= DIARY_SINGLE_UPLOAD_LIMIT) {
-        return await put<DiaryMediaInfo>(client.mediaUrl(upload.mediaId, upload.scope),
-          { ...client.authHeaders(), 'content-type': upload.contentType }, await readFile(upload.localUri))
-      }
-      const start = await client.mediaMultipartStart(upload.mediaId, upload.contentType, upload.scope)
-      if (!start.ok) return start
-      if (start.data.media) return { ok: true, data: start.data.media }
-      const uploadId = start.data.uploadId
-      if (!uploadId) return { ok: false, error: { code: 'SERVER_ERROR', message: 'The server did not start the upload' } }
-      const parts: DiaryMultipartPart[] = []
-      const count = Math.ceil(upload.size / DIARY_PART_SIZE)
-      for (let number = 1; number <= count; number += 1) {
-        const offset = (number - 1) * DIARY_PART_SIZE
-        const chunk = await readSlice(upload.localUri, offset, Math.min(DIARY_PART_SIZE, upload.size - offset))
-        const result = await put<DiaryMultipartPart>(client.mediaPartUrl(upload.mediaId, uploadId, number, upload.scope),
-          { ...client.authHeaders(), 'content-type': 'application/octet-stream' }, chunk)
-        if (!result.ok) return result
-        parts.push(result.data)
-        onProgress(upload.mediaId, (offset + chunk.length) / upload.size)
-      }
-      return await client.mediaMultipartComplete(upload.mediaId, uploadId, parts, upload.scope)
+      return await send(client, upload, onProgress)
+    } catch {
+      return { ok: false, error: { code: 'INVALID_REQUEST', message: 'This file could not be read' } }
     } finally {
       onProgress(upload.mediaId, null)
     }

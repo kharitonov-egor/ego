@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import type { SyncEntity } from '@ego/api-contracts'
 import type { OutboxEntry } from '@ego/local/sync/outbox'
 import { useLedger } from '../lib/ledger'
@@ -24,6 +24,7 @@ const ENTITY_LABELS: Record<SyncEntity, string> = {
   taskList: 'List',
   taskLabel: 'Label',
   taskCard: 'Card',
+  taskGoal: 'Goal',
   sheet: 'Sheet',
   sheetRow: 'Sheet row'
 }
@@ -40,11 +41,18 @@ export function changeLabel(entry: Pick<OutboxEntry, 'entity' | 'commandType'>):
   return `${ENTITY_LABELS[entry.entity] ?? entry.entity}, ${COMMAND_LABELS[entry.commandType] ?? entry.commandType}`
 }
 
+/** One decision at a time: a double click must not queue the same change twice. */
 export function ConflictEntries({ entries, onKeepMine, onUseSaved }: {
   entries: OutboxEntry[]
-  onKeepMine: (entry: OutboxEntry) => void
-  onUseSaved: (entry: OutboxEntry) => void
+  onKeepMine: (entry: OutboxEntry) => Promise<void>
+  onUseSaved: (entry: OutboxEntry) => Promise<void>
 }): React.ReactElement {
+  const [busy, setBusy] = useState(false)
+  const decide = (choice: (entry: OutboxEntry) => Promise<void>, entry: OutboxEntry): void => {
+    if (busy) return
+    setBusy(true)
+    void choice(entry).finally(() => setBusy(false))
+  }
   return <>
     {entries.length === 0 && <p className="text-[16px] text-muted-foreground">Nothing needs attention.</p>}
     {entries.map((entry) => <div key={entry.operationId} className="mb-4 rounded-2xl border border-surface-700 bg-surface-900 p-4">
@@ -52,10 +60,10 @@ export function ConflictEntries({ entries, onKeepMine, onUseSaved }: {
       <p className="mt-1 text-[14px] text-surface-400">{changeLabel(entry)}</p>
       {entry.status === 'conflict'
         ? <div className="mt-4 flex gap-2">
-          <Button onClick={() => onKeepMine(entry)} className="flex-1">Keep mine</Button>
-          <Button variant="outline" onClick={() => onUseSaved(entry)} className="flex-1">Use saved version</Button>
+          <Button disabled={busy} onClick={() => decide(onKeepMine, entry)} className="flex-1">Keep mine</Button>
+          <Button variant="outline" disabled={busy} onClick={() => decide(onUseSaved, entry)} className="flex-1">Use saved version</Button>
         </div>
-        : <Button variant="outline" onClick={() => onUseSaved(entry)} className="mt-4 w-full">Discard this change</Button>}
+        : <Button variant="outline" disabled={busy} onClick={() => decide(onUseSaved, entry)} className="mt-4 w-full">Discard this change</Button>}
     </div>)}
   </>
 }
@@ -66,8 +74,8 @@ export function ConflictsSheet({ visible, onClose }: { visible: boolean; onClose
   return <Sheet visible={visible} title="Needs attention" onClose={onClose} dismissOnBackdrop>
     <ConflictEntries
       entries={ledger.conflicts}
-      onKeepMine={(entry) => void ledger.resolveKeepMine(entry)}
-      onUseSaved={(entry) => void ledger.resolveUseSaved(entry)}
+      onKeepMine={ledger.resolveKeepMine}
+      onUseSaved={ledger.resolveUseSaved}
     />
   </Sheet>
 }
