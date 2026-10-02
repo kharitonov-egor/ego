@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from 'vitest'
-import type { LocalDatabase } from '../lib/database/types'
-import { createDiaryDraftStore, diaryDraftStore } from '../lib/diary/draft'
+import type { LocalDatabase } from '../src/database/types'
+import { createDiaryDraftStore, diaryDraftStore } from '../src/diary/draft'
 import { openTestLedger } from './local-db'
 
 const databases: LocalDatabase[] = []
