@@ -63,9 +63,9 @@ function Tile({ app, glance }: { app: AppKey; glance: Glance }): React.ReactElem
   </Pressable>
 }
 
-/** A greeting, today's three numbers, then every app in a 3 × 3 grid with one line of news each. */
+/** A greeting, today's three numbers, then every app three to a row with one line of news each. */
 export function TodayLauncher({ glance }: { glance: Glance }): React.ReactElement {
-  const rows = [ORDER.slice(0, 3), ORDER.slice(3, 6), ORDER.slice(6, 9)]
+  const rows = Array.from({ length: Math.ceil(ORDER.length / 3) }, (_, row) => ORDER.slice(row * 3, row * 3 + 3))
   return <View>
     <View className="flex-row items-start justify-between">
       <View className="flex-1 pt-1">
@@ -79,6 +79,7 @@ export function TodayLauncher({ glance }: { glance: Glance }): React.ReactElemen
     <View className="gap-2.5">
       {rows.map((row) => <View key={row[0]} className="flex-row gap-2.5">
         {row.map((app) => <Tile key={app} app={app} glance={glance} />)}
+        {Array.from({ length: 3 - row.length }, (_, index) => <View key={index} className="flex-1" />)}
       </View>)}
     </View>
   </View>

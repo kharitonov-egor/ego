@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useFocusEffect } from 'expo-router'
 import { useLedger } from '../ledger-context'
 import { localDay } from '../tasks/board'
+import { useSheets } from '../sheets/context'
 import { useTasks } from '../tasks/context'
 import { localGlance, tasksGlance, type LocalGlance, type TasksGlance } from './summary'
 
@@ -10,6 +11,8 @@ export interface Glance {
   /** Null until the local copy has been read. */
   local: LocalGlance | null
   tasks: TasksGlance | null
+  /** Live sheets, not counting archived ones. */
+  sheets: number | null
 }
 
 /**
@@ -19,6 +22,7 @@ export interface Glance {
 export function useGlance(): Glance {
   const { db, ready, version, gymVersion, healthVersion, habitsVersion, diaryVersion } = useLedger()
   const { data, now } = useTasks()
+  const { data: sheetData } = useSheets()
   const [local, setLocal] = useState<LocalGlance | null>(null)
   const [focuses, setFocuses] = useState(0)
   const today = localDay(now)
@@ -38,5 +42,6 @@ export function useGlance(): Glance {
   }, [db, ready, today, focuses, version, gymVersion, healthVersion, habitsVersion, diaryVersion])
 
   const tasks = useMemo(() => data ? tasksGlance(data, now) : null, [data, now])
-  return { now, local, tasks }
+  const sheets = sheetData ? sheetData.sheets.filter((sheet) => sheet.archivedAt === null).length : null
+  return { now, local, tasks, sheets }
 }

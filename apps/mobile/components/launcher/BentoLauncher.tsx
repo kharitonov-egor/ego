@@ -223,5 +223,8 @@ export function BentoLauncher({ glance }: { glance: Glance }): React.ReactElemen
       <SmallTile app="mood" glance={glance} />
       <SmallTile app="diary" glance={glance} />
     </View>
+    <View className="flex-row gap-3">
+      <SmallTile app="sheets" glance={glance} />
+    </View>
   </View>
 }

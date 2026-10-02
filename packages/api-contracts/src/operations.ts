@@ -1,11 +1,12 @@
 import {
   isAccountInput, isBudgetInput, isCategoryInput, isDateString, isDiaryMessageInput, isGymCategoryInput,
   isGymExerciseInput, isGymPlanInput, isGymSetInput, isGymWorkoutInput, isHabitEntryInput, isHabitInput, isMonthString,
-  isMoodInput, isPurchaseInput, isTaskBoardInput, isTaskCardInput, isTaskLabelInput, isTaskListInput, isTransactionInput,
+  isMoodInput, isPurchaseInput, isSheetInput, isSheetRowInput, isTaskBoardInput, isTaskCardInput, isTaskLabelInput,
+  isTaskListInput, isTransactionInput,
   type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type DiaryMessageInput,
   type GymCategoryInput, type GymExerciseInput, type GymPlanInput, type GymSetInput, type GymWorkoutInput,
-  type HabitEntryInput, type HabitInput, type MoodInput, type PurchaseInput, type TaskBoardInput, type TaskCardInput,
-  type TaskLabelInput, type TaskListInput, type TransactionInput
+  type HabitEntryInput, type HabitInput, type MoodInput, type PurchaseInput, type SheetInput, type SheetRowInput,
+  type TaskBoardInput, type TaskCardInput, type TaskLabelInput, type TaskListInput, type TransactionInput
 } from '@ego/core'
 import type { ApiError } from './errors'
 import type { SyncEntity } from './records'
@@ -60,6 +61,12 @@ export type SyncCommand =
   | { entity: 'taskCard'; type: 'create'; payload: TaskCardInput }
   | { entity: 'taskCard'; type: 'update'; payload: TaskCardInput }
   | { entity: 'taskCard'; type: 'delete' }
+  | { entity: 'sheet'; type: 'create'; payload: SheetInput }
+  | { entity: 'sheet'; type: 'update'; payload: SheetInput }
+  | { entity: 'sheet'; type: 'delete' }
+  | { entity: 'sheetRow'; type: 'create'; payload: SheetRowInput }
+  | { entity: 'sheetRow'; type: 'update'; payload: SheetRowInput }
+  | { entity: 'sheetRow'; type: 'delete' }
 
 /**
  * The device generates `operationId` and `entityId` once and reuses them on every retry,
@@ -165,6 +172,12 @@ function isCommand(value: unknown): value is SyncCommand {
     case 'taskCard.create':
     case 'taskCard.update':
       return isTaskCardInput(payload)
+    case 'sheet.create':
+    case 'sheet.update':
+      return isSheetInput(payload)
+    case 'sheetRow.create':
+    case 'sheetRow.update':
+      return isSheetRowInput(payload)
     case 'transaction.delete':
     case 'purchase.delete':
     case 'budget.delete':
@@ -180,6 +193,8 @@ function isCommand(value: unknown): value is SyncCommand {
     case 'taskList.delete':
     case 'taskLabel.delete':
     case 'taskCard.delete':
+    case 'sheet.delete':
+    case 'sheetRow.delete':
       return payload === undefined
     default:
       return false

@@ -400,6 +400,34 @@ export const LOCAL_MIGRATIONS: readonly string[][] = [
       revision INTEGER NOT NULL DEFAULT 1,
       deleted_at TEXT
     )`
+  ],
+  [
+    `CREATE TABLE IF NOT EXISTS sheets (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      icon TEXT NOT NULL DEFAULT '',
+      position REAL NOT NULL,
+      columns TEXT NOT NULL DEFAULT '[]',
+      types_enabled INTEGER NOT NULL DEFAULT 0,
+      row_types TEXT NOT NULL DEFAULT '[]',
+      view TEXT NOT NULL DEFAULT '{}',
+      archived_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1,
+      deleted_at TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS sheet_rows (
+      id TEXT PRIMARY KEY,
+      sheet_id TEXT NOT NULL,
+      type_id TEXT,
+      cells TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1,
+      deleted_at TEXT
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_local_sheet_rows_sheet ON sheet_rows(sheet_id) WHERE deleted_at IS NULL'
   ]
 ]
 

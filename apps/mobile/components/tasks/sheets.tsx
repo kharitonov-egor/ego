@@ -49,13 +49,14 @@ function Heading({ children }: { children: string }): React.ReactElement {
   return <Text className="mb-2 mt-5 text-[15px] font-medium text-surface-200">{children}</Text>
 }
 
-/** A new board, or a board's name and emoji. */
-export function BoardSheet({ visible, title, name: initialName, icon: initialIcon, confirm, onSave, onClose }: {
+/** A new board, or a board's name and emoji. Sheets reuse it for theirs. */
+export function BoardSheet({ visible, title, name: initialName, icon: initialIcon, confirm, placeholder = 'Board name', onSave, onClose }: {
   visible: boolean
   title: string
   name: string
   icon: string
   confirm: string
+  placeholder?: string
   onSave: (name: string, icon: string) => void
   onClose: () => void
 }): React.ReactElement {
@@ -71,9 +72,9 @@ export function BoardSheet({ visible, title, name: initialName, icon: initialIco
     <TextInput
       value={name}
       onChangeText={setName}
-      placeholder="Board name"
+      placeholder={placeholder}
       placeholderTextColor="#737373"
-      accessibilityLabel="Board name"
+      accessibilityLabel={placeholder}
       autoFocus={initialName === ''}
       maxLength={120}
       className={inputClass}

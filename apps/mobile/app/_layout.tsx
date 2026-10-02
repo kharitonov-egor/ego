@@ -12,6 +12,7 @@ import { GymProvider } from '../lib/gym-context'
 import { RestTimerProvider } from '../lib/rest-timer'
 import { TasksProvider } from '../lib/tasks/context'
 import { TaskNotificationsProvider } from '../lib/tasks/notifications'
+import { SheetsProvider } from '../lib/sheets/context'
 
 function Screens(): React.ReactElement {
   return <>
@@ -33,6 +34,7 @@ function Screens(): React.ReactElement {
       <Stack.Screen name="(study)" options={{ headerShown: false }} />
       <Stack.Screen name="(habits)" options={{ headerShown: false }} />
       <Stack.Screen name="tasks" options={{ headerShown: false }} />
+      <Stack.Screen name="sheets" options={{ headerShown: false }} />
       <Stack.Screen name="capture" options={{ title: 'New Trello card' }} />
       <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       <Stack.Screen name="auth" options={{ title: 'Sign in', headerShown: false }} />
@@ -53,7 +55,9 @@ export default function RootLayout(): React.ReactElement {
                   <ReminderProvider>
                     <TasksProvider>
                       <TaskNotificationsProvider>
-                        <Screens />
+                        <SheetsProvider>
+                          <Screens />
+                        </SheetsProvider>
                       </TaskNotificationsProvider>
                     </TasksProvider>
                   </ReminderProvider>

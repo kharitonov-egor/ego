@@ -106,6 +106,12 @@ label deleted on another device just stops showing. Every media ID a card's atta
 have a row in `task_media`. Deleting a board or list keeps the rows under it, and every read joins
 on live parents.
 
+`sheet` and `sheetRow` take create, update, and delete. A sheet is checked as a whole: its first
+column is the row name and must be plain text, and option, column, and row type IDs are unique.
+A row names its sheet, which has to be live; its cells are checked for shape only, so a cell left
+behind by a deleted column is harmless. A row cannot move to another sheet. Deleting a sheet keeps
+its rows, and every read joins on a live sheet.
+
 Each command runs as one D1 batch. The statements that carry out the command share one
 precondition and run before the primary write, so a command either commits with its change-log
 entry and operation receipt or leaves nothing behind. A receipt and its transaction are one

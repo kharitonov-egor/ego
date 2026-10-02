@@ -1,12 +1,12 @@
 import type {
   AccountRecord, BudgetRecord, CategoryRecord, DiaryMessageRecord, GymCategoryRecord, GymExerciseRecord, GymPlanRecord,
-  GymSetRecord, GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord, PurchaseRecord, TaskBoardRecord,
-  TaskCardRecord, TaskLabelRecord, TaskListRecord, TransactionRecord
+  GymSetRecord, GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord, PurchaseRecord, SheetRecord, SheetRowRecord,
+  TaskBoardRecord, TaskCardRecord, TaskLabelRecord, TaskListRecord, TransactionRecord
 } from '@ego/api-contracts'
 import type {
   AccountInput, BudgetInput, CategoryInput, DiaryMessageInput, GymCategoryInput, GymExerciseInput, GymPlanInput,
-  GymSetInput, GymWorkoutInput, HabitEntryInput, HabitInput, MoodInput, PurchaseInput, ReceiptItem, TaskBoardInput,
-  TaskCardInput, TaskLabelInput, TaskListInput, TransactionInput
+  GymSetInput, GymWorkoutInput, HabitEntryInput, HabitInput, MoodInput, PurchaseInput, ReceiptItem, SheetInput,
+  SheetRowInput, TaskBoardInput, TaskCardInput, TaskLabelInput, TaskListInput, TransactionInput
 } from '@ego/core'
 
 /**
@@ -290,4 +290,16 @@ export function taskCardRecordFrom(
   id: string, input: TaskCardInput, createdAt: string, updatedAt: string, revision: number
 ): TaskCardRecord {
   return { id, ...input, title: input.title.trim(), createdAt, updatedAt, revision }
+}
+
+export function sheetRecordFrom(
+  id: string, input: SheetInput, createdAt: string, updatedAt: string, revision: number
+): SheetRecord {
+  return { id, ...input, name: input.name.trim(), icon: input.icon.trim(), createdAt, updatedAt, revision }
+}
+
+export function sheetRowRecordFrom(
+  id: string, input: SheetRowInput, createdAt: string, updatedAt: string, revision: number
+): SheetRowRecord {
+  return { id, ...input, createdAt, updatedAt, revision }
 }
