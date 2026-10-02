@@ -3,6 +3,7 @@ import {
   ActivityIndicator, Pressable, ScrollView, SectionList, TextInput, View, useWindowDimensions,
   type NativeScrollEvent, type NativeSyntheticEvent
 } from 'react-native'
+import { KeyboardScrollView } from '../../components/ui/keyboard'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { ArrowLeft, ArrowRight, Info, Link2, Menu, MessageSquare, Minus, Plus, Trophy } from 'lucide-react-native'
@@ -176,7 +177,7 @@ function TrackPage({ exercise, date, history, lifetime, records, nextInSuperset,
     time: 'TIME'
   }
 
-  return <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 32 }}>
+  return <KeyboardScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 32 }}>
     {fields.map((field) => <Stepper
       key={field}
       label={labels[field]}
@@ -213,7 +214,7 @@ function TrackPage({ exercise, date, history, lifetime, records, nextInSuperset,
       })}
     </View>
     <CommentSheet visible={commenting !== null} initial={commenting?.comment ?? ''} onClose={() => setCommenting(null)} onSave={saveComment} />
-  </ScrollView>
+  </KeyboardScrollView>
 }
 
 interface HistorySection {

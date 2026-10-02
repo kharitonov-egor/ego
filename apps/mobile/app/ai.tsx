@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  Dimensions, Image, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View
+  Image, Keyboard, Pressable, ScrollView, TextInput, View
 } from 'react-native'
+import { useKeyboardVisible } from '../components/ui/keyboard'
 import { Stack, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as SecureStore from 'expo-secure-store'
@@ -68,8 +69,7 @@ function Assistant(): React.ReactElement {
   const [chatsOpen, setChatsOpen] = useState(false)
   const [deleting, setDeleting] = useState<AssistantChat | null>(null)
   const [units, setUnits] = useState<AssistantUnits>('imperial')
-  const [composerFocused, setComposerFocused] = useState(false)
-  const [keyboardOverlap, setKeyboardOverlap] = useState(0)
+  const keyboardVisible = useKeyboardVisible()
   const imageUris = useRef(new Map<string, string>())
   const pendingImage = useRef<string | null>(null)
 
@@ -84,17 +84,8 @@ function Assistant(): React.ReactElement {
   }, [])
 
   useEffect(() => {
-    const shown = Keyboard.addListener('keyboardDidShow', (event) => {
-      const windowHeight = Dimensions.get('window').height
-      const overlap = windowHeight <= event.endCoordinates.screenY
-        ? 0
-        : Math.max(0, Dimensions.get('screen').height - event.endCoordinates.screenY)
-      setKeyboardOverlap(overlap)
-      scrollToEnd()
-    })
-    const hidden = Keyboard.addListener('keyboardDidHide', () => setKeyboardOverlap(0))
-    return () => { shown.remove(); hidden.remove() }
-  }, [scrollToEnd])
+    if (keyboardVisible) scrollToEnd()
+  }, [keyboardVisible, scrollToEnd])
 
   const open = useCallback(async (chat: AssistantChat | null): Promise<void> => {
     setChatId(chat?.id ?? null)
@@ -268,7 +259,7 @@ function Assistant(): React.ReactElement {
 
   const canSend = !busy && (text.trim().length > 0 || attachment !== null)
 
-  return <KeyboardAvoidingView className="flex-1 bg-background" behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
+  return <View className="flex-1 bg-background">
     {header}
     <ScrollView
       ref={scroll}
@@ -288,9 +279,7 @@ function Assistant(): React.ReactElement {
 
     <View
       className="border-t border-surface-800 bg-background px-4 pt-3"
-      style={Platform.OS === 'android' && composerFocused
-        ? { position: 'absolute', left: 0, right: 0, bottom: keyboardOverlap, paddingBottom: 12 }
-        : { paddingBottom: 12 + Math.max(10, insets.bottom) }}
+      style={{ paddingBottom: keyboardVisible ? 12 : 12 + Math.max(10, insets.bottom) }}
     >
       {attachment && <View className="mb-3 flex-row items-center rounded-2xl border border-border bg-card p-2.5">
         <Image source={{ uri: attachment.uri }} className="h-12 w-12 rounded-xl" resizeMode="cover" />
@@ -311,8 +300,6 @@ function Assistant(): React.ReactElement {
         <TextInput
           value={text}
           onChangeText={setText}
-          onFocus={() => setComposerFocused(true)}
-          onBlur={() => setComposerFocused(false)}
           multiline
           maxLength={4000}
           editable={!busy}
@@ -353,5 +340,5 @@ function Assistant(): React.ReactElement {
       onCancel={() => setDeleting(null)}
       onConfirm={() => { if (deleting) void remove(deleting) }}
     />
-  </KeyboardAvoidingView>
+  </View>
 }
