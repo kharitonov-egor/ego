@@ -4,24 +4,38 @@ module.exports = {
   darkMode: 'class',
   theme: {
     extend: {
+      // The phone's palette, so both apps read as one.
       colors: {
         surface: {
-          50: '#f0f1f4',
-          100: '#d8dbe3',
-          200: '#b1b7c7',
-          300: '#8a93ab',
-          400: '#636f8f',
-          500: '#3c4b73',
-          600: '#2d3a5c',
-          700: '#1e2945',
-          800: '#161e35',
-          900: '#0f1525',
-          950: '#0a0e1a'
+          50: '#fafafa',
+          100: '#f5f5f5',
+          200: '#e5e5e5',
+          300: '#d4d4d4',
+          400: '#a3a3a3',
+          500: '#737373',
+          600: '#525252',
+          700: '#404040',
+          800: '#262626',
+          900: '#171717',
+          950: '#0a0a0a'
         },
+        background: '#0a0a0a',
+        foreground: '#fafafa',
+        card: { DEFAULT: '#141414', foreground: '#fafafa' },
+        popover: { DEFAULT: '#1c1c1c', foreground: '#fafafa' },
+        primary: { DEFAULT: '#fafafa', foreground: '#0a0a0a' },
+        secondary: { DEFAULT: '#262626', foreground: '#fafafa' },
+        muted: { DEFAULT: '#262626', foreground: '#a3a3a3' },
+        border: '#262626',
+        input: '#333333',
+        ring: '#737373',
+        positive: '#34d399',
+        attention: '#fbbf24',
+        destructive: { DEFAULT: '#fb7185', foreground: '#0a0a0a' },
         accent: {
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#2563eb'
+          300: '#ffffff',
+          400: '#fafafa',
+          500: '#d4d4d4'
         }
       }
     }

@@ -7,13 +7,10 @@
     <style>
       :root {
         color-scheme: dark;
-        --line: rgba(255, 255, 255, 0.08);
-        --muted: rgba(148, 163, 184, 0.62);
-        --text: #e2e8f0;
-        --blue: #60a5fa;
-        --cyan: #67e8f9;
-        --green: #86efac;
-        --orange: #f5a66b;
+        --line: #262626;
+        --muted: #a3a3a3;
+        --text: #fafafa;
+        --faint: #737373;
       }
 
       * { box-sizing: border-box; }
@@ -43,9 +40,9 @@
         flex: 1;
         height: 100%;
         overflow: hidden;
-        border: 1px solid rgba(96, 165, 250, 0.25);
+        border: 1px solid #333333;
         border-radius: 14px;
-        background: rgba(12, 16, 30, 0.97);
+        background: rgba(10, 10, 10, 0.98);
         box-shadow: 0 18px 55px rgba(0, 0, 0, 0.42);
       }
 
@@ -66,7 +63,7 @@
         min-height: 40px;
         margin: 0;
         padding: 10px 14px 6px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        border-bottom: 1px solid #1f1f1f;
       }
 
       .brand {
@@ -77,7 +74,7 @@
 
       .header-icon {
         display: flex;
-        color: rgba(96, 165, 250, 0.72);
+        color: #fafafa;
       }
 
       .header-icon svg { width: 16px; height: 16px; }
@@ -85,7 +82,7 @@
       h1, h2, p { margin: 0; }
 
       h1 {
-        color: rgba(148, 163, 184, 0.68);
+        color: #8a8a8a;
         font-size: 11px;
         font-weight: 500;
         letter-spacing: 0.14em;
@@ -97,10 +94,10 @@
       }
 
       kbd {
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        border: 1px solid #333333;
         border-radius: 4px;
-        background: rgba(255, 255, 255, 0.07);
-        color: rgba(226, 232, 240, 0.8);
+        background: #262626;
+        color: #d4d4d4;
         padding: 1px 5px;
         font-family: inherit;
         font-size: 10px;
@@ -121,9 +118,9 @@
         min-height: 0;
         width: 100%;
         padding: 9px 12px 9px 10px;
-        border: 1px solid rgba(255, 255, 255, 0.05);
+        border: 1px solid #1f1f1f;
         border-radius: 8px;
-        background: rgba(255, 255, 255, 0.02);
+        background: #141414;
         text-align: left;
         cursor: pointer;
         transition: border-color 100ms ease, background 100ms ease;
@@ -131,49 +128,49 @@
 
       .choice:hover,
       .choice.selected {
-        border-color: rgba(96, 165, 250, 0.38);
-        background: rgba(96, 165, 250, 0.1);
+        border-color: #fafafa;
+        background: #1c1c1c;
       }
 
       .choice:focus-visible, .button:focus-visible, input:focus-visible {
-        outline: 1px solid rgba(96, 165, 250, 0.8);
+        outline: 1px solid #fafafa;
         outline-offset: 1px;
       }
 
       .number {
-        color: rgba(148, 163, 184, 0.52);
+        color: #737373;
         font-size: 11px;
       }
 
       .choice-name {
         display: block;
         margin-bottom: 4px;
-        color: #f1f5f9;
+        color: #fafafa;
         font-size: 14px;
         font-weight: 500;
       }
 
-      .choice-detail { color: rgba(148, 163, 184, 0.56); font-size: 11px; }
+      .choice-detail { color: #8a8a8a; font-size: 11px; }
 
       .tag {
         display: flex;
         align-items: center;
         gap: 7px;
-        color: rgba(148, 163, 184, 0.6);
+        color: #737373;
         font-size: 10px;
       }
 
       .dot { width: 6px; height: 6px; border-radius: 50%; }
-      .claude .dot { background: var(--orange); }
-      .ocr .dot { background: var(--cyan); }
-      .download .dot { background: var(--green); }
+      .claude .dot { background: #fafafa; }
+      .ocr .dot { background: #a3a3a3; }
+      .download .dot { background: #525252; }
 
       .foot {
         display: flex;
         justify-content: space-between;
         margin-top: auto;
         padding: 8px 14px 10px;
-        color: rgba(148, 163, 184, 0.5);
+        color: #737373;
         font-size: 11px;
       }
 
@@ -192,12 +189,12 @@
         place-items: center;
         border: 1px solid var(--line);
         border-radius: 6px;
-        background: rgba(255, 255, 255, 0.035);
+        background: #141414;
         cursor: pointer;
       }
 
       h2 {
-        color: rgba(148, 163, 184, 0.72);
+        color: #a3a3a3;
         font-size: 11px;
         font-weight: 500;
         letter-spacing: 0.1em;
@@ -217,27 +214,28 @@
 
       .button {
         min-height: 38px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        border: 1px solid #333333;
         border-radius: 8px;
-        background: rgba(255, 255, 255, 0.035);
+        background: #141414;
         font-size: 12px;
         cursor: pointer;
         transition: background 120ms ease, border-color 120ms ease;
       }
 
-      .button:hover { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.14); }
-      .button.primary, .button.green { border-color: rgba(96, 165, 250, 0.3); background: rgba(96, 165, 250, 0.12); }
+      .button:hover { background: #262626; border-color: #404040; }
+      .button.primary, .button.green { border-color: #fafafa; background: #fafafa; color: #0a0a0a; font-weight: 600; }
+      .button.primary:hover, .button.green:hover { background: #e5e5e5; border-color: #e5e5e5; }
       .button:disabled { cursor: not-allowed; opacity: 0.45; }
 
       .status {
         min-height: 18px;
         margin: 12px 14px 0;
-        color: rgba(148, 163, 184, 0.7);
+        color: #a3a3a3;
         font-size: 11px;
       }
 
-      .status.error { color: #fda4af; }
-      .status.success { color: var(--green); }
+      .status.error { color: #fb7185; }
+      .status.success { color: #fafafa; }
 
       .result {
         display: none;
@@ -249,8 +247,8 @@
         white-space: pre-wrap;
         border: 1px solid var(--line);
         border-radius: 8px;
-        background: rgba(255, 255, 255, 0.02);
-        color: #e2e8f0;
+        background: #141414;
+        color: #fafafa;
         font: 12px/1.5 "Cascadia Mono", Consolas, monospace;
         user-select: text;
       }
@@ -260,7 +258,7 @@
       .field-label {
         display: block;
         margin: 12px 14px 6px;
-        color: rgba(148, 163, 184, 0.68);
+        color: #8a8a8a;
         font-size: 11px;
       }
 
@@ -268,15 +266,15 @@
         width: calc(100% - 28px);
         height: 38px;
         margin: 0 14px;
-        border: 1px solid rgba(255, 255, 255, 0.05);
+        border: 1px solid #1f1f1f;
         border-radius: 8px;
-        background: rgba(255, 255, 255, 0.02);
+        background: #141414;
         color: var(--text);
         padding: 0 13px;
         outline: none;
       }
 
-      .url-input::placeholder { color: #5f6b81; }
+      .url-input::placeholder { color: #737373; }
 
       .download-row {
         display: grid;
@@ -290,7 +288,7 @@
         padding: 3px;
         border: 1px solid var(--line);
         border-radius: 8px;
-        background: rgba(255, 255, 255, 0.02);
+        background: #141414;
       }
 
       .segment {
@@ -302,7 +300,7 @@
         cursor: pointer;
       }
 
-      .segment.active { background: rgba(255, 255, 255, 0.08); color: var(--text); }
+      .segment.active { background: #fafafa; color: #0a0a0a; }
 
       .download-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
@@ -313,13 +311,13 @@
         overflow: auto;
         border: 1px solid var(--line);
         border-radius: 9px;
-        background: rgba(255, 255, 255, 0.02);
-        color: rgba(148, 163, 184, 0.62);
+        background: #141414;
+        color: #a3a3a3;
         font: 10px/1.45 Consolas, monospace;
       }
 
       .setup-link {
-        color: var(--cyan);
+        color: #fafafa;
         text-decoration: none;
         cursor: pointer;
       }
@@ -378,7 +376,7 @@
         <div class="view" id="ocr-view">
           <div class="topline">
             <div class="subhead"><button class="back" aria-label="Back">←</button><div><h2>Read text from image</h2><p class="description">Windows reads the image locally. Ego copies recognized text to your clipboard.</p></div></div>
-            <span class="tag"><span class="dot" style="background: var(--cyan)"></span>LOCAL OCR</span>
+            <span class="tag"><span class="dot" style="background: #a3a3a3"></span>LOCAL OCR</span>
           </div>
           <div class="action-grid">
             <button class="button primary" id="ocr-clipboard">Use clipboard image</button>
@@ -392,7 +390,7 @@
         <div class="view" id="download-view">
           <div class="topline">
             <div class="subhead"><button class="back" aria-label="Back">←</button><div><h2>Save video or audio</h2><p class="description">Paste a supported link. One item is saved to Downloads\Ego.</p></div></div>
-            <span class="tag"><span class="dot" style="background: var(--green)"></span>YT-DLP</span>
+            <span class="tag"><span class="dot" style="background: #525252"></span>YT-DLP</span>
           </div>
           <label class="field-label" for="media-url">Video or post URL</label>
           <input class="url-input" id="media-url" type="url" placeholder="https://www.youtube.com/watch?v=..." spellcheck="false" />

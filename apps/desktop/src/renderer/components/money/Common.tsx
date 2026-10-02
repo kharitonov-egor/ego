@@ -5,7 +5,7 @@ import { todayString } from '../../money/utils'
 
 export const panelClass = 'rounded-2xl border border-surface-800 bg-surface-900/60'
 export const inputClass = 'w-full rounded-lg border border-surface-700 bg-surface-950 px-3 py-2 text-sm text-surface-100 outline-none focus:border-accent-500'
-export const buttonClass = 'inline-flex items-center justify-center gap-2 rounded-lg bg-accent-600 px-3 py-2 text-sm font-medium text-white hover:bg-accent-500 disabled:cursor-not-allowed disabled:opacity-40'
+export const buttonClass = 'inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40'
 export const subtleButtonClass = 'inline-flex items-center justify-center gap-2 rounded-lg border border-surface-700 bg-surface-900 px-3 py-2 text-sm text-surface-300 hover:bg-surface-800 disabled:opacity-40'
 
 export function PageHeader({ title, subtitle, action }: { title: string; subtitle: string; action?: React.ReactNode }): React.ReactElement {

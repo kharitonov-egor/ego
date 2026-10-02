@@ -3,6 +3,7 @@ interface ImportMetaEnv {
   readonly MAIN_VITE_TRELLO_TOKEN?: string
   readonly MAIN_VITE_TRELLO_BOARD_ID?: string
   readonly MAIN_VITE_TRELLO_LIST_ID?: string
+  readonly MAIN_VITE_EGO_API_URL?: string
 }
 
 interface ImportMeta {

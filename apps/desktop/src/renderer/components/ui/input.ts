@@ -1,0 +1,1 @@
+export const inputClass = 'min-h-11 w-full rounded-xl border border-input bg-surface-900 px-4 py-2.5 text-[16px] text-foreground outline-none transition-colors placeholder:text-surface-500 hover:border-surface-600 focus:border-surface-400'

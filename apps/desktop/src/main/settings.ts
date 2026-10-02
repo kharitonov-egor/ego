@@ -1,6 +1,7 @@
 import { safeStorage } from 'electron'
 import Store from 'electron-store'
 import type { QuickAddListShortcut } from '../shared/types'
+import type { SignedInAccount } from '../shared/local'
 import {
   DEFAULT_LIVE_PREFERENCES,
   isLivePreferences,
@@ -33,6 +34,9 @@ interface AppSettings {
   t3TokenExpiresAt: number
   t3NotifyEnabled: boolean
   livePreferences: LivePreferences
+  account: SignedInAccount | null
+  /** What the renderer would keep in SecureStore on the phone: small JSON values under `ego.*` keys. */
+  preferences: Record<string, string>
 }
 
 /**
@@ -68,9 +72,14 @@ const store = new Store<AppSettings>({
     t3TokenEncrypted: '',
     t3TokenExpiresAt: 0,
     t3NotifyEnabled: true,
-    livePreferences: DEFAULT_LIVE_PREFERENCES
+    livePreferences: DEFAULT_LIVE_PREFERENCES,
+    account: null,
+    preferences: {}
   }
 })
+
+/** A build can carry the Worker address, so a fresh install needs only the sign-in button. */
+const BUILD_API_URL = (import.meta.env.MAIN_VITE_EGO_API_URL ?? '').trim().replace(/\/+$/, '')
 
 function encrypt(value: string): string {
   if (!value || !safeStorage.isEncryptionAvailable()) return ''
@@ -111,7 +120,7 @@ export function setMoneySyncConfig(input: MoneySyncConfigInput): void {
 }
 
 export function getLedgerConfig(): { url: string; hasToken: boolean } {
-  return { url: store.get('moneyApiUrl'), hasToken: Boolean(store.get('moneyDeviceTokenEncrypted')) }
+  return { url: store.get('moneyApiUrl') || BUILD_API_URL, hasToken: Boolean(store.get('moneyDeviceTokenEncrypted')) }
 }
 
 export function getLedgerToken(): string {
@@ -123,6 +132,31 @@ export function setLedgerConfig(input: { url: string; token?: string }): void {
   if (input.token !== undefined) {
     store.set('moneyDeviceTokenEncrypted', input.token.length > 0 ? encrypt(input.token) : '')
   }
+}
+
+export function getAccount(): SignedInAccount | null {
+  return store.get('account')
+}
+
+export function setAccount(account: SignedInAccount | null): void {
+  store.set('account', account)
+}
+
+const PREFERENCE_KEY = /^ego\.[a-z0-9.-]{1,64}$/i
+const PREFERENCE_LIMIT = 64 * 1024
+
+export function getPreference(key: string): string | null {
+  if (!PREFERENCE_KEY.test(key)) return null
+  return store.get('preferences')[key] ?? null
+}
+
+export function setPreference(key: string, value: string | null): void {
+  if (!PREFERENCE_KEY.test(key)) return
+  const next = { ...store.get('preferences') }
+  if (value === null) delete next[key]
+  else if (value.length <= PREFERENCE_LIMIT) next[key] = value
+  else return
+  store.set('preferences', next)
 }
 
 export function getLivePreferences(): LivePreferences {

@@ -1,12 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { Bell } from 'lucide-react'
 import type { T3Status } from '../../shared/types'
-
-const inputClass =
-  'w-full px-3 py-2 rounded-lg border border-surface-700 bg-surface-800/50 ' +
-  'text-sm text-surface-200 placeholder-surface-500 ' +
-  'hover:border-surface-600 focus:border-accent-500 focus:ring-1 focus:ring-accent-500/30 ' +
-  'outline-none transition-all'
+import { Section, SectionNote } from './Section'
+import { Button } from './ui/button'
+import { inputClass } from './ui/input'
+import { Switch } from './ui/switch'
 
 function describe(status: T3Status): string {
   if (status.expired) return 'Pairing expired or revoked. Pair again.'
@@ -54,66 +52,35 @@ export default function T3Settings(): React.ReactElement {
     setStatus(await window.api.t3SetEnabled(enabled))
   }
 
-  return (
-    <div>
-      <div className="mb-1 flex items-center gap-2">
-        <Bell size={14} />
-        <h3 className="text-sm font-medium text-surface-300">T3 Code thread notifications</h3>
+  return <Section
+    Icon={Bell}
+    title="T3 Code notifications"
+    right={status?.paired ? <Switch label="Notify me about thread activity" checked={status.enabled} onCheckedChange={(enabled) => void toggle(enabled)} /> : undefined}
+  >
+    <SectionNote>Toasts when a turn finishes, fails, or blocks on your approval.</SectionNote>
+    {status?.paired
+      ? <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-surface-800 bg-surface-900 px-4 py-3">
+        <div className="min-w-0">
+          <p className="truncate text-[15px]">{status.origin}</p>
+          <p className="text-[14px] text-muted-foreground">{describe(status)}</p>
+        </div>
+        <Button variant="ghost" size="sm" onClick={() => void unpair()} className="text-destructive">Unpair</Button>
       </div>
-      <p className="text-xs text-surface-500 mb-4">
-        Toasts when a turn finishes, fails, or blocks on your approval.
-      </p>
-
-      {status?.paired ? (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between rounded-lg border border-surface-700 bg-surface-800/50 px-3 py-2">
-            <div className="min-w-0">
-              <div className="text-sm text-surface-200 truncate">{status.origin}</div>
-              <div className="text-xs text-surface-500">{describe(status)}</div>
-            </div>
-            <button
-              type="button"
-              onClick={() => void unpair()}
-              className="shrink-0 text-[11px] text-surface-500 hover:text-red-400 transition-colors"
-            >
-              Unpair
-            </button>
-          </div>
-
-          <label className="flex items-center gap-2 text-xs text-surface-400">
-            <input
-              type="checkbox"
-              checked={status.enabled}
-              onChange={(event) => void toggle(event.target.checked)}
-            />
-            Notify me about thread activity
-          </label>
+      : <div className="mt-4">
+        <SectionNote className="mt-0">In T3 Code open Settings, then Connections, and create a pairing link with orchestration:read. Paste it here.</SectionNote>
+        <input
+          aria-label="T3 Code pairing link"
+          value={pairingUrl}
+          onChange={(event) => setPairingUrl(event.target.value)}
+          placeholder="http://127.0.0.1:3773/pair#token=..."
+          className={`${inputClass} mt-3`}
+        />
+        <div className="mt-3 flex items-center justify-between gap-3">
+          {error ? <span role="alert" className="text-[14px] text-destructive">{error}</span> : <span />}
+          <Button disabled={pairing || !pairingUrl.trim()} onClick={() => void pair()}>
+            {pairing ? 'Pairing…' : 'Pair with T3 Code'}
+          </Button>
         </div>
-      ) : (
-        <div className="space-y-3">
-          <p className="text-[11px] text-surface-500">
-            In T3 Code open Settings, then Connections, and create a pairing link with
-            orchestration:read. Paste it here.
-          </p>
-          <input
-            value={pairingUrl}
-            onChange={(event) => setPairingUrl(event.target.value)}
-            placeholder="http://127.0.0.1:3773/pair#token=..."
-            className={inputClass}
-          />
-          <div className="flex items-center justify-between">
-            {error ? <span className="text-[11px] text-red-400">{error}</span> : <span />}
-            <button
-              type="button"
-              disabled={pairing || !pairingUrl.trim()}
-              onClick={() => void pair()}
-              className="rounded-lg bg-accent-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-40"
-            >
-              {pairing ? 'Pairing…' : 'Pair with T3 Code'}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
+      </div>}
+  </Section>
 }
