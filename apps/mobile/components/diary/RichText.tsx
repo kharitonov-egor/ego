@@ -48,7 +48,7 @@ export function RichText({ text, entities, api, localFiles, onHashtag, style, tr
   localFiles: ReadonlyMap<string, string>
   onHashtag: (tag: string) => void
   style?: TextStyle
-  /** Invisible text at the end that reserves room for the time on the last line. */
+  /** Blank spacing that reserves room for the time on the last line. */
   trailing?: string
 }): React.ReactElement {
   const segments = useMemo(() => diarySegments(text, entities), [entities, text])

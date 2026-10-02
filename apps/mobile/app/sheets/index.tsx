@@ -16,7 +16,7 @@ import { sheetSummary } from '../../lib/sheets/view'
 
 function SheetRow({ sheet, lifted }: { sheet: SheetRecord; lifted: boolean }): React.ReactElement {
   const { data } = useSheets()
-  return <View className={`min-h-[76px] flex-row items-center rounded-3xl border-2 border-white px-4 py-3 ${lifted ? 'bg-surface-900' : 'bg-black'}`}>
+  return <View className={`min-h-[76px] flex-row items-center rounded-3xl px-4 py-3 ${lifted ? 'bg-surface-900' : 'bg-black'}`}>
     <SheetIcon icon={sheet.icon} size={44} />
     <View className="ml-3 flex-1">
       <Text numberOfLines={1} className="text-[18px] font-semibold text-white">{sheet.name}</Text>
