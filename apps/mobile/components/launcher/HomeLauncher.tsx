@@ -4,7 +4,7 @@ import { CircleCheckBig, Footprints, SquareKanban, Wallet, type LucideIcon } fro
 import type { Glance } from '../../lib/launcher/use-glance'
 import { APPS, AskBar, Private, SettingsButton, count, usd, useOpen, type AppKey } from './shared'
 
-const GRID: readonly AppKey[] = ['finance', 'gym', 'health', 'habits', 'tasks', 'study', 'mood', 'diary']
+const GRID: readonly AppKey[] = ['finance', 'gym', 'health', 'habits', 'tasks', 'study', 'mood', 'diary', 'sheets']
 
 function Chip({ Icon, text, onPress }: { Icon: LucideIcon; text: string; onPress: () => void }): React.ReactElement {
   return <Pressable

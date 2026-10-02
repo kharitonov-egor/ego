@@ -8,7 +8,8 @@ const GROUPS: readonly { title: string; apps: readonly AppKey[] }[] = [
   { title: 'Today', apps: ['tasks', 'habits', 'study'] },
   { title: 'Body', apps: ['gym', 'health'] },
   { title: 'Money', apps: ['finance'] },
-  { title: 'Private', apps: ['mood', 'diary'] }
+  { title: 'Private', apps: ['mood', 'diary'] },
+  { title: 'Records', apps: ['sheets'] }
 ]
 
 function Row({ app, glance, last }: { app: AppKey; glance: Glance; last: boolean }): React.ReactElement {

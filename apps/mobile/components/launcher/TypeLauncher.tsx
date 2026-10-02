@@ -3,7 +3,7 @@ import { Pressable, Text, View } from 'react-native'
 import type { Glance } from '../../lib/launcher/use-glance'
 import { APPS, Private, SettingsButton, statusOf, useOpen, type AppKey } from './shared'
 
-const ROWS: readonly AppKey[] = ['ai', 'tasks', 'habits', 'finance', 'gym', 'health', 'study', 'mood', 'diary']
+const ROWS: readonly AppKey[] = ['ai', 'tasks', 'habits', 'finance', 'gym', 'health', 'study', 'mood', 'diary', 'sheets']
 
 function Row({ app, index, glance }: { app: AppKey; index: number; glance: Glance }): React.ReactElement {
   const open = useOpen()

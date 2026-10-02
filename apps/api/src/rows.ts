@@ -1,5 +1,6 @@
 import {
-  isDiaryAttachment, isTaskAttachment, isTaskReminder,
+  isDiaryAttachment, isTaskAttachment, isTaskReminder, parseSheetCells, parseSheetColumns, parseSheetRowTypes,
+  parseSheetView,
   type AccountKind, type CategoryKind, type DiaryAttachment, type DiaryEntity, type DiarySource, type DistanceUnit,
   type ExerciseType, type ExerciseWeightUnit, type HabitEntryKind, type HabitKind, type HabitPeriod,
   type MoneyPurchase, type MoodLevel, type ReceiptItem, type TaskActivity, type TaskAttachment, type TaskChecklist,
@@ -8,7 +9,8 @@ import {
 import type {
   AccountRecord, BudgetRecord, CategoryRecord, DiaryMessageRecord, FeedTransaction, GymCategoryRecord,
   GymExerciseRecord, GymPlanRecord, GymSetRecord, GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord,
-  PurchaseRecord, TaskBoardRecord, TaskCardRecord, TaskLabelRecord, TaskListRecord, TransactionRecord
+  PurchaseRecord, SheetRecord, SheetRowRecord, TaskBoardRecord, TaskCardRecord, TaskLabelRecord, TaskListRecord,
+  TransactionRecord
 } from '@ego/api-contracts'
 
 export interface AccountRow {
@@ -490,6 +492,46 @@ export function toTaskCardRecord(row: TaskCardRow): TaskCardRecord {
     checklists: jsonList(row.checklists).filter(isChecklistShape),
     attachments: jsonList(row.attachments).filter((item): item is TaskAttachment => isTaskAttachment(item)),
     activity: jsonList(row.activity).filter(isActivityShape),
+    createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
+  }
+}
+
+export interface SheetRow {
+  id: string
+  name: string
+  icon: string
+  position: number
+  columns: string
+  types_enabled: number
+  row_types: string
+  view: string
+  archived_at: string | null
+  created_at: string
+  updated_at: string
+  revision: number
+}
+
+export interface SheetRowRow {
+  id: string
+  sheet_id: string
+  type_id: string | null
+  cells: string
+  created_at: string
+  updated_at: string
+  revision: number
+}
+
+export function toSheetRecord(row: SheetRow): SheetRecord {
+  return {
+    id: row.id, name: row.name, icon: row.icon, position: row.position, columns: parseSheetColumns(row.columns),
+    typesEnabled: row.types_enabled === 1, rowTypes: parseSheetRowTypes(row.row_types), view: parseSheetView(row.view),
+    archivedAt: row.archived_at, createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
+  }
+}
+
+export function toSheetRowRecord(row: SheetRowRow): SheetRowRecord {
+  return {
+    id: row.id, sheetId: row.sheet_id, typeId: row.type_id, cells: parseSheetCells(row.cells),
     createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
   }
 }

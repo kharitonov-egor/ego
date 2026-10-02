@@ -2,7 +2,8 @@ import React from 'react'
 import { Pressable, Text, View, type TextProps } from 'react-native'
 import { useRouter, type Href } from 'expo-router'
 import {
-  ArrowUp, BookOpen, CircleCheckBig, Dumbbell, GraduationCap, HeartPulse, Settings, Smile, Sparkles, SquareKanban, Wallet,
+  ArrowUp, BookOpen, CircleCheckBig, Dumbbell, GraduationCap, HeartPulse, Settings, Sheet, Smile, Sparkles, SquareKanban,
+  Wallet,
   type LucideIcon
 } from 'lucide-react-native'
 import { formatSleepMinutes } from '@ego/core'
@@ -11,7 +12,7 @@ import { parseIso } from '../../lib/dates'
 import type { Glance } from '../../lib/launcher/use-glance'
 import { cn } from '../../lib/utils'
 
-export type AppKey = 'ai' | 'finance' | 'gym' | 'health' | 'mood' | 'diary' | 'study' | 'habits' | 'tasks'
+export type AppKey = 'ai' | 'finance' | 'gym' | 'health' | 'mood' | 'diary' | 'study' | 'habits' | 'tasks' | 'sheets'
 
 export interface LauncherApp {
   key: AppKey
@@ -29,10 +30,11 @@ export const APPS: Record<AppKey, LauncherApp> = {
   diary: { key: 'diary', label: 'Diary', Icon: BookOpen, href: '/diary' },
   study: { key: 'study', label: 'Study', Icon: GraduationCap, href: '/(study)/assignments' },
   habits: { key: 'habits', label: 'Habits', Icon: CircleCheckBig, href: '/(habits)/home' },
-  tasks: { key: 'tasks', label: 'Tasks', Icon: SquareKanban, href: '/tasks' }
+  tasks: { key: 'tasks', label: 'Tasks', Icon: SquareKanban, href: '/tasks' },
+  sheets: { key: 'sheets', label: 'Sheets', Icon: Sheet, href: '/sheets' }
 }
 
-export const ORDER: readonly AppKey[] = ['ai', 'finance', 'gym', 'health', 'mood', 'diary', 'study', 'habits', 'tasks']
+export const ORDER: readonly AppKey[] = ['ai', 'finance', 'gym', 'health', 'mood', 'diary', 'study', 'habits', 'tasks', 'sheets']
 
 export interface Status {
   text: string
@@ -92,7 +94,7 @@ export function greeting(now: Date): string {
 }
 
 export function statusOf(key: AppKey, glance: Glance): Status | null {
-  const { local, tasks, now } = glance
+  const { local, tasks, sheets, now } = glance
   switch (key) {
     case 'ai':
       return { text: 'Ask anything', personal: false }
@@ -140,6 +142,9 @@ export function statusOf(key: AppKey, glance: Glance): Status | null {
       if (tasks.today > 0) return { text: `${count(tasks.today)} due today`, personal: true }
       return { text: 'Nothing due today', personal: false }
     }
+    case 'sheets':
+      if (sheets === null) return null
+      return { text: sheets === 0 ? 'No sheets yet' : plural(sheets, 'sheet'), personal: false }
   }
 }
 

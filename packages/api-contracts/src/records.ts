@@ -1,6 +1,7 @@
 import type {
   DiaryMessage, GymCategory, GymExercise, GymPlan, GymSet, GymWorkout, Habit, HabitEntry, MoneyAccount, MoneyCategory,
-  MoneyPurchase, MoneyTransaction, MonthlyBudget, MoodEntry, TaskBoard, TaskCard, TaskLabel, TaskList, TransactionKind
+  MoneyPurchase, MoneyTransaction, MonthlyBudget, MoodEntry, Sheet, SheetRow, TaskBoard, TaskCard, TaskLabel, TaskList,
+  TransactionKind
 } from '@ego/core'
 
 export const API_VERSION = 1
@@ -26,6 +27,8 @@ export type TaskBoardRecord = TaskBoard & { revision: number }
 export type TaskListRecord = TaskList & { revision: number }
 export type TaskLabelRecord = TaskLabel & { revision: number }
 export type TaskCardRecord = TaskCard & { revision: number }
+export type SheetRecord = Sheet & { revision: number }
+export type SheetRowRecord = SheetRow & { revision: number }
 
 export interface ReferenceData {
   accounts: AccountRecord[]
@@ -75,6 +78,9 @@ export interface BootstrapData {
   taskLists?: TaskListRecord[]
   taskLabels?: TaskLabelRecord[]
   taskCards?: TaskCardRecord[]
+  /** Workers from before Sheets leave these out. */
+  sheets?: SheetRecord[]
+  sheetRows?: SheetRowRecord[]
 }
 
 export interface TransactionDetail {
@@ -114,7 +120,8 @@ export type HealthEntity = 'mood'
 export type HabitEntity = 'habit' | 'habitEntry'
 export type DiaryEntity = 'diaryMessage'
 export type TaskEntity = 'taskBoard' | 'taskList' | 'taskLabel' | 'taskCard'
-export type SyncEntity = MoneyEntity | GymEntity | HealthEntity | HabitEntity | DiaryEntity | TaskEntity
+export type SheetEntity = 'sheet' | 'sheetRow'
+export type SyncEntity = MoneyEntity | GymEntity | HealthEntity | HabitEntity | DiaryEntity | TaskEntity | SheetEntity
 
 export const TASK_ENTITIES: readonly TaskEntity[] = ['taskBoard', 'taskList', 'taskLabel', 'taskCard']
 
@@ -138,6 +145,10 @@ export function isDiaryEntity(entity: SyncEntity): entity is DiaryEntity {
 
 export function isTaskEntity(entity: SyncEntity): entity is TaskEntity {
   return (TASK_ENTITIES as readonly string[]).includes(entity)
+}
+
+export function isSheetEntity(entity: SyncEntity): entity is SheetEntity {
+  return entity === 'sheet' || entity === 'sheetRow'
 }
 
 interface ChangeBase {
@@ -168,6 +179,8 @@ export type ChangePayload =
   | { entity: 'taskList'; record: TaskListRecord | null }
   | { entity: 'taskLabel'; record: TaskLabelRecord | null }
   | { entity: 'taskCard'; record: TaskCardRecord | null }
+  | { entity: 'sheet'; record: SheetRecord | null }
+  | { entity: 'sheetRow'; record: SheetRowRecord | null }
 
 export type ChangeRecord = ChangeBase & ChangePayload
 
