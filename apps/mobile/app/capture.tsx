@@ -1,14 +1,12 @@
 import React, { useMemo, useState } from 'react'
 import {
   Image,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
-  ScrollView,
   Text,
   TextInput,
   View
 } from 'react-native'
+import { KeyboardScrollView } from '../components/ui/keyboard'
 import { useRouter } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
 import { captureToTrello, type CardAttachment } from '@ego/core'
@@ -88,11 +86,8 @@ export default function Capture(): React.ReactElement {
   }
 
   return (
-    <KeyboardAvoidingView
-      className="flex-1 bg-surface-950"
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <ScrollView className="flex-1 px-5 pt-5" keyboardShouldPersistTaps="handled">
+    <View className="flex-1 bg-surface-950">
+      <KeyboardScrollView className="flex-1 px-5 pt-5" keyboardShouldPersistTaps="handled">
         <TextInput
           value={title}
           onChangeText={setTitle}
@@ -175,7 +170,7 @@ export default function Capture(): React.ReactElement {
             {status.text}
           </Text>
         )}
-      </ScrollView>
+      </KeyboardScrollView>
 
       <View className="border-t border-surface-800 px-5 py-4">
         <Pressable
@@ -191,6 +186,6 @@ export default function Capture(): React.ReactElement {
           </Text>
         </Pressable>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   )
 }

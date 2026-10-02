@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Dimensions, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, TextInput, View } from 'react-native'
+import { Keyboard, Modal, Pressable, TextInput, View } from 'react-native'
+import { KeyboardScrollView, KeyboardViewport } from '../ui/keyboard'
 import { CalendarDays, Check, ChevronDown, Trash2, X } from 'lucide-react-native'
 import { useNavigation } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -117,7 +118,6 @@ export default function TransactionEntry({ snapshot, transaction, onClose, onSav
   const [datePicking, setDatePicking] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [typingNotes, setTypingNotes] = useState(false)
-  const [keyboardOverlap, setKeyboardOverlap] = useState(0)
 
   useEffect(() => {
     navigation.setOptions({ tabBarStyle: { ...tabBarStyle, display: 'none' } })
@@ -125,14 +125,8 @@ export default function TransactionEntry({ snapshot, transaction, onClose, onSav
   }, [navigation, tabBarStyle])
 
   useEffect(() => {
-    const shown = Keyboard.addListener('keyboardDidShow', (event) => {
-      const windowHeight = Dimensions.get('window').height
-      setKeyboardOverlap(windowHeight <= event.endCoordinates.screenY
-        ? 0
-        : Math.max(0, Dimensions.get('screen').height - event.endCoordinates.screenY))
-    })
-    const hidden = Keyboard.addListener('keyboardDidHide', () => { setKeyboardOverlap(0); setTypingNotes(false) })
-    return () => { shown.remove(); hidden.remove() }
+    const hidden = Keyboard.addListener('keyboardDidHide', () => setTypingNotes(false))
+    return () => hidden.remove()
   }, [])
 
   const categories = snapshot.categories.filter((item) => item.kind === kind && (!item.archivedAt || item.id === transaction?.categoryId))
@@ -174,12 +168,8 @@ export default function TransactionEntry({ snapshot, transaction, onClose, onSav
   }
 
   return <Modal visible transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
-    <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-    <View className="flex-1 bg-background">
-      <View
-        className="flex-1"
-        style={typingNotes && Platform.OS === 'android' ? { marginBottom: keyboardOverlap } : undefined}
-      >
+    <KeyboardViewport>
+      <KeyboardScrollView className="flex-1 bg-background" contentContainerStyle={{ flexGrow: 1 }}>
         <View style={{ paddingTop: insets.top + 6 }} className="flex-row items-center justify-between px-4 pb-2">
           <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} hitSlop={6} className="h-11 w-11 items-center justify-center rounded-full bg-surface-900 active:bg-surface-800"><X color="#fafafa" size={22} /></Pressable>
           <Text accessibilityRole="header" className="text-[18px] font-semibold">{transaction ? 'Edit transaction' : 'New transaction'}</Text>
@@ -257,9 +247,8 @@ export default function TransactionEntry({ snapshot, transaction, onClose, onSav
               busy={state.busy || busy}
             />
           </View>}
-      </View>
-    </View>
-    </KeyboardAvoidingView>
+      </KeyboardScrollView>
+    </KeyboardViewport>
 
     <BottomSheet visible={picking === 'account'} title={kind === 'transfer' ? 'From account' : 'Account'} onClose={() => setPicking(null)} dismissOnBackdrop>
       {accounts.map((item) => <AccountOption

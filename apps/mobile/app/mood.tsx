@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
 import {
-  ActivityIndicator, AppState, KeyboardAvoidingView, Platform, Pressable, ScrollView, View
+  ActivityIndicator, AppState, Pressable, View, type ScrollView
 } from 'react-native'
+import { KeyboardScrollView } from '../components/ui/keyboard'
 import { Stack, useRouter } from 'expo-router'
 import { LayoutGrid, Smile, X } from 'lucide-react-native'
 import { ConflictEntries } from '../components/ConflictEntries'
@@ -102,9 +103,9 @@ function Mood(): React.ReactElement {
     if (await journal.clear(date)) setConfirmingClear(false)
   }
 
-  return <KeyboardAvoidingView className="flex-1 bg-background" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+  return <View className="flex-1 bg-background">
     {header}
-    <ScrollView
+    <KeyboardScrollView
       ref={scroll}
       className="flex-1"
       contentContainerStyle={{ padding: 16, paddingBottom: 32, gap: 12 }}
@@ -138,7 +139,7 @@ function Mood(): React.ReactElement {
           scroll.current?.scrollTo({ y: 0, animated: true })
         }}
       />
-    </ScrollView>
+    </KeyboardScrollView>
     <CalendarDialog
       visible={calendarOpen}
       value={date}
@@ -156,5 +157,5 @@ function Mood(): React.ReactElement {
       onCancel={() => setConfirmingClear(false)}
       onConfirm={() => void clear()}
     />
-  </KeyboardAvoidingView>
+  </View>
 }
