@@ -1,7 +1,8 @@
 import type {
   AccountRecord, BudgetRecord, CategoryRecord, ChangePayload, DiaryMessageRecord, FeedTransaction, GymCategoryRecord,
   GymExerciseRecord, GymPlanRecord, GymSetRecord, GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord,
-  PurchaseRecord, SyncEntity, TaskBoardRecord, TaskCardRecord, TaskLabelRecord, TaskListRecord, TransactionRecord
+  PurchaseRecord, SheetRecord, SheetRowRecord, SyncEntity, TaskBoardRecord, TaskCardRecord, TaskLabelRecord,
+  TaskListRecord, TransactionRecord
 } from '@ego/api-contracts'
 import type { LocalDatabase } from './types'
 
@@ -23,7 +24,9 @@ export const TABLES: Record<SyncEntity, string> = {
   taskBoard: 'task_boards',
   taskList: 'task_lists',
   taskLabel: 'task_labels',
-  taskCard: 'task_cards'
+  taskCard: 'task_cards',
+  sheet: 'sheets',
+  sheetRow: 'sheet_rows'
 }
 
 /** Budgets are keyed by month and mood entries by date; every other record by its ID. */
@@ -290,6 +293,30 @@ async function writeTaskCard(tx: LocalDatabase, record: TaskCardRecord): Promise
     JSON.stringify(record.activity), record.createdAt, record.updatedAt, record.revision])
 }
 
+async function writeSheet(tx: LocalDatabase, record: SheetRecord): Promise<void> {
+  await tx.run(`INSERT INTO sheets (id, name, icon, position, columns, types_enabled, row_types, view, archived_at,
+    created_at, updated_at, revision, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+    ON CONFLICT(id) DO UPDATE SET name = excluded.name, icon = excluded.icon, position = excluded.position,
+      columns = excluded.columns, types_enabled = excluded.types_enabled, row_types = excluded.row_types,
+      view = excluded.view, archived_at = excluded.archived_at, created_at = excluded.created_at,
+      updated_at = excluded.updated_at, revision = excluded.revision, deleted_at = NULL
+    WHERE excluded.revision >= sheets.revision`,
+  [record.id, record.name, record.icon, record.position, JSON.stringify(record.columns), record.typesEnabled ? 1 : 0,
+    JSON.stringify(record.rowTypes), JSON.stringify(record.view), record.archivedAt, record.createdAt, record.updatedAt,
+    record.revision])
+}
+
+async function writeSheetRow(tx: LocalDatabase, record: SheetRowRecord): Promise<void> {
+  await tx.run(`INSERT INTO sheet_rows (id, sheet_id, type_id, cells, created_at, updated_at, revision, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, NULL)
+    ON CONFLICT(id) DO UPDATE SET sheet_id = excluded.sheet_id, type_id = excluded.type_id, cells = excluded.cells,
+      created_at = excluded.created_at, updated_at = excluded.updated_at, revision = excluded.revision, deleted_at = NULL
+    WHERE excluded.revision >= sheet_rows.revision`,
+  [record.id, record.sheetId, record.typeId, JSON.stringify(record.cells), record.createdAt, record.updatedAt,
+    record.revision])
+}
+
 /** Applies a record only when it is at least as new as the stored revision. */
 export async function writeRecord(tx: LocalDatabase, payload: ChangePayload): Promise<void> {
   if (payload.record === null) return
@@ -312,6 +339,8 @@ export async function writeRecord(tx: LocalDatabase, payload: ChangePayload): Pr
     case 'taskList': return writeTaskList(tx, payload.record)
     case 'taskLabel': return writeTaskLabel(tx, payload.record)
     case 'taskCard': return writeTaskCard(tx, payload.record)
+    case 'sheet': return writeSheet(tx, payload.record)
+    case 'sheetRow': return writeSheetRow(tx, payload.record)
   }
 }
 

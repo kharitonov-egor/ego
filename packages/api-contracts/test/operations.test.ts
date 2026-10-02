@@ -165,3 +165,29 @@ describe('habit operations', () => {
     expect(isSyncOperation(operation({ entityId: 'he-1', expectedRevision: 1, command: { entity: 'habitEntry', type: 'delete' } }))).toBe(true)
   })
 })
+
+describe('sheet operations', () => {
+  const sheet = {
+    name: 'Connections', icon: '👥', position: 1024,
+    columns: [{ id: 'name', name: 'Name', type: 'text', options: [], typeIds: null, hidden: false }],
+    typesEnabled: false, rowTypes: [], view: { typeId: null, sorts: [], filters: [], groupBy: null }, archivedAt: null
+  }
+  const row = { sheetId: 'sh-1', typeId: null, cells: { name: 'Alex' } }
+
+  it('accepts sheet and row writes with the usual revision rules', () => {
+    expect(isSyncOperation(operation({ entityId: 'sh-1', command: { entity: 'sheet', type: 'create', payload: sheet } }))).toBe(true)
+    expect(isSyncOperation(operation({ entityId: 'sh-1', expectedRevision: 2, command: { entity: 'sheet', type: 'update', payload: sheet } }))).toBe(true)
+    expect(isSyncOperation(operation({ entityId: 'sh-1', command: { entity: 'sheet', type: 'update', payload: sheet } }))).toBe(false)
+    expect(isSyncOperation(operation({ entityId: 'sr-1', command: { entity: 'sheetRow', type: 'create', payload: row } }))).toBe(true)
+    expect(isSyncOperation(operation({ entityId: 'sr-1', expectedRevision: 1, command: { entity: 'sheetRow', type: 'delete' } }))).toBe(true)
+  })
+
+  it('checks sheet and row payloads', () => {
+    expect(isSyncOperation(operation({
+      entityId: 'sh-1', command: { entity: 'sheet', type: 'create', payload: { ...sheet, columns: [] } }
+    }))).toBe(false)
+    expect(isSyncOperation(operation({
+      entityId: 'sr-1', command: { entity: 'sheetRow', type: 'create', payload: { ...row, cells: { name: null } } }
+    }))).toBe(false)
+  })
+})

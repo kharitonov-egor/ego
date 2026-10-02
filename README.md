@@ -268,6 +268,39 @@ are fractions, so a drag rewrites only the card that moved. Attachments go to R2
 through the same upload queue as the diary, and a card edit that adds files waits until they are
 up. Deleting a board or a list hides everything under it on every device.
 
+## Sheets
+
+The Sheets tile holds small spreadsheets in black and white, built for the phone first. The empty
+screen offers Connections, a sheet with a Name column and Person and Company as row types, or a
+blank sheet.
+
+- A sheet is a grid. The Name column stays put while the other columns scroll sideways, and the
+  header row stays at the top. Tap a cell to edit it in a sheet that slides up, with arrows to the
+  previous and next cell. Tap a checkbox to tick it. Tap a name to open the whole row as a form,
+  or hold it to duplicate or delete the row. A deleted row can be brought back with Undo for five
+  seconds.
+- Each column has one type: text, long text, number, date, checkbox, dropdown, tags, phone, email,
+  or link. Dropdown and tags options come in five greys, and a new option can be typed straight
+  into the picker. Phone cells call, text, or open WhatsApp; email and link cells open mail or the
+  browser.
+- Tap a column's name to rename it, change its type, edit its options, sort by it, group by it,
+  hide it, move it, or delete it. The plus at the end of the header adds a column.
+- Changing a type converts what it can: "1,200" becomes a number and "Mar 4, 2026" a date. A text
+  column turning into a dropdown gets an option for each value it held. A value that does not fit
+  stays as typed and shows in red until it is fixed.
+- Row types are a switch on each sheet, off by default. With them on, every row has a type and a
+  column can apply to some types only. Cells that do not apply show a dash, and the chips above
+  the grid show one type at a time and hide the columns it does not use.
+- Filter rows by any column, sort by up to three, group by a dropdown into sections that fold,
+  and search every cell. The sheet remembers its type chip, filters, sorts, and grouping.
+- Sheets can be renamed, given an emoji, reordered by holding them, duplicated, archived, and
+  deleted.
+
+Sheets uses the same local database, outbox, and change log as the other apps, as `sheet` and
+`sheetRow`. A sheet is one record holding its columns, options, row types, and view. A row is one
+record with its cells keyed by column ID, so an edit on another device asks Keep mine or Use saved
+version, the same as Tasks. Changing a column's type rewrites only the rows whose values convert.
+
 ## Quick tools
 
 Press `Alt+S` anywhere in Windows to open a three-item chooser. Use the arrow keys and Enter, or
