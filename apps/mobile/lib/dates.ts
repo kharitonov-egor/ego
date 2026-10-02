@@ -32,6 +32,16 @@ export function formatIso(iso: string, style: 'short' | 'long' = 'short'): strin
     : { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+/** "just now", "5m ago", "3h ago", "2d ago". */
+export function timeAgo(at: string, now: Date): string {
+  const minutes = Math.max(0, Math.floor((now.getTime() - Date.parse(at)) / 60_000))
+  if (minutes < 1) return 'just now'
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.floor(hours / 24)}d ago`
+}
+
 export function relativeDayLabel(iso: string): string {
   const today = isoToday()
   if (iso === today) return `Today, ${formatIso(iso)}`

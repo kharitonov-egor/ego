@@ -6,18 +6,20 @@ import {
 import {
   HABIT_TARGET_LIMIT, diaryMediaIds, entryKindFits, taskMediaIds,
   type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type DiaryMessageInput,
-  type GymPlanInput, type GymSetInput, type HabitInput, type MoodInput, type PurchaseInput, type TaskBoardInput,
-  type TaskCardInput, type TaskLabelInput, type TaskListInput, type TransactionInput
+  type GymPlanInput, type GymSetInput, type HabitInput, type MoodInput, type PurchaseInput, type SheetInput,
+  type SheetRowInput, type TaskBoardInput, type TaskCardInput, type TaskLabelInput, type TaskListInput,
+  type TransactionInput
 } from '@ego/core'
 import { query, readLatestChange, serverSequence } from './reads'
 import {
   toAccountRecord, toBudgetRecord, toCategoryRecord, toDiaryMessageRecord, toGymCategoryRecord, toGymExerciseRecord,
   toGymPlanRecord, toGymSetRecord, toGymWorkoutRecord, toHabitEntryRecord, toHabitRecord, toMoodRecord, toPurchaseRecord,
-  toReceiptItem, toTaskBoardRecord, toTaskCardRecord, toTaskLabelRecord, toTaskListRecord, toTransactionRecord,
+  toReceiptItem, toSheetRecord, toSheetRowRecord, toTaskBoardRecord, toTaskCardRecord, toTaskLabelRecord,
+  toTaskListRecord, toTransactionRecord,
   type AccountRow, type BudgetAllocationRow, type BudgetRow, type CategoryRow, type DiaryMessageRow, type GymCategoryRow,
   type GymExerciseRow, type GymPlanRow, type GymSetRow, type GymWorkoutRow, type HabitEntryRow, type HabitRow,
-  type MoodRow, type PurchaseRow, type ReceiptItemRow, type TaskBoardRow, type TaskCardRow, type TaskLabelRow,
-  type TaskListRow, type TransactionRow
+  type MoodRow, type PurchaseRow, type ReceiptItemRow, type SheetRow, type SheetRowRow, type TaskBoardRow,
+  type TaskCardRow, type TaskLabelRow, type TaskListRow, type TransactionRow
 } from './rows'
 
 interface Statement {
@@ -57,7 +59,9 @@ const TABLES: Record<SyncEntity, string> = {
   taskBoard: 'task_boards',
   taskList: 'task_lists',
   taskLabel: 'task_labels',
-  taskCard: 'task_cards'
+  taskCard: 'task_cards',
+  sheet: 'sheets',
+  sheetRow: 'sheet_rows'
 }
 
 /** Budgets are keyed by month and mood entries by date, so each has one row per period. */
@@ -79,7 +83,9 @@ const KEYS: Record<SyncEntity, string> = {
   taskBoard: 'id',
   taskList: 'id',
   taskLabel: 'id',
-  taskCard: 'id'
+  taskCard: 'id',
+  sheet: 'id',
+  sheetRow: 'id'
 }
 
 function canonical(value: unknown): unknown {
@@ -1373,6 +1379,107 @@ async function planTaskCard(
   }
 }
 
+function sheetRowFrom(id: string, input: SheetInput, createdAt: string, updatedAt: string, revision: number): SheetRow {
+  return {
+    id, name: input.name.trim(), icon: input.icon.trim(), position: input.position, columns: JSON.stringify(input.columns),
+    types_enabled: input.typesEnabled ? 1 : 0, row_types: JSON.stringify(input.rowTypes), view: JSON.stringify(input.view),
+    archived_at: input.archivedAt, created_at: createdAt, updated_at: updatedAt, revision
+  }
+}
+
+const SHEET_COLUMNS = ['name', 'icon', 'position', 'columns', 'types_enabled', 'row_types', 'view', 'archived_at'] as const
+
+function sheetValues(row: SheetRow): unknown[] {
+  return SHEET_COLUMNS.map((column) => row[column])
+}
+
+async function planSheet(
+  db: D1Database, operation: SyncOperation, command: Extract<SyncCommand, { entity: 'sheet' }>, now: string
+): Promise<ApiResult<Plan>> {
+  const id = operation.entityId
+  if (command.type === 'create') {
+    const row = sheetRowFrom(id, command.payload, now, now, 1)
+    return {
+      ok: true,
+      data: upsertPlan('sheet', id, 1, { entity: 'sheet', record: toSheetRecord(row) }, {
+        sql: `INSERT INTO sheets (id, ${SHEET_COLUMNS.join(', ')}, created_at, updated_at, revision)
+          SELECT ?, ${SHEET_COLUMNS.map(() => '?').join(', ')}, ?, ?, 1`,
+        params: [id, ...sheetValues(row), now, now]
+      }, null)
+    }
+  }
+  const current = await liveRow<SheetRow>(db, 'sheet', id)
+  if (!current) return notFound('That sheet was not found')
+  const expected = operation.expectedRevision ?? 0
+  const guard = guardFor('sheet', id, expected)
+  if (command.type === 'delete') {
+    return { ok: true, data: deletePlan('sheet', id, expected, now, guard, { entity: 'sheet', record: null }) }
+  }
+  const revision = expected + 1
+  const row = sheetRowFrom(id, command.payload, current.created_at, now, revision)
+  return {
+    ok: true,
+    data: upsertPlan('sheet', id, revision, { entity: 'sheet', record: toSheetRecord(row) }, {
+      sql: `UPDATE sheets SET ${SHEET_COLUMNS.map((column) => `${column} = ?`).join(', ')}, updated_at = ?,
+        revision = revision + 1 WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+      params: [...sheetValues(row), now, id, expected]
+    }, guard)
+  }
+}
+
+function sheetRowRowFrom(id: string, input: SheetRowInput, createdAt: string, updatedAt: string, revision: number): SheetRowRow {
+  return {
+    id, sheet_id: input.sheetId, type_id: input.typeId, cells: JSON.stringify(input.cells),
+    created_at: createdAt, updated_at: updatedAt, revision
+  }
+}
+
+/**
+ * Cells are not checked against the sheet's columns: a column deleted on another device just
+ * leaves a cell nothing reads. The sheet is, because a row under a deleted sheet would never show.
+ */
+async function planSheetRow(
+  db: D1Database, operation: SyncOperation, command: Extract<SyncCommand, { entity: 'sheetRow' }>, now: string
+): Promise<ApiResult<Plan>> {
+  const id = operation.entityId
+  if (command.type === 'delete') {
+    if (!await liveRow<SheetRowRow>(db, 'sheetRow', id)) return notFound('That row was not found')
+    const expected = operation.expectedRevision ?? 0
+    return {
+      ok: true,
+      data: deletePlan('sheetRow', id, expected, now, guardFor('sheetRow', id, expected), { entity: 'sheetRow', record: null })
+    }
+  }
+  const input = command.payload
+  if (!await liveRow<SheetRow>(db, 'sheet', input.sheetId)) return conflict('That sheet was deleted on another device')
+  const parent = liveGuard('sheet', input.sheetId)
+  if (command.type === 'create') {
+    const row = sheetRowRowFrom(id, input, now, now, 1)
+    return {
+      ok: true,
+      data: upsertPlan('sheetRow', id, 1, { entity: 'sheetRow', record: toSheetRowRecord(row) }, guarded({
+        sql: `INSERT INTO sheet_rows (id, sheet_id, type_id, cells, created_at, updated_at, revision)
+          SELECT ?, ?, ?, ?, ?, ?, 1`,
+        params: [id, row.sheet_id, row.type_id, row.cells, now, now]
+      }, parent), parent)
+    }
+  }
+  const current = await liveRow<SheetRowRow>(db, 'sheetRow', id)
+  if (!current) return notFound('That row was not found')
+  if (current.sheet_id !== input.sheetId) return invalid('A row cannot move to another sheet')
+  const expected = operation.expectedRevision ?? 0
+  const revision = expected + 1
+  const row = sheetRowRowFrom(id, input, current.created_at, now, revision)
+  return {
+    ok: true,
+    data: upsertPlan('sheetRow', id, revision, { entity: 'sheetRow', record: toSheetRowRecord(row) }, guarded({
+      sql: `UPDATE sheet_rows SET type_id = ?, cells = ?, updated_at = ?, revision = revision + 1
+        WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+      params: [row.type_id, row.cells, now, id, expected]
+    }, parent), both(guardFor('sheetRow', id, expected), parent))
+  }
+}
+
 function planFor(db: D1Database, operation: SyncOperation, now: string): Promise<ApiResult<Plan>> {
   switch (operation.command.entity) {
     case 'account': return planAccount(db, operation, operation.command, now)
@@ -1393,6 +1500,8 @@ function planFor(db: D1Database, operation: SyncOperation, now: string): Promise
     case 'taskList': return planTaskList(db, operation, operation.command, now)
     case 'taskLabel': return planTaskLabel(db, operation, operation.command, now)
     case 'taskCard': return planTaskCard(db, operation, operation.command, now)
+    case 'sheet': return planSheet(db, operation, operation.command, now)
+    case 'sheetRow': return planSheetRow(db, operation, operation.command, now)
   }
 }
 

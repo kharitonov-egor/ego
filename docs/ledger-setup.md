@@ -260,6 +260,20 @@ in the 0.4.0 build, so an `eas update` is enough. The first sync after the updat
 everything again (bootstrap version 5), so a phone that pulled task changes before it had the
 tables picks them up.
 
+## Sheets
+
+Migration `0016_sheets.sql` adds `sheets` and `sheet_rows`. It is additive. Apply it and deploy
+before the phone update goes out, so the first sheet a phone saves has somewhere to go:
+
+```sh
+cd apps/api
+npm run migrate:remote
+npm run deploy
+```
+
+Sheets needs no new native module, so an `eas update` is enough. The first sync after the update
+downloads everything again (bootstrap version 6).
+
 ## AI
 
 Migration `0012_assistant.sql` adds `assistant_chats`, `assistant_messages`, and
