@@ -22,6 +22,12 @@ export interface Env {
   CANVAS_CALENDAR_URL?: string
   /** The secret given to `eas webhook:create`. EAS signs each build report with it. */
   EAS_WEBHOOK_SECRET?: string
+  /** Daily SQL dumps of D1, kept forever. */
+  BACKUPS?: R2Bucket
+  D1_ACCOUNT_ID?: string
+  D1_DATABASE_ID?: string
+  /** A Cloudflare API token with D1 Edit on this account. The export API is not reachable through the binding. */
+  D1_EXPORT_TOKEN?: string
 }
 
 interface DeviceRow {
