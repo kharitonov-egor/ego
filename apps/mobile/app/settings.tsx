@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { ActivityIndicator, Linking, Pressable, ScrollView, Switch, View } from 'react-native'
+import { ActivityIndicator, Linking, Pressable, Switch, View } from 'react-native'
+import { KeyboardScrollView } from '../components/ui/keyboard'
 import {
   AlarmClock, BellRing, Check, ChevronRight, CircleUserRound, Download, EyeOff, Info, KeyRound, Landmark, ListPlus, LogOut, RefreshCw, Trash2, X,
   type LucideIcon
@@ -214,7 +215,7 @@ export default function Settings(): React.ReactElement {
   const device = session?.deviceName ?? settings.account?.deviceName ?? null
 
   return (
-    <ScrollView className="flex-1 bg-background" contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
+    <KeyboardScrollView className="flex-1 bg-background" contentContainerStyle={{ padding: 16, gap: 12 }} keyboardShouldPersistTaps="handled">
       <Section Icon={CircleUserRound} title="Account">
         {signedIn
           ? <>
@@ -400,6 +401,6 @@ export default function Settings(): React.ReactElement {
         onCancel={() => setConfirmingSignOut(false)}
         onConfirm={() => void signOut()}
       />
-    </ScrollView>
+    </KeyboardScrollView>
   )
 }

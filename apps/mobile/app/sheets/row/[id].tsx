@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { Keyboard, Pressable, Text, TextInput, View } from 'react-native'
+import { KeyboardScrollView } from '../../../components/ui/keyboard'
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Copy, Ellipsis, Trash2 } from 'lucide-react-native'
@@ -125,8 +126,8 @@ function RowPage({ rowId, sheetId, initialType }: { rowId: string; sheetId: stri
   }
   const asking = isNew && sheet.typesEnabled && typeId === null
 
-  return <KeyboardAvoidingView className="flex-1 bg-surface-950" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 48 }}>
+  return <View className="flex-1 bg-surface-950">
+    <KeyboardScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 48 }}>
       <SheetsError />
       {asking
         ? <View>
@@ -154,7 +155,7 @@ function RowPage({ rowId, sheetId, initialType }: { rowId: string; sheetId: stri
               Added {formatIso(localDay(new Date(row.createdAt)))} · Edited {timeAgo(row.updatedAt, new Date())}
             </Text>}
         </>}
-    </ScrollView>
+    </KeyboardScrollView>
     {row && <MenuSheet visible={menu} title={name || 'Untitled'} onClose={() => setMenu(false)} items={[
       { label: 'Duplicate', Icon: Copy, onPress: () => void sheets.duplicateRow(row.id).then((id) => { if (id) router.replace({ pathname: '/sheets/row/[id]', params: { id } }) }) },
       {
@@ -166,7 +167,7 @@ function RowPage({ rowId, sheetId, initialType }: { rowId: string; sheetId: stri
         }
       }
     ]} />}
-  </KeyboardAvoidingView>
+  </View>
 }
 
 export default function RowScreen(): React.ReactElement {

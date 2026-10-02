@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { Pressable, ScrollView, TextInput, View } from 'react-native'
+import { Pressable, TextInput, View } from 'react-native'
+import { KeyboardScrollView } from '../../components/ui/keyboard'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Check, ChevronDown, Plus, Trash2 } from 'lucide-react-native'
@@ -95,7 +96,7 @@ export default function ExerciseEditor(): React.ReactElement {
       headerRight: () => <HeaderIcon label="Save exercise" onPress={() => void save()}><Check color={color.text} size={24} /></HeaderIcon>
     }} />
     <GymGate>
-      <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 32 }} keyboardShouldPersistTaps="handled">
+      <KeyboardScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 32 }} keyboardShouldPersistTaps="handled">
         <Field label="NAME">
           <TextInput value={name} onChangeText={setName} autoFocus={!params.id && !params.name} placeholder="Barbell Squat" placeholderTextColor={color.textFaint} className={inputClass} />
         </Field>
@@ -124,7 +125,7 @@ export default function ExerciseEditor(): React.ReactElement {
           <Trash2 color={color.destructive} size={18} />
           <Text className="text-destructive">Delete exercise</Text>
         </Button>}
-      </ScrollView>
+      </KeyboardScrollView>
     </GymGate>
     <PickerSheet
       visible={picker === 'category'}

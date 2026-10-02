@@ -1,5 +1,6 @@
 import React from 'react'
 import { ActivityIndicator, Image, Pressable, ScrollView, Text, View } from 'react-native'
+import { KeyboardScrollView } from '../components/ui/keyboard'
 import { useRouter, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
@@ -72,7 +73,7 @@ export default function Launcher(): React.ReactElement {
   const insets = useSafeAreaInsets()
   const { settings, loading } = useSettings()
   if (loading || !isSignedIn(settings)) {
-    return <ScrollView
+    return <KeyboardScrollView
       className="flex-1 bg-black"
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={{ paddingTop: insets.top + 52, paddingBottom: insets.bottom + 24, paddingHorizontal: 24 }}
@@ -84,7 +85,7 @@ export default function Launcher(): React.ReactElement {
           <Text accessibilityRole="header" className="text-[20px] font-semibold text-white">Sign in</Text>
           <View className="mt-2"><SignInPanel /></View>
         </View>}
-    </ScrollView>
+    </KeyboardScrollView>
   }
   return <ScrollView
     className="flex-1 bg-black"

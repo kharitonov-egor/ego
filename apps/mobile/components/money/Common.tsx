@@ -1,6 +1,6 @@
 import React from 'react'
 import {
-  ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View
+  ActivityIndicator, Modal, Pressable, Text, TextInput, View
 } from 'react-native'
 import {
   ArrowRight, Banknote, Bitcoin, BriefcaseBusiness, Car, CircleDollarSign,
@@ -15,10 +15,12 @@ import { isoToday } from '../../lib/dates'
 import { transactionsInRange } from '../../lib/period-context'
 import { Blurred } from '../../lib/blur'
 import { useNavigation, useRouter } from 'expo-router'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useMoneyTabBarStyle } from './navigation'
 import { sheetAnimation, useReducedMotion } from './tokens'
 import { Button } from '../ui/button'
 import { Text as UiText } from '../ui/text'
+import { KeyboardScrollView, KeyboardViewport } from '../ui/keyboard'
 
 const ICONS: Record<string, LucideIcon> = {
   Landmark, PiggyBank, Banknote, CreditCard, BriefcaseBusiness, Bitcoin, WalletCards,
@@ -128,20 +130,21 @@ export function BottomSheet({ visible, title, onClose, dismissOnBackdrop = false
   children: React.ReactNode
 }): React.ReactElement {
   const reducedMotion = useReducedMotion()
-  return <Modal visible={visible} transparent animationType={sheetAnimation(reducedMotion)} onRequestClose={onClose}>
-    <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View className="flex-1 justify-end bg-black/70">
+  const insets = useSafeAreaInsets()
+  return <Modal visible={visible} transparent animationType={sheetAnimation(reducedMotion)} onRequestClose={onClose} statusBarTranslucent navigationBarTranslucent>
+    <KeyboardViewport active={visible} style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}>
+      <View className="flex-1 justify-end" style={{ paddingTop: insets.top }}>
         {dismissOnBackdrop && <Pressable accessibilityLabel="Close" onPress={onClose} className="absolute inset-0" />}
-        <View className="max-h-[92%] rounded-t-[28px] border-t border-surface-800 bg-background">
+        <View className="max-h-[92%] shrink rounded-t-[28px] border-t border-surface-800 bg-background">
           <View className="items-center pt-2.5"><View className="h-1.5 w-10 rounded-full bg-surface-700" /></View>
           <View className="flex-row items-center justify-between px-5 pb-1 pt-2">
             <Blurred active={privateTitle}><Text accessibilityRole="header" className="flex-1 pr-3 text-[22px] font-bold text-foreground">{title}</Text></Blurred>
             <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} hitSlop={6} className="h-11 w-11 items-center justify-center rounded-full bg-surface-900 active:bg-surface-800"><X color="#d4d4d4" size={20} /></Pressable>
           </View>
-          <ScrollView className="px-5 pt-3" keyboardShouldPersistTaps="handled">{children}<View className="h-10" /></ScrollView>
+          <KeyboardScrollView className="shrink px-5 pt-3">{children}<View className="h-10" /></KeyboardScrollView>
         </View>
       </View>
-    </KeyboardAvoidingView>
+    </KeyboardViewport>
   </Modal>
 }
 

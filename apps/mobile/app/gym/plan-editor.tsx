@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { Pressable, ScrollView, TextInput, View } from 'react-native'
+import { Pressable, TextInput, View } from 'react-native'
+import { KeyboardScrollView } from '../../components/ui/keyboard'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
@@ -166,7 +167,7 @@ export default function PlanEditor(): React.ReactElement {
           <Text className="mt-2 text-center text-[16px] leading-6 text-muted-foreground">It was deleted, possibly on another device.</Text>
           <Button onPress={() => router.back()} className="mt-5"><Text>Back to plans</Text></Button>
         </View>
-        : <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 32 }} keyboardShouldPersistTaps="handled">
+        : <KeyboardScrollView contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 32 }} keyboardShouldPersistTaps="handled">
           <SectionLabel>NAME</SectionLabel>
           <TextInput
             value={name}
@@ -212,7 +213,7 @@ export default function PlanEditor(): React.ReactElement {
             <Trash2 color={color.destructive} size={18} />
             <Text className="text-destructive">Delete plan</Text>
           </Button>}
-        </ScrollView>}
+        </KeyboardScrollView>}
     </GymGate>
     <ExercisePicker visible={adding} chosen={ids} onToggle={toggle} onClose={() => setAdding(false)} />
     <MenuSheet visible={menuFor !== null} title={menuFor ? nameOf(menuFor) : ''} items={menuFor ? menuItems(menuFor) : []} onClose={() => setMenuFor(null)} />

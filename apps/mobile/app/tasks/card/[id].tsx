@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react'
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native'
+import { Pressable, Text, TextInput, View } from 'react-native'
+import { KeyboardScrollView } from '../../../components/ui/keyboard'
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router'
 import { File } from 'expo-file-system'
 import * as ImagePicker from 'expo-image-picker'
@@ -118,7 +119,7 @@ function CardDetail({ cardId }: { cardId: string }): React.ReactElement {
   }
 
   return <View className="flex-1 bg-surface-950">
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 48 }}>
+    <KeyboardScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 48 }}>
       {cover && !blurred && <Image
         source={mediaSource(api, tasks.localFiles, cover.mediaId, 'tasks')}
         style={{ width: '100%', height: 190, backgroundColor: '#141414' }}
@@ -239,7 +240,7 @@ function CardDetail({ cardId }: { cardId: string }): React.ReactElement {
           <Text className="text-[15px] font-semibold text-white">{allActivity ? 'Show less' : `Show all ${activity.length}`}</Text>
         </Pressable>}
       </View>
-    </ScrollView>
+    </KeyboardScrollView>
 
     <LabelSheet
       visible={sheet === 'labels'}
