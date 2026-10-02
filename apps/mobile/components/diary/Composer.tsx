@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { PanResponder, Pressable, ScrollView, TextInput, View } from 'react-native'
 import { Image } from 'expo-image'
 import { File } from 'expo-file-system'
@@ -15,6 +15,8 @@ import { draftsFromFiles, draftsFromLibrary, voiceDraft, type DraftFile } from '
 import { durationLabel, levelFromDecibels, sizeLabel, waveformBars } from '../../lib/diary/format'
 import type { LocalDiaryMessage } from '../../lib/diary/repository'
 import type { DiaryDraft } from '../../lib/diary/use-diary'
+import type { LocalDatabase } from '../../lib/database/types'
+import { diaryDraftStore } from '../../lib/diary/draft'
 import { outsideApp } from '../../lib/private-lock'
 import { BottomSheet } from '../money/Common'
 import { useLocked } from '../PrivateGate'
@@ -196,7 +198,8 @@ function useVoiceNote(onRecorded: (draft: DraftFile) => void, onNotice: (text: s
   return { recording, slide, seconds: state.durationMillis / 1000, level, handlers: responder.panHandlers }
 }
 
-export function Composer({ replyTo, editing, bottomInset, onCancelReply, onCancelEdit, onSend, onEdit }: {
+export function Composer({ db, replyTo, editing, bottomInset, onCancelReply, onCancelEdit, onSend, onEdit }: {
+  db: LocalDatabase
   replyTo: LocalDiaryMessage | null
   editing: LocalDiaryMessage | null
   bottomInset: number
@@ -205,27 +208,27 @@ export function Composer({ replyTo, editing, bottomInset, onCancelReply, onCance
   onSend: (draft: DiaryDraft) => Promise<boolean>
   onEdit: (message: LocalDiaryMessage, text: string) => Promise<boolean>
 }): React.ReactElement {
-  const [text, setText] = useState('')
+  const store = useMemo(() => diaryDraftStore(db), [db])
+  const draftState = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
+  const [editText, setEditText] = useState('')
+  const text = editing ? editText : draftState.text
+  const setText = editing ? setEditText : store.setText
+  const [sending, setSending] = useState(false)
+  const submitting = useRef(false)
   const [files, setFiles] = useState<DraftFile[]>([])
   const [attaching, setAttaching] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const editingId = editing?.id ?? null
-  const savedDraft = useRef('')
   const locked = useLocked()
 
   useEffect(() => {
     if (locked) setAttaching(false)
   }, [locked])
 
-  const typed = useRef(text)
-  typed.current = text
   const editingNow = useRef(editing)
   editingNow.current = editing
   useEffect(() => {
-    const target = editingNow.current
-    if (!target) return
-    savedDraft.current = typed.current
-    setText(target.text)
+    if (editingNow.current) setEditText(editingNow.current.text)
   }, [editingId])
 
   useEffect(() => {
@@ -278,34 +281,35 @@ export function Composer({ replyTo, editing, bottomInset, onCancelReply, onCance
   }
 
   const submit = async (): Promise<void> => {
-    if (editing) {
-      const saved = await onEdit(editing, text)
-      if (saved) {
-        onCancelEdit()
-        setText(savedDraft.current)
+    if (submitting.current || !draftState.ready) return
+    if (!editing && !text.trim() && files.length === 0) return
+    submitting.current = true
+    setSending(true)
+    try {
+      if (editing) {
+        if (await onEdit(editing, text)) onCancelEdit()
+        return
       }
-      return
-    }
-    if (!text.trim() && files.length === 0) return
-    const draft: DiaryDraft = { text, files, replyToId: replyTo?.id ?? null }
-    setText('')
-    setFiles([])
-    onCancelReply()
-    const saved = await onSend(draft)
-    if (!saved) {
-      setText(draft.text)
-      setFiles(draft.files)
+      const draft: DiaryDraft = { text, files, replyToId: replyTo?.id ?? null }
+      if (await onSend(draft)) {
+        if (store.getSnapshot().text === draft.text) store.setText('')
+        setFiles([])
+        onCancelReply()
+      }
+    } finally {
+      submitting.current = false
+      setSending(false)
     }
   }
 
   const cancelEdit = (): void => {
     onCancelEdit()
-    setText(savedDraft.current)
   }
 
   const canSend = editing !== null || text.trim().length > 0 || files.length > 0
 
   return <View style={{ backgroundColor: ink.screen, borderTopWidth: 1, borderTopColor: ink.line, paddingBottom: bottomInset }}>
+    {draftState.error && <Text className="px-4 pt-2 text-[13px] text-red-300">This device could not save or load your draft.</Text>}
     {notice && <Pressable onPress={() => setNotice(null)} style={{ paddingHorizontal: 14, paddingTop: 8 }}>
       <Text className="text-[13px] text-surface-300">{notice}</Text>
     </Pressable>}
@@ -328,6 +332,7 @@ export function Composer({ replyTo, editing, bottomInset, onCancelReply, onCance
         : <View key="typing" style={{ flex: 1, flexDirection: 'row', alignItems: 'flex-end', gap: 4 }}>
           {!editing && <RoundButton label="Attach photos, videos, or files" onPress={() => setAttaching(true)} Icon={Paperclip} />}
           <TextInput
+            editable={draftState.ready && !sending}
             value={text}
             onChangeText={setText}
             placeholder="Message"
@@ -341,7 +346,7 @@ export function Composer({ replyTo, editing, bottomInset, onCancelReply, onCance
           />
         </View>}
       {canSend && !voice.recording
-        ? <RoundButton key="send" label={editing ? 'Save the edit' : 'Send'} onPress={() => void submit()} Icon={editing ? Check : ArrowUp} filled />
+        ? <RoundButton key="send" disabled={!draftState.ready || sending} label={editing ? 'Save the edit' : 'Send'} onPress={() => void submit()} Icon={editing ? Check : ArrowUp} filled />
         : <View
           key="microphone"
           {...voice.handlers}
