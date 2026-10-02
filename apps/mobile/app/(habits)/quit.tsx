@@ -40,7 +40,7 @@ function QuitCard({ habit, now }: { habit: HabitRecord; now: number }): React.Re
   const { days, hours, minutes, seconds } = splitDuration(running)
   const best = Math.max(clock.bestEnded, running)
 
-  return <Card className="p-5">
+  return <Card className="border-0 p-5">
     <View className="flex-row items-center">
       <HabitIcon icon={habit.icon} size={48} />
       <View className="ml-3 flex-1">

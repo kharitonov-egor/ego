@@ -75,7 +75,8 @@ function Meta({ message, onMedia }: { message: LocalDiaryMessage; onMedia: boole
 /** Room at the end of the text for the time, so short lines keep it on the same row. */
 function metaSpace(message: LocalDiaryMessage): string {
   const label = message.editedAt ? `edited ${timeLabel(message.sentAt)}` : timeLabel(message.sentAt)
-  return `  ${label}     ${message.pinnedAt ? '   ' : ''}`
+  // Figure spaces reserve the timestamp's width without relying on transparent text on Android.
+  return '\u2007'.repeat(label.length + 5 + (message.pinnedAt ? 3 : 0))
 }
 
 function ReplyQuote({ target, onJump }: { target: LocalDiaryMessage | null; onJump: (id: string) => void }): React.ReactElement {

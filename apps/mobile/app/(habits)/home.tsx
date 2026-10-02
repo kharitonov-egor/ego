@@ -70,7 +70,7 @@ function HabitRow({ habit, state, thisWeek, onTap, onTakeBack, onEdit }: {
     onPress={onTap}
     onLongPress={onTakeBack}
     delayLongPress={350}
-    className="min-h-[68px] flex-row items-center rounded-2xl border border-border bg-card py-3 pl-3 pr-2 active:bg-surface-900"
+    className="min-h-[68px] flex-row items-center rounded-2xl bg-card py-3 pl-3 pr-2 active:bg-surface-900"
   >
     <HabitIcon icon={habit.icon} />
     <View className="ml-3 flex-1">
