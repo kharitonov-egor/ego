@@ -62,7 +62,7 @@ function ProgressBody(): React.ReactElement {
         </Pressable>
       </View>
 
-      <Card>
+      <Card className="border-0">
         <CardContent>
           <View className="flex-row items-end justify-between">
             <Text className="text-[40px] font-bold tracking-tight text-foreground" style={{ fontVariant: ['tabular-nums'] }}>{`${rate}%`}</Text>
@@ -76,7 +76,7 @@ function ProgressBody(): React.ReactElement {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border-0">
         <CardContent>
           {focused && <Pressable
             accessibilityRole="button"
@@ -110,7 +110,7 @@ function ProgressBody(): React.ReactElement {
           : focused ? <>Days in a row with <BlurSpan tint="#737373">{focused.name}</BlurSpan> done.</> : 'Days in a row with every daily habit done.'}
       </Text>
 
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden border-0">
         <CardHeader className="pb-3"><CardTitle>This month by habit</CardTitle></CardHeader>
         {rates.map(({ habit, done, possible, unit }) => {
           const selected = habit.id === focus
