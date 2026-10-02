@@ -13,8 +13,6 @@ import type {
   CategoryInput,
   MoneyResult,
   MoneySnapshot,
-  MoneySyncConfigInput,
-  MoneySyncStatus,
   PurchaseInput,
   TransactionImageAnalysisResult,
   TransactionInput,
@@ -25,6 +23,10 @@ import type {
   LiveToolExecuteRequest,
   LiveToolExecuteResult
 } from '@ego/api-contracts'
+import type { SqlParam, SqlResult } from '@ego/local/database/types'
+import type {
+  LedgerEvent, LedgerState, MediaFileInput, MediaOpenInput, MediaPathInput, MediaProgress, NotifyInput, RemoteApi, RemoteApiMethod, SignInOutcome, StagedMedia
+} from './local'
 
 export type {
   AccountInput,
@@ -139,11 +141,6 @@ export interface LedgerConfig {
   hasToken: boolean
 }
 
-export interface LedgerConfigInput {
-  url: string
-  token?: string
-}
-
 export type LiveCreateSessionResult =
   | { ok: true; sessionId: string; sdp: string }
   | { ok: false; code: string; message: string }
@@ -153,8 +150,33 @@ export type DesktopApiResult<T> =
   | { ok: false; code: string; message: string }
 
 export interface IpcApi {
+  localAll: (transaction: number | null, sql: string, params: SqlParam[]) => Promise<Record<string, unknown>[]>
+  localRun: (transaction: number | null, sql: string, params: SqlParam[]) => Promise<SqlResult>
+  localBegin: () => Promise<number>
+  localFinish: (transaction: number, commit: boolean) => Promise<void>
+  ledgerState: () => Promise<LedgerState>
+  ledgerSync: () => Promise<LedgerState>
+  onLedgerEvent: (callback: (event: LedgerEvent) => void) => () => void
+  apiCall: <K extends RemoteApiMethod>(method: K, ...args: Parameters<RemoteApi[K]>) => ReturnType<RemoteApi[K]>
+  signInWithGoogle: (apiUrl: string) => Promise<SignInOutcome>
+  signInWithToken: (apiUrl: string, token: string) => Promise<SignInOutcome>
+  signOut: () => Promise<void>
+  onSignInFinished: (callback: (outcome: SignInOutcome) => void) => () => void
+  mediaStage: (input: MediaFileInput) => Promise<StagedMedia>
+  mediaStageFile: (input: MediaPathInput) => Promise<StagedMedia>
+  mediaDeleteStaged: (paths: string[]) => Promise<void>
+  /** Resolves with why the file did not open, or null once Windows has it. */
+  mediaOpen: (input: MediaOpenInput) => Promise<string | null>
+  onMediaProgress: (callback: (progress: MediaProgress) => void) => () => void
+  /** The path of a dropped or picked file, so a large video goes to the main process by name, not by bytes. */
+  pathForFile: (file: File) => string
+  notify: (input: NotifyInput) => void
+  /** A notification click or a sign-in link asks the window to open a page. */
+  onNavigate: (callback: (route: string) => void) => () => void
+  preferenceGet: (key: string) => Promise<string | null>
+  preferenceSet: (key: string, value: string | null) => Promise<void>
+
   moneyGetLedgerConfig: () => Promise<LedgerConfig>
-  moneySetLedgerConfig: (input: LedgerConfigInput) => Promise<MoneyResult<{ connected: true }>>
   liveCreateSession: (sdp: string) => Promise<LiveCreateSessionResult>
   liveExecuteTool: (input: LiveToolExecuteRequest) => Promise<DesktopApiResult<LiveToolExecuteResult>>
   connectorGetStatus: (provider: 'google' | 'wispr') => Promise<DesktopApiResult<ConnectorStatus>>
@@ -164,9 +186,6 @@ export interface IpcApi {
   onLiveSessionStopRequested: (callback: () => void) => () => void
   getLivePreferences: () => Promise<LivePreferences>
   setLivePreferences: (preferences: LivePreferences) => Promise<LivePreferences>
-  moneyGetSyncStatus: () => Promise<MoneySyncStatus>
-  moneySetSyncConfig: (input: MoneySyncConfigInput) => Promise<MoneyResult<{ connected: true }>>
-  moneyTestConnection: () => Promise<MoneyResult<{ connected: true }>>
   moneyGetSnapshot: () => Promise<MoneyResult<MoneySnapshot>>
   moneyCreateAccount: (input: AccountInput) => Promise<MoneyResult<MoneySnapshot>>
   moneyUpdateAccount: (id: string, input: AccountInput) => Promise<MoneyResult<MoneySnapshot>>

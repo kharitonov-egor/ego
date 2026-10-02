@@ -69,30 +69,32 @@ export default function HotkeyInput({ value, onChange }: HotkeyInputProps): Reac
       onClick={() => setListening(true)}
       onKeyDown={handleKeyDown}
       onBlur={() => setListening(false)}
-      className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all text-sm ${
+      className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-4 text-[15px] transition-colors ${
         listening
-          ? 'border-accent-500 bg-surface-800 ring-1 ring-accent-500/30'
-          : 'border-surface-700 bg-surface-800/50 hover:border-surface-600'
+          ? 'border-surface-300 bg-surface-800'
+          : 'border-input bg-surface-900 hover:border-surface-600'
       }`}
     >
-      <Keyboard size={14} className="text-surface-400 shrink-0" />
+      <Keyboard size={16} className="shrink-0 text-surface-400" />
       {listening ? (
-        <span className="text-accent-400 animate-pulse">Press a shortcut (e.g. F2 or Ctrl+Shift+Space)...</span>
+        <span className="animate-pulse text-foreground">Press a shortcut (e.g. F2 or Ctrl+Shift+Space)...</span>
       ) : value ? (
         <div className="flex items-center gap-1.5 flex-1">
           {value.split('+').map((part, i) => (
             <kbd
               key={i}
-              className="px-1.5 py-0.5 rounded bg-surface-700 text-surface-200 text-xs font-mono"
+              className="rounded-md bg-surface-700 px-2 py-0.5 font-mono text-[13px] text-surface-100"
             >
               {part}
             </kbd>
           ))}
           <button
+            type="button"
+            aria-label="Clear hotkey"
             onClick={clear}
-            className="ml-auto text-surface-500 hover:text-surface-300 transition-colors"
+            className="ml-auto text-surface-500 transition-colors hover:text-surface-200"
           >
-            <X size={12} />
+            <X size={14} />
           </button>
         </div>
       ) : (

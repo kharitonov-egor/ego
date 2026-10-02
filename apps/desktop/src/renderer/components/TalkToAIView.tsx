@@ -92,9 +92,9 @@ export default function TalkToAIView({ onOpenSettings }: { onOpenSettings: () =>
     setDetail('')
   }
 
-  return <div className="flex h-full flex-col overflow-hidden bg-[radial-gradient(circle_at_50%_14%,rgba(37,99,235,0.12),transparent_34%)]">
+  return <div className="flex h-full flex-col overflow-hidden bg-[radial-gradient(circle_at_50%_14%,rgba(250,250,250,0.06),transparent_34%)]">
     <header className="border-b border-surface-800 px-6 py-4">
-      <div className="flex items-center gap-2 text-surface-100"><Sparkles size={16} className="text-blue-400" /><h1 className="text-base font-semibold">Talk to AI</h1></div>
+      <div className="flex items-center gap-2 text-surface-100"><Sparkles size={16} className="text-surface-200" /><h1 className="text-base font-semibold">Talk to AI</h1></div>
       <p className="mt-1 text-xs text-surface-500">A temporary conversation. Messages and audio are not saved.</p>
     </header>
 
@@ -108,38 +108,38 @@ export default function TalkToAIView({ onOpenSettings }: { onOpenSettings: () =>
           {detail || activity?.message || (status === 'idle' ? 'Ask anything. Connected tools work in voice and chat.' : status === 'ended' ? 'The transcript stays here until you leave or start again.' : '')}
         </p>
         {!active && <div className="mx-auto mt-4 flex w-fit rounded-lg border border-surface-700 bg-surface-900 p-1" aria-label="Conversation mode">
-          <button type="button" onClick={() => selectMode('voice')} className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs ${mode === 'voice' ? 'bg-blue-500/20 text-blue-200' : 'text-surface-400'}`}><Mic size={13} />Voice</button>
-          <button type="button" onClick={() => selectMode('chat')} className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs ${mode === 'chat' ? 'bg-blue-500/20 text-blue-200' : 'text-surface-400'}`}><Keyboard size={13} />Chat</button>
+          <button type="button" onClick={() => selectMode('voice')} className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs ${mode === 'voice' ? 'bg-surface-700 text-foreground' : 'text-surface-400'}`}><Mic size={13} />Voice</button>
+          <button type="button" onClick={() => selectMode('chat')} className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs ${mode === 'chat' ? 'bg-surface-700 text-foreground' : 'text-surface-400'}`}><Keyboard size={13} />Chat</button>
         </div>}
       </section>
 
       <section className="min-h-0 px-6 pb-4">
         {serviceReady === false ? <div className="mx-auto flex h-full max-w-xl items-center justify-center">
-          <div className="w-full rounded-xl border border-blue-400/20 bg-surface-900/80 p-6 text-center shadow-2xl shadow-black/20">
-            <Settings className="mx-auto text-blue-300" size={22} />
+          <div className="w-full rounded-xl border border-surface-800 bg-card p-6 text-center shadow-2xl shadow-black/20">
+            <Settings className="mx-auto text-surface-300" size={22} />
             <h2 className="mt-3 text-sm font-semibold text-surface-100">Connect the Ego service first</h2>
-            <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-surface-400">Add the Worker address and this computer's device token in Settings. The OpenAI key stays on the Worker.</p>
-            <button type="button" onClick={onOpenSettings} className="mt-4 rounded-lg bg-accent-600 px-4 py-2 text-xs font-medium text-white hover:bg-accent-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300">Open settings</button>
+            <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-surface-400">Sign in on Home, or add a device token in Settings. The OpenAI key stays on the Worker.</p>
+            <button type="button" onClick={onOpenSettings} className="mt-4 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90">Open settings</button>
           </div>
         </div> : <div ref={transcriptRef} className="mx-auto h-full max-w-2xl overflow-y-auto rounded-xl border border-surface-800 bg-surface-950/55 p-4" aria-label="Live transcript" aria-live="polite">
           {messages.length === 0 ? <div className="flex h-full min-h-28 items-center justify-center text-center text-xs text-surface-500">Your conversation will appear here while the session is open.</div> : <div className="space-y-4">
             {messages.map((message) => <div key={message.id} className={message.role === 'user' ? 'ml-auto max-w-[82%]' : 'mr-auto max-w-[82%]'}>
-              <div className={`mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${message.role === 'user' ? 'text-right text-blue-300' : 'text-surface-500'}`}>{message.role === 'user' ? 'You' : 'AI'}</div>
-              <p className={`rounded-xl px-3.5 py-2.5 text-sm leading-5 ${message.role === 'user' ? 'bg-blue-500/15 text-blue-50' : 'border border-surface-800 bg-surface-900 text-surface-200'}`}>{message.text}</p>
+              <div className={`mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${message.role === 'user' ? 'text-right text-surface-300' : 'text-surface-500'}`}>{message.role === 'user' ? 'You' : 'AI'}</div>
+              <p className={`rounded-xl px-3.5 py-2.5 text-sm leading-5 ${message.role === 'user' ? 'bg-surface-800 text-foreground' : 'border border-surface-800 bg-surface-900 text-surface-200'}`}>{message.text}</p>
             </div>)}
           </div>}
-          {activity && <div role="status" className={`mt-4 rounded-lg border px-3 py-2 text-xs ${activity.state === 'failed' ? 'border-red-400/30 bg-red-500/10 text-red-200' : 'border-blue-400/30 bg-blue-500/10 text-blue-200'}`}>{activity.state === 'failed' ? activity.message : `Using ${activity.toolName.replaceAll('_', ' ')}`}</div>}
+          {activity && <div role="status" className={`mt-4 rounded-lg border px-3 py-2 text-xs ${activity.state === 'failed' ? 'border-red-400/30 bg-red-500/10 text-red-200' : 'border-surface-700 bg-surface-900 text-surface-200'}`}>{activity.state === 'failed' ? activity.message : `Using ${activity.toolName.replaceAll('_', ' ')}`}</div>}
           {approval && <ApprovalCard approval={approval} onConfirm={() => controllerRef.current?.approve(approval.callId)} onReject={() => controllerRef.current?.reject(approval.callId)} />}
         </div>}
       </section>
 
       <footer className="flex items-center justify-center gap-3 border-t border-surface-800 bg-surface-950/70 px-6 py-4">
-        {!active ? <button type="button" aria-label={status === 'error' ? (mode === 'voice' ? 'Try voice call again' : 'Try chat again') : mode === 'voice' ? 'Start voice call' : 'Start chat'} disabled={serviceReady !== true} onClick={() => void start()} className="inline-flex min-w-32 items-center justify-center gap-2 rounded-full bg-blue-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-950/40 hover:bg-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:cursor-not-allowed disabled:opacity-40">{mode === 'voice' ? <Mic size={17} /> : <Keyboard size={17} />}{status === 'error' ? 'Try again' : mode === 'voice' ? 'Start voice' : 'Start chat'}</button> : mode === 'chat' ? <form className="flex w-full max-w-2xl items-end gap-2" onSubmit={(event) => { event.preventDefault(); send() }}>
-          <textarea aria-label="Message" rows={1} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send() } }} placeholder="Message the agent" className="max-h-32 min-h-10 flex-1 resize-y rounded-xl border border-surface-700 bg-surface-900 px-3 py-2.5 text-sm text-surface-100 outline-none focus:border-blue-400" />
-          <button type="submit" aria-label="Send message" disabled={!draft.trim() || status === 'connecting'} className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-blue-500 text-white disabled:opacity-40"><Send size={17} /></button>
+        {!active ? <button type="button" aria-label={status === 'error' ? (mode === 'voice' ? 'Try voice call again' : 'Try chat again') : mode === 'voice' ? 'Start voice call' : 'Start chat'} disabled={serviceReady !== true} onClick={() => void start()} className="inline-flex min-w-32 items-center justify-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-black/40 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40">{mode === 'voice' ? <Mic size={17} /> : <Keyboard size={17} />}{status === 'error' ? 'Try again' : mode === 'voice' ? 'Start voice' : 'Start chat'}</button> : mode === 'chat' ? <form className="flex w-full max-w-2xl items-end gap-2" onSubmit={(event) => { event.preventDefault(); send() }}>
+          <textarea aria-label="Message" rows={1} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); send() } }} placeholder="Message the agent" className="max-h-32 min-h-10 flex-1 resize-y rounded-xl border border-surface-700 bg-surface-900 px-3 py-2.5 text-sm text-surface-100 outline-none focus:border-surface-400" />
+          <button type="submit" aria-label="Send message" disabled={!draft.trim() || status === 'connecting'} className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground disabled:opacity-40"><Send size={17} /></button>
           <button type="button" aria-label="End chat" onClick={() => controllerRef.current?.end()} className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-red-500/90 text-white"><PhoneOff size={17} /></button>
         </form> : <>
-          <button type="button" aria-label={status === 'muted' ? 'Unmute microphone' : 'Mute microphone'} disabled={!canMute} onClick={() => controllerRef.current?.toggleMute()} className={`inline-flex h-11 w-11 items-center justify-center rounded-full border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 disabled:opacity-40 ${status === 'muted' ? 'border-amber-400/50 bg-amber-400/10 text-amber-300' : 'border-surface-700 bg-surface-800 text-surface-200 hover:bg-surface-700'}`}>{status === 'muted' ? <MicOff size={18} /> : <Mic size={18} />}</button>
+          <button type="button" aria-label={status === 'muted' ? 'Unmute microphone' : 'Mute microphone'} disabled={!canMute} onClick={() => controllerRef.current?.toggleMute()} className={`inline-flex h-11 w-11 items-center justify-center rounded-full border disabled:opacity-40 ${status === 'muted' ? 'border-amber-400/50 bg-amber-400/10 text-amber-300' : 'border-surface-700 bg-surface-800 text-surface-200 hover:bg-surface-700'}`}>{status === 'muted' ? <MicOff size={18} /> : <Mic size={18} />}</button>
           <button type="button" aria-label="End voice call" onClick={() => controllerRef.current?.end()} className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-red-500/90 text-white hover:bg-red-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300"><PhoneOff size={18} /></button>
         </>}
       </footer>
