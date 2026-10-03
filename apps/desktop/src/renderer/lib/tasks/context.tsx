@@ -6,7 +6,7 @@ import {
   type TaskListInput, type TaskNames
 } from '@ego/core'
 import type { LocalDatabase } from '@ego/local/database/types'
-import { dropUnusedUploads, queueUploads, retryCardUploads, type QueuedUpload } from '@ego/local/diary/uploads'
+import { dropUnusedUploads, queueUploads, retryRecordUploads, type QueuedUpload } from '@ego/local/diary/uploads'
 import {
   createTaskBoard, createTaskGoal, createTaskLabel, createTaskList, deleteTaskBoard, deleteTaskCard, deleteTaskGoal,
   deleteTaskLabel, deleteTaskList, newId, saveTaskCard, updateTaskBoard, updateTaskGoal, updateTaskLabel, updateTaskList
@@ -495,7 +495,7 @@ export function TasksProvider({ children }: { children: React.ReactNode }): Reac
   }, [commit])
 
   const retryUploads = useCallback((cardId: string): Promise<boolean> =>
-    commit(null, (database) => retryCardUploads(database, cardId), 'This computer could not try those files again'), [commit])
+    commit(null, (database) => retryRecordUploads(database, 'taskCard', cardId), 'This computer could not try those files again'), [commit])
 
   const createGoal = useCallback(async (input: TaskGoalInput): Promise<string | null> => {
     const current = dataRef.current
