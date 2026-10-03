@@ -10,9 +10,12 @@ import { PeriodProvider } from './lib/period'
 import { ReminderProvider } from './lib/reminder'
 import { TasksProvider } from './lib/tasks/context'
 import { TaskNotificationsProvider } from './lib/tasks/notifications'
+import Habits from './screens/habits/Habits'
 import Home from './screens/Home'
+import MoodScreen from './screens/mood/MoodScreen'
 import Settings from './screens/Settings'
 import { moneyRoutes } from './screens/money/Finance'
+import MoodScreen from './screens/mood/MoodScreen'
 import SheetsApp from './screens/sheets'
 import TasksRoutes from './screens/tasks'
 
@@ -46,6 +49,8 @@ export default function App(): React.ReactElement {
                         <Route path="/" element={<Home />} />
                         <Route path="/ai" element={<TalkToAI />} />
                         {moneyRoutes}
+                        <Route path="/mood" element={<MoodScreen />} />
+                        <Route path="/habits/*" element={<Habits />} />
                         <Route path="/tasks/*" element={<TasksRoutes />} />
                         <Route path="/sheets/*" element={<SheetsApp />} />
                         <Route path="/settings" element={<Settings />} />

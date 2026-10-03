@@ -175,6 +175,10 @@ Mood and Diary ask for a fingerprint, or the phone's PIN, every time they open a
 comes back from the background. Trips Ego starts itself, like the photo picker, the camera, or
 opening a PDF in another app, do not count.
 
+On the computer, Mood has no lock and opens straight away. Once the window is wide enough, the past
+days sit beside the editor instead of below it. The left and right arrow keys step a day, the
+calendar stops at today, and `Ctrl+Enter` in the note saves.
+
 ## Diary
 
 The Diary tile is a chat with yourself, laid out like Telegram's Saved Messages: dark bubbles on
@@ -254,6 +258,12 @@ A daily habit is due every day from its start date, so adding one never counts a
 days. Habits use the same local database, outbox, and change log as the other apps. A check-off
 shows at once and reaches D1 in `habits` and `habit_entries` on the next sync. Deleting a habit
 hides its entries on every device.
+
+On the computer, the three tabs sit in the header. A click adds a check-off and a right-click, or
+`Delete` on a focused row, takes one back. A habit counted several times a day also shows a minus
+on hover. The left and right arrow keys move Home's week strip a week at a time and Progress a month
+at a time. Progress puts the month and its calendar beside the streaks and the habit list, and Quit
+lays two or more clocks side by side.
 
 ## Tasks
 
