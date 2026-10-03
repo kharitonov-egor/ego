@@ -1,6 +1,6 @@
 import React from 'react'
 import { Tabs, useRouter } from 'expo-router'
-import { CalendarClock, LayoutGrid, SquareKanban } from 'lucide-react-native'
+import { CalendarClock, LayoutGrid, SquareKanban, Target } from 'lucide-react-native'
 import { HeaderButton } from '../../../components/HeaderButton'
 import { useMoneyTabBarStyle } from '../../../components/money/navigation'
 
@@ -26,6 +26,10 @@ export default function TasksTabs(): React.ReactElement {
       title: 'Tasks',
       tabBarLabel: 'Boards',
       tabBarIcon: ({ color }) => <SquareKanban color={color} size={22} />
+    }} />
+    <Tabs.Screen name="goals" options={{
+      title: 'Goals',
+      tabBarIcon: ({ color }) => <Target color={color} size={22} />
     }} />
     <Tabs.Screen name="upcoming" options={{
       title: 'Upcoming',

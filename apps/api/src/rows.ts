@@ -4,12 +4,12 @@ import {
   type AccountKind, type CategoryKind, type DiaryAttachment, type DiaryEntity, type DiarySource, type DistanceUnit,
   type ExerciseType, type ExerciseWeightUnit, type HabitEntryKind, type HabitKind, type HabitPeriod,
   type MoneyPurchase, type MoodLevel, type ReceiptItem, type TaskActivity, type TaskAttachment, type TaskChecklist,
-  type TaskLabelColor, type TaskPriority, type TransactionKind, type WeightUnit
+  type TaskGoalMilestone, type TaskLabelColor, type TaskPriority, type TransactionKind, type WeightUnit
 } from '@ego/core'
 import type {
   AccountRecord, BudgetRecord, CategoryRecord, DiaryMessageRecord, FeedTransaction, GymCategoryRecord,
   GymExerciseRecord, GymPlanRecord, GymSetRecord, GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord,
-  PurchaseRecord, SheetRecord, SheetRowRecord, TaskBoardRecord, TaskCardRecord, TaskLabelRecord, TaskListRecord,
+  PurchaseRecord, SheetRecord, SheetRowRecord, TaskBoardRecord, TaskCardRecord, TaskGoalRecord, TaskLabelRecord, TaskListRecord,
   TransactionRecord
 } from '@ego/api-contracts'
 
@@ -452,6 +452,24 @@ export interface TaskCardRow {
   revision: number
 }
 
+export interface TaskGoalRow {
+  id: string
+  title: string
+  why: string
+  horizon: 'quarter' | 'year' | 'longTerm' | 'someday'
+  target_date: string | null
+  status: 'active' | 'paused' | 'someday' | 'achieved'
+  position: number
+  review_date: string | null
+  milestones: string
+  board_ids: string
+  card_ids: string
+  archived_at: string | null
+  created_at: string
+  updated_at: string
+  revision: number
+}
+
 export function toTaskBoardRecord(row: TaskBoardRow): TaskBoardRecord {
   return {
     id: row.id, name: row.name, icon: row.icon, position: row.position, hideDone: row.hide_done === 1,
@@ -493,6 +511,22 @@ export function toTaskCardRecord(row: TaskCardRow): TaskCardRecord {
     attachments: jsonList(row.attachments).filter((item): item is TaskAttachment => isTaskAttachment(item)),
     activity: jsonList(row.activity).filter(isActivityShape),
     createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
+  }
+}
+
+function isGoalMilestone(value: unknown): value is TaskGoalMilestone {
+  return typeof value === 'object' && value !== null && 'id' in value && 'title' in value &&
+    'dueDate' in value && 'doneAt' in value
+}
+
+export function toTaskGoalRecord(row: TaskGoalRow): TaskGoalRecord {
+  return {
+    id: row.id, title: row.title, why: row.why, horizon: row.horizon, targetDate: row.target_date,
+    status: row.status, position: row.position, reviewDate: row.review_date,
+    milestones: jsonList(row.milestones).filter(isGoalMilestone),
+    boardIds: jsonList(row.board_ids).filter((item): item is string => typeof item === 'string'),
+    cardIds: jsonList(row.card_ids).filter((item): item is string => typeof item === 'string'),
+    archivedAt: row.archived_at, createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
   }
 }
 

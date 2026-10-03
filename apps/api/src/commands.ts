@@ -7,19 +7,19 @@ import {
   HABIT_TARGET_LIMIT, diaryMediaIds, entryKindFits, taskMediaIds,
   type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type DiaryMessageInput,
   type GymPlanInput, type GymSetInput, type HabitInput, type MoodInput, type PurchaseInput, type SheetInput,
-  type SheetRowInput, type TaskBoardInput, type TaskCardInput, type TaskLabelInput, type TaskListInput,
+  type SheetRowInput, type TaskBoardInput, type TaskCardInput, type TaskGoalInput, type TaskLabelInput, type TaskListInput,
   type TransactionInput
 } from '@ego/core'
 import { query, readLatestChange, serverSequence } from './reads'
 import {
   toAccountRecord, toBudgetRecord, toCategoryRecord, toDiaryMessageRecord, toGymCategoryRecord, toGymExerciseRecord,
   toGymPlanRecord, toGymSetRecord, toGymWorkoutRecord, toHabitEntryRecord, toHabitRecord, toMoodRecord, toPurchaseRecord,
-  toReceiptItem, toSheetRecord, toSheetRowRecord, toTaskBoardRecord, toTaskCardRecord, toTaskLabelRecord,
+  toReceiptItem, toSheetRecord, toSheetRowRecord, toTaskBoardRecord, toTaskCardRecord, toTaskGoalRecord, toTaskLabelRecord,
   toTaskListRecord, toTransactionRecord,
   type AccountRow, type BudgetAllocationRow, type BudgetRow, type CategoryRow, type DiaryMessageRow, type GymCategoryRow,
   type GymExerciseRow, type GymPlanRow, type GymSetRow, type GymWorkoutRow, type HabitEntryRow, type HabitRow,
   type MoodRow, type PurchaseRow, type ReceiptItemRow, type SheetRow, type SheetRowRow, type TaskBoardRow,
-  type TaskCardRow, type TaskLabelRow, type TaskListRow, type TransactionRow
+  type TaskCardRow, type TaskGoalRow, type TaskLabelRow, type TaskListRow, type TransactionRow
 } from './rows'
 
 interface Statement {
@@ -60,6 +60,7 @@ const TABLES: Record<SyncEntity, string> = {
   taskList: 'task_lists',
   taskLabel: 'task_labels',
   taskCard: 'task_cards',
+  taskGoal: 'task_goals',
   sheet: 'sheets',
   sheetRow: 'sheet_rows'
 }
@@ -84,6 +85,7 @@ const KEYS: Record<SyncEntity, string> = {
   taskList: 'id',
   taskLabel: 'id',
   taskCard: 'id',
+  taskGoal: 'id',
   sheet: 'id',
   sheetRow: 'id'
 }
@@ -1427,6 +1429,54 @@ async function planSheet(
   }
 }
 
+function taskGoalRowFrom(id: string, input: TaskGoalInput, createdAt: string, updatedAt: string, revision: number): TaskGoalRow {
+  return {
+    id, title: input.title.trim(), why: input.why, horizon: input.horizon, target_date: input.targetDate,
+    status: input.status, position: input.position, review_date: input.reviewDate,
+    milestones: JSON.stringify(input.milestones), board_ids: JSON.stringify(input.boardIds),
+    card_ids: JSON.stringify(input.cardIds), archived_at: input.archivedAt,
+    created_at: createdAt, updated_at: updatedAt, revision
+  }
+}
+
+async function planTaskGoal(
+  db: D1Database, operation: SyncOperation, command: Extract<SyncCommand, { entity: 'taskGoal' }>, now: string
+): Promise<ApiResult<Plan>> {
+  const id = operation.entityId
+  if (command.type === 'create') {
+    const row = taskGoalRowFrom(id, command.payload, now, now, 1)
+    return {
+      ok: true,
+      data: upsertPlan('taskGoal', id, 1, { entity: 'taskGoal', record: toTaskGoalRecord(row) }, {
+        sql: `INSERT INTO task_goals (id, title, why, horizon, target_date, status, position, review_date, milestones,
+          board_ids, card_ids, archived_at, created_at, updated_at, revision)
+          SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1`,
+        params: [id, row.title, row.why, row.horizon, row.target_date, row.status, row.position, row.review_date,
+          row.milestones, row.board_ids, row.card_ids, row.archived_at, now, now]
+      }, null)
+    }
+  }
+  const current = await liveRow<TaskGoalRow>(db, 'taskGoal', id)
+  if (!current) return notFound('That goal was not found')
+  const expected = operation.expectedRevision ?? 0
+  const guard = guardFor('taskGoal', id, expected)
+  if (command.type === 'delete') {
+    return { ok: true, data: deletePlan('taskGoal', id, expected, now, guard, { entity: 'taskGoal', record: null }) }
+  }
+  const revision = expected + 1
+  const row = taskGoalRowFrom(id, command.payload, current.created_at, now, revision)
+  return {
+    ok: true,
+    data: upsertPlan('taskGoal', id, revision, { entity: 'taskGoal', record: toTaskGoalRecord(row) }, {
+      sql: `UPDATE task_goals SET title = ?, why = ?, horizon = ?, target_date = ?, status = ?, position = ?, review_date = ?,
+        milestones = ?, board_ids = ?, card_ids = ?, archived_at = ?, updated_at = ?, revision = revision + 1
+        WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+      params: [row.title, row.why, row.horizon, row.target_date, row.status, row.position, row.review_date,
+        row.milestones, row.board_ids, row.card_ids, row.archived_at, now, id, expected]
+    }, guard)
+  }
+}
+
 function sheetRowRowFrom(id: string, input: SheetRowInput, createdAt: string, updatedAt: string, revision: number): SheetRowRow {
   return {
     id, sheet_id: input.sheetId, type_id: input.typeId, cells: JSON.stringify(input.cells),
@@ -1500,6 +1550,7 @@ function planFor(db: D1Database, operation: SyncOperation, now: string): Promise
     case 'taskList': return planTaskList(db, operation, operation.command, now)
     case 'taskLabel': return planTaskLabel(db, operation, operation.command, now)
     case 'taskCard': return planTaskCard(db, operation, operation.command, now)
+    case 'taskGoal': return planTaskGoal(db, operation, operation.command, now)
     case 'sheet': return planSheet(db, operation, operation.command, now)
     case 'sheetRow': return planSheetRow(db, operation, operation.command, now)
   }

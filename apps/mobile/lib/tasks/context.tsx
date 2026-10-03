@@ -2,8 +2,8 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { AppState } from 'react-native'
 import type { TaskBoardRecord, TaskCardRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
 import {
-  isTaskBoardInput, isTaskCardInput, isTaskListInput, withTaskActivity,
-  type TaskAttachment, type TaskBoardInput, type TaskCardInput, type TaskLabelColor, type TaskLabelInput,
+  isTaskBoardInput, isTaskCardInput, isTaskGoalInput, isTaskListInput, taskGoalInput, withTaskActivity,
+  type TaskAttachment, type TaskBoardInput, type TaskCardInput, type TaskGoalInput, type TaskLabelColor, type TaskLabelInput,
   type TaskListInput, type TaskNames
 } from '@ego/core'
 import type { LocalDatabase } from '../database/types'
@@ -12,8 +12,8 @@ import { deleteLocalFiles } from '../diary/media'
 import { dropUnusedUploads, localMediaFiles, queueUploads, retryCardUploads, type QueuedUpload } from '../diary/uploads'
 import { useLedger, type LocalWrite } from '../ledger-context'
 import {
-  createTaskBoard, createTaskLabel, createTaskList, deleteTaskBoard, deleteTaskCard, deleteTaskLabel, deleteTaskList,
-  newId, saveTaskCard, updateTaskBoard, updateTaskLabel, updateTaskList
+  createTaskBoard, createTaskGoal, createTaskLabel, createTaskList, deleteTaskBoard, deleteTaskCard, deleteTaskGoal,
+  deleteTaskLabel, deleteTaskList, newId, saveTaskCard, updateTaskBoard, updateTaskGoal, updateTaskLabel, updateTaskList
 } from '../sync/commands'
 import {
   boardLabels, boardLists, cardInput, carryLabels, endPosition, listCards, liveBoards, placeAt, startPosition
@@ -70,6 +70,9 @@ interface TasksContextValue {
   removeFile: (cardId: string, attachmentId: string) => Promise<boolean>
   deleteCard: (cardId: string) => Promise<boolean>
   retryUploads: (cardId: string) => Promise<boolean>
+  createGoal: (input: TaskGoalInput) => Promise<string | null>
+  updateGoal: (goalId: string, change: (input: TaskGoalInput) => TaskGoalInput) => Promise<boolean>
+  deleteGoal: (goalId: string) => Promise<boolean>
 }
 
 const TasksContext = createContext<TasksContextValue | null>(null)
@@ -514,6 +517,43 @@ export function TasksProvider({ children }: { children: React.ReactNode }): Reac
   const retryUploads = useCallback((cardId: string): Promise<boolean> =>
     commit(null, (database) => retryCardUploads(database, cardId), 'This phone could not try those files again'), [commit])
 
+  const createGoal = useCallback(async (input: TaskGoalInput): Promise<string | null> => {
+    const current = dataRef.current
+    if (!current) return null
+    const id = newId()
+    const at = new Date().toISOString()
+    const next: TaskGoalInput = { ...input, title: input.title.trim(), position: endPosition(current.goals ?? []) }
+    if (!isTaskGoalInput(next)) {
+      setError('Give the goal a title')
+      return null
+    }
+    const saved = await commit(
+      (data) => ({ ...data, goals: [...(data.goals ?? []), { id, ...next, ...stamp(at) }] }),
+      async (database, time) => { await createTaskGoal(database, next, time, id) },
+      'This phone could not create that goal')
+    return saved ? id : null
+  }, [commit])
+
+  const updateGoal = useCallback(async (goalId: string, change: (input: TaskGoalInput) => TaskGoalInput): Promise<boolean> => {
+    const goal = dataRef.current?.goals?.find((item) => item.id === goalId)
+    if (!goal) return false
+    const next = change(taskGoalInput(goal))
+    if (!isTaskGoalInput(next)) {
+      setError('That goal could not be saved')
+      return false
+    }
+    const at = new Date().toISOString()
+    return commit(
+      (data) => ({ ...data, goals: replaceById(data.goals ?? [], goalId, (item) => ({ ...item, ...next, updatedAt: at })) }),
+      async (database, time) => { await updateTaskGoal(database, goalId, await revisionOf(database, 'task_goals', goalId), next, time) },
+      'This phone could not save that goal')
+  }, [commit])
+
+  const deleteGoal = useCallback((goalId: string): Promise<boolean> => commit(
+    (data) => ({ ...data, goals: (data.goals ?? []).filter((goal) => goal.id !== goalId) }),
+    async (database, time) => { await deleteTaskGoal(database, goalId, await revisionOf(database, 'task_goals', goalId), time) },
+    'This phone could not delete that goal'), [commit])
+
   const dismissError = useCallback(() => setError(null), [])
 
   const value = useMemo<TasksContextValue>(() => ({
@@ -521,10 +561,11 @@ export function TasksProvider({ children }: { children: React.ReactNode }): Reac
     createBoard, updateBoard, moveBoard, deleteBoard,
     createList, updateList, moveList, deleteList, archiveListCards,
     saveLabel, deleteLabel,
-    createCard, updateCard, moveCard, copyCard, addFiles, removeFile, deleteCard, retryUploads
+    createCard, updateCard, moveCard, copyCard, addFiles, removeFile, deleteCard, retryUploads,
+    createGoal, updateGoal, deleteGoal
   }), [addFiles, archiveListCards, copyCard, createBoard, createCard, createList, data, deleteBoard, deleteCard, deleteLabel,
     deleteList, dismissError, enabled, error, localFiles, moveBoard, moveCard, moveList, now, removeFile, retryUploads, saveLabel,
-    updateBoard, updateCard, updateList])
+    updateBoard, updateCard, updateList, createGoal, updateGoal, deleteGoal])
 
   return <TasksContext.Provider value={value}>{children}</TasksContext.Provider>
 }

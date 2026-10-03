@@ -76,9 +76,9 @@ interface SyncStateRow {
  * bootstrapped then has no budgets and no receipt items. Version 2 downloads every money record.
  * Version 3 adds the gym log. Version 4 adds the diary: a build without it pulled diary changes
  * it could not store and moved past them, so it has to download everything again. Version 5 does
- * the same for Tasks, and version 6 for Sheets.
+ * the same for Tasks, version 6 for Sheets, and version 7 for Goals.
  */
-export const BOOTSTRAP_VERSION = 6
+export const BOOTSTRAP_VERSION = 7
 
 async function syncStateRow(db: LocalDatabase): Promise<SyncStateRow> {
   const rows = await db.all<SyncStateRow>(
@@ -131,6 +131,7 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
   const taskLists = data.taskLists ?? []
   const taskLabels = data.taskLabels ?? []
   const taskCards = data.taskCards ?? []
+  const taskGoals = data.taskGoals ?? []
   const sheets = data.sheets ?? []
   const sheetRows = data.sheetRows ?? []
   const live: Record<SyncEntity, Set<string>> = {
@@ -152,6 +153,7 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
     taskList: new Set(taskLists.map((record) => record.id)),
     taskLabel: new Set(taskLabels.map((record) => record.id)),
     taskCard: new Set(taskCards.map((record) => record.id)),
+    taskGoal: new Set(taskGoals.map((record) => record.id)),
     sheet: new Set(sheets.map((record) => record.id)),
     sheetRow: new Set(sheetRows.map((record) => record.id))
   }
@@ -175,6 +177,7 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
     for (const record of taskLists) if (!skip('taskList', record.id)) await writeRecord(cached, { entity: 'taskList', record })
     for (const record of taskLabels) if (!skip('taskLabel', record.id)) await writeRecord(cached, { entity: 'taskLabel', record })
     for (const record of taskCards) if (!skip('taskCard', record.id)) await writeRecord(cached, { entity: 'taskCard', record })
+    for (const record of taskGoals) if (!skip('taskGoal', record.id)) await writeRecord(cached, { entity: 'taskGoal', record })
     for (const record of sheets) if (!skip('sheet', record.id)) await writeRecord(cached, { entity: 'sheet', record })
     for (const record of sheetRows) if (!skip('sheetRow', record.id)) await writeRecord(cached, { entity: 'sheetRow', record })
     for (const entity of Object.keys(TABLES) as SyncEntity[]) {
