@@ -13,6 +13,7 @@ import {
   updatePurchase, updateTransaction
 } from '@ego/local/sync/commands'
 import type { LocalDatabase } from '@ego/local/database/types'
+import { useBlur } from './blur'
 import { useLedger, type LocalWrite } from './ledger'
 
 interface MoneyContextValue {
@@ -87,11 +88,16 @@ function budgetProblem(snapshot: MoneySnapshot, input: BudgetInput): string | nu
   return null
 }
 
-/** The phone only shows the banner. A computer may be looking at another window, so it also gets a notification. */
-function notifyBreaches(breaches: BudgetBreach[]): void {
+/**
+ * The phone only shows the banner. A computer may be looking at another window, so it also gets a
+ * notification, which leaves the amounts out while Blur is on: Windows shows it over a screen share.
+ */
+function notifyBreaches(breaches: BudgetBreach[], blurred: boolean): void {
   window.api.notify({
     title: 'Over budget',
-    body: breaches.map((breach) => budgetBreachMessage(breach, 'short')).join('\n'),
+    body: breaches.map((breach) => blurred
+      ? `${breach.category.name} is over budget`
+      : budgetBreachMessage(breach, 'short')).join('\n'),
     route: `/money/budget?month=${breaches[0].month}`
   })
 }
@@ -102,6 +108,7 @@ function notifyBreaches(breaches: BudgetBreach[]): void {
  */
 export function MoneyProvider({ children }: { children: React.ReactNode }): React.ReactElement {
   const ledger = useLedger()
+  const { blurred } = useBlur()
   const { pathname } = useLocation()
   const moneyActive = pathname === '/money' || pathname.startsWith('/money/')
   const [snapshot, setSnapshot] = useState<MoneySnapshot | null>(null)
@@ -187,13 +194,13 @@ export function MoneyProvider({ children }: { children: React.ReactNode }): Reac
           previous.month === breach.month && previous.category.categoryId === breach.category.categoryId))
         if (breaches.length > 0) {
           setAlert(breaches.map((breach) => budgetBreachMessage(breach)).join('\n'))
-          notifyBreaches(breaches)
+          notifyBreaches(breaches, blurred)
         }
       }
     }
     setError(saved ? null : rejected ?? 'This computer could not save that change')
     return saved
-  }, [db, write])
+  }, [blurred, db, write])
 
   const value = useMemo((): MoneyContextValue => {
     const invalid = (message: string): (() => string) => () => message

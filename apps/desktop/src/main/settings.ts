@@ -29,6 +29,11 @@ interface AppSettings {
   account: SignedInAccount | null
   /** What the renderer would keep in SecureStore on the phone: small JSON values under `ego.*` keys. */
   preferences: Record<string, string>
+  /** Left behind by the direct D1 client, which is gone. Deleted at startup. */
+  moneyAccountId?: string
+  moneyDatabaseId?: string
+  moneyApiTokenEncrypted?: string
+  moneyCacheEncrypted?: string
 }
 
 /**
@@ -65,6 +70,9 @@ const store = new Store<AppSettings>({
     preferences: {}
   }
 })
+
+const RETIRED_KEYS = ['moneyAccountId', 'moneyDatabaseId', 'moneyApiTokenEncrypted', 'moneyCacheEncrypted'] as const
+for (const key of RETIRED_KEYS) if (store.has(key)) store.delete(key)
 
 /** A build can carry the Worker address, so a fresh install needs only the sign-in button. */
 const BUILD_API_URL = (import.meta.env.MAIN_VITE_EGO_API_URL ?? '').trim().replace(/\/+$/, '')

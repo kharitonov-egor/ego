@@ -27,7 +27,7 @@ export function SignInPrompt(): React.ReactElement {
   return <CenteredMessage
     Icon={CircleDollarSign}
     title="Sign in to see your money"
-    detail="Sign in once with Google on the start screen. The ledger downloads to this computer and keeps working offline."
+    detail="Sign in once with Google on Home. The ledger downloads to this computer and keeps working offline."
     action="Go to sign in"
     onAction={() => navigate('/')}
   />

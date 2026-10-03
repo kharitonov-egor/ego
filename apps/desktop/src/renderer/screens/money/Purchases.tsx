@@ -48,11 +48,16 @@ export default function Purchases(): React.ReactElement {
   const [editing, setEditing] = useState(false)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const busyLoading = useRef(false)
+  /** A change that lands while a page loads asks for a fresh first page afterwards, rather than going unseen. */
+  const reloadQueued = useRef(false)
   const listRef = useRef<HTMLDivElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
 
   const loadPage = useCallback(async (offset: number): Promise<void> => {
-    if (busyLoading.current) return
+    if (busyLoading.current) {
+      if (offset === 0) reloadQueued.current = true
+      return
+    }
     busyLoading.current = true
     if (offset === 0) setLoading(true)
     else setLoadingMore(true)
@@ -64,6 +69,10 @@ export default function Purchases(): React.ReactElement {
       busyLoading.current = false
       if (offset === 0) setLoading(false)
       else setLoadingMore(false)
+      if (reloadQueued.current) {
+        reloadQueued.current = false
+        void loadPage(0)
+      }
     }
   }, [ledger.purchasePage])
 

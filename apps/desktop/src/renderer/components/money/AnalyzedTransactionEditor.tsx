@@ -35,6 +35,7 @@ export default function AnalyzedTransactionEditor({
   const [amount, setAmount] = useState(dollars(draft.amountCents))
   const [date, setDate] = useState(draft.date ?? isoToday())
   const [notes, setNotes] = useState(draft.notes)
+  const [saveFailed, setSaveFailed] = useState(false)
   const categories = snapshot.categories.filter((item) => item.kind === kind && !item.archivedAt)
   const itemized = Boolean(draft.receipt) && kind === 'expense'
   const changeKind = (value: CategoryKind): void => {
@@ -46,10 +47,20 @@ export default function AnalyzedTransactionEditor({
     setCategoryId(suggested)
   }
 
+  /** The money banner sits under this dialog, so a refused save says why in here. */
+  const failure = saveFailed && <p aria-live="polite" className="mt-3 text-center text-[14px] leading-5 text-amber-300">
+    {money.error ?? 'Not saved yet. Your entry is kept here, so you can try again.'}
+  </p>
+
   if (itemized && draft.receipt) {
     return <div>
       <SegmentedControl options={KIND_OPTIONS} value={kind} onValueChange={changeKind} className="mb-5" />
-      <PurchaseEditor snapshot={snapshot} draft={draft.receipt} busy={money.busy} initialAccountId={initialAccountId} initialCategoryId={draft.categoryId} onSave={async (input) => { if (await money.createPurchase(input)) onSaved('purchases') }} />
+      <PurchaseEditor snapshot={snapshot} draft={draft.receipt} busy={money.busy} initialAccountId={initialAccountId} initialCategoryId={draft.categoryId} onSave={async (input) => {
+        setSaveFailed(false)
+        if (await money.createPurchase(input)) onSaved('purchases')
+        else setSaveFailed(true)
+      }} />
+      {failure}
     </div>
   }
 
@@ -60,7 +71,9 @@ export default function AnalyzedTransactionEditor({
       kind, accountId, destinationAccountId: null, categoryId,
       amountCents, date, notes: notesFor(counterparty, notes)
     }
+    setSaveFailed(false)
     if (await money.createTransaction(input)) onSaved('transactions')
+    else setSaveFailed(true)
   }
   return <form onSubmit={(event) => {
     event.preventDefault()
@@ -80,5 +93,6 @@ export default function AnalyzedTransactionEditor({
     <Label text="Notes" htmlFor="analyzed-notes"><textarea id="analyzed-notes" value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={360} placeholder="Visible details from the image" className={`${inputClass} min-h-20 resize-none`} /></Label>
     {draft.receipt && <p className="mb-2 text-[14px] leading-5 text-attention">Changing this itemized expense to income will save one transaction without its item list.</p>}
     <PrimaryButton type="submit" label={`Save ${kind}`} disabled={money.busy || !valid} />
+    {failure}
   </form>
 }

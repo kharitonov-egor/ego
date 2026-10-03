@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router'
 import {
-  ArrowRight, Calculator, Check, ChevronRight, ListFilter, Plus, ScanLine, Search, Sparkles, Trash2, X
+  ArrowRight, Calculator, Check, ChevronRight, ListFilter, Plus, ScanLine, Search, Trash2, X
 } from 'lucide-react'
 import type { MoneySnapshot } from '@ego/core'
 import type { LocalFeedTransaction } from '@ego/local/repositories/transactions'
@@ -167,7 +167,7 @@ export default function LocalActivity(): React.ReactElement {
   const [reviewing, setReviewing] = useState(false)
   const [filtering, setFiltering] = useState(false)
   const [adding, setAdding] = useState(false)
-  const listRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const anchorRow = useRef<string | null>(null)
   const offset = useRef(session?.offset ?? 0)
@@ -273,11 +273,19 @@ export default function LocalActivity(): React.ReactElement {
     if (listRef.current) listRef.current.scrollTop = 0
   }, [identity, restored])
 
+  /**
+   * Coming back from a transaction puts the list where it was: once when it mounts with the saved
+   * rows, and once more when the first fresh page lands, after which the saved place is spent.
+   */
+  const attachList = useCallback((element: HTMLDivElement | null): void => {
+    listRef.current = element
+    if (element && pendingScroll.current > 0) element.scrollTop = pendingScroll.current
+  }, [])
   useLayoutEffect(() => {
-    if (pendingScroll.current <= 0 || rows.length === 0 || !listRef.current) return
-    listRef.current.scrollTop = pendingScroll.current
+    if (!restored || loading || pendingScroll.current <= 0) return
+    if (listRef.current) listRef.current.scrollTop = pendingScroll.current
     pendingScroll.current = 0
-  }, [rows.length])
+  }, [loading, restored])
 
   const loadOlder = useCallback(async (): Promise<void> => {
     const last = rows[rows.length - 1]
@@ -402,7 +410,7 @@ export default function LocalActivity(): React.ReactElement {
   const activeFilters = filterCount(view)
 
   if (ledger.error) {
-    return <CenteredMessage title="This device cannot open its ledger" detail={ledger.error} action="Open settings" onAction={() => navigate('/settings')} />
+    return <CenteredMessage title="This computer cannot open its ledger" detail={ledger.error} action="Open settings" onAction={() => navigate('/settings')} />
   }
 
   if (!restored || (!ledger.ready && rows.length === 0)) {
@@ -511,7 +519,7 @@ export default function LocalActivity(): React.ReactElement {
       </div>
 
       <div
-        ref={listRef}
+        ref={attachList}
         onScroll={(event) => {
           offset.current = event.currentTarget.scrollTop
           if (session) session.offset = offset.current
@@ -600,12 +608,12 @@ export default function LocalActivity(): React.ReactElement {
         }}
       />
       <AddOption
-        Icon={Sparkles}
-        title="AI"
-        detail="Turn a receipt photo or a message into transactions."
+        Icon={ScanLine}
+        title="Receipt"
+        detail="Read a receipt photo into a transaction or an itemized purchase."
         onClick={() => {
           setAdding(false)
-          navigate('/ai')
+          receipts.open()
         }}
       />
     </Sheet>

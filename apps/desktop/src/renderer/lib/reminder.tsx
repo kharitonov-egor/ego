@@ -24,10 +24,10 @@ export function ReminderProvider({ children }: { children: React.ReactNode }): R
   const ledger = useLedger()
   const [preference, setPreference] = useState<ReminderPreference>(DEFAULT_REMINDER)
   const [restored, setRestored] = useState(false)
-  const [today, setToday] = useState(isoToday)
-  const [recordedToday, setRecordedToday] = useState(false)
-  /** Bumps after each evening, so the next one gets planned. */
-  const [rung, setRung] = useState(0)
+  /** Which day was checked, so an answer about yesterday never stands in for today. */
+  const [recorded, setRecorded] = useState<{ day: string; found: boolean } | null>(null)
+  /** Bumps when the window comes back and after each evening, so the day is checked and planned again. */
+  const [refresh, setRefresh] = useState(0)
   const { db, ready } = ledger
 
   useEffect(() => {
@@ -46,7 +46,7 @@ export function ReminderProvider({ children }: { children: React.ReactNode }): R
 
   useEffect(() => {
     const onReturn = (): void => {
-      if (document.visibilityState === 'visible') setToday(isoToday())
+      if (document.visibilityState === 'visible') setRefresh((count) => count + 1)
     }
     window.addEventListener('focus', onReturn)
     document.addEventListener('visibilitychange', onReturn)
@@ -58,18 +58,20 @@ export function ReminderProvider({ children }: { children: React.ReactNode }): R
 
   useEffect(() => {
     if (!db || !ready) {
-      setRecordedToday(false)
+      setRecorded(null)
       return
     }
     let active = true
-    void hasTransactionOnDate(db, today)
-      .then((found) => { if (active) setRecordedToday(found) })
+    const day = isoToday()
+    void hasTransactionOnDate(db, day)
+      .then((found) => { if (active) setRecorded({ day, found }) })
       .catch(() => undefined)
     return () => { active = false }
-  }, [db, ready, ledger.version, today])
+  }, [db, ready, ledger.version, refresh])
 
   useEffect(() => {
     if (!restored) return
+    const recordedToday = recorded !== null && recorded.found && recorded.day === isoToday()
     const target = nextReminder(new Date(), preference, recordedToday)
     if (!target) return
     let active = true
@@ -93,8 +95,7 @@ export function ReminderProvider({ children }: { children: React.ReactNode }): R
       }
       void ring(now).finally(() => {
         if (!active) return
-        setToday(isoToday())
-        setRung((count) => count + 1)
+        setRefresh((count) => count + 1)
       })
     }
     check()
@@ -102,7 +103,7 @@ export function ReminderProvider({ children }: { children: React.ReactNode }): R
       active = false
       clearTimeout(timer)
     }
-  }, [db, preference, ready, recordedToday, restored, rung, today])
+  }, [db, preference, ready, recorded, restored, refresh])
 
   const setEnabled = useCallback((enabled: boolean): void => setPreference((current) => ({ ...current, enabled })), [])
   const setHour = useCallback((hour: number): void => setPreference((current) => ({ ...current, hour })), [])

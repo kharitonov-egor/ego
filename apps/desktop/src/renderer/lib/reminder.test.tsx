@@ -4,10 +4,12 @@ import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ReminderProvider } from './reminder'
 
-const mocks = vi.hoisted(() => ({ db: {}, recorded: { value: false } }))
+const mocks = vi.hoisted(() => ({ db: {}, days: new Set<string>(), version: { value: 0 } }))
 
-vi.mock('./ledger', () => ({ useLedger: () => ({ db: mocks.db, ready: true, version: 0 }) }))
-vi.mock('@ego/local/repositories/transactions', () => ({ hasTransactionOnDate: async () => mocks.recorded.value }))
+vi.mock('./ledger', () => ({ useLedger: () => ({ db: mocks.db, ready: true, version: mocks.version.value }) }))
+vi.mock('@ego/local/repositories/transactions', () => ({
+  hasTransactionOnDate: async (_db: unknown, day: string) => mocks.days.has(day)
+}))
 
 const notify = vi.fn()
 
@@ -19,7 +21,8 @@ describe('ReminderProvider', () => {
   beforeEach(() => {
     vi.useFakeTimers({ now: new Date(2026, 9, 2, 20, 50) })
     notify.mockClear()
-    mocks.recorded.value = false
+    mocks.days.clear()
+    mocks.version.value = 0
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
@@ -47,10 +50,24 @@ describe('ReminderProvider', () => {
   })
 
   it('stays quiet once something is logged that day', async () => {
-    mocks.recorded.value = true
+    mocks.days.add('2026-10-02')
     render(<ReminderProvider><div /></ReminderProvider>)
     await settle()
     await settle(2 * 60 * 60 * 1000)
     expect(notify).not.toHaveBeenCalled()
+  })
+
+  it('still rings tonight when yesterday\'s entry syncs in overnight', async () => {
+    vi.setSystemTime(new Date(2026, 9, 1, 23, 0))
+    const view = render(<ReminderProvider><div /></ReminderProvider>)
+    await settle()
+    await settle(9 * 60 * 60 * 1000)
+    mocks.days.add('2026-10-01')
+    mocks.version.value += 1
+    view.rerender(<ReminderProvider><div /></ReminderProvider>)
+    await settle()
+    expect(notify).not.toHaveBeenCalled()
+    await settle(13 * 60 * 60 * 1000 + 60 * 1000)
+    expect(notify).toHaveBeenCalledTimes(1)
   })
 })
