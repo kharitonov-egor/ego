@@ -46,6 +46,7 @@ import { setupLocalIpc } from './local/ipc'
 import { ledgerApi, ledgerDatabase, onLedgerEvent, onMediaProgress, startLedger, stopLedger } from './local/ledger'
 import { handleMediaRequests, registerMediaScheme } from './local/media'
 import { finishGoogleSignIn, registerSignInLinks, signInLinkIn } from './local/signIn'
+import { healthRouteIn } from './healthLink'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -57,7 +58,8 @@ function requestLiveSessionStop(): void {
   }
 }
 
-function createWindow(): void {
+/** `route` is the page to open on, for a link that started Ego. */
+function createWindow(route?: string): void {
   mainWindow = new BrowserWindow({
     width: 1180,
     height: 800,
@@ -97,9 +99,9 @@ function createWindow(): void {
   mainWindow.webContents.on('render-process-gone', abandonTransactions)
 
   if (process.env.ELECTRON_RENDERER_URL) {
-    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
+    mainWindow.loadURL(route ? `${process.env.ELECTRON_RENDERER_URL}#${route}` : process.env.ELECTRON_RENDERER_URL)
   } else {
-    mainWindow.loadFile(PACKAGED_RENDERER_ENTRY)
+    mainWindow.loadFile(PACKAGED_RENDERER_ENTRY, route ? { hash: route } : undefined)
   }
 
   // The window holds the whole IPC bridge, so it never leaves Ego's own pages. Web links open in the browser.
@@ -386,8 +388,10 @@ if (!gotSingleInstanceLock) {
 
   app.on('second-instance', (_event, argv) => {
     const link = signInLinkIn(argv)
+    const healthRoute = healthRouteIn(argv)
     if (link) void handleSignInLink(link)
     else showMainWindow()
+    if (healthRoute) mainWindow?.webContents.send('navigate', healthRoute)
   })
 
   app.whenReady().then(() => {
@@ -396,7 +400,9 @@ if (!gotSingleInstanceLock) {
     setupQuickAddIpc()
     setupToolPaletteIpc()
     createTray()
-    createWindow()
+    const healthRoute = healthRouteIn(process.argv)
+    createWindow(healthRoute ?? undefined)
+    if (healthRoute) showMainWindow()
     registerQuickAddHotkey()
     registerToolPaletteHotkey()
     startT3Watcher()

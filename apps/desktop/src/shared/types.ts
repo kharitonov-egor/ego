@@ -11,13 +11,15 @@ import type {
   LivePreferences
 } from '@ego/core'
 import type {
+  ApiResult,
   ConnectorStatus,
   LiveToolExecuteRequest,
   LiveToolExecuteResult
 } from '@ego/api-contracts'
 import type { SqlParam, SqlResult } from '@ego/local/database/types'
 import type {
-  LedgerEvent, LedgerState, MediaFileInput, MediaOpenInput, MediaPathInput, MediaProgress, NotifyInput, RemoteApi, RemoteApiMethod, SignInOutcome, StagedMedia
+  AssistantStreamKind, AssistantStreamMessage, AssistantStreamRequests, LedgerEvent, LedgerState, MediaFileInput,
+  MediaOpenInput, MediaPathInput, MediaProgress, NotifyInput, RemoteApi, RemoteApiMethod, SignInOutcome, StagedMedia
 } from './local'
 
 export type { LivePreferences } from '@ego/core'
@@ -119,6 +121,9 @@ export interface IpcApi {
   ledgerSync: () => Promise<LedgerState>
   onLedgerEvent: (callback: (event: LedgerEvent) => void) => () => void
   apiCall: <K extends RemoteApiMethod>(method: K, ...args: Parameters<RemoteApi[K]>) => ReturnType<RemoteApi[K]>
+  /** A streamed assistant turn or confirmation. Its events arrive on `onAssistantEvent` under `streamId`. */
+  assistantStream: <K extends AssistantStreamKind>(streamId: string, kind: K, request: AssistantStreamRequests[K]) => Promise<ApiResult<{ done: true }>>
+  onAssistantEvent: (callback: (message: AssistantStreamMessage) => void) => () => void
   signInWithGoogle: (apiUrl: string) => Promise<SignInOutcome>
   signInWithToken: (apiUrl: string, token: string) => Promise<SignInOutcome>
   signOut: () => Promise<void>

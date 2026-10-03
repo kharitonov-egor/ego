@@ -1,4 +1,6 @@
-import type { MediaScope } from '@ego/api-contracts'
+import type {
+  AssistantConfirmRequest, AssistantStreamEvent, AssistantTurnRequest, MediaScope
+} from '@ego/api-contracts'
 import type { EgoApi } from '@ego/local/api-client'
 import type { SyncOutcome, Touched } from '@ego/local/sync/coordinator'
 
@@ -117,4 +119,17 @@ export interface NotifyInput {
   body: string
   route?: string
   silent?: boolean
+}
+
+export type AssistantStreamKind = 'turn' | 'confirm'
+
+export interface AssistantStreamRequests {
+  turn: AssistantTurnRequest
+  confirm: AssistantConfirmRequest
+}
+
+/** One line of a streamed assistant reply, tagged with the call it belongs to. */
+export interface AssistantStreamMessage {
+  streamId: string
+  event: AssistantStreamEvent
 }

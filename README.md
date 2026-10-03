@@ -51,6 +51,14 @@ messages, and tool calls live in `assistant_chats`, `assistant_messages`, and
 `assistant_tool_calls`. The tile asks for a fingerprint like Mood and Diary, since a reply can
 quote a mood note.
 
+On the desktop, AI opens the same chat with no fingerprint; Blur hides chat titles, replies, and the
+save card instead. Earlier chats sit in a column on the left, or behind the list icon when the
+window is narrow. Enter sends and Shift+Enter starts a new line. A photo comes from the paperclip, a
+paste, or a drop onto the chat. The save card runs its three seconds the same way, and leaving the
+AI screen saves it. The main process holds the device token, so it runs each streamed turn and
+passes the reply back as it arrives. The waveform button in the header opens Talk to AI, the voice
+call, and its back arrow returns to the chat.
+
 ## Money
 
 Finance has four tabs, along the bottom on the phone and across the header on the desktop:
@@ -168,6 +176,16 @@ the last ten days every 15 minutes from a cron trigger. Opening Health asks the 
 again if the last pull is more than a minute old, then downloads only the rows that changed. The
 phone keeps its own copy in SQLite, so Health opens offline.
 
+The desktop has the same overview, metrics, and gear, with the tiles three across and the
+readiness inputs beside the score. A metric's chart runs the width of the window. Hovering shows
+the value under the mouse, a click or drag picks a day as a tap does on the phone, and the arrow
+keys step through the chart once it has focus. Sleep stages and the five-minute heart rate show
+their values on hover too. On the overview the arrow keys change the day, and a refresh button
+stands in for pulling down. Connect Google Health opens the default browser. Ego syncs when its
+window comes back to the front, and the `ego://health` link Google returns to brings the window
+forward with the phone's messages. The desktop keeps its own SQLite copy and refreshes it on the
+same one-minute rule.
+
 ## Mood
 
 The phone's start screen has a Mood tile. It opens a mood journal with one entry per day: a mood
@@ -218,6 +236,15 @@ videos, GIFs, round videos, songs, files, stickers (the animated one too), repli
 and edit times. Posts Telegram exported one by one as an album become one message with a grid.
 See `docs/ledger-setup.md`.
 
+On the desktop, Diary opens without a fingerprint; Blur hides its text, names, and media instead.
+The bubbles keep to the right of a centered column, and scrolling up loads older messages.
+Right-click a bubble for Reply, Copy text, Edit, Pin, and Delete; hover over it for a reply button.
+Files come from the paperclip, a paste, or a drop anywhere on the chat; there is no camera. Hold the
+microphone to record and let go to send, or click it once and finish with the send button. Escape
+throws a recording away. The viewer steps through photos and videos with the arrow keys and zooms
+with the mouse wheel or a touchpad pinch. Other files open in their Windows app. Ctrl+F searches.
+Animated stickers show their still preview.
+
 ## Study
 
 The phone's start screen has a Study tile for Canvas assignments.
@@ -241,6 +268,13 @@ refresh.
 
 Canvas sends deadlines in UTC. The phone places each one on its own calendar, so a deadline at
 10:59 PM Eastern (02:59 UTC) shows on the evening it is due, not the next morning.
+
+The desktop puts Assignments and Courses in the header, with a refresh button in place of pulling
+down. Click the circle to check a row off, or the rest of the row for the description and Open in
+Canvas, which opens the default browser. In a wide window the course cards sit beside the list,
+and clicking one narrows the list to that course. The desktop keeps its own copy in SQLite and
+refreshes on open, on the button, and when its window comes back to the front once the copy is
+five minutes old. Check marks made offline wait on the computer until the next refresh.
 
 ## Habits
 

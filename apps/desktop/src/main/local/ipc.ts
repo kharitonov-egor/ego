@@ -2,6 +2,7 @@ import { ipcMain, type IpcMainInvokeEvent, type WebContents } from 'electron'
 import type { SqlParam } from '@ego/local/database/types'
 import { isRemoteApiMethod, type MediaFileInput, type MediaOpenInput, type MediaPathInput } from '../../shared/local'
 import { getPreference, setPreference } from '../settings'
+import { streamAssistant } from './assistant'
 import { ledgerApi, ledgerDatabase, ledgerState, syncLedger } from './ledger'
 import { deleteStagedMedia, openMedia, stageMedia, stageMediaFile } from './media'
 import { beginGoogleSignIn, signOut, useDeviceToken } from './signIn'
@@ -96,6 +97,13 @@ export function setupLocalIpc(isMainWindow: (sender: WebContents) => boolean): v
     const api = ledgerApi()
     const call = api[method] as (...values: unknown[]) => Promise<unknown>
     return call(...args)
+  })
+  ipcMain.handle('assistant-stream', (event, streamId: unknown, kind: unknown, request: unknown) => {
+    guard(event)
+    const sender = event.sender
+    return streamAssistant(ledgerApi(), streamId, kind, request, (message) => {
+      if (!sender.isDestroyed()) sender.send('assistant-event', message)
+    })
   })
 
   ipcMain.handle('auth-google', (event, apiUrl: unknown) => {
