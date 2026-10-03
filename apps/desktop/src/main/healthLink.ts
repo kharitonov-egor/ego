@@ -1,23 +1,36 @@
-import { HEALTH_RETURN_URL } from '@ego/api-contracts'
+import { CALENDAR_RETURN_URL, HEALTH_RETURN_URL } from '@ego/api-contracts'
 
 /**
- * Google Health sends the browser back to `ego://health`, and Windows hands that link to a second
- * copy of Ego. This turns it into the Health route, keeping only the `connected` and `error`
- * values the overview reads, as the phone's does.
+ * Google sends the browser back to `ego://health` or `ego://calendar`, and Windows hands that link
+ * to a second copy of Ego. This turns it into the app's route, keeping only the `connected` and
+ * `error` values the screen reads, as the phone's does.
  */
-export function healthRouteIn(argv: readonly string[]): string | null {
-  const link = argv.find((value) => value === HEALTH_RETURN_URL || value.startsWith(`${HEALTH_RETURN_URL}?`))
+function returnRouteIn(argv: readonly string[], returnUrl: string, route: string): string | null {
+  const link = argv.find((value) => value === returnUrl || value.startsWith(`${returnUrl}?`))
   if (!link) return null
   let params: URLSearchParams
   try {
     params = new URL(link).searchParams
   } catch {
-    return '/health'
+    return route
   }
-  const route = new URLSearchParams()
-  if (params.get('connected')) route.set('connected', '1')
+  const next = new URLSearchParams()
+  if (params.get('connected')) next.set('connected', '1')
   const error = params.get('error')
-  if (error && /^[a-z_]{1,32}$/.test(error)) route.set('error', error)
-  const query = route.toString()
-  return query ? `/health?${query}` : '/health'
+  if (error && /^[a-z_]{1,32}$/.test(error)) next.set('error', error)
+  const query = next.toString()
+  return query ? `${route}?${query}` : route
+}
+
+export function healthRouteIn(argv: readonly string[]): string | null {
+  return returnRouteIn(argv, HEALTH_RETURN_URL, '/health')
+}
+
+export function calendarRouteIn(argv: readonly string[]): string | null {
+  return returnRouteIn(argv, CALENDAR_RETURN_URL, '/calendar')
+}
+
+/** The Google return link in a launch, for whichever app it belongs to. */
+export function googleReturnRouteIn(argv: readonly string[]): string | null {
+  return healthRouteIn(argv) ?? calendarRouteIn(argv)
 }

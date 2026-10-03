@@ -4,12 +4,17 @@ import { KeyboardScrollView } from '../components/ui/keyboard'
 import { useRouter, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
-  BookOpen, CircleCheckBig, Dumbbell, GraduationCap, HeartPulse, Settings, Sheet, Smile, Sparkles, SquareKanban,
+  BookOpen, CalendarDays, CircleCheckBig, Dumbbell, GraduationCap, HeartPulse, Settings, Sheet, Smile, Sparkles, SquareKanban,
   UtensilsCrossed, Wallet,
   type LucideIcon
 } from 'lucide-react-native'
+import { eventColorOf } from '@ego/core'
+import { clockLabel, localDayOf } from '@ego/local/calendar/layout'
+import { isoToday, shiftIso } from '@ego/local/dates'
 import appIcon from '../assets/app-icon.png'
 import { SignInPanel } from '../components/SignInPanel'
+import { Blurred } from '../lib/blur'
+import { useNextEvent } from '../lib/calendar/next'
 import { isSignedIn, useSettings } from '../lib/settings'
 
 interface App {
@@ -29,7 +34,8 @@ const APPS: readonly App[] = [
   { label: 'Habits', Icon: CircleCheckBig, href: '/(habits)/home' },
   { label: 'Tasks', Icon: SquareKanban, href: '/tasks' },
   { label: 'Sheets', Icon: Sheet, href: '/sheets' },
-  { label: 'Food', Icon: UtensilsCrossed, href: '/food' }
+  { label: 'Food', Icon: UtensilsCrossed, href: '/food' },
+  { label: 'Calendar', Icon: CalendarDays, href: '/calendar' }
 ]
 
 function AppTile({ app, onPress }: { app: App; onPress: () => void }): React.ReactElement {
@@ -56,6 +62,33 @@ function AppGrid({ onOpen }: { onOpen: (href: Href) => void }): React.ReactEleme
       {row.length === 1 && <View className="flex-1" />}
     </View>)}
   </View>
+}
+
+function dayWord(start: string): string {
+  const day = localDayOf(start)
+  if (day === isoToday()) return 'Today'
+  if (day === shiftIso(isoToday(), 1)) return 'Tomorrow'
+  return new Date(start).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+}
+
+/** The next thing on the calendar, between the heading and the tiles. */
+function NextEvent({ onOpen }: { onOpen: () => void }): React.ReactElement | null {
+  const next = useNextEvent()
+  if (!next) return null
+  const { event, calendar } = next
+  const when = Date.parse(event.start) <= Date.now() ? `Now, until ${clockLabel(event.end)}` : `${dayWord(event.start)}, ${clockLabel(event.start)}`
+  return <Pressable
+    accessibilityRole="button"
+    accessibilityLabel={`Next event, ${when}`}
+    onPress={onOpen}
+    className="mt-4 flex-row items-center gap-3 rounded-2xl border border-surface-800 bg-surface-900 py-2.5 pl-3 pr-4 active:bg-surface-800"
+  >
+    <View className="h-9 w-1.5 rounded-full" style={{ backgroundColor: eventColorOf(event.colorId, calendar.color) }} />
+    <View className="flex-1">
+      <Text className="text-[13px] font-semibold text-surface-400">{when}</Text>
+      <Blurred><Text numberOfLines={1} className="text-[16px] font-semibold text-white">{event.title || '(No title)'}</Text></Blurred>
+    </View>
+  </Pressable>
 }
 
 function Heading({ size }: { size: 'large' | 'small' }): React.ReactElement {
@@ -103,6 +136,7 @@ export default function Launcher(): React.ReactElement {
         className="absolute right-0 top-0 h-11 w-11 items-center justify-center rounded-full active:bg-white/10"
       ><Settings color="#d4d4d4" size={22} /></Pressable>
     </View>
+    <NextEvent onOpen={() => router.push('/calendar')} />
     <AppGrid onOpen={(href) => router.push(href)} />
   </ScrollView>
 }

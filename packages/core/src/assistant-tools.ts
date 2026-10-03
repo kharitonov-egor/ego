@@ -29,6 +29,11 @@ export type AssistantToolName =
   | 'add_fridge_items'
   | 'remove_fridge_items'
   | 'set_food_targets'
+  | 'read_calendar'
+  | 'add_calendar_event'
+  | 'update_calendar_event'
+  | 'delete_calendar_event'
+  | 'answer_calendar_event'
 
 export type AssistantToolAccess = 'read' | 'write'
 
@@ -119,6 +124,12 @@ const foodEntry = object({
 })
 
 const target: ToolSchema = { type: ['number', 'null'], minimum: 0, maximum: 20000 }
+
+const eventKey: ToolSchema = { type: 'string', minLength: 3, maxLength: 600, description: 'An event key from read_calendar' }
+const allEvents: ToolSchema = {
+  type: ['boolean', 'null'],
+  description: 'For a repeating event: true changes every occurrence, null or false only this one'
+}
 
 const gymSet = object({
   exerciseId: id,
@@ -319,6 +330,62 @@ export const ASSISTANT_TOOLS: Record<AssistantToolName, AssistantToolDefinition>
     name: 'remove_fridge_items',
     description: 'Take items off the fridge list, like food that was finished or thrown out. Ids come from read_fridge.',
     parameters: object({ itemIds: { type: 'array', minItems: 1, maxItems: 60, items: id } }),
+    access: 'write'
+  },
+  read_calendar: {
+    name: 'read_calendar',
+    description: "Google Calendar events between two dates from every ticked calendar, with times on the user's clock, the calendar, location, guests, the user's own answer to invitations, and each event's key. query narrows by title, location, or description. Up to 62 days and 200 events.",
+    parameters: object({ ...range, query: { type: ['string', 'null'], maxLength: 120 } }),
+    access: 'read'
+  },
+  add_calendar_event: {
+    name: 'add_calendar_event',
+    description: 'Add an event to Google Calendar. A null startTime makes an all-day event. calendarId comes from the calendar list; null uses the primary calendar. Guests get Google\'s invitation email.',
+    parameters: object({
+      calendarId: { type: ['string', 'null'], maxLength: 400 },
+      title: { type: 'string', minLength: 1, maxLength: 500 },
+      date,
+      startTime: { ...nullableTime, description: '24-hour HH:MM on the user\'s clock, or null for all day' },
+      endTime: { ...nullableTime, description: 'Null means one hour after the start' },
+      endDate: { ...nullableDate, description: 'For an event that ends on a later day, or the last day of a multi-day all-day event' },
+      location: { type: ['string', 'null'], maxLength: 500 },
+      description: { type: ['string', 'null'], maxLength: 4000 },
+      guests: { type: ['array', 'null'], maxItems: 50, items: { type: 'string', minLength: 3, maxLength: 200, description: 'Email address' } },
+      meet: { type: ['boolean', 'null'], description: 'True adds a Google Meet link' },
+      repeat: { type: ['string', 'null'], maxLength: 300, description: 'An RFC 5545 rule like RRULE:FREQ=WEEKLY;BYDAY=MO,WE, or null for a one-off' }
+    }),
+    access: 'write'
+  },
+  update_calendar_event: {
+    name: 'update_calendar_event',
+    description: 'Change a Google Calendar event the user can edit. Null leaves a field as it is. Moving keeps the length unless endTime is given.',
+    parameters: object({
+      eventKey,
+      title: { type: ['string', 'null'], minLength: 1, maxLength: 500 },
+      date: nullableDate,
+      startTime: nullableTime,
+      endTime: nullableTime,
+      location: { type: ['string', 'null'], maxLength: 500 },
+      description: { type: ['string', 'null'], maxLength: 4000 },
+      allEvents
+    }),
+    access: 'write'
+  },
+  delete_calendar_event: {
+    name: 'delete_calendar_event',
+    description: 'Delete a Google Calendar event the user can edit. Guests are told.',
+    parameters: object({ eventKey, allEvents }),
+    access: 'write'
+  },
+  answer_calendar_event: {
+    name: 'answer_calendar_event',
+    description: 'Answer an invitation as the user: accepted, tentative (maybe), or declined, with an optional note to the organizer.',
+    parameters: object({
+      eventKey,
+      answer: { type: 'string', enum: ['accepted', 'tentative', 'declined'] },
+      note: { type: ['string', 'null'], maxLength: 500 },
+      allEvents
+    }),
     access: 'write'
   },
   set_food_targets: {

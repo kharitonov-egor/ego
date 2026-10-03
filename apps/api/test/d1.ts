@@ -49,17 +49,23 @@ export function createTestDatabase(): { db: D1Database; close: () => void } {
     first: async <T>() => (sqlite.prepare(sql).all(...bound) as T[])[0] ?? null
   })
 
-  const batch = async (statements: PreparedLike[]) => {
-    sqlite.exec('BEGIN')
-    try {
-      const results = []
-      for (const statement of statements) results.push(await statement.run())
-      sqlite.exec('COMMIT')
-      return results
-    } catch (error: unknown) {
-      sqlite.exec('ROLLBACK')
-      throw error
-    }
+  // D1 runs one batch at a time, so batches started together wait their turn here too.
+  let turn: Promise<unknown> = Promise.resolve()
+  const batch = (statements: PreparedLike[]) => {
+    const work = turn.then(async () => {
+      sqlite.exec('BEGIN')
+      try {
+        const results = []
+        for (const statement of statements) results.push(await statement.run())
+        sqlite.exec('COMMIT')
+        return results
+      } catch (error: unknown) {
+        sqlite.exec('ROLLBACK')
+        throw error
+      }
+    })
+    turn = work.catch(() => undefined)
+    return work
   }
 
   const database = {

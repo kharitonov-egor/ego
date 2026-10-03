@@ -186,6 +186,59 @@ window comes back to the front, and the `ego://health` link Google returns to br
 forward with the phone's messages. The desktop keeps its own SQLite copy and refreshes it on the
 same one-minute rule.
 
+## Calendar
+
+The Calendar tile is Google Calendar: every calendar in every connected Google account, drawn in
+the colors Google Calendar uses. Changes go straight back to Google, so the Google app and
+calendar.google.com see them within seconds.
+
+- Five views: day, 3 days, week, month, and schedule. Weeks start on Monday. The hour views put
+  all-day and multi-day events in a bar on top, lay overlapping events side by side the way Google
+  does, and draw a red line at the current time.
+- Tapping an event opens it: the time, how it repeats, the calendar, a Join button for Meet or
+  Zoom, the location (it opens Maps), guests and their answers, the description with working
+  links, attachments, and reminders. An invitation gets Yes, Maybe, and No, with an optional note
+  to the organizer.
+- The editor covers what Google's does: title, all day, start and end, repeat (the usual choices
+  or a custom rule), calendar, color, location, a Meet link, guests and what they may do,
+  notifications, busy or free, visibility, and the description. A change to a repeating event
+  asks for this event, this and following events, or all events, as Google does. Guests always
+  get Google's update emails.
+- On the phone, hold an event to pick it up and drag it to another time or day, hold its bottom
+  edge to stretch it, tap an empty slot to add one, and swipe sideways for the next page. The
+  month view opens a day when tapped.
+- After a move or a delete, Undo stays up for six seconds.
+- The list icon shows each account's calendars. A tick there is the same tick as in Google
+  Calendar's sidebar, and a calendar's color changes in Google too. More Google accounts can be
+  added; each needs its own consent. A switch, off at first, also draws Tasks due dates, Canvas due
+  dates, and logged workouts in grey. They open their own app when tapped.
+- The start screen shows the next event above the tiles.
+
+Without a connection the calendar stays readable from the device's copy, but nothing can be moved
+or edited until the connection is back. Events on read-only calendars (Birthdays, imported
+calendars, other people's shared calendars) open but cannot move. On an invitation, only an
+organizer who allows guests to modify the event lets Ego change it; the RSVP always works.
+
+The Worker holds each account's refresh token, encrypted, and keeps the calendar list and the
+events from three months back to a year ahead in D1. It uses Google's sync tokens, so a refresh
+reads only what changed, and the 15-minute cron keeps D1 current. Calendar asks the Worker to sync
+when it opens, when the window comes back to the front, and every minute while it is open, then
+downloads only the rows that changed. Weeks outside the stored window are read live from Google.
+Every write sends the event's etag, so a change made in Google first is never overwritten; Ego
+reloads the event and says so.
+
+The desktop draws the same views with Google's left column: a month to jump around, each account's
+calendars with their ticks and colors, and the switch for Tasks, Study, and Gym. Drag an event to
+move it, drag its bottom edge to stretch it, and drag across empty time to create one. In the
+month view an event drags to another day. A click opens the event in a panel on the right. Google
+Calendar's shortcuts work: C creates, T goes to today, J and K or the arrow keys change pages, D,
+X, W, M, and A switch to day, 3 days, week, month, and schedule, E edits, Delete deletes, Escape
+closes the panel, and Ctrl+Z undoes the last move or delete. Blur hides titles, locations,
+descriptions, and guests.
+
+The AI chat reads the calendar and changes it: "what's on Thursday", "move my 3pm to 4", "add
+dentist Friday at 10", "decline the review". Writes wait on the usual three-second card.
+
 ## Mood
 
 The phone's start screen has a Mood tile. It opens a mood journal with one entry per day: a mood

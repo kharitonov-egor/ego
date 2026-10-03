@@ -28,6 +28,7 @@ import { completeHealthConnect, disconnectHealth, readHealth, startHealthConnect
 import { mediaRoute } from './diary'
 import { foodRoute } from './food'
 import { readAppBuilds, receiveBuildWebhook } from './app-builds'
+import { calendarRoute, completeCalendarConnect } from './calendar'
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -100,7 +101,7 @@ export async function handle(request: Request, env: Env, work?: Pick<ExecutionCo
   if (request.method === 'POST' && path === '/v1/auth/exchange') return exchangeSignIn(request, env)
   if (request.method === 'GET' && path === '/v1/connectors/google/callback') {
     return await completeSignIn(request, env) ?? await completeHealthConnect(request, env) ??
-      completeGoogleConnector(request, env)
+      await completeCalendarConnect(request, env) ?? completeGoogleConnector(request, env)
   }
   if (request.method === 'GET' && path === '/v1/connectors/wispr/callback') {
     return completeWisprConnector(request, env)
@@ -141,6 +142,8 @@ export async function handle(request: Request, env: Env, work?: Pick<ExecutionCo
     await disconnectHealth(env, device.data.datasetId)
     return ok({ disconnected: true })
   }
+  const calendar = calendarRoute(request, env, device.data, path)
+  if (calendar) return calendar
   const media = mediaRoute(request, env, path, now)
   if (media) return media
   const food = foodRoute(request, env, path)

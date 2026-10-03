@@ -46,7 +46,7 @@ import { setupLocalIpc } from './local/ipc'
 import { ledgerApi, ledgerDatabase, onLedgerEvent, onMediaProgress, startLedger, stopLedger } from './local/ledger'
 import { handleMediaRequests, registerMediaScheme } from './local/media'
 import { finishGoogleSignIn, registerSignInLinks, signInLinkIn } from './local/signIn'
-import { healthRouteIn } from './healthLink'
+import { googleReturnRouteIn } from './healthLink'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -388,10 +388,10 @@ if (!gotSingleInstanceLock) {
 
   app.on('second-instance', (_event, argv) => {
     const link = signInLinkIn(argv)
-    const healthRoute = healthRouteIn(argv)
+    const returnRoute = googleReturnRouteIn(argv)
     if (link) void handleSignInLink(link)
     else showMainWindow()
-    if (healthRoute) mainWindow?.webContents.send('navigate', healthRoute)
+    if (returnRoute) mainWindow?.webContents.send('navigate', returnRoute)
   })
 
   app.whenReady().then(() => {
@@ -400,9 +400,9 @@ if (!gotSingleInstanceLock) {
     setupQuickAddIpc()
     setupToolPaletteIpc()
     createTray()
-    const healthRoute = healthRouteIn(process.argv)
-    createWindow(healthRoute ?? undefined)
-    if (healthRoute) showMainWindow()
+    const returnRoute = googleReturnRouteIn(process.argv)
+    createWindow(returnRoute ?? undefined)
+    if (returnRoute) showMainWindow()
     registerQuickAddHotkey()
     registerToolPaletteHotkey()
     startT3Watcher()

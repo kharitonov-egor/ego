@@ -35,6 +35,18 @@ All routes except `/v1/health`, the two sign-in routes, and the two OAuth callba
 | `POST /v1/health/sync` | Pulls from Google Health unless a pull just ran, then answers like `/v1/health/data` |
 | `POST /v1/health/connect` | Starts Google OAuth with the read-only Google Health scopes |
 | `DELETE /v1/health/connection` | Revokes the Google Health grant and stops syncing. Synced days stay |
+| `GET /v1/calendar/data` | Calendar accounts, calendars, and events in D1 that changed after `since`, 1000 events a page with a `cursor` |
+| `POST /v1/calendar/sync` | Pulls every connected account from Google unless a pull just ran, then answers like `/v1/calendar/data` |
+| `POST /v1/calendar/connect` | Starts Google OAuth with the full Calendar scope. `another: true` drops the login hint so Google offers its account picker |
+| `POST /v1/calendar/disconnect` | Revokes one account's grant and removes its calendars and events from every device |
+| `POST /v1/calendar/events` | Creates an event in Google, then answers with what changed since `since` |
+| `PATCH /v1/calendar/events` | Changes an event, or one, the following, or all occurrences of a series, and can move it to another calendar |
+| `POST /v1/calendar/events/delete` | Deletes an event or part of a series |
+| `POST /v1/calendar/events/restore` | Brings back a deleted event or series, for Undo |
+| `POST /v1/calendar/rsvp` | Answers an invitation as the account, with an optional note |
+| `PATCH /v1/calendar/lists` | Ticks or unticks a calendar, or changes its color, in Google's calendar list |
+| `GET /v1/calendar/series` | The repeating event an occurrence belongs to, read live, for the editor |
+| `GET /v1/calendar/range` | Events of the ticked calendars for up to 62 days, read live from Google and not stored |
 | `PUT /v1/diary/media/:id` | Stores one diary file up to 95 MB in R2. The same ID again returns the stored file |
 | `POST /v1/diary/media/:id/multipart` | Starts a larger upload, or returns the file if it is already stored |
 | `PUT /v1/diary/media/:id/multipart/:upload/:part` | Stores one part of a larger upload |
@@ -173,6 +185,33 @@ phone never pull at the same time.
 
 Google's testing mode expires refresh tokens after seven days. Keep the OAuth consent screen in
 production. An unverified app is fine for a single user.
+
+## Google Calendar
+
+Calendar connects each Google account separately, on the same OAuth client and redirect URI, with
+the full `https://www.googleapis.com/auth/calendar` scope, then sends the browser to
+`ego://calendar`. The Google Calendar API has to be enabled in the client's Cloud project. Each
+account's refresh token sits encrypted in `calendar_accounts`, keyed by its email.
+
+A sync lists the account's calendars into `calendar_lists`, then reads each calendar's events with
+`singleEvents=true`, so Google expands repeating events into occurrences. The first read covers 92
+days back to 366 ahead and stores Google's sync token; later reads send the token and get only the
+changes. A calendar is read afresh when Google expires its token (410) or its window falls 30 days
+behind. Events land in `calendar_events` as JSON, one row per occurrence, through one `json_each`
+statement per 150 events. A row only gets a new `updated_at` when its JSON changes and Google's own
+`updated` time is not older, so devices download just the difference and a slow sync cannot
+overwrite a newer answer. The cron and the devices share the `sync_started_at` lock per account.
+
+Writes go to Google first, with `sendUpdates=all`, `conferenceDataVersion=1`, and the event's etag
+in `If-Match`. The Worker then pulls that calendar's changes with its sync token and answers with
+everything that changed since the device's last read. "This and following" creates a new series
+from the occurrence, then ends the old one with `UNTIL`, or splits its `COUNT`. "All events" moves
+the series' first occurrence by the same number of days, at the new time and length. A 412 from
+Google comes back as `CONFLICT` after the Worker reloads the event.
+
+The AI chat's `read_calendar`, `add_calendar_event`, `update_calendar_event`,
+`delete_calendar_event`, and `answer_calendar_event` tools call the same functions. Migration
+`0019_calendar.sql` adds the four tables.
 
 ## AI assistant
 

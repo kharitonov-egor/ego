@@ -1,6 +1,8 @@
 import type {
   AccountBalances, ApiError, ApiErrorCode, ApiResult, AppBuildStatus, AssistantChatList, AssistantConfirmRequest,
-  AssistantHistory, AssistantStreamEvent, AssistantTurnRequest, BootstrapData, ChangePage, DiaryMediaInfo,
+  AssistantHistory, AssistantStreamEvent, AssistantTurnRequest, BootstrapData, CalendarConnectStart, CalendarCreateRequest,
+  CalendarDeleteRequest, CalendarEventRef, CalendarListChange, CalendarRange, CalendarRestoreRequest, CalendarRsvpRequest, CalendarSeries,
+  CalendarSnapshot, CalendarUpdateRequest, ChangePage, DiaryMediaInfo,
   DiaryMultipartPart, DiaryMultipartStart, FeedCursor, FoodAnalyzeRequest, FoodAnalyzeResponse, FoodProductResponse,
   MediaScope,
   HealthConnectStart, HealthSnapshot, OperationResponse, ReceiptDetail, ReferenceData,
@@ -39,6 +41,26 @@ export interface HealthApi {
   healthSync: (since: string | null, timeZone: string | null) => Promise<ApiResult<HealthSnapshot>>
   healthConnect: () => Promise<ApiResult<HealthConnectStart>>
   healthDisconnect: () => Promise<ApiResult<{ disconnected: true }>>
+}
+
+/** Google Calendar through the Worker. Every write answers with what changed since `since`. */
+export interface CalendarApi {
+  calendarData: (since: string | null, cursor: string | null) => Promise<ApiResult<CalendarSnapshot>>
+  /** Asks the Worker to pull from Google first. It skips the pull if one just ran. */
+  calendarSync: (since: string | null, cursor: string | null) => Promise<ApiResult<CalendarSnapshot>>
+  /** `another` skips the hint for the signed-in account, so Google offers its account picker. */
+  calendarConnect: (another: boolean) => Promise<ApiResult<CalendarConnectStart>>
+  calendarDisconnect: (accountId: string) => Promise<ApiResult<{ disconnected: true }>>
+  calendarCreate: (request: CalendarCreateRequest) => Promise<ApiResult<CalendarSnapshot>>
+  calendarUpdate: (request: CalendarUpdateRequest) => Promise<ApiResult<CalendarSnapshot>>
+  calendarDelete: (request: CalendarDeleteRequest) => Promise<ApiResult<CalendarSnapshot>>
+  /** Undoes a delete. */
+  calendarRestore: (request: CalendarRestoreRequest) => Promise<ApiResult<CalendarSnapshot>>
+  calendarRsvp: (request: CalendarRsvpRequest) => Promise<ApiResult<CalendarSnapshot>>
+  calendarList: (change: CalendarListChange) => Promise<ApiResult<CalendarSnapshot>>
+  calendarSeries: (ref: CalendarEventRef) => Promise<ApiResult<CalendarSeries>>
+  /** Days outside the window the Worker keeps, read live from Google. */
+  calendarRange: (from: string, to: string) => Promise<ApiResult<CalendarRange>>
 }
 
 /**
@@ -85,7 +107,7 @@ export interface FoodApi {
   foodProduct: (barcode: string) => Promise<ApiResult<FoodProductResponse>>
 }
 
-export interface EgoApi extends MoneyApi, StudyApi, HealthApi, DiaryMediaApi, AssistantApi, FoodApi {
+export interface EgoApi extends MoneyApi, StudyApi, HealthApi, CalendarApi, DiaryMediaApi, AssistantApi, FoodApi {
   session: () => Promise<ApiResult<SessionInfo>>
   signOut: () => Promise<ApiResult<{ signedOut: true }>>
   trelloBoards: () => Promise<ApiResult<TrelloBoardSummary[]>>
@@ -335,6 +357,45 @@ export function moneyApiFor(config: ApiConfig, options: { streamFetch?: StreamFe
     }),
     healthConnect: () => call<HealthConnectStart>('/v1/health/connect', { method: 'POST' }),
     healthDisconnect: () => call<{ disconnected: true }>('/v1/health/connection', { method: 'DELETE' }),
+    calendarData: (since, cursor) => {
+      const params = new URLSearchParams()
+      if (since) params.set('since', since)
+      if (cursor) params.set('cursor', cursor)
+      const query = params.toString()
+      return call<CalendarSnapshot>(`/v1/calendar/data${query ? `?${query}` : ''}`, { timeoutMs: SLOW_REQUEST_TIMEOUT_MS })
+    },
+    calendarSync: (since, cursor) => call<CalendarSnapshot>('/v1/calendar/sync', {
+      method: 'POST',
+      body: JSON.stringify({ since, cursor }),
+      timeoutMs: SLOW_REQUEST_TIMEOUT_MS
+    }),
+    calendarConnect: (another) => call<CalendarConnectStart>('/v1/calendar/connect', { method: 'POST', body: JSON.stringify({ another }) }),
+    calendarDisconnect: (accountId) => call<{ disconnected: true }>('/v1/calendar/disconnect', {
+      method: 'POST',
+      body: JSON.stringify({ accountId })
+    }),
+    calendarCreate: (request) => call<CalendarSnapshot>('/v1/calendar/events', {
+      method: 'POST', body: JSON.stringify(request), timeoutMs: SLOW_REQUEST_TIMEOUT_MS
+    }),
+    calendarUpdate: (request) => call<CalendarSnapshot>('/v1/calendar/events', {
+      method: 'PATCH', body: JSON.stringify(request), timeoutMs: SLOW_REQUEST_TIMEOUT_MS
+    }),
+    calendarDelete: (request) => call<CalendarSnapshot>('/v1/calendar/events/delete', {
+      method: 'POST', body: JSON.stringify(request), timeoutMs: SLOW_REQUEST_TIMEOUT_MS
+    }),
+    calendarRestore: (request) => call<CalendarSnapshot>('/v1/calendar/events/restore', {
+      method: 'POST', body: JSON.stringify(request), timeoutMs: SLOW_REQUEST_TIMEOUT_MS
+    }),
+    calendarRsvp: (request) => call<CalendarSnapshot>('/v1/calendar/rsvp', {
+      method: 'POST', body: JSON.stringify(request), timeoutMs: SLOW_REQUEST_TIMEOUT_MS
+    }),
+    calendarList: (change) => call<CalendarSnapshot>('/v1/calendar/lists', { method: 'PATCH', body: JSON.stringify(change) }),
+    calendarSeries: (ref) => call<CalendarSeries>(`/v1/calendar/series?${new URLSearchParams({
+      account: ref.accountId, calendar: ref.calendarId, event: ref.eventId
+    })}`),
+    calendarRange: (from, to) => call<CalendarRange>(`/v1/calendar/range?${new URLSearchParams({ from, to })}`, {
+      timeoutMs: SLOW_REQUEST_TIMEOUT_MS
+    }),
     appBuilds: () => call<AppBuildStatus>('/v1/app/builds/latest'),
     trelloBoards: () => call<TrelloBoardSummary[]>('/v1/trello/boards'),
     trelloLists: (boardId) => call<TrelloListSummary[]>(`/v1/trello/boards/${encodeURIComponent(boardId)}/lists`),

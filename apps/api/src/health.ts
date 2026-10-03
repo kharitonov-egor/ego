@@ -288,9 +288,9 @@ export async function disconnectHealth(env: Env, datasetId: string): Promise<voi
   await env.DB.prepare('DELETE FROM health_connections WHERE dataset_id = ?').bind(datasetId).run()
 }
 
-type RefreshResult = { ok: true; accessToken: string; refreshToken: string | null } | { ok: false; revoked: boolean }
+export type RefreshResult = { ok: true; accessToken: string; refreshToken: string | null } | { ok: false; revoked: boolean }
 
-async function refreshAccessToken(env: Env, refreshToken: string): Promise<RefreshResult> {
+export async function refreshAccessToken(env: Env, refreshToken: string): Promise<RefreshResult> {
   if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) return { ok: false, revoked: false }
   let response: Response
   try {

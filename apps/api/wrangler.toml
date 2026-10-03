@@ -2,7 +2,7 @@ name = "ego-money"
 main = "src/index.ts"
 compatibility_date = "2026-09-01"
 
-# Pulls Google Health into D1 so the phone finds fresh numbers without waiting on Google.
+# Pulls Google Health and Google Calendar into D1 so devices find fresh data without waiting on Google.
 [triggers]
 # The second one backs D1 up to R2 at 07:00 UTC. It must match BACKUP_CRON in src/backup.ts.
 crons = ["*/15 * * * *", "0 7 * * *"]

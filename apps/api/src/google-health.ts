@@ -162,7 +162,7 @@ export function isValidTimeZone(value: unknown): value is string {
 
 const partFormatters = new Map<string, Intl.DateTimeFormat>()
 
-function localClock(ms: number, timeZone: string): { date: string; minute: number } {
+export function localClock(ms: number, timeZone: string): { date: string; minute: number } {
   let formatter = partFormatters.get(timeZone)
   if (!formatter) {
     formatter = new Intl.DateTimeFormat('en-US', {
