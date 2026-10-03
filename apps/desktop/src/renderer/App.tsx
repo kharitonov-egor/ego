@@ -4,6 +4,7 @@ import TitleBar from './components/TitleBar'
 import TalkToAIView from './components/TalkToAIView'
 import { Sidebar } from './components/Sidebar'
 import { BlurProvider } from './lib/blur'
+import { FoodProvider } from './lib/food/context'
 import { GymProvider } from './lib/gym/context'
 import { RestTimerProvider } from './lib/gym/rest-timer'
 import { LedgerProvider } from './lib/ledger'
@@ -14,6 +15,7 @@ import { TasksProvider } from './lib/tasks/context'
 import { TaskNotificationsProvider } from './lib/tasks/notifications'
 import Assistant from './screens/ai/Assistant'
 import Diary from './screens/diary/Diary'
+import FoodApp from './screens/food'
 import ExerciseEditor from './screens/gym/ExerciseEditor'
 import Exercises from './screens/gym/Exercises'
 import GymCalendar from './screens/gym/GymCalendar'
@@ -58,7 +60,9 @@ function Providers({ children }: { children: React.ReactNode }): React.ReactElem
               <ReminderProvider>
                 <TasksProvider>
                   <TaskNotificationsProvider>
-                    {children}
+                    <FoodProvider>
+                      {children}
+                    </FoodProvider>
                   </TaskNotificationsProvider>
                 </TasksProvider>
               </ReminderProvider>
@@ -104,6 +108,7 @@ export default function App(): React.ReactElement {
             <Route path="/habits/*" element={<Habits />} />
             <Route path="/tasks/*" element={<TasksRoutes />} />
             <Route path="/sheets/*" element={<SheetsApp />} />
+            <Route path="/food/*" element={<FoodApp />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
