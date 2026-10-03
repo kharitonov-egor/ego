@@ -12,6 +12,8 @@ import { PeriodProvider } from './lib/period'
 import { ReminderProvider } from './lib/reminder'
 import { TasksProvider } from './lib/tasks/context'
 import { TaskNotificationsProvider } from './lib/tasks/notifications'
+import Assistant from './screens/ai/Assistant'
+import Diary from './screens/diary/Diary'
 import ExerciseEditor from './screens/gym/ExerciseEditor'
 import Exercises from './screens/gym/Exercises'
 import GymCalendar from './screens/gym/GymCalendar'
@@ -20,16 +22,22 @@ import PlanEditor from './screens/gym/PlanEditor'
 import Plans from './screens/gym/Plans'
 import Track from './screens/gym/Track'
 import Habits from './screens/habits/Habits'
+import Health from './screens/health/Health'
+import HealthHome from './screens/health/HealthHome'
+import HealthMetricScreen from './screens/health/HealthMetric'
 import Home from './screens/Home'
 import Settings from './screens/Settings'
 import { moneyRoutes } from './screens/money/Finance'
 import MoodScreen from './screens/mood/MoodScreen'
 import SheetsApp from './screens/sheets'
+import Assignments from './screens/study/Assignments'
+import Courses from './screens/study/Courses'
+import Study from './screens/study/Study'
 import TasksRoutes from './screens/tasks'
 
 function TalkToAI(): React.ReactElement {
   const navigate = useNavigate()
-  return <TalkToAIView onOpenSettings={() => navigate('/settings')} />
+  return <TalkToAIView onOpenSettings={() => navigate('/settings')} onBack={() => navigate('/ai')} />
 }
 
 /** Follows a notification click to the page it is about. */
@@ -72,7 +80,8 @@ export default function App(): React.ReactElement {
         <main className="min-w-0 flex-1 overflow-hidden">
           <Routes>
             <Route path="/" element={<Home />} />
-            <Route path="/ai" element={<TalkToAI />} />
+            <Route path="/ai" element={<Assistant />} />
+            <Route path="/ai/voice" element={<TalkToAI />} />
             {moneyRoutes}
             <Route path="/gym" element={<GymLog />} />
             <Route path="/gym/track" element={<Track />} />
@@ -81,7 +90,17 @@ export default function App(): React.ReactElement {
             <Route path="/gym/exercise-editor" element={<ExerciseEditor />} />
             <Route path="/gym/plans" element={<Plans />} />
             <Route path="/gym/plan-editor" element={<PlanEditor />} />
+            <Route path="/health" element={<Health />}>
+              <Route index element={<HealthHome />} />
+              <Route path=":metric" element={<HealthMetricScreen />} />
+            </Route>
             <Route path="/mood" element={<MoodScreen />} />
+            <Route path="/diary" element={<Diary />} />
+            <Route path="/study" element={<Study />}>
+              <Route index element={<Navigate to="/study/assignments" replace />} />
+              <Route path="assignments" element={<Assignments />} />
+              <Route path="courses" element={<Courses />} />
+            </Route>
             <Route path="/habits/*" element={<Habits />} />
             <Route path="/tasks/*" element={<TasksRoutes />} />
             <Route path="/sheets/*" element={<SheetsApp />} />

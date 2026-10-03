@@ -3,7 +3,7 @@ import type { ApiResult, HealthConnection, HealthDay, HealthSleep, HealthSnapsho
 import type { HealthApi } from '../src/api-client'
 import { cachedHealth, refreshHealth, saveHealthSnapshot } from '../src/health/store'
 import {
-  buildHealthIndex, latestValue, mainSleep, metricSeries, metricValue, periodFor, seriesStats, shiftPeriod,
+  METRIC_SPECS, buildHealthIndex, latestValue, mainSleep, metricSeries, metricValue, periodFor, seriesStats, shiftPeriod,
   ticksFor, weekZoneMinutes
 } from '../src/health/metrics'
 import { openTestLedger } from './local-db'
@@ -171,5 +171,11 @@ describe('health metrics', () => {
     expect(ticksFor([8200, 9400], true, 10000)).toEqual([0, 5000, 10000])
     expect(ticksFor([56, 61], false)).toEqual([56, 58, 60, 62])
     expect(ticksFor([380, 420], true, 450, 60)).toEqual([0, 180, 360, 540])
+  })
+
+  it('labels a narrow weight range without repeating a number', () => {
+    const labels = ticksFor([79.3, 79.9], false).map(METRIC_SPECS.weight.tick)
+    expect(new Set(labels).size).toBe(labels.length)
+    expect(METRIC_SPECS.weight.tick(80)).toBe('80')
   })
 })

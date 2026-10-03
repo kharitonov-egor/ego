@@ -58,8 +58,14 @@ input::placeholder, textarea::placeholder { color: #737373; }
   transition: filter 160ms ease-out;
 }
 
+/* A photo needs a much wider radius than text before nothing in it reads. */
+.ego-blurred-media {
+  filter: blur(22px);
+  transition: filter 160ms ease-out;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .ego-blurred { transition: none; }
+  .ego-blurred, .ego-blurred-media { transition: none; }
 }
 
 .voice-orbit {
