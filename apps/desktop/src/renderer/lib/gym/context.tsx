@@ -3,7 +3,6 @@ import {
   GYM_LIBRARY_CATEGORIES, GYM_LIBRARY_EXERCISES, addPlan,
   type GymArrangement, type GymCategoryInput, type GymExerciseInput, type GymPlanInput, type GymSetInput
 } from '@ego/core'
-import { isoToday } from '@ego/local/dates'
 import type { LocalDatabase } from '@ego/local/database/types'
 import {
   gymCategories, gymDay, gymExercises, gymPlans, gymRevision, gymWorkout, nextSetPosition,
@@ -15,6 +14,7 @@ import {
   updateGymSet
 } from '@ego/local/sync/commands'
 import { useLedger, type LocalWrite } from '../ledger'
+import { useToday } from '../today'
 
 interface GymContextValue {
   /** The local copy holds a complete download. */
@@ -63,7 +63,11 @@ export function GymProvider({ children }: { children: React.ReactNode }): React.
   const ledger = useLedger()
   const { db, gymVersion, write } = ledger
   const ready = ledger.current
-  const [date, setDate] = useState(isoToday)
+  const today = useToday()
+  /** Null follows today, so the log moves to the new day at midnight; a day picked by hand stays put. */
+  const [picked, setPicked] = useState<string | null>(null)
+  const date = picked ?? today
+  const setDate = useCallback((next: string) => setPicked(next === today ? null : next), [today])
   const [categories, setCategories] = useState<GymCategoryView[]>([])
   const [exercises, setExercises] = useState<GymExerciseView[]>([])
   const [plans, setPlans] = useState<GymPlanView[]>([])
@@ -213,8 +217,8 @@ export function GymProvider({ children }: { children: React.ReactNode }): React.
     startPlan,
     addLibrary
   }), [addLibrary, arrange, categories, date, db, deleteCategory, deleteExercise, deletePlan, deleteSets, error,
-    exercises, gymVersion, ledger.writing, logSet, plans, ready, saveCategory, saveExercise, savePlan, startPlan,
-    updateSet])
+    exercises, gymVersion, ledger.writing, logSet, plans, ready, saveCategory, saveExercise, savePlan, setDate,
+    startPlan, updateSet])
 
   return <GymContext.Provider value={value}>{children}</GymContext.Provider>
 }

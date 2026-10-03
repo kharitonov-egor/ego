@@ -50,7 +50,7 @@ export function HabitsGate({ children }: { children: React.ReactNode }): React.R
   if (!ledger.enabled) {
     return <HabitsMessage
       title="Sign in to track habits"
-      detail="Sign in once with Google on the start screen. Habits then save on this computer and sync to D1."
+      detail="Sign in once with Google on Home. Habits then save on this computer and sync to D1."
       action="Go to sign in"
       onAction={() => navigate('/')}
     />

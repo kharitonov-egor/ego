@@ -5,7 +5,7 @@ import { IconButton } from './ui/button'
 
 /**
  * Today, Yesterday, or the weekday, with arrows either side and the calendar behind the title.
- * The left and right arrow keys step a day, unless a field has the focus.
+ * The left and right arrow keys step a day, unless a field, a radio group, or a menu has the focus.
  */
 export function DayBar({ date, today, onPick, onOpenCalendar }: {
   date: string
@@ -20,6 +20,7 @@ export function DayBar({ date, today, onPick, onOpenCalendar }: {
     const onKey = (event: KeyboardEvent): void => {
       const target = event.target
       if (target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return
+      if (target instanceof Element && target.closest('[role="radiogroup"], [role="menu"]')) return
       if (event.altKey || event.ctrlKey || event.metaKey || document.querySelector('[aria-modal="true"]')) return
       if (event.key === 'ArrowLeft') onPick(shiftIso(date, -1))
       else if (event.key === 'ArrowRight' && date < today) onPick(shiftIso(date, 1))

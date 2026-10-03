@@ -1,7 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Smile, X } from 'lucide-react'
-import { isoToday } from '@ego/local/dates'
 import { DayBar } from '../../components/DayBar'
 import { CalendarDialog } from '../../components/DatePicker'
 import { MoodDayEditor, MoodHistory } from '../../components/mood/Mood'
@@ -10,6 +9,7 @@ import { ConfirmDialog } from '../../components/ui/dialog'
 import { Spinner } from '../../components/ui/spinner'
 import { useLedger } from '../../lib/ledger'
 import { useMoodJournal } from '../../lib/mood-journal'
+import { useToday } from '../../lib/today'
 
 /** The phone's one column, with the past days beside the editor once the window is wide enough. */
 export default function MoodScreen(): React.ReactElement {
@@ -24,24 +24,12 @@ function Mood(): React.ReactElement {
   const journal = useMoodJournal()
   const navigate = useNavigate()
   const editor = useRef<HTMLDivElement>(null)
-  const [today, setToday] = useState(isoToday)
+  const today = useToday()
   /** Null follows today, so a screen left open overnight moves to the new day. */
   const [picked, setPicked] = useState<string | null>(null)
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [confirmingClear, setConfirmingClear] = useState(false)
   const date = picked ?? today
-
-  useEffect(() => {
-    const refresh = (): void => {
-      if (document.visibilityState === 'visible') setToday(isoToday())
-    }
-    window.addEventListener('focus', refresh)
-    document.addEventListener('visibilitychange', refresh)
-    return () => {
-      window.removeEventListener('focus', refresh)
-      document.removeEventListener('visibilitychange', refresh)
-    }
-  }, [])
 
   const pick = (iso: string): void => setPicked(iso >= today ? null : iso)
 
@@ -49,7 +37,7 @@ function Mood(): React.ReactElement {
     return <CenteredMessage
       Icon={Smile}
       title="Sign in to keep a mood journal"
-      detail="Sign in once with Google on the start screen. Entries then save on this computer and sync to D1."
+      detail="Sign in once with Google on Home. Entries then save on this computer and sync to D1."
       action="Go to sign in"
       onAction={() => navigate('/')}
     />

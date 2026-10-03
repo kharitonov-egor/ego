@@ -9,6 +9,7 @@ import {
 } from '@ego/local/sync/commands'
 import { buildLog, type HabitLog } from '@ego/local/habits/stats'
 import { useLedger, type LocalWrite } from '../ledger'
+import { useToday } from '../today'
 
 export interface EditorTarget {
   kind: HabitKind
@@ -76,7 +77,7 @@ export function HabitsProvider({ children }: { children: React.ReactNode }): Rea
   const [habits, setHabits] = useState<HabitRecord[] | null>(null)
   const [entries, setEntries] = useState<HabitEntryRecord[]>([])
   const [error, setError] = useState<string | null>(null)
-  const [today, setToday] = useState(isoToday)
+  const today = useToday()
   const [picked, setPicked] = useState<string | null>(null)
   const [editor, setEditor] = useState<EditorTarget | null>(null)
   const [reloads, setReloads] = useState(0)
@@ -107,18 +108,6 @@ export function HabitsProvider({ children }: { children: React.ReactNode }): Rea
       .catch(() => { if (active) setError('This computer could not read its habits') })
     return () => { active = false }
   }, [db, ready, habitsVersion, reloads])
-
-  useEffect(() => {
-    const refresh = (): void => {
-      if (document.visibilityState === 'visible') setToday(isoToday())
-    }
-    window.addEventListener('focus', refresh)
-    document.addEventListener('visibilitychange', refresh)
-    return () => {
-      window.removeEventListener('focus', refresh)
-      document.removeEventListener('visibilitychange', refresh)
-    }
-  }, [])
 
   const queued = useCallback((work: LocalWrite): Promise<boolean> => {
     const next = queue.current.then(() => write(work, 'habits'))

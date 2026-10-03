@@ -67,7 +67,7 @@ function Stepper({ label, value, inputMode, onChange, onStep, onSubmit }: {
         onKeyDown={(event) => {
           if (event.key === 'Enter') {
             event.preventDefault()
-            onSubmit()
+            if (!event.repeat) onSubmit()
           } else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
             event.preventDefault()
             onStep(event.key === 'ArrowUp' ? 1 : -1)

@@ -29,17 +29,31 @@ export function dayLabel(iso: string, today: string): string {
     : { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+/** A radio group: Left and Right move the choice here, so they never reach the day bar and drop the draft. */
 function MoodPicker({ value, onChange }: { value: MoodLevel | null; onChange: (mood: MoodLevel) => void }): React.ReactElement {
-  return <div role="radiogroup" aria-label="Mood" className="mt-4 flex gap-2">
-    {MOOD_LEVELS.map((level) => {
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+    const step = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1
+      : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 0
+    if (step === 0) return
+    event.preventDefault()
+    event.stopPropagation()
+    const current = value === null ? (step === 1 ? -1 : 0) : MOOD_LEVELS.indexOf(value)
+    const next = MOOD_LEVELS[(current + step + MOOD_LEVELS.length) % MOOD_LEVELS.length]
+    onChange(next)
+    event.currentTarget.querySelector<HTMLElement>(`[data-mood="${next}"]`)?.focus()
+  }
+  return <div role="radiogroup" aria-label="Mood" onKeyDown={onKeyDown} className="mt-4 flex gap-2">
+    {MOOD_LEVELS.map((level, index) => {
       const { label, color, Icon } = MOODS[level]
       const selected = value === level
       return <button
         key={level}
         type="button"
         role="radio"
+        data-mood={level}
         aria-checked={selected}
         aria-label={label}
+        tabIndex={selected || (value === null && index === 0) ? 0 : -1}
         onClick={() => onChange(level)}
         className={cn('flex flex-1 flex-col items-center rounded-2xl border py-3 transition-colors active:opacity-80', !selected && 'hover:!bg-surface-800')}
         style={{ borderColor: selected ? color : '#333333', backgroundColor: selected ? `${color}26` : '#171717' }}

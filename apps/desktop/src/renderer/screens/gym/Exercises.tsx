@@ -138,7 +138,7 @@ export default function Exercises(): React.ReactElement {
                 if (event.key === 'Escape' && searching) {
                   event.preventDefault()
                   setQuery('')
-                } else if (event.key === 'Enter' && exercises[0]) {
+                } else if (event.key === 'Enter' && searching && exercises[0]) {
                   event.preventDefault()
                   open(exercises[0])
                 }
