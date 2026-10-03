@@ -1,20 +1,21 @@
 import React from 'react'
 import { ActivityIndicator, Image, Pressable, ScrollView, View } from 'react-native'
-import { Check, MessageSquarePlus, Sparkles, Trash2, Undo2, X } from 'lucide-react-native'
+import { MessageSquarePlus, Sparkles, Trash2, X } from 'lucide-react-native'
 import type { AssistantChat, AssistantMessage, AssistantPendingWrite } from '@ego/api-contracts'
 import { BottomSheet } from '../money/Common'
 import { Badge } from '../ui/badge'
-import { Button } from '../ui/button'
 import { Card } from '../ui/card'
+import { SAVE_DELAY_MS, SaveCountdown } from '../ui/countdown'
 import { Text } from '../ui/text'
 
 const EXAMPLES = [
   'What was my mood yesterday?',
   'Max bench press in the past month?',
-  'How many times did I read this month?',
   'Publix $42 and gas $30',
   'Bench 3x8 at 185, squats 5x5 at 225',
-  'Mood 4 today, slept well'
+  'Two eggs and toast for breakfast',
+  'How much protein today?',
+  'What\'s in my fridge?'
 ]
 
 export function Trail({ lines }: { lines: readonly string[] }): React.ReactElement | null {
@@ -32,35 +33,18 @@ export function UserBubble({ message, imageUri }: { message: AssistantMessage; i
     <View className="max-w-[86%] overflow-hidden rounded-3xl rounded-br-lg bg-primary px-4 py-3">
       {imageUri
         ? <Image source={{ uri: imageUri }} className="mb-2 h-36 w-52 rounded-2xl" resizeMode="cover" />
-        : message.hasImage && <Badge variant="outline" className="mb-2 border-black/20"><Text className="text-primary-foreground">Receipt image</Text></Badge>}
+        : message.hasImage && <Badge variant="outline" className="mb-2 border-black/20"><Text className="text-primary-foreground">Photo</Text></Badge>}
       {message.text.length > 0 && <Text className="text-[16px] leading-6 text-primary-foreground">{message.text}</Text>}
     </View>
   </View>
 }
 
-export function AssistantBubble({ message, undoing, onUndo }: {
-  message: AssistantMessage
-  undoing: string | null
-  onUndo: (callId: string) => void
-}): React.ReactElement {
+export function AssistantBubble({ message }: { message: AssistantMessage }): React.ReactElement {
   return <View className="mb-3 items-start">
     {message.text.length > 0 && <View className="max-w-[86%] rounded-3xl rounded-bl-lg border border-border bg-card px-4 py-3">
       <Text className="text-[16px] leading-6">{message.text}</Text>
     </View>}
     <Trail lines={message.trail} />
-    {message.undo.map((undo) => <Pressable
-      key={undo.callId}
-      accessibilityRole="button"
-      accessibilityLabel={`Undo the ${undo.label}`}
-      disabled={undoing !== null}
-      onPress={() => onUndo(undo.callId)}
-      className="mt-1.5 flex-row items-center self-start rounded-full border border-surface-700 px-3 py-1.5 active:bg-surface-800"
-    >
-      {undoing === undo.callId
-        ? <ActivityIndicator size="small" color="#d4d4d4" />
-        : <Undo2 color="#d4d4d4" size={14} />}
-      <Text className="ml-1.5 text-[13px] font-medium text-surface-200">Undo the {undo.label}</Text>
-    </Pressable>)}
   </View>
 }
 
@@ -90,28 +74,29 @@ export function ErrorBubble({ text, onDismiss }: { text: string; onDismiss: () =
   </Pressable>
 }
 
-export function PendingCard({ pending, busy, onAnswer }: {
+/** Everything one reply asked to save. It saves itself unless Undo comes first; sending a new message saves it too. */
+export function PendingCard({ pending, onSave, onUndo }: {
   pending: AssistantPendingWrite
-  busy: boolean
-  onAnswer: (approved: boolean) => void
+  onSave: () => void
+  onUndo: () => void
 }): React.ReactElement {
+  const seconds = SAVE_DELAY_MS / 1000
+  const changes = pending.changes ?? [{ toolName: pending.toolName, title: pending.title, lines: pending.lines }]
   return <Card className="mb-4 overflow-hidden">
     <View className="border-b border-surface-800 px-5 py-4">
-      <Text className="text-[17px] font-semibold">{pending.title}</Text>
+      <SaveCountdown
+        runKey={pending.callId}
+        paused={false}
+        label={changes.length === 1 ? `Saves in ${seconds} seconds` : `Saves ${changes.length} changes in ${seconds} seconds`}
+        onElapsed={onSave}
+        onUndo={onUndo}
+      />
     </View>
-    <View className="px-5 py-4">
-      {pending.lines.map((line, index) => <Text key={`${index}-${line}`} className={`text-[15px] leading-6 ${index ? 'mt-1.5' : ''}`}>{line}</Text>)}
-      <View className="mt-4 flex-row gap-2">
-        <Button variant="outline" size="lg" disabled={busy} onPress={() => onAnswer(false)} className="flex-1">
-          <X color="#d4d4d4" size={18} />
-          <Text>Reject</Text>
-        </Button>
-        <Button size="lg" disabled={busy} onPress={() => onAnswer(true)} className="flex-1">
-          <Check color="#0a0a0a" size={18} />
-          <Text>Confirm</Text>
-        </Button>
-      </View>
-      <Text className="mt-3 text-[13px] text-muted-foreground">Or just keep typing to drop it.</Text>
+    <View className="gap-4 px-5 py-4">
+      {changes.map((change, index) => <View key={`${index}-${change.toolName}`}>
+        <Text className="text-[17px] font-semibold">{change.title}</Text>
+        {change.lines.map((line, row) => <Text key={`${row}-${line}`} className="mt-1 text-[15px] leading-6 text-surface-200">{line}</Text>)}
+      </View>)}
     </View>
   </Card>
 }
@@ -122,7 +107,7 @@ export function Intro({ onPick }: { onPick: (text: string) => void }): React.Rea
       <View className="h-12 w-12 items-center justify-center rounded-full bg-surface-800"><Sparkles color="#fafafa" size={22} /></View>
       <View className="ml-3 flex-1">
         <Text className="text-[18px] font-semibold">Ask, or tell me what happened</Text>
-        <Text className="text-[15px] text-muted-foreground">Money, gym, health, mood, habits, and study</Text>
+        <Text className="text-[15px] text-muted-foreground">Money, gym, health, mood, habits, study, and food</Text>
       </View>
     </View>
     <View className="flex-row flex-wrap gap-2">

@@ -44,7 +44,7 @@ export interface AssistantUsage {
   modelCalls: number
 }
 
-/** A write the model asked for that waits on the Confirm card. */
+/** A write the model asked for. It waits on the phone's card until it saves or the user taps Undo. */
 export interface PendingWrite {
   callId: string
   name: AssistantToolName
@@ -76,7 +76,7 @@ export interface RunAssistantOptions {
   /** The chat so far, ending with the user's message or the tool result that resumes a turn. */
   history: ModelMessage[]
   tools?: readonly AssistantToolName[]
-  /** Runs a read, or a write that does not need confirmation. A throw becomes an error result for the model. */
+  /** Runs a read. A throw becomes an error result for the model. */
   run: (call: AssistantCall) => Promise<ToolOutcome>
   /** Called as text streams in, after each tool runs, and for every message to store. */
   onEvent: (event: AssistantEvent) => void | Promise<void>
@@ -89,7 +89,7 @@ export interface RunAssistantOptions {
 export type AssistantFailure = 'unauthorized' | 'rate_limited' | 'timeout' | 'upstream' | 'steps'
 
 export type RunAssistantResult =
-  | { ok: true; reply: string; pending: PendingWrite | null; usage: AssistantUsage }
+  | { ok: true; reply: string; pending: PendingWrite[]; usage: AssistantUsage }
   | { ok: false; reason: AssistantFailure; message: string; usage: AssistantUsage }
 
 interface StreamedMessage {
@@ -291,8 +291,9 @@ export function systemMessage(text: string): ModelMessage {
 }
 
 /**
- * One turn of the assistant: call the model, run the tools it asks for, feed the results back, and
- * repeat until it answers in words or asks for a write that needs the user's confirmation.
+ * One turn of the assistant: call the model, run the reads it asks for, feed the results back, and
+ * repeat until it answers in words or asks for writes. Writes stop the turn and come back together,
+ * so one card can hold everything a message asked to save.
  */
 export async function runAssistant(options: RunAssistantOptions): Promise<RunAssistantResult> {
   const now = options.now ?? Date.now
@@ -329,9 +330,9 @@ export async function runAssistant(options: RunAssistantOptions): Promise<RunAss
     messages.push(assistant)
     await options.onEvent({ type: 'message', message: assistant })
     if (content.trim()) replies.push(content.trim())
-    if (toolCalls.length === 0) return { ok: true, reply: replies.join('\n\n'), pending: null, usage }
+    if (toolCalls.length === 0) return { ok: true, reply: replies.join('\n\n'), pending: [], usage }
 
-    let pending: PendingWrite | null = null
+    const pending: PendingWrite[] = []
     for (const call of toolCalls) {
       const name = call.function.name
       let content: string
@@ -344,13 +345,9 @@ export async function runAssistant(options: RunAssistantOptions): Promise<RunAss
           : validateAssistantArguments(name, parsed)
         if (!validated.ok) {
           content = JSON.stringify({ error: validated.error })
-        } else if (ASSISTANT_TOOLS[name].confirm) {
-          if (pending) {
-            content = JSON.stringify({ error: 'One change at a time. Ask again after the user answers the first one.' })
-          } else {
-            pending = { callId: call.id, name, args: validated.value }
-            continue
-          }
+        } else if (ASSISTANT_TOOLS[name].access === 'write') {
+          pending.push({ callId: call.id, name, args: validated.value })
+          continue
         } else {
           try {
             const outcome = await options.run({ name, args: validated.value, callId: call.id })
@@ -365,7 +362,7 @@ export async function runAssistant(options: RunAssistantOptions): Promise<RunAss
       messages.push(toolMessage)
       await options.onEvent({ type: 'message', message: toolMessage })
     }
-    if (pending) return { ok: true, reply: replies.join('\n\n'), pending, usage }
+    if (pending.length > 0) return { ok: true, reply: replies.join('\n\n'), pending, usage }
   }
   return { ok: false, reason: 'steps', message: 'That took too many steps. Try a narrower question.', usage }
 }

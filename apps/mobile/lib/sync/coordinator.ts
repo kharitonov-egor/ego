@@ -1,5 +1,6 @@
 import {
-  MAX_OPERATIONS_PER_REQUEST, isDiaryEntity, isGymEntity, isHabitEntity, isHealthEntity, isSheetEntity, isTaskEntity,
+  MAX_OPERATIONS_PER_REQUEST, isDiaryEntity, isFoodEntity, isGymEntity, isHabitEntity, isHealthEntity, isSheetEntity,
+  isTaskEntity,
   type ApiError, type ChangeRecord, type OperationOutcome, type SyncEntity
 } from '@ego/api-contracts'
 import type { MoneyApi } from '../api-client'
@@ -38,6 +39,7 @@ export interface Touched {
   diary: boolean
   tasks: boolean
   sheets: boolean
+  food: boolean
 }
 
 export interface SyncOutcome {
@@ -52,7 +54,7 @@ export interface SyncOutcome {
 }
 
 const NOTHING_TOUCHED: Touched = {
-  money: false, gym: false, health: false, habits: false, diary: false, tasks: false, sheets: false
+  money: false, gym: false, health: false, habits: false, diary: false, tasks: false, sheets: false, food: false
 }
 
 function touch(touched: Touched, entity: SyncEntity): void {
@@ -62,6 +64,7 @@ function touch(touched: Touched, entity: SyncEntity): void {
   else if (isDiaryEntity(entity)) touched.diary = true
   else if (isTaskEntity(entity)) touched.tasks = true
   else if (isSheetEntity(entity)) touched.sheets = true
+  else if (isFoodEntity(entity)) touched.food = true
   else touched.money = true
 }
 
@@ -76,9 +79,9 @@ interface SyncStateRow {
  * bootstrapped then has no budgets and no receipt items. Version 2 downloads every money record.
  * Version 3 adds the gym log. Version 4 adds the diary: a build without it pulled diary changes
  * it could not store and moved past them, so it has to download everything again. Version 5 does
- * the same for Tasks, version 6 for Sheets, and version 7 for Goals.
+ * the same for Tasks, version 6 for Sheets, version 7 for Goals, and version 8 for Food.
  */
-export const BOOTSTRAP_VERSION = 7
+export const BOOTSTRAP_VERSION = 8
 
 async function syncStateRow(db: LocalDatabase): Promise<SyncStateRow> {
   const rows = await db.all<SyncStateRow>(
@@ -134,6 +137,9 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
   const taskGoals = data.taskGoals ?? []
   const sheets = data.sheets ?? []
   const sheetRows = data.sheetRows ?? []
+  const foodEntries = data.foodEntries ?? []
+  const fridgeItems = data.fridgeItems ?? []
+  const foodGoals = data.foodGoals ?? []
   const live: Record<SyncEntity, Set<string>> = {
     account: new Set(data.accounts.map((record) => record.id)),
     category: new Set(data.categories.map((record) => record.id)),
@@ -155,7 +161,10 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
     taskCard: new Set(taskCards.map((record) => record.id)),
     taskGoal: new Set(taskGoals.map((record) => record.id)),
     sheet: new Set(sheets.map((record) => record.id)),
-    sheetRow: new Set(sheetRows.map((record) => record.id))
+    sheetRow: new Set(sheetRows.map((record) => record.id)),
+    foodEntry: new Set(foodEntries.map((record) => record.id)),
+    fridgeItem: new Set(fridgeItems.map((record) => record.id)),
+    foodGoal: new Set(foodGoals.map((record) => record.id))
   }
   const deletedAt = now()
   await db.transaction((tx) => withPreparedRuns(tx, async (cached) => {
@@ -180,6 +189,9 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
     for (const record of taskGoals) if (!skip('taskGoal', record.id)) await writeRecord(cached, { entity: 'taskGoal', record })
     for (const record of sheets) if (!skip('sheet', record.id)) await writeRecord(cached, { entity: 'sheet', record })
     for (const record of sheetRows) if (!skip('sheetRow', record.id)) await writeRecord(cached, { entity: 'sheetRow', record })
+    for (const record of foodEntries) if (!skip('foodEntry', record.id)) await writeRecord(cached, { entity: 'foodEntry', record })
+    for (const record of fridgeItems) if (!skip('fridgeItem', record.id)) await writeRecord(cached, { entity: 'fridgeItem', record })
+    for (const record of foodGoals) if (!skip('foodGoal', record.id)) await writeRecord(cached, { entity: 'foodGoal', record })
     for (const entity of Object.keys(TABLES) as SyncEntity[]) {
       const key = keyColumn(entity)
       const local = await tx.all<{ key: string }>(`SELECT ${key} AS key FROM ${TABLES[entity]} WHERE deleted_at IS NULL`)
@@ -326,6 +338,7 @@ export function createSyncCoordinator(deps: SyncDeps): SyncCoordinator {
       touched.diary = true
       touched.tasks = true
       touched.sheets = true
+      touched.food = true
     }
     const delivery = await deliver(deps, touched)
     if (delivery.paused) return outcomeFor(db, delivery.error, true, delivery.delivered, 0, touched)
@@ -336,6 +349,7 @@ export function createSyncCoordinator(deps: SyncDeps): SyncCoordinator {
     if (uploads.uploaded > 0 || uploads.error) {
       touched.diary = true
       touched.tasks = true
+      touched.food = true
     }
     const released = uploads.released > 0 ? await deliver(deps, touched) : { error: null, delivered: 0, paused: false }
     if (released.paused) return outcomeFor(db, released.error, true, delivery.delivered + released.delivered, pull.applied, touched)
@@ -363,6 +377,7 @@ export function createSyncCoordinator(deps: SyncDeps): SyncCoordinator {
           touched.diary ||= outcome.touched.diary
           touched.tasks ||= outcome.touched.tasks
           touched.sheets ||= outcome.touched.sheets
+          touched.food ||= outcome.touched.food
         } while (again)
         return { ...outcome, touched }
       })().finally(() => {

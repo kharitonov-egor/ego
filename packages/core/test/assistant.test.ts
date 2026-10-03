@@ -48,7 +48,7 @@ describe('runAssistant', () => {
     const fetcher = vi.fn(async () => sse(text('Hel', 'lo')))
     const input = options({ fetcher })
     const result = await runAssistant(input)
-    expect(result).toEqual({ ok: true, reply: 'Hello', pending: null, usage: { inputTokens: 120, outputTokens: 8, modelCalls: 1 } })
+    expect(result).toEqual({ ok: true, reply: 'Hello', pending: [], usage: { inputTokens: 120, outputTokens: 8, modelCalls: 1 } })
     expect(input.events.filter((event) => event.type === 'delta').map((event) => event.type === 'delta' ? event.text : '')).toEqual(['Hel', 'lo'])
     expect(input.events.find((event) => event.type === 'message')).toEqual({ type: 'message', message: { role: 'assistant', content: 'Hello' } })
     const body = JSON.parse(String(fetcher.mock.calls[0][1]?.body)) as Record<string, unknown>
@@ -67,7 +67,7 @@ describe('runAssistant', () => {
     const run = vi.fn(async () => ({ data: { entries: [{ date: '2026-09-01', mood: 4 }] }, trail: 'Read mood for 7 days' }))
     const input = options({ fetcher, run })
     const result = await runAssistant(input)
-    expect(result).toMatchObject({ ok: true, reply: 'Mostly good.', pending: null })
+    expect(result).toMatchObject({ ok: true, reply: 'Mostly good.', pending: [] })
     expect(result.usage).toEqual({ inputTokens: 220, outputTokens: 28, modelCalls: 2 })
     expect(run).toHaveBeenCalledWith({ name: 'read_mood', args: { from: '2026-09-01', to: '2026-09-07' }, callId: 'call_1' })
     expect(input.events).toContainEqual({ type: 'trail', line: 'Read mood for 7 days' })
@@ -94,8 +94,8 @@ describe('runAssistant', () => {
     })
   })
 
-  it('stops on a write that needs confirmation without running it', async () => {
-    const args = { transactions: [{ kind: 'expense', accountId: 'acc', categoryId: 'cat', amountCents: 4200, date: '2026-09-28', merchant: 'Publix', notes: null, receipt: null }] }
+  it('stops on a write without running it', async () => {
+    const args = { transactions: [{ kind: 'expense', accountId: 'acc', categoryId: 'cat', amountCents: 4200, date: '2026-09-28', merchant: 'Publix', notes: null, receipt: null, fridgeItems: null }] }
     const fetcher = vi.fn(async () => sse([
       { choices: [{ delta: { content: 'Recording that.' } }] },
       ...toolCall('call_3', 'record_transactions', JSON.stringify(args))
@@ -103,26 +103,28 @@ describe('runAssistant', () => {
     const run = vi.fn()
     const input = options({ fetcher, run })
     const result = await runAssistant(input)
-    expect(result).toMatchObject({ ok: true, reply: 'Recording that.', pending: { callId: 'call_3', name: 'record_transactions', args } })
+    expect(result).toMatchObject({ ok: true, reply: 'Recording that.', pending: [{ callId: 'call_3', name: 'record_transactions', args }] })
     expect(run).not.toHaveBeenCalled()
     expect(fetcher).toHaveBeenCalledTimes(1)
     expect(input.events.filter((event) => event.type === 'message').map((event) => event.type === 'message' ? event.message.role : '')).toEqual(['assistant'])
   })
 
-  it('answers a second confirmation write in the same step with an error', async () => {
-    const args = JSON.stringify({ transactions: [{ kind: 'expense', accountId: 'acc', categoryId: 'cat', amountCents: 100, date: '2026-09-28', merchant: null, notes: null, receipt: null }] })
+  it('collects every write in a step and still runs the reads beside them', async () => {
+    const money = JSON.stringify({ transactions: [{ kind: 'expense', accountId: 'acc', categoryId: 'cat', amountCents: 100, date: '2026-09-28', merchant: null, notes: null, receipt: null, fridgeItems: null }] })
     const fetcher = vi.fn(async () => sse([
       { choices: [{ delta: { tool_calls: [
-        { index: 0, id: 'call_a', type: 'function', function: { name: 'record_transactions', arguments: args } },
-        { index: 1, id: 'call_b', type: 'function', function: { name: 'record_transactions', arguments: args } }
+        { index: 0, id: 'call_a', type: 'function', function: { name: 'record_transactions', arguments: money } },
+        { index: 1, id: 'call_b', type: 'function', function: { name: 'read_mood', arguments: JSON.stringify({ from: '2026-09-28', to: '2026-09-28' }) } },
+        { index: 2, id: 'call_c', type: 'function', function: { name: 'log_habit', arguments: JSON.stringify({ habitId: 'h1', date: '2026-09-28', times: null }) } }
       ] } }] }
     ]))
-    const input = options({ fetcher })
+    const run = vi.fn(async () => ({ data: { entries: [] }, trail: 'Read mood for today' }))
+    const input = options({ fetcher, run })
     const result = await runAssistant(input)
-    expect(result).toMatchObject({ ok: true, pending: { callId: 'call_a' } })
+    expect(result.ok && result.pending.map((write) => write.callId)).toEqual(['call_a', 'call_c'])
+    expect(run).toHaveBeenCalledTimes(1)
     const toolMessages = input.events.filter((event) => event.type === 'message' && event.message.role === 'tool')
-    expect(toolMessages).toHaveLength(1)
-    expect(JSON.stringify(toolMessages[0])).toContain('One change at a time')
+    expect(toolMessages.map((event) => event.type === 'message' && event.message.role === 'tool' ? event.message.tool_call_id : '')).toEqual(['call_b'])
   })
 
   it('tells the model when its arguments are wrong and lets it try again', async () => {
@@ -137,15 +139,12 @@ describe('runAssistant', () => {
     expect(String((second[second.length - 1] as { content: string }).content)).toContain('from has the wrong format')
   })
 
-  it('runs a write that needs no confirmation and keeps its trail', async () => {
-    const fetcher = vi.fn()
-      .mockResolvedValueOnce(sse(toolCall('call_5', 'log_habit', JSON.stringify({ habitId: 'h1', date: '2026-09-28' }))))
-      .mockResolvedValueOnce(sse(text('Checked off.')))
-    const run = vi.fn(async () => ({ data: { added: 1 }, trail: 'Checked off Reading for today' }))
-    const input = options({ fetcher, run })
-    await runAssistant(input)
-    expect(run).toHaveBeenCalledWith({ name: 'log_habit', args: { habitId: 'h1', date: '2026-09-28', times: null }, callId: 'call_5' })
-    expect(input.events).toContainEqual({ type: 'trail', line: 'Checked off Reading for today' })
+  it('fills nullable fields of a write before handing it back', async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(sse(toolCall('call_5', 'log_habit', JSON.stringify({ habitId: 'h1', date: '2026-09-28' }))))
+    const run = vi.fn()
+    const result = await runAssistant(options({ fetcher, run }))
+    expect(run).not.toHaveBeenCalled()
+    expect(result.ok && result.pending).toEqual([{ name: 'log_habit', args: { habitId: 'h1', date: '2026-09-28', times: null }, callId: 'call_5' }])
   })
 
   it('turns a thrown tool error into a result the model can read', async () => {
@@ -174,7 +173,7 @@ describe('runAssistant', () => {
       choices: [{ message: { content: 'Plain answer.' } }], usage: { prompt_tokens: 5, completion_tokens: 2 }
     }), { status: 200, headers: { 'content-type': 'application/json' } }))
     const result = await runAssistant(options({ fetcher }))
-    expect(result).toEqual({ ok: true, reply: 'Plain answer.', pending: null, usage: { inputTokens: 5, outputTokens: 2, modelCalls: 1 } })
+    expect(result).toEqual({ ok: true, reply: 'Plain answer.', pending: [], usage: { inputTokens: 5, outputTokens: 2, modelCalls: 1 } })
   })
 
   it('maps upstream statuses to reasons', async () => {

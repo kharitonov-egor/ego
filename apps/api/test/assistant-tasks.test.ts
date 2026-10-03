@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { validateAssistantArguments } from '@ego/core'
 import {
-  assistantSystemPrompt, executeAssistantRead, executeAssistantWrite, undoAssistantWrite, type ToolContext
+  assistantSystemPrompt, describeWrite, executeAssistantRead, executeAssistantWrite, type ToolContext
 } from '../src/assistant-tools'
 import { readTaskRows } from '../src/reads'
 import { toTaskCardRecord } from '../src/rows'
@@ -31,6 +31,7 @@ async function context(): Promise<ToolContext> {
     device: { deviceId: 'device-a', name: 'Phone', datasetId: 'ego' },
     now: NOW,
     today: TODAY,
+    timeZone: 'America/New_York',
     units: 'imperial'
   }
 }
@@ -44,7 +45,7 @@ async function card(ctx: ToolContext, id: string) {
 describe('Tasks in the AI chat', () => {
   it('names the boards, lists, and labels in the system prompt', async () => {
     const ctx = await context()
-    const prompt = await assistantSystemPrompt(ctx, 'America/New_York')
+    const prompt = await assistantSystemPrompt(ctx)
     expect(prompt).toContain('"id":"b-life","name":"Life","lists":[{"id":"l-todo","name":"To Do"},{"id":"l-done","name":"Done"}]')
     expect(prompt).toContain('"labels":[{"id":"x-home","name":"Home","color":"green"}]')
   })
@@ -65,13 +66,16 @@ describe('Tasks in the AI chat', () => {
     expect(outcome.trail).toBe('Read 1 card')
   })
 
-  it('adds a card with a due time, a label, and a checklist, and undoes it', async () => {
+  it('describes a new card, then adds it with a due time, a label, and a checklist', async () => {
     const ctx = await context()
     const args = {
       listId: 'l-todo', title: 'Call the landlord', description: null, dueDate: '2026-09-13', dueTime: '17:30',
       priority: 'high', labelIds: ['x-home', 'x-missing'], checklist: ['Find the number', 'Ask about the heater']
     }
     expect(validateAssistantArguments('add_task_card', args).ok).toBe(true)
+    expect(await describeWrite(ctx, 'add_task_card', args)).toEqual({
+      title: 'Add a card', lines: ['"Call the landlord" in To Do', 'Due Sep 13 at 5:30 PM']
+    })
     const outcome = await executeAssistantWrite(ctx, { name: 'add_task_card', args, callId: 'call-2' })
     const id = (outcome.data as { id: string }).id
     const added = await card(ctx, id)
@@ -82,24 +86,21 @@ describe('Tasks in the AI chat', () => {
     expect(added?.checklists[0].items.map((item) => item.text)).toEqual(['Find the number', 'Ask about the heater'])
     expect(added?.activity.map((entry) => entry.text)).toEqual(['Added this card to "To Do"'])
     expect(outcome.trail).toBe('Added "Call the landlord" to To Do')
-    if (!outcome.undo) throw new Error('Expected an undo plan')
-    await undoAssistantWrite(ctx, outcome.undo, 'call-2')
-    expect(await card(ctx, id)).toBeNull()
   })
 
-  it('marks a card done, moves it, logs both, and puts it back on undo', async () => {
+  it('describes a change to a card, then marks it done and moves it', async () => {
     const ctx = await context()
     const args = {
       cardId: 'k-rent', done: true, listId: 'l-done', title: null, dueDate: null, dueTime: null, clearDue: null,
       priority: null, archived: null
     }
     expect(validateAssistantArguments('update_task_card', args).ok).toBe(true)
+    expect(await describeWrite(ctx, 'update_task_card', args)).toEqual({
+      title: 'Change a card', lines: ['"Pay rent"', 'Mark done', 'Move to Done']
+    })
     const outcome = await executeAssistantWrite(ctx, { name: 'update_task_card', args, callId: 'call-3' })
     expect(await card(ctx, 'k-rent')).toMatchObject({ listId: 'l-done', doneAt: NOW, revision: 2 })
     expect((outcome.data as { changes: string[] }).changes).toEqual(['Moved this card from "To Do" to "Done"', 'Marked this card as done'])
-    if (!outcome.undo) throw new Error('Expected an undo plan')
-    await undoAssistantWrite(ctx, outcome.undo, 'call-3')
-    expect(await card(ctx, 'k-rent')).toMatchObject({ listId: 'l-todo', doneAt: null, activity: [], revision: 3 })
   })
 
   it('refuses a list on another board and reports a change that changes nothing', async () => {
@@ -112,6 +113,6 @@ describe('Tasks in the AI chat', () => {
     await expect(executeAssistantWrite(ctx, { name: 'update_task_card', args: { ...base, listId: 'l-work' }, callId: 'call-4' }))
       .rejects.toThrow('A card can only move to a list on its own board')
     const unchanged = await executeAssistantWrite(ctx, { name: 'update_task_card', args: { ...base, title: 'Pay rent' }, callId: 'call-5' })
-    expect(unchanged.undo).toBeNull()
+    expect(unchanged.trail).toBe('"Pay rent" was already that way')
   })
 })

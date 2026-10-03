@@ -26,6 +26,7 @@ import { assistantRoute } from './assistant'
 import { markStudyAssignment, readStudyAssignments } from './study'
 import { completeHealthConnect, disconnectHealth, readHealth, startHealthConnect, syncHealthRequest } from './health'
 import { mediaRoute } from './diary'
+import { foodRoute } from './food'
 import { readAppBuilds, receiveBuildWebhook } from './app-builds'
 
 function json(body: unknown, status = 200): Response {
@@ -90,7 +91,8 @@ async function operationsRequest(db: D1Database, request: Request, now: string):
   return ok(response)
 }
 
-export async function handle(request: Request, env: Env): Promise<Response> {
+/** `work` keeps a streamed answer's writes running if the phone hangs up partway. Tests leave it out. */
+export async function handle(request: Request, env: Env, work?: Pick<ExecutionContext, 'waitUntil'>): Promise<Response> {
   const url = new URL(request.url)
   const path = url.pathname.replace(/\/+$/, '')
   if (path === '/v1/health') return ok({ version: API_VERSION })
@@ -117,7 +119,7 @@ export async function handle(request: Request, env: Env): Promise<Response> {
       return ok({ signedOut: true })
     }
   }
-  const assistant = assistantRoute(request, env, device.data, path, now)
+  const assistant = assistantRoute(request, env, device.data, path, now, work)
   if (assistant) return assistant
   if (request.method === 'GET' && path === '/v1/trello/boards') return trelloBoards(env)
   if (request.method === 'GET' && path.startsWith('/v1/trello/boards/') && path.endsWith('/lists')) {
@@ -141,6 +143,8 @@ export async function handle(request: Request, env: Env): Promise<Response> {
   }
   const media = mediaRoute(request, env, path, now)
   if (media) return media
+  const food = foodRoute(request, env, path)
+  if (food) return food
   if (request.method === 'POST' && path === '/v1/live/sessions') {
     return createLiveSession(request, env, device.data)
   }
