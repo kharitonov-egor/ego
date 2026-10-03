@@ -6,7 +6,7 @@ import {
 import { Blurred, useBlur } from '../../lib/blur'
 import {
   insertLink, parseMarkdown, prefixLines, wrapSelection, type Block, type Edit, type Selection, type Span
-} from '../../lib/tasks/markdown'
+} from '@ego/local/tasks/markdown'
 import { normalizeUrl } from '@ego/core'
 import { color } from '../money/tokens'
 

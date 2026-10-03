@@ -1,0 +1,27 @@
+{
+  "name": "@ego/local",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The on-device ledger: SQLite schema, repositories, the outbox, and sync",
+  "exports": {
+    "./*": {
+      "types": "./dist/*.d.ts",
+      "react-native": "./src/*.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.test.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ego/api-contracts": "*",
+    "@ego/core": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.2",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.11"
+  }
+}

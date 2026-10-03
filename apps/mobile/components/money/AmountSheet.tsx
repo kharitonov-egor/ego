@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Modal, Pressable, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { X } from 'lucide-react-native'
-import { amountToExpression, evaluateAmount, formatAmountExpression, pressAmountKey } from '../../lib/amount-input'
+import { amountToExpression, evaluateAmount, formatAmountExpression, pressAmountKey } from '@ego/local/amount-input'
 import { AmountKeypad } from './AmountKeypad'
 
 export function AmountSheet({ visible, title, detail, valueCents, color, allowZero = true, onClose, onConfirm }: {

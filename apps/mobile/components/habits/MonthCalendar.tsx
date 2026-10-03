@@ -1,7 +1,7 @@
 import React from 'react'
 import { Pressable, Text, View } from 'react-native'
-import { WEEKDAYS, parseIso } from '../../lib/dates'
-import { heatLevel, type DayScore, type HeatLevel } from '../../lib/habits/stats'
+import { WEEKDAYS, parseIso } from '@ego/local/dates'
+import { heatLevel, type DayScore, type HeatLevel } from '@ego/local/habits/stats'
 
 /** White at rising strength on the card: a sequential scale where only a finished day is solid. */
 export const HEAT: Record<HeatLevel, string> = {

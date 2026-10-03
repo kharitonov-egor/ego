@@ -28,10 +28,10 @@ import { draftsFromFiles, draftsFromLibrary } from '../../../lib/diary/compose'
 import { mediaSource } from '../../../lib/diary/media'
 import { useLedger } from '../../../lib/ledger-context'
 import { outsideApp } from '../../../lib/private-lock'
-import { newId } from '../../../lib/sync/commands'
-import { boardLabels, coverOf, dueBadge } from '../../../lib/tasks/board'
+import { newId } from '@ego/local/sync/commands'
+import { boardLabels, coverOf, dueBadge } from '@ego/local/tasks/board'
 import { useTasks } from '../../../lib/tasks/context'
-import { toggleTaskLine } from '../../../lib/tasks/markdown'
+import { toggleTaskLine } from '@ego/local/tasks/markdown'
 
 const ACTIVITY_PAGE = 5
 

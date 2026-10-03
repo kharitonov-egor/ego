@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { Image, Linking, Text, type TextStyle } from 'react-native'
 import { diarySegments, type DiaryEntity, type DiarySegment } from '@ego/core'
-import type { DiaryMediaApi } from '../../lib/api-client'
+import type { DiaryMediaApi } from '@ego/local/api-client'
 import { mediaSource } from '../../lib/diary/media'
 import { outsideApp } from '../../lib/private-lock'
 import { ink } from './theme'

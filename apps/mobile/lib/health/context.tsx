@@ -3,11 +3,11 @@ import { AppState, Linking } from 'react-native'
 import * as SecureStore from 'expo-secure-store'
 import type { ApiError, HealthConnection, HealthDay, HealthHeartDay, HealthSleep } from '@ego/api-contracts'
 import type { HealthUnits } from '@ego/core'
-import type { LocalDatabase } from '../database/types'
-import { isoToday } from '../dates'
+import type { LocalDatabase } from '@ego/local/database/types'
+import { isoToday } from '@ego/local/dates'
 import { useLedger } from '../ledger-context'
-import { buildHealthIndex, type HealthIndex } from './metrics'
-import { cachedHealth, refreshHealth } from './store'
+import { buildHealthIndex, type HealthIndex } from '@ego/local/health/metrics'
+import { cachedHealth, refreshHealth } from '@ego/local/health/store'
 
 /** The Worker skips a Google pull made within a minute of the last one, so asking sooner gains nothing. */
 const STALE_AFTER_MS = 60_000

@@ -3,9 +3,9 @@ import { File } from 'expo-file-system'
 import { SaveFormat, manipulateAsync } from 'expo-image-manipulator'
 import type { ImagePickerAsset } from 'expo-image-picker'
 import type { DiaryAttachment, DiaryAttachmentKind } from '@ego/core'
-import { newId } from '../sync/commands'
+import { newId } from '@ego/local/sync/commands'
 import { localCopyFor } from './media'
-import type { QueuedUpload } from './uploads'
+import type { QueuedUpload } from '@ego/local/diary/uploads'
 
 /** Something picked in the composer, not yet copied or queued. */
 export interface DraftFile {

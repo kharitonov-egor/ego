@@ -1,18 +1,18 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { ApiError, ApiResult, SyncOperation } from '@ego/api-contracts'
 import type { PurchaseInput, TransactionInput } from '@ego/core'
-import { filterQuery, type MoneyApi } from '../../mobile/lib/api-client'
-import type { LocalDatabase } from '../../mobile/lib/database/types'
+import { filterQuery, type MoneyApi } from '../../../packages/local/src/api-client'
+import type { LocalDatabase } from '../../../packages/local/src/database/types'
 import {
   localBalances, localReceipt, localTransaction, localTransactionPage
-} from '../../mobile/lib/repositories/transactions'
+} from '../../../packages/local/src/repositories/transactions'
 import {
   createPurchase, createTransaction, deleteBudget, deleteTransaction, saveBudget, updateTransaction
-} from '../../mobile/lib/sync/commands'
-import { localRevision, localSnapshot } from '../../mobile/lib/repositories/snapshot'
-import { createSyncCoordinator } from '../../mobile/lib/sync/coordinator'
-import { allOperations } from '../../mobile/lib/sync/outbox'
-import { openTestLedger } from '../../mobile/test/local-db'
+} from '../../../packages/local/src/sync/commands'
+import { localRevision, localSnapshot } from '../../../packages/local/src/repositories/snapshot'
+import { createSyncCoordinator } from '../../../packages/local/src/sync/coordinator'
+import { allOperations } from '../../../packages/local/src/sync/outbox'
+import { openTestLedger } from '../../../packages/local/test/local-db'
 import { hashToken } from '../src/auth'
 import { handle } from '../src/router'
 import { readChanges, readTransactionPage } from '../src/reads'

@@ -14,7 +14,7 @@ import { Checkbox } from '../../../components/ui/checkbox'
 import { Text } from '../../../components/ui/text'
 import { Blurred } from '../../../lib/blur'
 import { useFood } from '../../../lib/food/context'
-import { dayTitle, timeLabel } from '../../../lib/food/drafts'
+import { dayTitle, timeLabel } from '@ego/local/food/drafts'
 import { chooseFoodPhoto, takeFoodPhoto } from '../../../lib/food/photo'
 
 type Section = FoodDay<FoodEntryRecord> & { data: FoodEntryRecord[] }

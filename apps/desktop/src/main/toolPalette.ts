@@ -111,7 +111,7 @@ function createPaletteWindow(): void {
 export function showToolPalette(): void {
   if (!paletteWindow || paletteWindow.isDestroyed()) createPaletteWindow()
 
-  const reveal = (): void => {
+  const reveal = async (): Promise<void> => {
     if (!paletteWindow || paletteWindow.isDestroyed()) return
     const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
     paletteWindow.setPosition(
@@ -120,13 +120,14 @@ export function showToolPalette(): void {
     )
     paletteWindow.show()
     paletteWindow.focus()
-    paletteWindow.webContents.send('tool-palette-focus', clipboard.readText().trim())
+    const clipboardText = await clipboard.readText().catch(() => '')
+    paletteWindow.webContents.send('tool-palette-focus', clipboardText.trim())
   }
 
   if (paletteWindow!.webContents.isLoading()) {
-    paletteWindow!.webContents.once('did-finish-load', reveal)
+    paletteWindow!.webContents.once('did-finish-load', () => void reveal())
   } else {
-    reveal()
+    void reveal()
   }
 }
 
@@ -165,14 +166,22 @@ function runPowerShellOcr(imagePath: string): Promise<OcrResult> {
   })
 }
 
+async function clipboardPng(): Promise<Buffer | null> {
+  const items = await clipboard.read().catch(() => [])
+  const item = items.find((entry) => entry.types.includes('image/png'))
+  if (!item) return null
+  const blob = await item.getType('image/png')
+  return blob instanceof Blob ? Buffer.from(await blob.arrayBuffer()) : null
+}
+
 async function readClipboardImage(): Promise<OcrResult> {
-  const image = clipboard.readImage()
-  if (image.isEmpty()) {
+  const png = await clipboardPng()
+  if (!png || png.length === 0) {
     return { ok: false, detail: 'Copy an image or screenshot first.' }
   }
 
   const imagePath = join(tmpdir(), `ego-ocr-${Date.now()}.png`)
-  await writeFile(imagePath, image.toPNG())
+  await writeFile(imagePath, png)
   try {
     return await runPowerShellOcr(imagePath)
   } finally {
@@ -185,6 +194,7 @@ async function chooseImage(): Promise<OcrResult> {
   try {
     const result = await dialog.showOpenDialog(paletteWindow!, {
       title: 'Read text from image',
+      defaultPath: app.getPath('pictures'),
       properties: ['openFile'],
       filters: [
         { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'bmp', 'tif', 'tiff', 'gif'] }
@@ -333,8 +343,8 @@ export function setupToolPaletteIpc(): void {
     }
     return chooseImage()
   })
-  ipcMain.handle('tool-copy-text', (event, text: string) => {
-    if (isPaletteSender(event.sender.id) && typeof text === 'string') clipboard.writeText(text)
+  ipcMain.handle('tool-copy-text', async (event, text: string) => {
+    if (isPaletteSender(event.sender.id) && typeof text === 'string') await clipboard.writeText(text)
   })
   ipcMain.handle('media-downloader-status', (event) => {
     if (!isPaletteSender(event.sender.id)) {

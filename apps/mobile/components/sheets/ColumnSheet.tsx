@@ -7,9 +7,9 @@ import {
   SHEET_SHADES, nextShade,
   type SheetColumn, type SheetColumnType, type SheetOption
 } from '@ego/core'
-import { sheetInput, unfitAfter } from '../../lib/sheets/edits'
+import { sheetInput, unfitAfter } from '@ego/local/sheets/edits'
 import { useSheets } from '../../lib/sheets/context'
-import { newId } from '../../lib/sync/commands'
+import { newId } from '@ego/local/sync/commands'
 import { BottomSheet, inputClass } from '../money/Common'
 import { Button } from '../ui/button'
 import { Text as UiText } from '../ui/text'

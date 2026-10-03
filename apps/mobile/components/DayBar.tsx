@@ -1,7 +1,7 @@
 import React from 'react'
 import { Pressable, View } from 'react-native'
 import { ChevronLeft, ChevronRight } from 'lucide-react-native'
-import { formatIso, parseIso, shiftIso } from '../lib/dates'
+import { formatIso, parseIso, shiftIso } from '@ego/local/dates'
 import { Button } from './ui/button'
 import { Text } from './ui/text'
 

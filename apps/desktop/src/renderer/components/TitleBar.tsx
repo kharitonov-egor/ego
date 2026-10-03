@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react'
-import { Minus, Square, X, Package, Loader2, Check, AlertCircle } from 'lucide-react'
+import { Minus, Square, X, Package, LoaderCircle, Check, CircleAlert } from 'lucide-react'
 import { windowMinimize, windowMaximize, windowClose } from '../hooks/useIpc'
 import appIcon from '../app-icon.png'
 import type { BuildStage } from '../../shared/types'
+import { cn } from '../lib/utils'
 
 type BuildStatus = 'idle' | BuildStage
 
@@ -14,6 +15,9 @@ const BUILD_LABELS: Record<BuildStatus, string> = {
   done: 'Done!',
   error: 'Build failed'
 }
+
+const drag = { WebkitAppRegion: 'drag' } as React.CSSProperties
+const noDrag = { WebkitAppRegion: 'no-drag' } as React.CSSProperties
 
 export default function TitleBar(): React.ReactElement {
   const [build, setBuild] = useState<BuildStatus>('idle')
@@ -43,75 +47,45 @@ export default function TitleBar(): React.ReactElement {
   }
 
   const isBuilding = build === 'compiling' || build === 'packaging' || build === 'installing'
+  const tone = build === 'done' ? 'text-positive' : build === 'error' ? 'text-destructive' : isBuilding ? 'text-foreground' : 'text-surface-600 hover:text-surface-300 hover:bg-surface-800'
 
   return (
-    <div
-      className="flex items-center h-8 bg-surface-950 border-b border-surface-800 select-none"
-      style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
-    >
-      <div className="flex items-center gap-2 px-3 text-xs font-medium text-surface-300">
+    <div className="flex h-9 shrink-0 select-none items-center border-b border-border bg-background" style={drag}>
+      <div className="flex items-center gap-2 px-3 text-[13px] font-semibold text-surface-300">
         <img src={appIcon} alt="" className="h-4 w-4 rounded-sm" />
         <span>Ego</span>
       </div>
 
-      <div
-        className="flex items-center ml-1"
-        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
-      >
+      <div className="ml-1 flex items-center" style={noDrag}>
         <button
+          type="button"
+          aria-label={BUILD_LABELS[build]}
           onClick={() => void handleBuild()}
           disabled={isBuilding}
           title={build === 'error' && errorMsg ? `Build failed: ${errorMsg}` : BUILD_LABELS[build]}
-          className={`h-6 w-6 flex items-center justify-center rounded transition-colors ${
-            build === 'done'
-              ? 'text-emerald-400'
-              : build === 'error'
-                ? 'text-red-400'
-                : isBuilding
-                  ? 'text-accent-400'
-                  : 'text-surface-600 hover:text-surface-300 hover:bg-surface-800'
-          }`}
+          className={cn('flex h-6 w-6 items-center justify-center rounded transition-colors', tone)}
         >
-          {build === 'idle' && <Package size={12} />}
-          {isBuilding && <Loader2 size={12} className="animate-spin" />}
-          {build === 'done' && <Check size={12} />}
-          {build === 'error' && <AlertCircle size={12} />}
+          {build === 'idle' && <Package size={13} />}
+          {isBuilding && <LoaderCircle size={13} className="animate-spin" />}
+          {build === 'done' && <Check size={13} />}
+          {build === 'error' && <CircleAlert size={13} />}
         </button>
-        {build !== 'idle' && (
-          <span
-            className={`text-[10px] ml-1 ${
-              build === 'done'
-                ? 'text-emerald-400'
-                : build === 'error'
-                  ? 'text-red-400'
-                  : 'text-surface-500'
-            }`}
-          >
-            {BUILD_LABELS[build]}
-          </span>
-        )}
+        {build !== 'idle' && <span className={cn('ml-1 text-[11px]', build === 'done' ? 'text-positive' : build === 'error' ? 'text-destructive' : 'text-surface-500')}>
+          {BUILD_LABELS[build]}
+        </span>}
       </div>
 
       <div className="flex-1" />
 
-      <div className="flex" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-        <button
-          onClick={windowMinimize}
-          className="h-8 w-10 flex items-center justify-center hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-200"
-        >
-          <Minus size={14} />
+      <div className="flex" style={noDrag}>
+        <button type="button" aria-label="Minimize" onClick={windowMinimize} className="flex h-9 w-11 items-center justify-center text-surface-400 transition-colors hover:bg-surface-800 hover:text-surface-100">
+          <Minus size={15} />
         </button>
-        <button
-          onClick={windowMaximize}
-          className="h-8 w-10 flex items-center justify-center hover:bg-surface-800 transition-colors text-surface-400 hover:text-surface-200"
-        >
-          <Square size={11} />
+        <button type="button" aria-label="Maximize" onClick={windowMaximize} className="flex h-9 w-11 items-center justify-center text-surface-400 transition-colors hover:bg-surface-800 hover:text-surface-100">
+          <Square size={12} />
         </button>
-        <button
-          onClick={windowClose}
-          className="h-8 w-10 flex items-center justify-center hover:bg-red-600 transition-colors text-surface-400 hover:text-white"
-        >
-          <X size={14} />
+        <button type="button" aria-label="Close to the tray" onClick={windowClose} className="flex h-9 w-11 items-center justify-center text-surface-400 transition-colors hover:bg-[#c42b1c] hover:text-white">
+          <X size={15} />
         </button>
       </div>
     </div>

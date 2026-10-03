@@ -5,7 +5,7 @@ import type { SheetRecord, SheetRowRecord } from '@ego/api-contracts'
 import type { SheetColumn, SheetColumnType, SheetSort } from '@ego/core'
 import {
   cellState, dateLabel, linkLabel, numberLabel, optionOf, rowName, rowTypeOf, type GridItem
-} from '../../lib/sheets/view'
+} from '@ego/local/sheets/view'
 import { COLUMN_TYPE_ICONS, OptionPill, UNFIT } from './ui'
 
 export const NAME_WIDTH = 168

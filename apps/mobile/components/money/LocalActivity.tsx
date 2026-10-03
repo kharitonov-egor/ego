@@ -8,15 +8,15 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import type { MoneySnapshot } from '@ego/core'
 import { useLedger } from '../../lib/ledger-context'
-import type { LocalFeedTransaction } from '../../lib/repositories/transactions'
-import type { OutboxEntry } from '../../lib/sync/outbox'
+import type { LocalFeedTransaction } from '@ego/local/repositories/transactions'
+import type { OutboxEntry } from '@ego/local/sync/outbox'
 import {
   DEFAULT_ACTIVITY_VIEW, activityChips, activityFilters, filterCount, hasFilters, parsePreferences,
   storedPreferences, viewIdentity, type ActivityView
-} from '../../lib/activity-view'
+} from '@ego/local/activity-view'
 import { usePeriod } from '../../lib/period-context'
 import { Blurred } from '../../lib/blur'
-import { transactionDetail, transactionTitle } from '../../lib/transaction-title'
+import { transactionDetail, transactionTitle } from '@ego/local/transaction-title'
 import { ConflictEntries } from '../ConflictEntries'
 import { ConfirmDialog, Empty, MoneyIcon, Sheet, money } from './Common'
 import FilterSheet from './FilterSheet'

@@ -1,7 +1,7 @@
 import React from 'react'
 import { Pressable, View } from 'react-native'
 import type { SyncEntity } from '@ego/api-contracts'
-import type { OutboxEntry } from '../lib/sync/outbox'
+import type { OutboxEntry } from '@ego/local/sync/outbox'
 import { TOUCH } from './money/tokens'
 import { Text } from './ui/text'
 

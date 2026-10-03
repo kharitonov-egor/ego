@@ -1,10 +1,14 @@
 # Ego
 
-My personal desktop app for Windows. Electron, TypeScript, React, Tailwind.
+My personal app, on an Android phone and a Windows desktop. The phone is Expo and React Native,
+the desktop is Electron, React, and Tailwind, and a Cloudflare Worker in `apps/api` holds the data
+and the keys.
 
-The desktop app has a personal budget tracker and a global Trello capture hotkey. The Electron
-main process reads and writes budget data through Cloudflare's D1 HTTPS API. Accounts, categories,
-transactions, transfers, and reports are available from the main window.
+The desktop app opens on the phone's start screen, in the phone's black and white, with every app
+in a sidebar. It keeps its own SQLite copy of the data and syncs it through the Worker the way the
+phone does. It also has what only a computer needs: a global Trello capture hotkey, Quick tools,
+and T3 Code notifications. The phone's apps arrive on the desktop one at a time; until Finance does,
+it shows the older desktop budget views.
 
 Talk to AI has voice and text chat modes. Both use `gpt-live-1` with delegated work handled by
 `gpt-5.6-terra`. The delegated model can use hosted web search plus the read tools enabled in
@@ -352,6 +356,23 @@ then adds the parts up itself rather than trusting the model's arithmetic. `FOOD
 model and falls back to `ASSISTANT_MODEL`. Barcodes go through `GET /v1/food/products/:barcode`,
 which asks USDA only when `USDA_API_KEY` is set.
 
+## Desktop
+
+The desktop app opens on Home, which is the phone's start screen. Every app is also in the sidebar,
+with the sync state, Blur, and Settings at the bottom.
+
+- Sign in once with Google from Home. Ego opens the browser, Google sends it back to an
+  `ego://auth` link, and Windows hands that link to the running app. A device token from
+  `ego-device enroll` also works. Settings signs out.
+- The main process keeps the data in SQLite in the app's data folder, using the phone's schema,
+  outbox, and sync code from `packages/local`. Screens read that copy, so they open offline. Sync
+  runs after each change, when the window comes back to the front (at most once a minute), and
+  every ten minutes while Ego sits in the tray.
+- Blur personal data works as it does on the phone. `Ctrl+Shift+B` turns it on or off from any
+  screen, for a screen share that starts suddenly.
+- Diary and task files load through `ego-media://` links. The main process answers them from the
+  copy it sent, from its cache, or from the Worker, so the device token never reaches the page.
+
 ## Quick tools
 
 Press `Alt+S` anywhere in Windows to open a three-item chooser. Use the arrow keys and Enter, or
@@ -381,15 +402,17 @@ A toast slides in from the bottom right on success or failure.
 
 ## Settings
 
-One panel, "Add to Trello", holding everything the feature needs. The main window is tray-only, so
-double-click the tray icon or pick "Open settings".
+Settings is the last row of the sidebar. It starts with the phone's sections: the account, Blur,
+sync, and which keys the Worker has. Then the desktop's own:
 
-- Global hotkey, captured by pressing the key combination you want
+- Quick add to Trello: the global hotkey, the Trello API key and token, the board, the default
+  list, and Ctrl+number list shortcuts. The token field warns you if the value doesn't start with
+  `ATTA`, since pasting the OAuth secret there instead is an easy mistake and returns a bare 401
+- The Quick tools hotkey
 - Start with Windows
-- Trello API key and token. The token field warns you if the value doesn't start with `ATTA`, since
-  pasting the OAuth secret there instead is an easy mistake and returns a bare 401
-- Board and the default list new cards go to
-- Ctrl+number list shortcuts, for sending a card somewhere other than the default
+- Talk to AI: the Google and Wispr Flow connections, the tools the AI may use, and the voice
+- T3 Code notifications
+- The OpenRouter key Finance uses to read receipt photos
 
 Cards are created through the Trello REST API. `POST /1/cards`, then one `POST /1/cards/{id}/attachments`
 per pasted screenshot.
@@ -403,9 +426,11 @@ MAIN_VITE_TRELLO_API_KEY=
 MAIN_VITE_TRELLO_TOKEN=
 MAIN_VITE_TRELLO_BOARD_ID=
 MAIN_VITE_TRELLO_LIST_ID=
+MAIN_VITE_EGO_API_URL=
 ```
 
-These only seed the settings store the first time the app runs. After that the Settings UI is the
+`MAIN_VITE_EGO_API_URL` is the Worker address, so a fresh install only needs the sign-in button.
+The Trello values only seed the settings store the first time the app runs. After that the Settings UI is the
 source of truth, and values live in `ego-settings.json` under `%APPDATA%/ego`. Get your own key and
 token at https://trello.com/power-ups/admin.
 
@@ -426,8 +451,10 @@ npm install
 npm run dev
 ```
 
-`npm run dev` starts electron-vite with hot reload. `npm run typecheck` runs `tsc --build` across
-the main, preload, and renderer projects. `npm test` runs the shared core and mobile suites.
+`npm run dev` starts electron-vite with hot reload. Electron 42 and later download their binary on
+first use rather than at install, so `dev` runs `install-electron` first. Electron 44 needs Node
+22.12 or newer. `npm run typecheck` runs `tsc --build` across the main, preload, and renderer
+projects. `npm test` runs every package's tests.
 
 To package a Windows installer, use the package icon in the title bar. It runs the build, packages
 with electron-builder, and opens `dist/Ego-<version>-Setup.exe`. `npm run dist` does the same from
@@ -436,16 +463,24 @@ a terminal.
 ## Layout
 
 ```
-src/main/       Electron main process
-  index.ts      app lifecycle, tray, IPC handlers, the build-and-install command
-  quickAdd.ts   the capture window and the toasts
-  trello.ts     Trello REST calls
-  settings.ts   electron-store schema and accessors
-  hotkeys.ts    global shortcut registration
-src/preload/    contextBridge API
-src/renderer/   React settings window, plus the two plain-HTML overlay windows
-src/shared/     types shared across the process boundary
+packages/local/       the phone's data layer: SQLite schema, repositories, outbox, sync, API client
+apps/desktop/
+  src/main/           Electron main process
+    index.ts          app lifecycle, tray, IPC handlers, the build-and-install command
+    local/            the ledger database, sync, Google sign-in, and ego-media files
+    quickAdd.ts       the capture window and the toasts
+    trello.ts         Trello REST calls
+    settings.ts       electron-store schema and accessors
+    hotkeys.ts        global shortcut registration
+  src/preload/        contextBridge API
+  src/renderer/       the React app, plus the plain-HTML overlay windows
+    lib/              the phone's contexts, reading the ledger over IPC
+    screens/          one folder per app
+  src/shared/         types shared across the process boundary
 ```
+
+The renderer runs the phone's repositories and commands unchanged. Their SQL goes over IPC to the
+main process, which owns the one SQLite connection and takes turns between the screens and sync.
 
 The quick add and toast windows are plain HTML with inline styles rather than React. They open on a
 hotkey and need to paint instantly, so there's no bundle to boot first.

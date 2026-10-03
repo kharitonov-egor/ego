@@ -19,7 +19,7 @@ import { BottomSheet, ConfirmDialog } from '../components/money/Common'
 import { PrivateGate } from '../components/PrivateGate'
 import { Button } from '../components/ui/button'
 import { Text } from '../components/ui/text'
-import { isoToday } from '../lib/dates'
+import { isoToday } from '@ego/local/dates'
 import { useLedger } from '../lib/ledger-context'
 
 const UNITS_KEY = 'ego.health.units'

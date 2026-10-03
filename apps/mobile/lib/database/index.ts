@@ -1,26 +1,10 @@
-import { migrate } from './migrations'
-import type { LocalDatabase, SqlParam } from './types'
+import { databaseFileFor } from '@ego/local/database/dataset'
+import { migrate } from '@ego/local/database/migrations'
+import type { LocalDatabase, SqlParam } from '@ego/local/database/types'
 
-export * from './types'
-export { migrate, LOCAL_MIGRATIONS } from './migrations'
-
-/**
- * Storage is namespaced by the connection it belongs to. Pointing the app at another dataset
- * opens another file instead of mixing two ledgers.
- */
-export function datasetIdFor(apiUrl: string): string {
-  const normalized = apiUrl.trim().replace(/\/+$/, '').toLowerCase()
-  let hash = 0x811c9dc5
-  for (let index = 0; index < normalized.length; index += 1) {
-    hash ^= normalized.charCodeAt(index)
-    hash = Math.imul(hash, 0x01000193) >>> 0
-  }
-  return hash.toString(36)
-}
-
-export function databaseFileFor(datasetId: string): string {
-  return `ego-money-${datasetId}.db`
-}
+export * from '@ego/local/database/types'
+export { datasetIdFor, databaseFileFor } from '@ego/local/database/dataset'
+export { migrate, LOCAL_MIGRATIONS } from '@ego/local/database/migrations'
 
 interface NativeDatabase {
   getAllAsync: <T>(sql: string, params: SqlParam[]) => Promise<T[]>

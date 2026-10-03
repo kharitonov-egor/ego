@@ -20,7 +20,7 @@ import { BoardSheet } from '../../components/tasks/sheets'
 import { useSheets } from '../../lib/sheets/context'
 import {
   activeFilters, activeTypeId, cellState, gridColumns, rowName, sheetGrid, sortLabels
-} from '../../lib/sheets/view'
+} from '@ego/local/sheets/view'
 
 type Panel = 'menu' | 'rename' | 'types' | 'sort' | 'filter' | 'group' | 'hidden'
 

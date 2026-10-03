@@ -4,7 +4,7 @@ import { Angry, Check, Frown, Laugh, Meh, Smile, Trash2, type LucideIcon } from 
 import type { MoodRecord } from '@ego/api-contracts'
 import { MOOD_LEVELS, MOOD_NOTE_LIMIT, type MoodInput, type MoodLevel } from '@ego/core'
 import { BlurBlob, Blurred, useBlur } from '../../lib/blur'
-import { parseIso, shiftIso } from '../../lib/dates'
+import { parseIso, shiftIso } from '@ego/local/dates'
 import { inputClass } from '../money/Common'
 import { Button } from '../ui/button'
 import { Card, CardHeader, CardTitle } from '../ui/card'

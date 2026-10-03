@@ -11,7 +11,7 @@ import {
 import type { DateRange, MoneySnapshot, MoneyTransaction } from '@ego/core'
 import { useMoney } from '../../lib/money-context'
 import { useLedger } from '../../lib/ledger-context'
-import { isoToday } from '../../lib/dates'
+import { isoToday } from '@ego/local/dates'
 import { transactionsInRange } from '../../lib/period-context'
 import { Blurred } from '../../lib/blur'
 import { useNavigation, useRouter } from 'expo-router'

@@ -1,14 +1,54 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type {
   BuildStage,
   IpcApi,
   QuickAddListShortcut,
   QuickAddPayload
 } from '../shared/types'
+import type { LedgerEvent, MediaProgress, RemoteApi, RemoteApiMethod, SignInOutcome } from '../shared/local'
 
 const api: IpcApi = {
+  localAll: (transaction, sql, params) => ipcRenderer.invoke('local-all', transaction, sql, params),
+  localRun: (transaction, sql, params) => ipcRenderer.invoke('local-run', transaction, sql, params),
+  localBegin: () => ipcRenderer.invoke('local-begin'),
+  localFinish: (transaction, commit) => ipcRenderer.invoke('local-finish', transaction, commit),
+  ledgerState: () => ipcRenderer.invoke('ledger-state'),
+  ledgerSync: () => ipcRenderer.invoke('ledger-sync'),
+  onLedgerEvent: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, ledgerEvent: LedgerEvent): void => callback(ledgerEvent)
+    ipcRenderer.on('ledger-event', handler)
+    return () => ipcRenderer.removeListener('ledger-event', handler)
+  },
+  apiCall: <K extends RemoteApiMethod>(method: K, ...args: Parameters<RemoteApi[K]>) =>
+    ipcRenderer.invoke('api-call', method, args) as ReturnType<RemoteApi[K]>,
+  signInWithGoogle: (apiUrl) => ipcRenderer.invoke('auth-google', apiUrl),
+  signInWithToken: (apiUrl, token) => ipcRenderer.invoke('auth-device-token', apiUrl, token),
+  signOut: () => ipcRenderer.invoke('auth-sign-out'),
+  onSignInFinished: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, outcome: SignInOutcome): void => callback(outcome)
+    ipcRenderer.on('sign-in-finished', handler)
+    return () => ipcRenderer.removeListener('sign-in-finished', handler)
+  },
+  mediaStage: (input) => ipcRenderer.invoke('media-stage', input),
+  mediaStageFile: (input) => ipcRenderer.invoke('media-stage-file', input),
+  mediaDeleteStaged: (paths) => ipcRenderer.invoke('media-delete-staged', paths),
+  mediaOpen: (input) => ipcRenderer.invoke('media-open', input),
+  onMediaProgress: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, progress: MediaProgress): void => callback(progress)
+    ipcRenderer.on('media-progress', handler)
+    return () => ipcRenderer.removeListener('media-progress', handler)
+  },
+  pathForFile: (file) => webUtils.getPathForFile(file),
+  notify: (input) => ipcRenderer.send('notify', input),
+  onNavigate: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, route: string): void => callback(route)
+    ipcRenderer.on('navigate', handler)
+    return () => ipcRenderer.removeListener('navigate', handler)
+  },
+  preferenceGet: (key) => ipcRenderer.invoke('preference-get', key),
+  preferenceSet: (key, value) => ipcRenderer.invoke('preference-set', key, value),
+
   moneyGetLedgerConfig: () => ipcRenderer.invoke('money-get-ledger-config'),
-  moneySetLedgerConfig: (input) => ipcRenderer.invoke('money-set-ledger-config', input),
   liveCreateSession: (sdp) => ipcRenderer.invoke('live-create-session', sdp),
   liveExecuteTool: (input) => ipcRenderer.invoke('live-execute-tool', input),
   connectorGetStatus: (provider) => ipcRenderer.invoke('connector-get-status', provider),
@@ -22,9 +62,6 @@ const api: IpcApi = {
   },
   getLivePreferences: () => ipcRenderer.invoke('live-get-preferences'),
   setLivePreferences: (preferences) => ipcRenderer.invoke('live-set-preferences', preferences),
-  moneyGetSyncStatus: () => ipcRenderer.invoke('money-get-sync-status'),
-  moneySetSyncConfig: (input) => ipcRenderer.invoke('money-set-sync-config', input),
-  moneyTestConnection: () => ipcRenderer.invoke('money-test-connection'),
   moneyGetSnapshot: () => ipcRenderer.invoke('money-get-snapshot'),
   moneyCreateAccount: (input) => ipcRenderer.invoke('money-create-account', input),
   moneyUpdateAccount: (id, input) => ipcRenderer.invoke('money-update-account', id, input),

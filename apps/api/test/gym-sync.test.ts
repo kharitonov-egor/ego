@@ -4,16 +4,16 @@ import {
   GYM_LIBRARY_CATEGORIES, GYM_LIBRARY_EXERCISES, parseFitNotesCsv, planFitNotesImport,
   type GymExerciseInput, type GymSetInput
 } from '@ego/core'
-import { filterQuery, type MoneyApi } from '../../mobile/lib/api-client'
-import type { LocalDatabase } from '../../mobile/lib/database/types'
-import { exerciseSets, gymCalendar, gymCategories, gymDay, gymExercises, gymPlans } from '../../mobile/lib/repositories/gym'
+import { filterQuery, type MoneyApi } from '../../../packages/local/src/api-client'
+import type { LocalDatabase } from '../../../packages/local/src/database/types'
+import { exerciseSets, gymCalendar, gymCategories, gymDay, gymExercises, gymPlans } from '../../../packages/local/src/repositories/gym'
 import {
   createGymCategory, createGymExercise, createGymPlan, createGymSet, deleteGymCategory, deleteGymExercise,
   deleteGymPlan, deleteGymSet, saveGymWorkout, updateGymPlan, updateGymSet
-} from '../../mobile/lib/sync/commands'
-import { createSyncCoordinator } from '../../mobile/lib/sync/coordinator'
-import { allOperations } from '../../mobile/lib/sync/outbox'
-import { openTestLedger } from '../../mobile/test/local-db'
+} from '../../../packages/local/src/sync/commands'
+import { createSyncCoordinator } from '../../../packages/local/src/sync/coordinator'
+import { allOperations } from '../../../packages/local/src/sync/outbox'
+import { openTestLedger } from '../../../packages/local/test/local-db'
 import { hashToken } from '../src/auth'
 import { handle } from '../src/router'
 import { readChanges } from '../src/reads'

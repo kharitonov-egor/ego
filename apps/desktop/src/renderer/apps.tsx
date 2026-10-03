@@ -1,0 +1,16 @@
+import { Sparkles, Wallet, type LucideIcon } from 'lucide-react'
+
+export interface AppEntry {
+  label: string
+  Icon: LucideIcon
+  /** The page the tile and the sidebar open. */
+  path: string
+  /** Every path under this prefix belongs to the app, so its sidebar row stays lit. */
+  prefix: string
+}
+
+/** The phone's start-screen tiles, in the phone's order. */
+export const APPS: readonly AppEntry[] = [
+  { label: 'AI', Icon: Sparkles, path: '/ai', prefix: '/ai' },
+  { label: 'Finance', Icon: Wallet, path: '/money', prefix: '/money' }
+]
