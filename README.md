@@ -440,6 +440,14 @@ The Food tile has two tabs: Log, for what you ate, and Fridge, for the food you 
 - The AI tile reads and writes both: "log my lunch" with a photo, "how much protein today", "what's
   in my fridge", or "we're out of milk".
 
+The desktop has no camera, so a photo comes from Ctrl+V, a drop anywhere on Food, or the file
+picker behind the plus and the round photo button. It is cut down to the same two JPEGs the phone
+makes. Barcode takes the digits typed, or a USB barcode scanner's, which types them and presses
+Enter, then follows the phone's lookup, label photo included. Clicking an entry or the card opens
+the editor beside the log, or in its place on a narrow window. Enter saves. Escape closes it, and a
+held card starts its three seconds again. Ctrl+Z puts back what the fridge's check took out while
+its bar runs.
+
 Entries, fridge items, and the targets use the same local database, outbox, and change log as the
 other apps, as `foodEntry`, `fridgeItem`, and `foodGoal`, in `food_entries`, `fridge_items`, and
 `food_goals` in D1. An entry keeps its own totals and parts, so it never depends on a database that
@@ -464,8 +472,8 @@ with the sync state, Blur, and Settings at the bottom.
   every ten minutes while Ego sits in the tray.
 - Blur personal data works as it does on the phone. `Ctrl+Shift+B` turns it on or off from any
   screen, for a screen share that starts suddenly.
-- Diary and task files load through `ego-media://` links. The main process answers them from the
-  copy it sent, from its cache, or from the Worker, so the device token never reaches the page.
+- Diary, task, and food files load through `ego-media://` links. The main process answers them from
+  the copy it sent, from its cache, or from the Worker, so the device token never reaches the page.
 
 ## Quick tools
 

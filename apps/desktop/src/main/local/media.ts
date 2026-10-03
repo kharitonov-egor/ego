@@ -43,7 +43,7 @@ export function extensionFor(mimeType: string, fileName: string | null): string 
   return fileName && dot > 0 ? fileName.slice(dot).toLowerCase().replace(/[^.a-z0-9]/g, '') : ''
 }
 
-const isScope = (value: string): value is MediaScope => value === 'diary' || value === 'tasks'
+const isScope = (value: string): value is MediaScope => value === 'diary' || value === 'tasks' || value === 'food'
 const MEDIA_ID = /^[A-Za-z0-9_-]{1,80}$/
 
 function folder(name: string): string {
@@ -150,8 +150,8 @@ async function cachedType(path: string): Promise<string> {
 }
 
 /**
- * `ego-media://diary/<id>` and `ego-media://tasks/<id>`. A file this computer sent is read from
- * disk; anything else comes from the Worker with the device token, which never reaches the page.
+ * `ego-media://<scope>/<id>` for diary, task, and food files. A file this computer sent is read
+ * from disk; anything else comes from the Worker with the device token, which never reaches the page.
  */
 export function handleMediaRequests(deps: MediaDeps): void {
   protocol.handle(MEDIA_SCHEME, async (request) => {
