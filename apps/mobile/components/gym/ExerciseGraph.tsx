@@ -2,10 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { PanResponder, View, type LayoutChangeEvent } from 'react-native'
 import Svg, { Circle, Line, Path } from 'react-native-svg'
 import {
-  GRAPH_METRIC_LABELS, formatSetDuration, formatWeight, graphMetricsFor, graphPoints,
+  GRAPH_METRIC_LABELS, graphMetricsFor, graphPoints,
   type DistanceUnit, type ExerciseType, type GraphMetric, type GraphPoint, type GymSetLike, type WeightUnit
 } from '@ego/core'
-import { formatIso, isoToday, parseIso, shiftIso } from '@ego/local/dates'
+import { formatIso, isoToday, shiftIso } from '@ego/local/dates'
+import { dayNumber, formatMetric, tickLabel, ticksFor } from '@ego/local/gym/graph'
 import { Chips } from '../money/Common'
 import { color, tabular } from '../money/tokens'
 import { Text } from '../ui/text'
@@ -22,52 +23,6 @@ type Range = '1m' | '3m' | '6m' | '1y' | 'all'
 const RANGES: readonly Range[] = ['1m', '3m', '6m', '1y', 'all']
 const RANGE_LABELS: Record<Range, string> = { '1m': '1M', '3m': '3M', '6m': '6M', '1y': '1Y', all: 'All' }
 const RANGE_DAYS: Record<Exclude<Range, 'all'>, number> = { '1m': 31, '3m': 92, '6m': 183, '1y': 366 }
-
-function niceStep(span: number): number {
-  const raw = span / 3
-  const magnitude = 10 ** Math.floor(Math.log10(raw))
-  const fraction = raw / magnitude
-  const step = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 2.5 ? 2.5 : fraction <= 5 ? 5 : 10
-  return step * magnitude
-}
-
-/** Clean ticks that bracket the data, so the line never touches the frame. */
-function ticksFor(values: number[]): number[] {
-  const low = Math.min(...values)
-  const high = Math.max(...values)
-  if (low === high) {
-    const pad = Math.max(1, Math.abs(high) * 0.1)
-    return ticksFor([Math.max(0, low - pad), high + pad])
-  }
-  const step = niceStep(high - low)
-  const first = Math.floor(low / step) * step
-  const last = Math.ceil(high / step) * step
-  const ticks: number[] = []
-  for (let tick = first; tick <= last + step / 2; tick += step) ticks.push(Math.round(tick * 1000) / 1000)
-  return ticks
-}
-
-function isTime(metric: GraphMetric): boolean {
-  return metric === 'max_time' || metric === 'workout_time'
-}
-
-export function formatMetric(metric: GraphMetric, value: number, weightUnit: WeightUnit, distanceUnit: DistanceUnit): string {
-  if (isTime(metric)) return formatSetDuration(value)
-  if (metric === 'max_distance' || metric === 'workout_distance') return `${Math.round(value * 100) / 100} ${distanceUnit}`
-  if (metric === 'max_reps' || metric === 'workout_reps') return `${Math.round(value)} reps`
-  if (metric === 'workout_volume') return `${Math.round(value).toLocaleString('en-US')} ${weightUnit}`
-  return `${formatWeight(value)} ${weightUnit}`
-}
-
-function tickLabel(metric: GraphMetric, value: number): string {
-  if (isTime(metric)) return formatSetDuration(value)
-  if (value >= 10000) return `${Math.round(value / 1000)}k`
-  return Number.isInteger(value) ? value.toLocaleString('en-US') : String(value)
-}
-
-function dayNumber(iso: string): number {
-  return Math.round(parseIso(iso).getTime() / 86400000)
-}
 
 export function ExerciseGraph({ sets, type, weightUnit, distanceUnit, onScrubbingChange }: {
   sets: readonly GymSetLike[]

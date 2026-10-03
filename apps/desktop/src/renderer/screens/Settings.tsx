@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import {
-  BellRing, Check, ChevronRight, CircleUserRound, Command, EyeOff, Info, KeyRound, Landmark, LogOut, Power, RefreshCw, ScanLine, X
+  AlarmClock, BellRing, Check, ChevronRight, CircleUserRound, Command, EyeOff, Info, KeyRound, Landmark, LogOut, Power, RefreshCw, ScanLine, X
 } from 'lucide-react'
 import type { ServiceStatus, SessionInfo } from '@ego/api-contracts'
+import { formatSetDuration } from '@ego/core'
 import { REMINDER_HOURS, hourLabel } from '@ego/local/reminders'
 import HotkeyInput from '../components/HotkeyInput'
 import LiveSettings from '../components/LiveSettings'
@@ -18,6 +19,7 @@ import { ConfirmDialog } from '../components/ui/dialog'
 import { inputClass } from '../components/ui/input'
 import { Switch } from '../components/ui/switch'
 import { Blurred, useBlur } from '../lib/blur'
+import { REST_PRESETS, useRestTimer } from '../lib/gym/rest-timer'
 import { syncLabel, useLedger } from '../lib/ledger'
 import { useReminder } from '../lib/reminder'
 import { cn } from '../lib/utils'
@@ -152,6 +154,22 @@ function AccountsSection(): React.ReactElement {
   </Section>
 }
 
+const REST_VALUES = REST_PRESETS.map(String)
+const REST_LABELS = Object.fromEntries(REST_PRESETS.map((seconds) => [String(seconds), formatSetDuration(seconds)]))
+
+function RestTimerSection(): React.ReactElement {
+  const rest = useRestTimer()
+  return <Section Icon={AlarmClock} title="Gym rest timer" right={<Switch label="Start the rest timer after each set" checked={rest.preference.autoStart} onCheckedChange={rest.setAutoStart} />}>
+    <SectionNote>
+      {rest.preference.autoStart
+        ? `Starts a ${formatSetDuration(rest.preference.seconds)} countdown each time you save a new set, and beeps when it ends.`
+        : 'Start the countdown yourself from the alarm clock on an exercise.'}
+    </SectionNote>
+    <FieldLabel>Length</FieldLabel>
+    <Chips values={REST_VALUES} value={String(rest.preference.seconds)} labels={REST_LABELS} onChange={(value) => rest.setSeconds(Number(value))} />
+  </Section>
+}
+
 function SyncSection(): React.ReactElement {
   const ledger = useLedger()
   return <Section Icon={RefreshCw} title="Sync">
@@ -267,6 +285,7 @@ export default function Settings(): React.ReactElement {
       <AccountSection session={session} sessionError={error} />
       <BlurSection />
       <ReminderSection />
+      <RestTimerSection />
       {ledger.enabled && ledger.reference && <AccountsSection />}
       {ledger.enabled && <SyncSection />}
       {ledger.enabled && session && <ServerKeysSection session={session} />}

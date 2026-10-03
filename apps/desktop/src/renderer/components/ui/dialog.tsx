@@ -17,7 +17,7 @@ const layers: symbol[] = []
 let focusedOutside: HTMLElement | null = null
 if (typeof document !== 'undefined') {
   document.addEventListener('focusin', (event) => {
-    if (event.target instanceof HTMLElement && !event.target.closest('[role="dialog"]')) focusedOutside = event.target
+    if (event.target instanceof HTMLElement && !event.target.closest('[role="dialog"], [role="menu"]')) focusedOutside = event.target
   }, true)
 }
 
@@ -54,8 +54,10 @@ export function Modal({ visible, onClose, onEscape, dismissOnBackdrop = false, l
       target?.focus()
     }
     if (!panel.current?.contains(document.activeElement)) focusInside()
+    // A menu opened from inside the dialog is portaled to the body and keeps its own focus.
     const onFocus = (event: FocusEvent): void => {
-      if (isTop() && event.target instanceof Node && !panel.current?.contains(event.target)) focusInside()
+      if (!isTop() || !(event.target instanceof Node) || panel.current?.contains(event.target)) return
+      if (!(event.target instanceof Element && event.target.closest('[role="menu"]'))) focusInside()
     }
     const onKey = (event: KeyboardEvent): void => {
       if (!isTop()) return
