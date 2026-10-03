@@ -11,7 +11,7 @@ import { color } from '../../lib/tokens'
 import { cn } from '../../lib/utils'
 import { ConfirmDialog, Modal } from '../ui/dialog'
 import { Spinner } from '../ui/spinner'
-import { TaskImage } from './ui'
+import { TaskImage, imageVersion } from './ui'
 
 function ViewerButton({ label, onClick, children, className }: {
   label: string
@@ -82,7 +82,12 @@ function UploadBar({ mediaId }: { mediaId: string }): React.ReactElement | null 
   </div>
 }
 
-function MediaTile({ item, onOpen, onRemove }: { item: TaskAttachment; onOpen: () => void; onRemove: () => void }): React.ReactElement {
+function MediaTile({ item, version, onOpen, onRemove }: {
+  item: TaskAttachment
+  version: string
+  onOpen: () => void
+  onRemove: () => void
+}): React.ReactElement {
   const { blurred } = useBlur()
   return <div
     className="group relative aspect-square overflow-hidden rounded-xl bg-surface-900"
@@ -92,7 +97,7 @@ function MediaTile({ item, onOpen, onRemove }: { item: TaskAttachment; onOpen: (
     }}
   >
     <button type="button" aria-label={item.kind === 'video' ? 'Play video' : 'View photo'} onClick={onOpen} className="absolute inset-0 hover:opacity-90">
-      {!blurred && (item.previewId || item.kind === 'photo') && <TaskImage mediaId={item.previewId ?? item.mediaId} className="h-full w-full" />}
+      {!blurred && (item.previewId || item.kind === 'photo') && <TaskImage mediaId={item.previewId ?? item.mediaId} version={version} className="h-full w-full" />}
       {item.kind === 'video' && <span className="absolute inset-0 flex items-center justify-center">
         <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60"><Play color="#fafafa" fill="#fafafa" size={16} /></span>
       </span>}
@@ -173,7 +178,7 @@ export function CardAttachments({ card }: { card: TaskCardRecord }): React.React
         </>}
     </div>}
     {media.length > 0 && <div className="grid grid-cols-3 gap-1.5">
-      {media.map((item, index) => <MediaTile key={item.id} item={item} onOpen={() => setViewing(index)} onRemove={() => setRemoving(item)} />)}
+      {media.map((item, index) => <MediaTile key={item.id} item={item} version={imageVersion(card, upload)} onOpen={() => setViewing(index)} onRemove={() => setRemoving(item)} />)}
     </div>}
     {files.length > 0 && <div className={cn('flex flex-col gap-2', media.length > 0 && 'mt-3')}>
       {files.map((item) => <FileRow key={item.id} attachment={item} onRemove={() => setRemoving(item)} />)}

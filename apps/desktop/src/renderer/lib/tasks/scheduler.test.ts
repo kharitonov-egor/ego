@@ -72,6 +72,62 @@ describe('createReminderScheduler', () => {
     expect(notify).not.toHaveBeenCalled()
   })
 
+  it('shows a reminder that came due while the computer slept, once, when the plan is replaced', () => {
+    const notify = vi.fn<(input: NotifyInput) => void>()
+    const scheduler = createReminderScheduler(notify)
+    const start = Date.now()
+    const reminder = planned('ego-task-a', start + 60 * 60000)
+    scheduler.replace([reminder], start)
+    expect(scheduler.plannedAt()).toBe(start)
+    vi.setSystemTime(start + 3 * 60 * 60000)
+    scheduler.replace([reminder, planned('ego-task-b', Date.now() + 60000)], Date.now())
+    expect(notify).toHaveBeenCalledTimes(1)
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ route: '/tasks/card/a' }))
+    scheduler.replace([reminder], Date.now())
+    vi.advanceTimersByTime(120000)
+    expect(notify).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not show again what already showed, what the new plan dropped, or what was never waited on', () => {
+    const notify = vi.fn<(input: NotifyInput) => void>()
+    const scheduler = createReminderScheduler(notify)
+    const start = Date.now()
+    const shownOnTime = planned('ego-task-a', start + 60000)
+    const doneSince = planned('ego-task-b', start + 120000)
+    scheduler.replace([shownOnTime, doneSince], start)
+    vi.advanceTimersByTime(60000)
+    expect(notify).toHaveBeenCalledTimes(1)
+    vi.setSystemTime(start + 10 * 60000)
+    scheduler.replace([shownOnTime, planned('ego-task-new', start + 5 * 60000)], Date.now())
+    expect(notify).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows only the latest of several missed digests', () => {
+    const notify = vi.fn<(input: NotifyInput) => void>()
+    const scheduler = createReminderScheduler(notify)
+    const start = Date.now()
+    const day = 24 * 60 * 60000
+    const digests = [planned('ego-task-digest-1', start + 60000), planned('ego-task-digest-2', start + day + 60000)]
+    scheduler.replace(digests, start)
+    vi.setSystemTime(start + 2 * day)
+    scheduler.replace(digests, Date.now())
+    expect(notify).toHaveBeenCalledTimes(1)
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ title: 'ego-task-digest-2' }))
+  })
+
+  it('starts fresh after cancel', () => {
+    const notify = vi.fn<(input: NotifyInput) => void>()
+    const scheduler = createReminderScheduler(notify)
+    const start = Date.now()
+    const reminder = planned('ego-task-a', start + 60000)
+    scheduler.replace([reminder], start)
+    scheduler.cancel()
+    expect(scheduler.plannedAt()).toBeNull()
+    vi.setSystemTime(start + 120000)
+    scheduler.replace([reminder], Date.now())
+    expect(notify).not.toHaveBeenCalled()
+  })
+
   describe('with the plan the phone uses', () => {
     const board: TaskBoardRecord = { id: 'board', name: 'Home', icon: '', position: 1024, hideDone: false, archivedAt: null, createdAt: STAMP, updatedAt: STAMP, revision: 1 }
     const list: TaskListRecord = { id: 'list', boardId: 'board', name: 'To Do', position: 1024, archivedAt: null, createdAt: STAMP, updatedAt: STAMP, revision: 1 }
@@ -85,6 +141,19 @@ describe('createReminderScheduler', () => {
       expect(notify).not.toHaveBeenCalled()
       vi.advanceTimersByTime(60 * 1000)
       expect(notify).toHaveBeenCalledWith({ title: 'Card due', body: 'Due today at 9:00 AM · Home / To Do', route: '/tasks/card/due' })
+    })
+
+    it('catches up after sleep with a plan made from the last plan time', () => {
+      const notify = vi.fn<(input: NotifyInput) => void>()
+      const scheduler = createReminderScheduler(notify)
+      scheduler.replace(taskNotificationPlan(data, new Date(), { digest: false }), Date.now())
+      vi.setSystemTime(new Date('2026-10-02T11:00:00'))
+      const since = new Date(scheduler.plannedAt() ?? Date.now())
+      scheduler.replace(taskNotificationPlan(data, since, { digest: false }), Date.now())
+      expect(notify).toHaveBeenCalledWith(expect.objectContaining({ title: 'Card due', route: '/tasks/card/due' }))
+      const done: TaskData = { ...data, cards: [{ ...open, doneAt: new Date().toISOString() }] }
+      scheduler.replace(taskNotificationPlan(done, new Date(scheduler.plannedAt() ?? Date.now()), { digest: false }), Date.now())
+      expect(notify).toHaveBeenCalledTimes(1)
     })
 
     it('stays quiet once the card is done', () => {

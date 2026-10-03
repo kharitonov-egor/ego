@@ -112,24 +112,50 @@ export async function persistFile(file: File): Promise<PersistedFile> {
   const kind = kindForMime(mimeType)
   const copy = await stage(file, mediaId, mimeType, fileName)
   const uploads: PersistedFile['uploads'] = [{ mediaId, localUri: copy.localUri, contentType: mimeType, size: copy.size }]
-  const attachment: PersistedFile['attachment'] = {
-    mediaId, kind, mimeType, fileName, size: copy.size, width: null, height: null, durationSeconds: null, previewId: null
+  try {
+    const attachment: PersistedFile['attachment'] = {
+      mediaId, kind, mimeType, fileName, size: copy.size, width: null, height: null, durationSeconds: null, previewId: null
+    }
+    const picture = kind === 'photo' ? await photo(file) : kind === 'video' ? await video(file) : null
+    if (picture) {
+      attachment.width = picture.width
+      attachment.height = picture.height
+      attachment.durationSeconds = picture.durationSeconds
+    }
+    if (picture?.preview) {
+      const previewId = newId()
+      const previewCopy = await window.api.mediaStage({
+        mediaId: previewId, fileName: null, mimeType: 'image/jpeg', data: await picture.preview.arrayBuffer()
+      })
+      attachment.previewId = previewId
+      uploads.unshift({ mediaId: previewId, localUri: previewCopy.localUri, contentType: 'image/jpeg', size: previewCopy.size })
+    }
+    return { attachment, uploads }
+  } catch (error: unknown) {
+    deleteStagedFiles(uploads.map((upload) => upload.localUri))
+    throw error
   }
-  const picture = kind === 'photo' ? await photo(file) : kind === 'video' ? await video(file) : null
-  if (picture) {
-    attachment.width = picture.width
-    attachment.height = picture.height
-    attachment.durationSeconds = picture.durationSeconds
-  }
-  if (picture?.preview) {
-    const previewId = newId()
-    const previewCopy = await window.api.mediaStage({
-      mediaId: previewId, fileName: null, mimeType: 'image/jpeg', data: await picture.preview.arrayBuffer()
-    })
-    attachment.previewId = previewId
-    uploads.unshift({ mediaId: previewId, localUri: previewCopy.localUri, contentType: 'image/jpeg', size: previewCopy.size })
-  }
-  return { attachment, uploads }
+}
+
+/**
+ * Stages every file or none: when one fails, such as a folder dropped with the files, the copies
+ * already made are deleted again.
+ */
+export async function persistFiles(files: readonly File[]): Promise<PersistedFile[] | null> {
+  const results = await Promise.allSettled(files.map(persistFile))
+  const persisted = results.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
+  if (persisted.length === results.length) return persisted
+  deleteStagedFiles(persisted.flatMap((item) => item.uploads.map((upload) => upload.localUri)))
+  return null
+}
+
+/** The files in a drop or a paste, leaving out folders, which arrive as files that cannot be read. */
+export function transferredFiles(transfer: DataTransfer): File[] {
+  return [...transfer.items].flatMap((item) => {
+    if (item.kind !== 'file' || item.webkitGetAsEntry()?.isDirectory) return []
+    const file = item.getAsFile()
+    return file ? [file] : []
+  })
 }
 
 export function deleteStagedFiles(paths: readonly string[]): void {

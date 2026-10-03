@@ -1,4 +1,4 @@
-import React, { memo, useState } from 'react'
+import React, { memo, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import {
   AlignLeft, CircleCheck, Circle, Clock, CloudUpload, Paperclip, SquareCheckBig, SquareKanban, TriangleAlert, X,
@@ -90,16 +90,37 @@ function Badge({ Icon, text }: { Icon: LucideIcon; text?: string }): React.React
   </span>
 }
 
-/** A task image from this computer's copy or the Worker. A type Chromium cannot draw leaves the frame empty. */
-export function TaskImage({ mediaId, className, style }: { mediaId: string; className?: string; style?: React.CSSProperties }): React.ReactElement {
-  const [broken, setBroken] = useState<string | null>(null)
-  if (broken === mediaId) return <div className={className} style={style} />
+/** What a card's images retry on: a save of the card, or its files moving through the upload queue. */
+export function imageVersion(card: Pick<TaskCardRecord, 'updatedAt'>, upload: 'sending' | 'failed' | undefined): string {
+  return `${card.updatedAt}|${upload ?? ''}`
+}
+
+/**
+ * A task image from this computer's copy or the Worker. A new file can be asked for before the
+ * write that records it lands, and then comes back missing, so a failed image tries again when
+ * `version` changes. A type Chromium cannot draw leaves the frame empty.
+ */
+export function TaskImage({ mediaId, version, className, style }: {
+  mediaId: string
+  version: string
+  className?: string
+  style?: React.CSSProperties
+}): React.ReactElement {
+  const [failed, setFailed] = useState<{ mediaId: string; version: string } | null>(null)
+  const [retry, setRetry] = useState<{ mediaId: string; version: string } | null>(null)
+  useEffect(() => {
+    if (!failed || failed.mediaId !== mediaId || failed.version === version) return
+    setRetry({ mediaId, version })
+    setFailed(null)
+  }, [failed, mediaId, version])
+  if (failed?.mediaId === mediaId) return <div className={className} style={style} />
+  const source = mediaUrl(mediaId, 'tasks')
   return <img
-    src={mediaUrl(mediaId, 'tasks')}
+    src={retry?.mediaId === mediaId ? `${source}?retry=${encodeURIComponent(retry.version)}` : source}
     alt=""
     draggable={false}
     loading="lazy"
-    onError={() => setBroken(mediaId)}
+    onError={() => setFailed({ mediaId, version })}
     className={cn('object-cover', className)}
     style={style}
   />
@@ -121,7 +142,7 @@ export const CardFace = memo(function CardFace({ card, labels, now, upload, onTo
   const done = card.doneAt !== null
   const coverHeight = cover?.width && cover.height ? Math.min(160, Math.max(90, 280 * cover.height / cover.width)) : 120
   return <div className={cn('overflow-hidden rounded-xl border', lifted ? 'border-surface-500 bg-surface-800' : 'border-surface-800 bg-card')}>
-    {cover && !blurred && <TaskImage mediaId={cover.mediaId} className="w-full bg-popover" style={{ height: coverHeight }} />}
+    {cover && !blurred && <TaskImage mediaId={cover.mediaId} version={imageVersion(card, upload)} className="w-full bg-popover" style={{ height: coverHeight }} />}
     <div className="px-3 py-2.5">
       {shown.length > 0 && <div className="mb-1.5 flex flex-wrap gap-1">
         {shown.map((label) => <LabelChip key={label.id} label={label} />)}
@@ -207,7 +228,7 @@ export function TasksGate({ title, back, tabs, children }: {
     : !ledger.enabled
       ? <TasksMessage
         title="Sign in to use Tasks"
-        detail="Sign in once with Google on the start screen. Boards then save on this computer and sync to D1."
+        detail="Sign in once with Google on Home. Boards then save on this computer and sync to D1."
         action="Go to sign in"
         onAction={() => navigate('/')}
       />

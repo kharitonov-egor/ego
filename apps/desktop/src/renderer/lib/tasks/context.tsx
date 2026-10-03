@@ -16,7 +16,7 @@ import {
 } from '@ego/local/tasks/board'
 import { localTaskRevision, localTasks, type TaskData, type TaskTable } from '@ego/local/tasks/repository'
 import { useLedger, type LocalWrite } from '../ledger'
-import { deleteStagedFiles, persistFile, type PersistedFile } from './files'
+import { deleteStagedFiles, persistFiles, type PersistedFile } from './files'
 
 export const DEFAULT_LISTS = ['To Do', 'Doing', 'Done'] as const
 
@@ -437,10 +437,8 @@ export function TasksProvider({ children }: { children: React.ReactNode }): Reac
   const addFiles = useCallback(async (cardId: string, files: readonly File[]): Promise<boolean> => {
     const card = dataRef.current?.cards.find((item) => item.id === cardId)
     if (!card || files.length === 0) return false
-    let persisted: PersistedFile[]
-    try {
-      persisted = await Promise.all(files.map(persistFile))
-    } catch {
+    const persisted = await persistFiles(files)
+    if (!persisted) {
       setError('This computer could not read one of those files')
       return false
     }

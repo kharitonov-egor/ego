@@ -51,7 +51,11 @@ export function TaskNotificationsProvider({ children }: { children: React.ReactN
       scheduler.cancel()
       return
     }
-    const timer = setTimeout(() => scheduler.replace(taskNotificationPlan(data, new Date(), preference), Date.now()), SETTLE_MS)
+    const timer = setTimeout(() => {
+      const now = Date.now()
+      const since = Math.min(scheduler.plannedAt() ?? now, now)
+      scheduler.replace(taskNotificationPlan(data, new Date(since), preference), now)
+    }, SETTLE_MS)
     return () => clearTimeout(timer)
   }, [data, hour, preference, restored, scheduler])
 

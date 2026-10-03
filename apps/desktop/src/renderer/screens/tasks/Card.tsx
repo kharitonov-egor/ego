@@ -15,12 +15,14 @@ import { Checklists } from '../../components/tasks/Checklists'
 import { MarkdownEditor, MarkdownView } from '../../components/tasks/Markdown'
 import { DueSheet, LabelSheet, MoveSheet, PrioritySheet, TextSheet } from '../../components/tasks/sheets'
 import {
-  DueChip, LabelChip, MenuSheet, PriorityIcon, SectionTitle, TaskImage, TasksError, TasksGate, TasksMessage, TextAction
+  DueChip, LabelChip, MenuSheet, PriorityIcon, SectionTitle, TaskImage, TasksError, TasksGate, TasksMessage, TextAction,
+  imageVersion
 } from '../../components/tasks/ui'
 import { Button, IconButton } from '../../components/ui/button'
 import { ConfirmDialog } from '../../components/ui/dialog'
 import { Blurred, useBlur } from '../../lib/blur'
 import { useTasks } from '../../lib/tasks/context'
+import { transferredFiles } from '../../lib/tasks/files'
 import { color } from '../../lib/tokens'
 import { boardPath, useBack, useOpenCard } from './nav'
 
@@ -75,7 +77,7 @@ function CardDetail({ cardId }: { cardId: string }): React.ReactElement {
   useEffect(() => {
     if (!present) return
     const onPaste = (event: ClipboardEvent): void => {
-      const files = [...(event.clipboardData?.files ?? [])]
+      const files = event.clipboardData ? transferredFiles(event.clipboardData) : []
       if (files.length === 0) return
       if (isEditable(event.target) && event.clipboardData?.types.includes('text/plain')) return
       event.preventDefault()
@@ -134,12 +136,13 @@ function CardDetail({ cardId }: { cardId: string }): React.ReactElement {
         if (!hasFiles(event)) return
         event.preventDefault()
         setDropping(false)
-        void addFiles(card.id, [...event.dataTransfer.files])
+        const files = transferredFiles(event.dataTransfer)
+        if (files.length > 0) void addFiles(card.id, files)
       }}
     >
       <div className="h-full overflow-y-auto">
         <div className="mx-auto w-full max-w-2xl px-6 pb-12 pt-4">
-          {cover && !blurred && <TaskImage mediaId={cover.mediaId} className="mb-4 h-[190px] w-full rounded-2xl bg-card" />}
+          {cover && !blurred && <TaskImage mediaId={cover.mediaId} version={imageVersion(card, tasks.data.uploads.get(card.id))} className="mb-4 h-[190px] w-full rounded-2xl bg-card" />}
           <TasksError className="mb-3" />
           {card.archivedAt !== null && <div className="mb-3 flex items-center rounded-2xl bg-surface-900 px-4 py-3">
             <Archive color={color.textMuted} size={18} />

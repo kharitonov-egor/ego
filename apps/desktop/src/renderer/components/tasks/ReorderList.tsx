@@ -42,6 +42,7 @@ export function ReorderList<T extends { id: string }>({ items, renderItem, onPre
   const ghost = useRef<HTMLDivElement>(null)
   const rowViews = useRef(new Map<string, HTMLElement>())
   const heights = useRef(new Map<string, number>())
+  const refocus = useRef<string | null>(null)
 
   const updateHover = (): void => {
     const current = liftedRef.current
@@ -96,6 +97,14 @@ export function ReorderList<T extends { id: string }>({ items, renderItem, onPre
     onClick: (item) => latest.current.onPress(item)
   })
 
+  // Reordering moves the focused row's node, and Chromium drops focus when a focused node moves.
+  useLayoutEffect(() => {
+    const id = refocus.current
+    refocus.current = null
+    const view = id ? rowViews.current.get(id) : undefined
+    if (view && (document.activeElement === null || document.activeElement === document.body)) view.focus()
+  }, [items])
+
   useLayoutEffect(() => {
     if (lifted && ghost.current) ghost.current.style.transform = `translateY(${pointerY.current - lifted.offsetY}px) rotate(1.5deg)`
   }, [lifted])
@@ -130,7 +139,9 @@ export function ReorderList<T extends { id: string }>({ items, renderItem, onPre
                 } else if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
                   event.preventDefault()
                   const target = index + (event.key === 'ArrowUp' ? -1 : 1)
-                  if (target >= 0 && target < items.length) onMove(item.id, target)
+                  if (target < 0 || target >= items.length) return
+                  refocus.current = item.id
+                  onMove(item.id, target)
                 }
               }}
               className="cursor-pointer select-none rounded-3xl"
