@@ -4,22 +4,23 @@ import {
   type SyncCommand, type SyncEntity, type SyncOperation
 } from '@ego/api-contracts'
 import {
-  HABIT_TARGET_LIMIT, diaryMediaIds, entryKindFits, taskMediaIds,
+  FOOD_GOAL_ID, HABIT_TARGET_LIMIT, diaryMediaIds, entryKindFits, foodMediaIds, taskMediaIds,
   type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type DiaryMessageInput,
-  type GymPlanInput, type GymSetInput, type HabitInput, type MoodInput, type PurchaseInput, type SheetInput,
-  type SheetRowInput, type TaskBoardInput, type TaskCardInput, type TaskGoalInput, type TaskLabelInput, type TaskListInput,
-  type TransactionInput
+  type FoodEntryInput, type FoodGoalInput, type FridgeItemInput, type GymPlanInput, type GymSetInput, type HabitInput,
+  type MoodInput, type PurchaseInput, type SheetInput, type SheetRowInput, type TaskBoardInput, type TaskCardInput,
+  type TaskGoalInput, type TaskLabelInput, type TaskListInput, type TransactionInput
 } from '@ego/core'
 import { query, readLatestChange, serverSequence } from './reads'
 import {
-  toAccountRecord, toBudgetRecord, toCategoryRecord, toDiaryMessageRecord, toGymCategoryRecord, toGymExerciseRecord,
-  toGymPlanRecord, toGymSetRecord, toGymWorkoutRecord, toHabitEntryRecord, toHabitRecord, toMoodRecord, toPurchaseRecord,
-  toReceiptItem, toSheetRecord, toSheetRowRecord, toTaskBoardRecord, toTaskCardRecord, toTaskGoalRecord, toTaskLabelRecord,
-  toTaskListRecord, toTransactionRecord,
-  type AccountRow, type BudgetAllocationRow, type BudgetRow, type CategoryRow, type DiaryMessageRow, type GymCategoryRow,
-  type GymExerciseRow, type GymPlanRow, type GymSetRow, type GymWorkoutRow, type HabitEntryRow, type HabitRow,
-  type MoodRow, type PurchaseRow, type ReceiptItemRow, type SheetRow, type SheetRowRow, type TaskBoardRow,
-  type TaskCardRow, type TaskGoalRow, type TaskLabelRow, type TaskListRow, type TransactionRow
+  toAccountRecord, toBudgetRecord, toCategoryRecord, toDiaryMessageRecord, toFoodEntryRecord, toFoodGoalRecord,
+  toFridgeItemRecord, toGymCategoryRecord, toGymExerciseRecord, toGymPlanRecord, toGymSetRecord, toGymWorkoutRecord,
+  toHabitEntryRecord, toHabitRecord, toMoodRecord, toPurchaseRecord, toReceiptItem, toSheetRecord, toSheetRowRecord,
+  toTaskBoardRecord, toTaskCardRecord, toTaskGoalRecord, toTaskLabelRecord, toTaskListRecord, toTransactionRecord,
+  type AccountRow, type BudgetAllocationRow, type BudgetRow, type CategoryRow, type DiaryMessageRow, type FoodEntryRow,
+  type FoodGoalRow, type FridgeItemRow, type GymCategoryRow, type GymExerciseRow, type GymPlanRow, type GymSetRow,
+  type GymWorkoutRow, type HabitEntryRow, type HabitRow, type MoodRow, type PurchaseRow, type ReceiptItemRow,
+  type SheetRow, type SheetRowRow, type TaskBoardRow, type TaskCardRow, type TaskGoalRow, type TaskLabelRow,
+  type TaskListRow, type TransactionRow
 } from './rows'
 
 interface Statement {
@@ -62,7 +63,10 @@ const TABLES: Record<SyncEntity, string> = {
   taskCard: 'task_cards',
   taskGoal: 'task_goals',
   sheet: 'sheets',
-  sheetRow: 'sheet_rows'
+  sheetRow: 'sheet_rows',
+  foodEntry: 'food_entries',
+  fridgeItem: 'fridge_items',
+  foodGoal: 'food_goals'
 }
 
 /** Budgets are keyed by month and mood entries by date, so each has one row per period. */
@@ -87,7 +91,10 @@ const KEYS: Record<SyncEntity, string> = {
   taskCard: 'id',
   taskGoal: 'id',
   sheet: 'id',
-  sheetRow: 'id'
+  sheetRow: 'id',
+  foodEntry: 'id',
+  fridgeItem: 'id',
+  foodGoal: 'id'
 }
 
 function canonical(value: unknown): unknown {
@@ -1530,6 +1537,160 @@ async function planSheetRow(
   }
 }
 
+async function missingFoodMedia(db: D1Database, input: FoodEntryInput): Promise<string[]> {
+  const ids = foodMediaIds(input)
+  if (ids.length === 0) return []
+  const rows = await query<{ id: string }>(db,
+    `SELECT id FROM food_media WHERE id IN (${ids.map(() => '?').join(', ')})`, ids)
+  const found = new Set(rows.map((row) => row.id))
+  return ids.filter((id) => !found.has(id))
+}
+
+function foodEntryRowFrom(id: string, input: FoodEntryInput, createdAt: string, updatedAt: string, revision: number): FoodEntryRow {
+  return {
+    id, name: input.name.trim(), date: input.date, eaten_at: input.eatenAt, serving: input.serving.trim(),
+    calories: input.calories, protein: input.protein, carbs: input.carbs, fat: input.fat,
+    parts: JSON.stringify(input.parts), source: input.source, barcode: input.barcode,
+    photo: input.photo ? JSON.stringify(input.photo) : null, note: input.note.trim(),
+    created_at: createdAt, updated_at: updatedAt, revision
+  }
+}
+
+const FOOD_ENTRY_COLUMNS = [
+  'name', 'date', 'eaten_at', 'serving', 'calories', 'protein', 'carbs', 'fat', 'parts', 'source', 'barcode', 'photo', 'note'
+] as const
+
+function foodEntryValues(row: FoodEntryRow): unknown[] {
+  return FOOD_ENTRY_COLUMNS.map((column) => row[column])
+}
+
+async function planFoodEntry(
+  db: D1Database, operation: SyncOperation, command: Extract<SyncCommand, { entity: 'foodEntry' }>, now: string
+): Promise<ApiResult<Plan>> {
+  const id = operation.entityId
+  if (command.type === 'delete') {
+    if (!await liveRow<FoodEntryRow>(db, 'foodEntry', id)) return notFound('That food entry was not found')
+    const expected = operation.expectedRevision ?? 0
+    return {
+      ok: true,
+      data: deletePlan('foodEntry', id, expected, now, guardFor('foodEntry', id, expected), { entity: 'foodEntry', record: null })
+    }
+  }
+  const input = command.payload
+  const missing = await missingFoodMedia(db, input)
+  if (missing.length > 0) return invalid('Upload the photo before saving')
+  if (command.type === 'create') {
+    const row = foodEntryRowFrom(id, input, now, now, 1)
+    return {
+      ok: true,
+      data: upsertPlan('foodEntry', id, 1, { entity: 'foodEntry', record: toFoodEntryRecord(row) }, {
+        sql: `INSERT INTO food_entries (id, ${FOOD_ENTRY_COLUMNS.join(', ')}, created_at, updated_at, revision)
+          SELECT ?, ${FOOD_ENTRY_COLUMNS.map(() => '?').join(', ')}, ?, ?, 1`,
+        params: [id, ...foodEntryValues(row), now, now]
+      }, null)
+    }
+  }
+  const current = await liveRow<FoodEntryRow>(db, 'foodEntry', id)
+  if (!current) return notFound('That food entry was not found')
+  const expected = operation.expectedRevision ?? 0
+  const revision = expected + 1
+  const row = foodEntryRowFrom(id, input, current.created_at, now, revision)
+  return {
+    ok: true,
+    data: upsertPlan('foodEntry', id, revision, { entity: 'foodEntry', record: toFoodEntryRecord(row) }, {
+      sql: `UPDATE food_entries SET ${FOOD_ENTRY_COLUMNS.map((column) => `${column} = ?`).join(', ')}, updated_at = ?,
+        revision = revision + 1 WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+      params: [...foodEntryValues(row), now, id, expected]
+    }, guardFor('foodEntry', id, expected))
+  }
+}
+
+function fridgeItemRowFrom(id: string, input: FridgeItemInput, createdAt: string, updatedAt: string, revision: number): FridgeItemRow {
+  return {
+    id, name: input.name.trim(), icon: input.icon.trim(), brand: input.brand?.trim() || null, barcode: input.barcode,
+    source: input.source, purchase_id: input.purchaseId, added_at: input.addedAt,
+    created_at: createdAt, updated_at: updatedAt, revision
+  }
+}
+
+const FRIDGE_ITEM_COLUMNS = ['name', 'icon', 'brand', 'barcode', 'source', 'purchase_id', 'added_at'] as const
+
+function fridgeItemValues(row: FridgeItemRow): unknown[] {
+  return FRIDGE_ITEM_COLUMNS.map((column) => row[column])
+}
+
+async function planFridgeItem(
+  db: D1Database, operation: SyncOperation, command: Extract<SyncCommand, { entity: 'fridgeItem' }>, now: string
+): Promise<ApiResult<Plan>> {
+  const id = operation.entityId
+  if (command.type === 'create') {
+    const row = fridgeItemRowFrom(id, command.payload, now, now, 1)
+    return {
+      ok: true,
+      data: upsertPlan('fridgeItem', id, 1, { entity: 'fridgeItem', record: toFridgeItemRecord(row) }, {
+        sql: `INSERT INTO fridge_items (id, ${FRIDGE_ITEM_COLUMNS.join(', ')}, created_at, updated_at, revision)
+          SELECT ?, ${FRIDGE_ITEM_COLUMNS.map(() => '?').join(', ')}, ?, ?, 1`,
+        params: [id, ...fridgeItemValues(row), now, now]
+      }, null)
+    }
+  }
+  const current = await liveRow<FridgeItemRow>(db, 'fridgeItem', id)
+  if (!current) return notFound('That item is no longer in the fridge')
+  const expected = operation.expectedRevision ?? 0
+  const guard = guardFor('fridgeItem', id, expected)
+  if (command.type === 'delete') {
+    return { ok: true, data: deletePlan('fridgeItem', id, expected, now, guard, { entity: 'fridgeItem', record: null }) }
+  }
+  const revision = expected + 1
+  const row = fridgeItemRowFrom(id, command.payload, current.created_at, now, revision)
+  return {
+    ok: true,
+    data: upsertPlan('fridgeItem', id, revision, { entity: 'fridgeItem', record: toFridgeItemRecord(row) }, {
+      sql: `UPDATE fridge_items SET ${FRIDGE_ITEM_COLUMNS.map((column) => `${column} = ?`).join(', ')}, updated_at = ?,
+        revision = revision + 1 WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+      params: [...fridgeItemValues(row), now, id, expected]
+    }, guard)
+  }
+}
+
+function foodGoalRowFrom(input: FoodGoalInput, createdAt: string, updatedAt: string, revision: number): FoodGoalRow {
+  return {
+    id: FOOD_GOAL_ID, calories: input.calories, protein: input.protein, carbs: input.carbs, fat: input.fat,
+    created_at: createdAt, updated_at: updatedAt, revision
+  }
+}
+
+/** Two phones creating the targets at once collide on the one ID, and the second gets Keep mine or Use saved version. */
+async function planFoodGoal(
+  db: D1Database, operation: SyncOperation, command: Extract<SyncCommand, { entity: 'foodGoal' }>, now: string
+): Promise<ApiResult<Plan>> {
+  const input = command.payload
+  if (command.type === 'create') {
+    const row = foodGoalRowFrom(input, now, now, 1)
+    return {
+      ok: true,
+      data: upsertPlan('foodGoal', FOOD_GOAL_ID, 1, { entity: 'foodGoal', record: toFoodGoalRecord(row) }, {
+        sql: `INSERT INTO food_goals (id, calories, protein, carbs, fat, created_at, updated_at, revision)
+          SELECT ?, ?, ?, ?, ?, ?, ?, 1`,
+        params: [FOOD_GOAL_ID, row.calories, row.protein, row.carbs, row.fat, now, now]
+      }, null)
+    }
+  }
+  const current = await liveRow<FoodGoalRow>(db, 'foodGoal', FOOD_GOAL_ID)
+  if (!current) return notFound('The food targets were not found')
+  const expected = operation.expectedRevision ?? 0
+  const revision = expected + 1
+  const row = foodGoalRowFrom(input, current.created_at, now, revision)
+  return {
+    ok: true,
+    data: upsertPlan('foodGoal', FOOD_GOAL_ID, revision, { entity: 'foodGoal', record: toFoodGoalRecord(row) }, {
+      sql: `UPDATE food_goals SET calories = ?, protein = ?, carbs = ?, fat = ?, updated_at = ?, revision = revision + 1
+        WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+      params: [row.calories, row.protein, row.carbs, row.fat, now, FOOD_GOAL_ID, expected]
+    }, guardFor('foodGoal', FOOD_GOAL_ID, expected))
+  }
+}
+
 function planFor(db: D1Database, operation: SyncOperation, now: string): Promise<ApiResult<Plan>> {
   switch (operation.command.entity) {
     case 'account': return planAccount(db, operation, operation.command, now)
@@ -1553,6 +1714,9 @@ function planFor(db: D1Database, operation: SyncOperation, now: string): Promise
     case 'taskGoal': return planTaskGoal(db, operation, operation.command, now)
     case 'sheet': return planSheet(db, operation, operation.command, now)
     case 'sheetRow': return planSheetRow(db, operation, operation.command, now)
+    case 'foodEntry': return planFoodEntry(db, operation, operation.command, now)
+    case 'fridgeItem': return planFridgeItem(db, operation, operation.command, now)
+    case 'foodGoal': return planFoodGoal(db, operation, operation.command, now)
   }
 }
 

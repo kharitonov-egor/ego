@@ -13,6 +13,7 @@ import { RestTimerProvider } from '../lib/rest-timer'
 import { TasksProvider } from '../lib/tasks/context'
 import { TaskNotificationsProvider } from '../lib/tasks/notifications'
 import { SheetsProvider } from '../lib/sheets/context'
+import { FoodProvider } from '../lib/food/context'
 import { KeyboardViewport } from '../components/ui/keyboard'
 
 function Screens(): React.ReactElement {
@@ -36,6 +37,7 @@ function Screens(): React.ReactElement {
       <Stack.Screen name="(habits)" options={{ headerShown: false }} />
       <Stack.Screen name="tasks" options={{ headerShown: false }} />
       <Stack.Screen name="sheets" options={{ headerShown: false }} />
+      <Stack.Screen name="food" options={{ headerShown: false }} />
       <Stack.Screen name="capture" options={{ title: 'New Trello card' }} />
       <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       <Stack.Screen name="auth" options={{ title: 'Sign in', headerShown: false }} />
@@ -57,7 +59,9 @@ export default function RootLayout(): React.ReactElement {
                     <TasksProvider>
                       <TaskNotificationsProvider>
                         <SheetsProvider>
-                          <Screens />
+                          <FoodProvider>
+                            <Screens />
+                          </FoodProvider>
                         </SheetsProvider>
                       </TaskNotificationsProvider>
                     </TasksProvider>

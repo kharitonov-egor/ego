@@ -1,4 +1,4 @@
-import type { SyncOperation } from '@ego/api-contracts'
+import type { SyncCommand, SyncOperation } from '@ego/api-contracts'
 import type { LocalDatabase } from '../database/types'
 import { writeRecord, writeTombstone } from '../database/writes'
 import { applyCommandLocally } from './local-apply'
@@ -26,6 +26,15 @@ export function conflictReviews(entries: OutboxEntry[]): ConflictReview[] {
     }))
 }
 
+/** The daily food targets have one fixed ID, so a create that lost to another phone's becomes an edit of it. */
+function commandToKeep(entry: OutboxEntry): SyncCommand {
+  const { command } = entry
+  if (command.entity === 'foodGoal' && command.type === 'create' && entry.serverRecord?.record) {
+    return { entity: 'foodGoal', type: 'update', payload: command.payload }
+  }
+  return command
+}
+
 /**
  * Keep mine is a new command against the revision the server reports, not a retry of the
  * operation that already lost the race.
@@ -34,13 +43,14 @@ export async function keepMine(
   db: LocalDatabase, entry: OutboxEntry, operationId: string, now: string
 ): Promise<SyncOperation> {
   const saved = entry.serverRecord
-  const creates = entry.commandType === 'create'
+  const command = commandToKeep(entry)
+  const creates = command.type === 'create'
   const operation: SyncOperation = {
     operationId,
     entityId: entry.entityId,
     expectedRevision: creates ? null : saved?.revision ?? entry.expectedRevision,
     createdAt: now,
-    command: entry.command
+    command
   }
   await db.transaction(async (tx) => {
     await removeOperation(tx, entry.operationId)

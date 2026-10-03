@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ego",
     "slug": "ego",
-    "version": "0.5.0",
+    "version": "0.6.0",
     "orientation": "portrait",
     "icon": "./assets/app-icon.png",
     "scheme": "ego",
@@ -37,8 +37,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Ego uses photos you choose for your diary, Trello attachments, and transaction image analysis.",
-          "cameraPermission": "Ego uses the camera for diary photos and videos and to analyze a transaction image.",
+          "photosPermission": "Ego uses photos you choose for your diary, Trello attachments, receipts, and food.",
+          "cameraPermission": "Ego uses the camera for diary photos and videos, receipts, food photos, and barcodes.",
           "microphonePermission": "Ego records sound when you film a video for your diary."
         }
       ],
@@ -52,6 +52,13 @@
         }
       ],
       "expo-video",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Ego uses the camera for diary photos and videos, receipts, food photos, and barcodes.",
+          "recordAudioAndroid": false
+        }
+      ],
       [
         "expo-audio",
         {

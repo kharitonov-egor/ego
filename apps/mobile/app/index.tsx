@@ -4,7 +4,8 @@ import { KeyboardScrollView } from '../components/ui/keyboard'
 import { useRouter, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
-  BookOpen, CircleCheckBig, Dumbbell, GraduationCap, HeartPulse, Settings, Sheet, Smile, Sparkles, SquareKanban, Wallet,
+  BookOpen, CircleCheckBig, Dumbbell, GraduationCap, HeartPulse, Settings, Sheet, Smile, Sparkles, SquareKanban,
+  UtensilsCrossed, Wallet,
   type LucideIcon
 } from 'lucide-react-native'
 import appIcon from '../assets/app-icon.png'
@@ -27,7 +28,8 @@ const APPS: readonly App[] = [
   { label: 'Study', Icon: GraduationCap, href: '/(study)/assignments' },
   { label: 'Habits', Icon: CircleCheckBig, href: '/(habits)/home' },
   { label: 'Tasks', Icon: SquareKanban, href: '/tasks' },
-  { label: 'Sheets', Icon: Sheet, href: '/sheets' }
+  { label: 'Sheets', Icon: Sheet, href: '/sheets' },
+  { label: 'Food', Icon: UtensilsCrossed, href: '/food' }
 ]
 
 function AppTile({ app, onPress }: { app: App; onPress: () => void }): React.ReactElement {

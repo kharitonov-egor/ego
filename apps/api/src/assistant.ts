@@ -1,17 +1,18 @@
 import {
   ASSISTANT_TOOLS, DEFAULT_ASSISTANT_MODEL, MAX_TRANSACTION_IMAGE_BYTES, TRANSACTION_IMAGE_MIME_TYPES, isDateString, runAssistant,
-  type AssistantCall, type AssistantToolName, type ModelMessage, type ModelToolCall, type PendingWrite, type ToolOutcome
+  type AssistantCall, type AssistantToolName, type FoodPhoto, type ModelMessage, type ModelToolCall, type PendingWrite,
+  type ToolOutcome
 } from '@ego/core'
 import {
   ASSISTANT_HISTORY_LIMIT, ASSISTANT_TEXT_LIMIT,
   type ApiError, type AssistantChat, type AssistantChatList, type AssistantHistory, type AssistantImage, type AssistantMessage,
-  type AssistantPendingWrite, type AssistantStreamEvent, type AssistantUndoResponse, type AssistantUnits, type DeviceIdentity
+  type AssistantPendingChange, type AssistantPendingWrite, type AssistantStreamEvent, type AssistantUnits, type DeviceIdentity
 } from '@ego/api-contracts'
 import type { Env } from './auth'
+import { deleteFoodPhoto, storeFoodPhoto } from './diary'
 import { query } from './reads'
 import {
-  assistantSystemPrompt, describeWrite, executeAssistantRead, executeAssistantWrite, undoAssistantWrite,
-  type ToolContext, type UndoPlan, type WriteOutcome
+  assistantSystemPrompt, describeWrite, executeAssistantRead, executeAssistantWrite, type ToolContext, type WriteCard
 } from './assistant-tools'
 
 const MAX_TURNS_PER_MINUTE = 30
@@ -22,7 +23,10 @@ const WINDOW_ROWS = 60
 const WINDOW_CHARS = 80_000
 const TITLE_LENGTH = 60
 const MAX_TIME_ZONE_LENGTH = 64
-const IMAGE_NOTE = '(The user attached a receipt image. Ego read it once and did not keep it.)'
+const IMAGE_NOTE = '(The user attached an image. Ego read it once and keeps it only as the photo of food it logs.)'
+const UNDONE_REPLY = 'Undone. Nothing was saved.'
+const UNDONE_RESULT = 'The user tapped Undo before this saved. Nothing was saved.'
+const DROPPED_RESULT = 'The user did not confirm this change and wrote a new message instead.'
 
 interface ChatRow {
   id: string
@@ -48,6 +52,10 @@ interface MessageRow {
   created_at: string
 }
 
+/**
+ * A pending call is claimed by setting `resolved_at` before it runs, so the phone's timer and a new
+ * message arriving together cannot save the same write twice.
+ */
 interface CallRow {
   call_id: string
   chat_id: string
@@ -70,6 +78,7 @@ interface TurnInput {
   today: string
   timeZone: string | null
   units: AssistantUnits
+  autoSave: boolean
 }
 
 interface ConfirmInput {
@@ -139,7 +148,8 @@ function parseTurn(value: unknown): TurnInput | null {
     image: value.image === undefined ? null : value.image,
     today: value.today,
     timeZone: timeZoneFrom(value.timeZone),
-    units: isUnits(value.units) ? value.units : 'imperial'
+    units: isUnits(value.units) ? value.units : 'imperial',
+    autoSave: value.autoSave === true
   }
 }
 
@@ -157,7 +167,7 @@ function toChat(row: ChatRow): AssistantChat {
   return { id: row.id, title: row.title, createdAt: row.created_at, updatedAt: row.updated_at }
 }
 
-function toMessage(row: MessageRow, calls: readonly CallRow[]): AssistantMessage {
+function toMessage(row: MessageRow): AssistantMessage {
   return {
     id: row.id,
     chatId: row.chat_id,
@@ -167,20 +177,38 @@ function toMessage(row: MessageRow, calls: readonly CallRow[]): AssistantMessage
     createdAt: row.created_at,
     trail: stringList(row.trail),
     hasImage: row.has_image === 1,
-    undo: calls
-      .filter((call) => call.message_id === row.id && call.status === 'succeeded' && call.undo !== null && call.label !== null)
-      .map((call) => ({ callId: call.call_id, label: call.label ?? '' }))
+    undo: []
   }
 }
 
-function toPending(row: CallRow): AssistantPendingWrite {
-  const card = parseJson<{ title?: string; lines?: string[] }>(row.card, {})
+/**
+ * Cards this Worker made save themselves. One the Worker before it left waiting was a money write
+ * the user never confirmed, so it is dropped rather than saved behind their back.
+ */
+function savesItself(row: CallRow): boolean {
+  return parseJson<{ autoSave?: unknown }>(row.card, {}).autoSave === true
+}
+
+function cardOf(row: CallRow): AssistantPendingChange {
+  const card = parseJson<{ title?: unknown; lines?: unknown }>(row.card, {})
   return {
-    callId: row.call_id,
-    chatId: row.chat_id,
     toolName: row.tool_name as AssistantToolName,
-    title: card.title ?? 'Confirm this change?',
+    title: typeof card.title === 'string' ? card.title : row.tool_name,
     lines: Array.isArray(card.lines) ? card.lines.filter((line): line is string => typeof line === 'string') : []
+  }
+}
+
+function toPending(rows: readonly CallRow[]): AssistantPendingWrite | null {
+  const first = rows[0]
+  if (!first) return null
+  const changes = rows.map(cardOf)
+  return {
+    callId: first.call_id,
+    chatId: first.chat_id,
+    changes,
+    toolName: changes[0].toolName,
+    title: changes.length === 1 ? changes[0].title : `Save ${changes.length} changes`,
+    lines: changes.length === 1 ? changes[0].lines : changes.flatMap((change) => [change.title, ...change.lines])
   }
 }
 
@@ -189,13 +217,17 @@ async function chatFor(env: Env, datasetId: string, id: string): Promise<ChatRow
   return rows[0] ?? null
 }
 
-async function undoableCalls(env: Env, chatId: string): Promise<CallRow[]> {
-  return query<CallRow>(env.DB, `SELECT * FROM assistant_tool_calls WHERE chat_id = ? AND status = 'succeeded' AND undo IS NOT NULL`, [chatId])
+/** The batch still waiting on its card, oldest first. Rows already claimed are being saved. */
+async function pendingFor(env: Env, chatId: string): Promise<CallRow[]> {
+  return query<CallRow>(env.DB, `SELECT * FROM assistant_tool_calls
+    WHERE chat_id = ? AND status = 'pending' AND resolved_at IS NULL ORDER BY created_at, rowid`, [chatId])
 }
 
-async function pendingFor(env: Env, chatId: string): Promise<CallRow | null> {
-  const rows = await query<CallRow>(env.DB, `SELECT * FROM assistant_tool_calls WHERE chat_id = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 1`, [chatId])
-  return rows[0] ?? null
+/** Takes the whole waiting batch in one statement, so two callers can never split it between them. */
+async function claim(env: Env, chatId: string, now: string): Promise<CallRow[]> {
+  const rows = await query<CallRow & { position: number }>(env.DB, `UPDATE assistant_tool_calls SET resolved_at = ?
+    WHERE chat_id = ? AND status = 'pending' AND resolved_at IS NULL RETURNING *, rowid AS position`, [now, chatId])
+  return rows.sort((left, right) => left.created_at.localeCompare(right.created_at) || left.position - right.position)
 }
 
 async function insertMessage(env: Env, chatId: string, role: MessageRow['role'], payload: ModelMessage, now: string, options: {
@@ -275,21 +307,21 @@ interface RunInput {
   device: DeviceIdentity
   chat: ChatRow
   ctx: ToolContext
-  timeZone: string | null
   history: ModelMessage[]
-  /** Tool calls from before this run that belong under its reply, like a confirmed write. */
+  /** Tool calls from before this run that belong under its reply, like writes that just saved. */
   earlierCallIds: string[]
   earlierTrail: string[]
+  /** The image sent with this turn. Ego keeps it only when a write logs it as a meal photo. */
+  image: AssistantImage | null
   emit: (event: AssistantStreamEvent) => Promise<void>
 }
 
-async function recordCall(env: Env, chat: ChatRow, call: AssistantCall, outcome: WriteOutcome | null, status: CallRow['status'], now: string): Promise<string> {
+async function recordRead(env: Env, chat: ChatRow, call: AssistantCall, status: 'succeeded' | 'failed', now: string): Promise<string> {
   const id = crypto.randomUUID()
   await env.DB.prepare(`INSERT INTO assistant_tool_calls
     (call_id, chat_id, message_id, tool_call_id, tool_name, arguments, status, label, undo, card, created_at, resolved_at)
-    VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`)
-    .bind(id, chat.id, call.callId, call.name, JSON.stringify(call.args), status,
-      outcome?.label ?? null, outcome?.undo ? JSON.stringify(outcome.undo) : null, now, status === 'pending' ? null : now)
+    VALUES (?, ?, NULL, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?)`)
+    .bind(id, chat.id, call.callId, call.name, JSON.stringify(call.args), status, now, now)
     .run()
   return id
 }
@@ -304,29 +336,19 @@ async function runTurn(input: RunInput): Promise<void> {
     fetcher: (url, init) => fetch(url, init),
     apiKey: env.OPENROUTER_API_KEY ?? '',
     model: env.ASSISTANT_MODEL?.trim() || DEFAULT_ASSISTANT_MODEL,
-    system: await assistantSystemPrompt(ctx, input.timeZone),
+    system: await assistantSystemPrompt(ctx),
     history: input.history,
     deadline: Date.now() + TURN_BUDGET_MS,
     run: async (call): Promise<ToolOutcome> => {
-      if (ASSISTANT_TOOLS[call.name].access === 'read') {
-        try {
-          const outcome = await executeAssistantRead(ctx, call)
-          callIds.push(await recordCall(env, chat, call, null, 'succeeded', ctx.now))
-          return outcome
-        } catch (error: unknown) {
-          callIds.push(await recordCall(env, chat, call, null, 'failed', ctx.now))
-          throw error
-        }
-      }
-      let outcome: WriteOutcome
+      if (ASSISTANT_TOOLS[call.name].access !== 'read') throw new Error(`${call.name} is not a read tool`)
       try {
-        outcome = await executeAssistantWrite(ctx, call)
+        const outcome = await executeAssistantRead(ctx, call)
+        callIds.push(await recordRead(env, chat, call, 'succeeded', ctx.now))
+        return outcome
       } catch (error: unknown) {
-        callIds.push(await recordCall(env, chat, call, null, 'failed', ctx.now))
+        callIds.push(await recordRead(env, chat, call, 'failed', ctx.now))
         throw error
       }
-      callIds.push(await recordCall(env, chat, call, outcome, outcome.failed ? 'failed' : 'succeeded', ctx.now))
-      return outcome
     },
     onEvent: async (event) => {
       if (event.type === 'delta') {
@@ -354,34 +376,105 @@ async function runTurn(input: RunInput): Promise<void> {
     }
     await env.DB.prepare('UPDATE assistant_chats SET updated_at = ? WHERE id = ?').bind(ctx.now, chat.id).run()
     const rows = await query<MessageRow>(env.DB, 'SELECT * FROM assistant_messages WHERE id = ?', [shown.id])
-    if (rows[0]) await emit({ type: 'message', message: toMessage(rows[0], await undoableCalls(env, chat.id)) })
+    if (rows[0]) await emit({ type: 'message', message: toMessage(rows[0]) })
   }
-  if (result.pending) {
-    const pending = await storePending(env, chat, ctx, result.pending)
-    await emit({ type: 'pending', pending })
+  if (result.pending.length > 0) {
+    const pending = await storePending(env, chat, ctx, result.pending, input.image)
+    if (pending) await emit({ type: 'pending', pending })
   }
 }
 
-async function storePending(env: Env, chat: ChatRow, ctx: ToolContext, pending: PendingWrite): Promise<AssistantPendingWrite> {
-  const card = await describeWrite(ctx, pending.name, pending.args)
-  const id = crypto.randomUUID()
-  await env.DB.prepare(`INSERT INTO assistant_tool_calls
-    (call_id, chat_id, message_id, tool_call_id, tool_name, arguments, status, label, undo, card, created_at, resolved_at)
-    VALUES (?, ?, NULL, ?, ?, ?, 'pending', NULL, NULL, ?, ?, NULL)`)
-    .bind(id, chat.id, pending.callId, pending.name, JSON.stringify(pending.args), JSON.stringify(card), ctx.now)
-    .run()
-  return { callId: id, chatId: chat.id, toolName: pending.name, title: card.title, lines: card.lines }
+function decodeBase64(encoded: string): Uint8Array {
+  const binary = atob(encoded.replace(/[\r\n]/g, ''))
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index)
+  return bytes
 }
 
-/** A pending write the user walked away from gets closed, so the transcript stays well formed. */
-async function supersedePending(env: Env, chat: ChatRow, now: string): Promise<void> {
-  const pending = await pendingFor(env, chat.id)
-  if (!pending) return
-  await env.DB.prepare(`UPDATE assistant_tool_calls SET status = 'rejected', resolved_at = ? WHERE call_id = ?`).bind(now, pending.call_id).run()
-  await insertMessage(env, chat.id, 'tool', {
-    role: 'tool', tool_call_id: pending.tool_call_id,
-    content: JSON.stringify({ rejected: true, message: 'The user did not confirm this change and wrote a new message instead.' })
-  }, now)
+/** The turn's image goes to R2 only when a meal entry asks for it, so receipts are never kept. */
+async function photoFor(env: Env, image: AssistantImage | null, pending: readonly PendingWrite[], now: string): Promise<FoodPhoto | null> {
+  if (!image) return null
+  const wanted = pending.some((write) => write.name === 'log_food' && Array.isArray(write.args.entries) &&
+    write.args.entries.some((entry) => isRecord(entry) && entry.usePhoto === true))
+  if (!wanted) return null
+  const mediaId = crypto.randomUUID()
+  const stored = await storeFoodPhoto(env, mediaId, decodeBase64(image.base64), image.mimeType, now)
+  return stored ? { mediaId, previewId: null, width: null, height: null } : null
+}
+
+async function describeSafely(ctx: ToolContext, write: PendingWrite): Promise<WriteCard> {
+  try {
+    return await describeWrite(ctx, write.name, write.args)
+  } catch {
+    return { title: ASSISTANT_TOOLS[write.name].description.split('.')[0], lines: [] }
+  }
+}
+
+/** The photo rides in the stored arguments. The model cannot set it, because log_food's schema has no such field. */
+async function storePending(
+  env: Env, chat: ChatRow, ctx: ToolContext, pending: readonly PendingWrite[], image: AssistantImage | null
+): Promise<AssistantPendingWrite | null> {
+  const photo = await photoFor(env, image, pending, ctx.now)
+  const rows: CallRow[] = []
+  for (const write of pending) {
+    const row: CallRow = {
+      call_id: crypto.randomUUID(), chat_id: chat.id, message_id: null, tool_call_id: write.callId, tool_name: write.name,
+      arguments: JSON.stringify(photo && write.name === 'log_food' ? { ...write.args, photo } : write.args),
+      status: 'pending', label: null, undo: null, card: JSON.stringify({ ...await describeSafely(ctx, write), autoSave: true }),
+      created_at: ctx.now, resolved_at: null
+    }
+    await env.DB.prepare(`INSERT INTO assistant_tool_calls
+      (call_id, chat_id, message_id, tool_call_id, tool_name, arguments, status, label, undo, card, created_at, resolved_at)
+      VALUES (?, ?, NULL, ?, ?, ?, 'pending', NULL, NULL, ?, ?, NULL)`)
+      .bind(row.call_id, chat.id, row.tool_call_id, row.tool_name, row.arguments, row.card, ctx.now)
+      .run()
+    rows.push(row)
+  }
+  return toPending(rows)
+}
+
+interface Saved {
+  callIds: string[]
+  trail: string[]
+}
+
+/** Runs each claimed write in order and stores its result where the model reads it next. */
+async function saveBatch(
+  env: Env, chat: ChatRow, ctx: ToolContext, rows: readonly CallRow[], emit: (event: AssistantStreamEvent) => Promise<void>
+): Promise<Saved> {
+  const saved: Saved = { callIds: [], trail: [] }
+  for (const row of rows) {
+    const call: AssistantCall = {
+      name: row.tool_name as AssistantToolName, args: parseJson<Record<string, unknown>>(row.arguments, {}), callId: row.tool_call_id
+    }
+    let content: string
+    try {
+      const outcome = await executeAssistantWrite(ctx, call)
+      await env.DB.prepare('UPDATE assistant_tool_calls SET status = ?, resolved_at = ? WHERE call_id = ?')
+        .bind(outcome.failed ? 'failed' : 'succeeded', ctx.now, row.call_id).run()
+      content = JSON.stringify(outcome.data)
+      saved.trail.push(outcome.trail)
+      await emit({ type: 'trail', line: outcome.trail })
+    } catch (error: unknown) {
+      await env.DB.prepare(`UPDATE assistant_tool_calls SET status = 'failed', resolved_at = ? WHERE call_id = ?`)
+        .bind(ctx.now, row.call_id).run()
+      content = JSON.stringify({ error: error instanceof Error ? error.message : 'The change could not be saved' })
+    }
+    saved.callIds.push(row.call_id)
+    await insertMessage(env, chat.id, 'tool', { role: 'tool', tool_call_id: row.tool_call_id, content }, ctx.now)
+  }
+  return saved
+}
+
+async function discardBatch(env: Env, chat: ChatRow, rows: readonly CallRow[], now: string, message: string): Promise<void> {
+  for (const row of rows) {
+    await env.DB.prepare(`UPDATE assistant_tool_calls SET status = 'rejected', resolved_at = ? WHERE call_id = ?`).bind(now, row.call_id).run()
+    await insertMessage(env, chat.id, 'tool', {
+      role: 'tool', tool_call_id: row.tool_call_id, content: JSON.stringify({ undone: true, message })
+    }, now)
+    const photo = parseJson<Record<string, unknown>>(row.arguments, {}).photo
+    if (isRecord(photo) && typeof photo.mediaId === 'string') await deleteFoodPhoto(env, photo.mediaId)
+  }
 }
 
 async function rateLimited(env: Env, datasetId: string, now: string): Promise<boolean> {
@@ -393,15 +486,17 @@ async function rateLimited(env: Env, datasetId: string, now: string): Promise<bo
 
 function titleFrom(input: TurnInput): string {
   const line = input.text.trim().split('\n')[0]?.trim() ?? ''
-  if (!line) return 'Receipt'
+  if (!line) return 'Photo'
   return line.length > TITLE_LENGTH ? `${line.slice(0, TITLE_LENGTH - 1).trimEnd()}…` : line
 }
 
-function context(env: Env, device: DeviceIdentity, now: string, today: string, units: AssistantUnits): ToolContext {
-  return { env, device, now, today, units }
+function context(env: Env, device: DeviceIdentity, now: string, today: string, timeZone: string | null, units: AssistantUnits): ToolContext {
+  return { env, device, now, today, timeZone, units }
 }
 
-async function turn(request: Request, env: Env, device: DeviceIdentity, now: string): Promise<Response> {
+type Work = Pick<ExecutionContext, 'waitUntil'> | undefined
+
+async function turn(request: Request, env: Env, device: DeviceIdentity, now: string, work: Work): Promise<Response> {
   if (!env.OPENROUTER_API_KEY) return failure(503, { code: 'NOT_CONFIGURED', message: 'Add OPENROUTER_API_KEY on the Worker to use the assistant' })
   let body: unknown
   try { body = await request.json() } catch { return failure(400, { code: 'INVALID_REQUEST', message: 'The request body is not valid JSON' }) }
@@ -424,28 +519,33 @@ async function turn(request: Request, env: Env, device: DeviceIdentity, now: str
   }
   const stream = ndjson()
   const current = chat
-  void (async () => {
+  const ctx = context(env, device, now, input.today, input.timeZone, input.units)
+  const running = (async () => {
     try {
       if (created) await stream.emit({ type: 'chat', chat: toChat(current) })
-      await supersedePending(env, current, now)
+      const waiting = await claim(env, current.id, now)
+      const keep = input.autoSave ? waiting.filter(savesItself) : []
+      const saved = keep.length > 0 ? await saveBatch(env, current, ctx, keep, stream.emit) : { callIds: [], trail: [] }
+      const dropped = waiting.filter((row) => !keep.includes(row))
+      if (dropped.length > 0) await discardBatch(env, current, dropped, now, DROPPED_RESULT)
       const text = input.text.trim()
       const stored: ModelMessage = { role: 'user', content: input.image ? [text, IMAGE_NOTE].filter(Boolean).join('\n\n') : text }
       const live: ModelMessage = input.image
         ? {
           role: 'user',
           content: [
-            { type: 'text', text: text || 'Read this receipt and record the purchase.' },
+            { type: 'text', text: text || 'Look at this image and record what it shows: a receipt, a meal I ate, or groceries.' },
             { type: 'image_url', image_url: { url: `data:${input.image.mimeType};base64,${input.image.base64}` } }
           ]
         }
         : stored
       const row = await insertMessage(env, current.id, 'user', stored, now, { shown: true, text, hasImage: input.image !== null })
-      await stream.emit({ type: 'message', message: toMessage(row, []) })
+      await stream.emit({ type: 'message', message: toMessage(row) })
       const history = await contextFor(env, current.id)
       if (input.image && history.length > 0) history[history.length - 1] = live
       await runTurn({
-        env, device, chat: current, ctx: context(env, device, now, input.today, input.units), timeZone: input.timeZone,
-        history, earlierCallIds: [], earlierTrail: [], emit: stream.emit
+        env, device, chat: current, ctx, history, earlierCallIds: saved.callIds, earlierTrail: saved.trail,
+        image: input.image, emit: stream.emit
       })
     } catch (error: unknown) {
       await stream.emit({ type: 'error', error: { code: 'SERVER_ERROR', message: error instanceof Error ? error.message : 'The turn could not be completed' } })
@@ -454,10 +554,12 @@ async function turn(request: Request, env: Env, device: DeviceIdentity, now: str
       await stream.close()
     }
   })()
+  work?.waitUntil(running)
   return stream.response
 }
 
-async function confirm(request: Request, env: Env, device: DeviceIdentity, now: string): Promise<Response> {
+/** Saves a card's batch when its countdown runs out, or drops it when the user taps Undo. */
+async function confirm(request: Request, env: Env, device: DeviceIdentity, now: string, work: Work): Promise<Response> {
   if (!env.OPENROUTER_API_KEY) return failure(503, { code: 'NOT_CONFIGURED', message: 'Add OPENROUTER_API_KEY on the Worker to use the assistant' })
   let body: unknown
   try { body = await request.json() } catch { return failure(400, { code: 'INVALID_REQUEST', message: 'The request body is not valid JSON' }) }
@@ -465,40 +567,24 @@ async function confirm(request: Request, env: Env, device: DeviceIdentity, now: 
   if (!input) return failure(400, { code: 'INVALID_REQUEST', message: 'Check the chat, call, and answer' })
   const chat = await chatFor(env, device.datasetId, input.chatId)
   if (!chat) return failure(404, { code: 'NOT_FOUND', message: 'That chat does not exist' })
-  const rows = await query<CallRow>(env.DB, 'SELECT * FROM assistant_tool_calls WHERE call_id = ? AND chat_id = ?', [input.callId, chat.id])
-  const call = rows[0]
-  if (!call) return failure(404, { code: 'NOT_FOUND', message: 'That change was not found' })
-  if (call.status !== 'pending') return failure(409, { code: 'CONFLICT', message: 'That change was already answered' })
-  const ctx = context(env, device, now, input.today, input.units)
+  const waiting = await pendingFor(env, chat.id)
+  const rows = waiting.some((row) => row.call_id === input.callId) ? await claim(env, chat.id, now) : []
+  if (rows.length === 0) return failure(409, { code: 'CONFLICT', message: 'That change was already saved or undone' })
+  const ctx = context(env, device, now, input.today, input.timeZone, input.units)
   const stream = ndjson()
-  void (async () => {
+  const running = (async () => {
     try {
-      const args = parseJson<Record<string, unknown>>(call.arguments, {})
-      let content: string
-      let earlier: string[] = []
-      const earlierTrail: string[] = []
       if (!input.approved) {
-        await env.DB.prepare(`UPDATE assistant_tool_calls SET status = 'rejected', resolved_at = ? WHERE call_id = ?`).bind(now, call.call_id).run()
-        content = JSON.stringify({ rejected: true, message: 'The user rejected this change. Ask what to change if it is not clear.' })
-      } else {
-        const request: AssistantCall = { name: call.tool_name as AssistantToolName, args, callId: call.tool_call_id }
-        try {
-          const outcome = await executeAssistantWrite(ctx, request)
-          await env.DB.prepare(`UPDATE assistant_tool_calls SET status = ?, label = ?, undo = ?, resolved_at = ? WHERE call_id = ?`)
-            .bind(outcome.failed ? 'failed' : 'succeeded', outcome.label, outcome.undo ? JSON.stringify(outcome.undo) : null, now, call.call_id).run()
-          content = JSON.stringify(outcome.data)
-          await stream.emit({ type: 'trail', line: outcome.trail })
-          earlierTrail.push(outcome.trail)
-          earlier = [call.call_id]
-        } catch (error: unknown) {
-          await env.DB.prepare(`UPDATE assistant_tool_calls SET status = 'failed', resolved_at = ? WHERE call_id = ?`).bind(now, call.call_id).run()
-          content = JSON.stringify({ error: error instanceof Error ? error.message : 'The change could not be saved' })
-        }
+        await discardBatch(env, chat, rows, now, UNDONE_RESULT)
+        const row = await insertMessage(env, chat.id, 'assistant', { role: 'assistant', content: UNDONE_REPLY }, now, { shown: true, text: UNDONE_REPLY })
+        await env.DB.prepare('UPDATE assistant_chats SET updated_at = ? WHERE id = ?').bind(now, chat.id).run()
+        await stream.emit({ type: 'message', message: toMessage(row) })
+        return
       }
-      await insertMessage(env, chat.id, 'tool', { role: 'tool', tool_call_id: call.tool_call_id, content }, now)
+      const saved = await saveBatch(env, chat, ctx, rows, stream.emit)
       await runTurn({
-        env, device, chat, ctx, timeZone: input.timeZone,
-        history: await contextFor(env, chat.id), earlierCallIds: earlier, earlierTrail, emit: stream.emit
+        env, device, chat, ctx, history: await contextFor(env, chat.id), earlierCallIds: saved.callIds,
+        earlierTrail: saved.trail, image: null, emit: stream.emit
       })
     } catch (error: unknown) {
       await stream.emit({ type: 'error', error: { code: 'SERVER_ERROR', message: error instanceof Error ? error.message : 'The change could not be completed' } })
@@ -507,34 +593,8 @@ async function confirm(request: Request, env: Env, device: DeviceIdentity, now: 
       await stream.close()
     }
   })()
+  work?.waitUntil(running)
   return stream.response
-}
-
-async function undo(request: Request, env: Env, device: DeviceIdentity, now: string): Promise<Response> {
-  let body: unknown
-  try { body = await request.json() } catch { return failure(400, { code: 'INVALID_REQUEST', message: 'The request body is not valid JSON' }) }
-  if (!isRecord(body) || typeof body.chatId !== 'string' || typeof body.callId !== 'string') {
-    return failure(400, { code: 'INVALID_REQUEST', message: 'Check the chat and call' })
-  }
-  const chat = await chatFor(env, device.datasetId, body.chatId)
-  if (!chat) return failure(404, { code: 'NOT_FOUND', message: 'That chat does not exist' })
-  const rows = await query<CallRow>(env.DB, 'SELECT * FROM assistant_tool_calls WHERE call_id = ? AND chat_id = ?', [body.callId, chat.id])
-  const call = rows[0]
-  if (!call) return failure(404, { code: 'NOT_FOUND', message: 'That change was not found' })
-  const plan = parseJson<UndoPlan | null>(call.undo, null)
-  if (call.status !== 'succeeded' || !plan) return failure(409, { code: 'CONFLICT', message: 'That change cannot be undone' })
-  const ctx = context(env, device, now, now.slice(0, 10), 'imperial')
-  try {
-    await undoAssistantWrite(ctx, plan, call.call_id)
-  } catch (error: unknown) {
-    return failure(409, { code: 'CONFLICT', message: error instanceof Error ? error.message : 'That change could not be undone' })
-  }
-  await env.DB.prepare(`UPDATE assistant_tool_calls SET status = 'undone', resolved_at = ? WHERE call_id = ?`).bind(now, call.call_id).run()
-  const text = `Undid the ${call.label ?? 'change'}.`
-  const row = await insertMessage(env, chat.id, 'assistant', { role: 'assistant', content: text }, now, { shown: true, text })
-  await env.DB.prepare('UPDATE assistant_chats SET updated_at = ? WHERE id = ?').bind(now, chat.id).run()
-  const data: AssistantUndoResponse = { message: toMessage(row, []) }
-  return ok(data)
 }
 
 async function listChats(env: Env, device: DeviceIdentity): Promise<Response> {
@@ -558,28 +618,28 @@ async function history(env: Env, device: DeviceIdentity, id: string | null): Pro
   }
   const chat = await chatFor(env, device.datasetId, id)
   if (!chat) return failure(404, { code: 'NOT_FOUND', message: 'That chat does not exist' })
-  const [rows, calls, pending] = await Promise.all([
+  const [rows, pending] = await Promise.all([
     query<MessageRow>(env.DB, 'SELECT * FROM assistant_messages WHERE chat_id = ? AND shown = 1 ORDER BY seq DESC LIMIT ?', [chat.id, ASSISTANT_HISTORY_LIMIT]),
-    undoableCalls(env, chat.id),
     pendingFor(env, chat.id)
   ])
   const data: AssistantHistory = {
     chat: toChat(chat),
-    messages: rows.reverse().map((row) => toMessage(row, calls)),
-    pending: pending ? toPending(pending) : null
+    messages: rows.reverse().map(toMessage),
+    pending: toPending(pending.filter(savesItself))
   }
   return ok(data)
 }
 
-export function assistantRoute(request: Request, env: Env, device: DeviceIdentity, path: string, now: string): Promise<Response> | null {
+export function assistantRoute(
+  request: Request, env: Env, device: DeviceIdentity, path: string, now: string, work?: Work
+): Promise<Response> | null {
   const url = new URL(request.url)
   if (request.method === 'GET' && path === '/v1/assistant/chats') return listChats(env, device)
   if (request.method === 'DELETE' && path.startsWith('/v1/assistant/chats/')) {
     return deleteChat(env, device, decodeURIComponent(path.slice('/v1/assistant/chats/'.length)), now)
   }
   if (request.method === 'GET' && path === '/v1/assistant/messages') return history(env, device, url.searchParams.get('chat'))
-  if (request.method === 'POST' && path === '/v1/assistant/turns') return turn(request, env, device, now)
-  if (request.method === 'POST' && path === '/v1/assistant/confirm') return confirm(request, env, device, now)
-  if (request.method === 'POST' && path === '/v1/assistant/undo') return undo(request, env, device, now)
+  if (request.method === 'POST' && path === '/v1/assistant/turns') return turn(request, env, device, now, work)
+  if (request.method === 'POST' && path === '/v1/assistant/confirm') return confirm(request, env, device, now, work)
   return null
 }

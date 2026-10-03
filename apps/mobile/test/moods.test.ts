@@ -74,7 +74,7 @@ describe('mood entries on the phone', () => {
     const api = fakeApi({ changes: [{ ok: true, data: { changes: [pulled], cursor: 5, hasMore: false } }] })
     const outcome = await createSyncCoordinator({ db, api, now: () => NOW }).sync()
     expect(outcome).toMatchObject({ state: 'synced', delivered: 1 })
-    expect(outcome.touched).toEqual({ money: false, gym: false, health: true, habits: false, diary: false, tasks: false, sheets: false })
+    expect(outcome.touched).toEqual({ money: false, gym: false, health: true, habits: false, diary: false, tasks: false, sheets: false, food: false })
     expect(api.sentOperations[0][0]).toMatchObject({ entityId: '2026-09-28', command: { entity: 'mood', type: 'save' } })
     expect(await allOperations(db)).toHaveLength(0)
     const entries = await localMoods(db)

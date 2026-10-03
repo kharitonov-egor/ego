@@ -9,7 +9,7 @@ import {
 import type { LocalDatabase } from '../database/types'
 import { persistDraft, type DraftFile } from '../diary/compose'
 import { deleteLocalFiles } from '../diary/media'
-import { dropUnusedUploads, localMediaFiles, queueUploads, retryCardUploads, type QueuedUpload } from '../diary/uploads'
+import { dropUnusedUploads, localMediaFiles, queueUploads, retryRecordUploads, type QueuedUpload } from '../diary/uploads'
 import { useLedger, type LocalWrite } from '../ledger-context'
 import {
   createTaskBoard, createTaskGoal, createTaskLabel, createTaskList, deleteTaskBoard, deleteTaskCard, deleteTaskGoal,
@@ -515,7 +515,7 @@ export function TasksProvider({ children }: { children: React.ReactNode }): Reac
   }, [commit])
 
   const retryUploads = useCallback((cardId: string): Promise<boolean> =>
-    commit(null, (database) => retryCardUploads(database, cardId), 'This phone could not try those files again'), [commit])
+    commit(null, (database) => retryRecordUploads(database, 'taskCard', cardId), 'This phone could not try those files again'), [commit])
 
   const createGoal = useCallback(async (input: TaskGoalInput): Promise<string | null> => {
     const current = dataRef.current

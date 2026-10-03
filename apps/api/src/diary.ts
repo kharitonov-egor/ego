@@ -7,7 +7,7 @@ import type { Env } from './auth'
 import { query } from './reads'
 
 /**
- * Diary and Tasks files in R2. The bucket is private and every route sits behind the device token,
+ * Diary, Tasks, and Food files in R2. The bucket is private and every route sits behind the device token,
  * so a file is only readable through this Worker. A media ID is written once and never changes,
  * which lets the phone cache a download forever. Each app keeps its files under its own prefix
  * and records finished uploads in its own table.
@@ -15,12 +15,13 @@ import { query } from './reads'
 
 interface MediaStore {
   scope: MediaScope
-  table: 'diary_media' | 'task_media'
+  table: 'diary_media' | 'task_media' | 'food_media'
 }
 
 const STORES: readonly MediaStore[] = [
   { scope: 'diary', table: 'diary_media' },
-  { scope: 'tasks', table: 'task_media' }
+  { scope: 'tasks', table: 'task_media' },
+  { scope: 'food', table: 'food_media' }
 ]
 
 interface MediaRow {
@@ -62,6 +63,23 @@ async function storedMedia(db: D1Database, store: MediaStore, id: string): Promi
   const rows = await query<MediaRow>(db, `SELECT id, content_type, size FROM ${store.table} WHERE id = ?`, [id])
   const row = rows[0]
   return row ? { id: row.id, contentType: row.content_type, size: row.size } : null
+}
+
+export async function storeFoodPhoto(env: Env, id: string, bytes: Uint8Array, contentType: string, now: string): Promise<boolean> {
+  const bucket = bucketFor(env)
+  const store = STORES.find((candidate) => candidate.scope === 'food')
+  if (!bucket || !store || !isDiaryMediaId(id)) return false
+  const object = await bucket.put(mediaKey(store, id), bytes, { httpMetadata: { contentType } })
+  await recordMedia(env.DB, store, { id, contentType, size: object.size }, now)
+  return true
+}
+
+export async function deleteFoodPhoto(env: Env, id: string): Promise<void> {
+  const bucket = bucketFor(env)
+  const store = STORES.find((candidate) => candidate.scope === 'food')
+  if (!bucket || !store || !isDiaryMediaId(id)) return
+  await bucket.delete(mediaKey(store, id))
+  await env.DB.prepare('DELETE FROM food_media WHERE id = ?').bind(id).run()
 }
 
 async function recordMedia(db: D1Database, store: MediaStore, media: DiaryMediaInfo, now: string): Promise<void> {
@@ -216,7 +234,7 @@ async function serveMedia(request: Request, env: Env, store: MediaStore, id: str
   return new Response(object.body, { status, headers })
 }
 
-/** Routes under `/v1/diary/media/` and `/v1/tasks/media/`. Null means the path is not one of them. */
+/** Routes under `/v1/<scope>/media/`, one per store. Null means the path is not one of them. */
 export function mediaRoute(request: Request, env: Env, path: string, now: string): Promise<Response> | null {
   const store = STORES.find((candidate) => path.startsWith(`/v1/${candidate.scope}/media/`))
   if (!store) return null

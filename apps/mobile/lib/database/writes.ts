@@ -1,8 +1,8 @@
 import type {
-  AccountRecord, BudgetRecord, CategoryRecord, ChangePayload, DiaryMessageRecord, FeedTransaction, GymCategoryRecord,
-  GymExerciseRecord, GymPlanRecord, GymSetRecord, GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord,
-  PurchaseRecord, SheetRecord, SheetRowRecord, SyncEntity, TaskBoardRecord, TaskCardRecord, TaskGoalRecord, TaskLabelRecord,
-  TaskListRecord, TransactionRecord
+  AccountRecord, BudgetRecord, CategoryRecord, ChangePayload, DiaryMessageRecord, FeedTransaction, FoodEntryRecord,
+  FoodGoalRecord, FridgeItemRecord, GymCategoryRecord, GymExerciseRecord, GymPlanRecord, GymSetRecord, GymWorkoutRecord,
+  HabitEntryRecord, HabitRecord, MoodRecord, PurchaseRecord, SheetRecord, SheetRowRecord, SyncEntity, TaskBoardRecord,
+  TaskCardRecord, TaskGoalRecord, TaskLabelRecord, TaskListRecord, TransactionRecord
 } from '@ego/api-contracts'
 import type { LocalDatabase } from './types'
 
@@ -27,7 +27,10 @@ export const TABLES: Record<SyncEntity, string> = {
   taskCard: 'task_cards',
   taskGoal: 'task_goals',
   sheet: 'sheets',
-  sheetRow: 'sheet_rows'
+  sheetRow: 'sheet_rows',
+  foodEntry: 'food_entries',
+  fridgeItem: 'fridge_items',
+  foodGoal: 'food_goals'
 }
 
 /** Budgets are keyed by month and mood entries by date; every other record by its ID. */
@@ -333,6 +336,43 @@ async function writeSheetRow(tx: LocalDatabase, record: SheetRowRecord): Promise
     record.revision])
 }
 
+async function writeFoodEntry(tx: LocalDatabase, record: FoodEntryRecord): Promise<void> {
+  await tx.run(`INSERT INTO food_entries (id, name, date, eaten_at, serving, calories, protein, carbs, fat, parts, source,
+    barcode, photo, note, created_at, updated_at, revision, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+    ON CONFLICT(id) DO UPDATE SET name = excluded.name, date = excluded.date, eaten_at = excluded.eaten_at,
+      serving = excluded.serving, calories = excluded.calories, protein = excluded.protein, carbs = excluded.carbs,
+      fat = excluded.fat, parts = excluded.parts, source = excluded.source, barcode = excluded.barcode,
+      photo = excluded.photo, note = excluded.note, created_at = excluded.created_at, updated_at = excluded.updated_at,
+      revision = excluded.revision, deleted_at = NULL
+    WHERE excluded.revision >= food_entries.revision`,
+  [record.id, record.name, record.date, record.eatenAt, record.serving, record.calories, record.protein, record.carbs,
+    record.fat, JSON.stringify(record.parts), record.source, record.barcode, record.photo ? JSON.stringify(record.photo) : null,
+    record.note, record.createdAt, record.updatedAt, record.revision])
+}
+
+async function writeFridgeItem(tx: LocalDatabase, record: FridgeItemRecord): Promise<void> {
+  await tx.run(`INSERT INTO fridge_items (id, name, icon, brand, barcode, source, purchase_id, added_at, created_at,
+    updated_at, revision, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+    ON CONFLICT(id) DO UPDATE SET name = excluded.name, icon = excluded.icon, brand = excluded.brand,
+      barcode = excluded.barcode, source = excluded.source, purchase_id = excluded.purchase_id, added_at = excluded.added_at,
+      created_at = excluded.created_at, updated_at = excluded.updated_at, revision = excluded.revision, deleted_at = NULL
+    WHERE excluded.revision >= fridge_items.revision`,
+  [record.id, record.name, record.icon, record.brand, record.barcode, record.source, record.purchaseId, record.addedAt,
+    record.createdAt, record.updatedAt, record.revision])
+}
+
+async function writeFoodGoal(tx: LocalDatabase, record: FoodGoalRecord): Promise<void> {
+  await tx.run(`INSERT INTO food_goals (id, calories, protein, carbs, fat, created_at, updated_at, revision, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
+    ON CONFLICT(id) DO UPDATE SET calories = excluded.calories, protein = excluded.protein, carbs = excluded.carbs,
+      fat = excluded.fat, created_at = excluded.created_at, updated_at = excluded.updated_at, revision = excluded.revision,
+      deleted_at = NULL
+    WHERE excluded.revision >= food_goals.revision`,
+  [record.id, record.calories, record.protein, record.carbs, record.fat, record.createdAt, record.updatedAt, record.revision])
+}
+
 /** Applies a record only when it is at least as new as the stored revision. */
 export async function writeRecord(tx: LocalDatabase, payload: ChangePayload): Promise<void> {
   if (payload.record === null) return
@@ -358,6 +398,9 @@ export async function writeRecord(tx: LocalDatabase, payload: ChangePayload): Pr
     case 'taskGoal': return writeTaskGoal(tx, payload.record)
     case 'sheet': return writeSheet(tx, payload.record)
     case 'sheetRow': return writeSheetRow(tx, payload.record)
+    case 'foodEntry': return writeFoodEntry(tx, payload.record)
+    case 'fridgeItem': return writeFridgeItem(tx, payload.record)
+    case 'foodGoal': return writeFoodGoal(tx, payload.record)
   }
 }
 
