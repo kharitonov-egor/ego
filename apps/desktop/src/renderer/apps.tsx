@@ -1,4 +1,4 @@
-import { Sparkles, Wallet, type LucideIcon } from 'lucide-react'
+import { Sparkles, SquareKanban, Wallet, type LucideIcon } from 'lucide-react'
 
 export interface AppEntry {
   label: string
@@ -12,5 +12,6 @@ export interface AppEntry {
 /** The phone's start-screen tiles, in the phone's order. */
 export const APPS: readonly AppEntry[] = [
   { label: 'AI', Icon: Sparkles, path: '/ai', prefix: '/ai' },
-  { label: 'Finance', Icon: Wallet, path: '/money', prefix: '/money' }
+  { label: 'Finance', Icon: Wallet, path: '/money', prefix: '/money' },
+  { label: 'Tasks', Icon: SquareKanban, path: '/tasks', prefix: '/tasks' }
 ]

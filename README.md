@@ -293,6 +293,18 @@ are fractions, so a drag rewrites only the card that moved. Attachments go to R2
 through the same upload queue as the diary, and a card edit that adds files waits until they are
 up. Deleting a board or a list hides everything under it on every device.
 
+On the desktop, Boards and Upcoming are tabs in the header. A board shows every list side by side
+at a fixed width and scrolls sideways, and each list scrolls on its own. Drag a card with the mouse
+to move it within its list or into another, or drag a list's name to move the list. Resting near
+an edge scrolls, Escape puts the card back, and dragging the empty board pans it. Boards reorder
+by dragging too, or with Alt and the arrow keys. "Add a card" stays open after Enter for the next
+card. A card opens as its own page. Double-click the description to edit it, where Ctrl+B, Ctrl+I,
+and Ctrl+K format and Ctrl+Enter saves. Files attach from the picker, by dropping them on the card,
+or with Ctrl+V. Photos open in a viewer that steps with the arrow keys, other files open in their
+Windows app, and a right-click removes one. Reminders and the digest are Windows notifications
+timed by the window, which keeps running in the tray, and clicking one opens its card. The Alt+N
+quick add still sends cards to Trello.
+
 ## Sheets
 
 The Sheets tile holds small spreadsheets in black and white, built for the phone first. The empty
