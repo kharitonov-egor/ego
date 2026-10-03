@@ -38,6 +38,7 @@ function Screens(): React.ReactElement {
       <Stack.Screen name="tasks" options={{ headerShown: false }} />
       <Stack.Screen name="sheets" options={{ headerShown: false }} />
       <Stack.Screen name="food" options={{ headerShown: false }} />
+      <Stack.Screen name="calendar" options={{ headerShown: false }} />
       <Stack.Screen name="capture" options={{ title: 'New Trello card' }} />
       <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       <Stack.Screen name="auth" options={{ title: 'Sign in', headerShown: false }} />

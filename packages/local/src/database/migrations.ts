@@ -500,6 +500,28 @@ export const LOCAL_MIGRATIONS: readonly string[][] = [
       revision INTEGER NOT NULL DEFAULT 1,
       deleted_at TEXT
     )`
+  ],
+  [
+    `CREATE TABLE IF NOT EXISTS calendar_events (
+      key TEXT PRIMARY KEY,
+      calendar_key TEXT NOT NULL,
+      starts_at TEXT NOT NULL,
+      ends_at TEXT NOT NULL,
+      event TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_local_calendar_events_start ON calendar_events(starts_at)',
+    `CREATE TABLE IF NOT EXISTS calendar_lists (
+      key TEXT PRIMARY KEY,
+      info TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS calendar_state (
+      id INTEGER PRIMARY KEY CHECK(id = 1),
+      accounts TEXT,
+      server_time TEXT,
+      fetched_at TEXT
+    )`
   ]
 ]
 

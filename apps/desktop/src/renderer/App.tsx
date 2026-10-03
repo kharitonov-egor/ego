@@ -14,6 +14,7 @@ import { ReminderProvider } from './lib/reminder'
 import { TasksProvider } from './lib/tasks/context'
 import { TaskNotificationsProvider } from './lib/tasks/notifications'
 import Assistant from './screens/ai/Assistant'
+import CalendarScreen from './screens/calendar/Calendar'
 import Diary from './screens/diary/Diary'
 import FoodApp from './screens/food'
 import ExerciseEditor from './screens/gym/ExerciseEditor'
@@ -109,6 +110,7 @@ export default function App(): React.ReactElement {
             <Route path="/tasks/*" element={<TasksRoutes />} />
             <Route path="/sheets/*" element={<SheetsApp />} />
             <Route path="/food/*" element={<FoodApp />} />
+            <Route path="/calendar" element={<CalendarScreen />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

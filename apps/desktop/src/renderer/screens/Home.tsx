@@ -1,9 +1,14 @@
 import React from 'react'
 import { useNavigate } from 'react-router'
+import { eventColorOf } from '@ego/core'
+import { clockLabel, localDayOf } from '@ego/local/calendar/layout'
+import { isoToday, shiftIso } from '@ego/local/dates'
 import appIcon from '../app-icon.png'
 import { APPS, type AppEntry } from '../apps'
 import { SignInPanel } from '../components/SignInPanel'
 import { Spinner } from '../components/ui/spinner'
+import { Blurred } from '../lib/blur'
+import { useNextEvent } from '../lib/calendar/next'
 import { useLedger } from '../lib/ledger'
 import { cn } from '../lib/utils'
 
@@ -26,6 +31,34 @@ function Heading({ size }: { size: 'large' | 'small' }): React.ReactElement {
   </div>
 }
 
+function dayWord(start: string): string {
+  const day = localDayOf(start)
+  if (day === isoToday()) return 'Today'
+  if (day === shiftIso(isoToday(), 1)) return 'Tomorrow'
+  return new Date(start).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+}
+
+/** The next thing on the calendar, under the heading, as on the phone. */
+function NextEvent({ onOpen }: { onOpen: () => void }): React.ReactElement | null {
+  const next = useNextEvent()
+  if (!next) return null
+  const { event, calendar } = next
+  const color = eventColorOf(event.colorId, calendar.color)
+  const now = Date.now()
+  const when = Date.parse(event.start) <= now ? `Now, until ${clockLabel(event.end)}` : `${dayWord(event.start)}, ${clockLabel(event.start)}`
+  return <button
+    type="button"
+    onClick={onOpen}
+    className="mx-auto mt-6 flex max-w-xl items-center gap-3 rounded-2xl border border-surface-800 bg-surface-900 py-2.5 pl-3 pr-5 text-left transition-colors hover:bg-surface-800"
+  >
+    <span className="h-9 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />
+    <span className="min-w-0">
+      <span className="block text-[13px] font-semibold text-surface-400">{when}</span>
+      <Blurred><span className="block truncate text-[16px] font-semibold">{event.title || '(No title)'}</span></Blurred>
+    </span>
+  </button>
+}
+
 /** The phone's start screen, and the only place that asks for sign-in. */
 export default function Home(): React.ReactElement {
   const navigate = useNavigate()
@@ -46,6 +79,7 @@ export default function Home(): React.ReactElement {
   return <div className="h-full overflow-y-auto px-6 pb-10 pt-10">
     <div className="mx-auto max-w-3xl">
       <Heading size="small" />
+      <NextEvent onOpen={() => navigate('/calendar')} />
       <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-3">
         {APPS.map((app) => <AppTile key={app.path} app={app} onOpen={() => navigate(app.path)} />)}
       </div>

@@ -7,6 +7,8 @@ import { cn } from '../../lib/utils'
 export interface MenuItem {
   label: string
   Icon?: LucideIcon
+  /** A color dot in place of an icon, for color pickers. */
+  swatch?: string
   destructive?: boolean
   disabled?: boolean
   onPress: () => void
@@ -128,6 +130,7 @@ export function PopupMenu({ anchor, title, items, onClose }: {
         className="flex min-h-10 w-full items-center gap-3 px-4 text-left outline-none hover:bg-surface-800 focus-visible:bg-surface-800 active:bg-surface-700 disabled:pointer-events-none disabled:opacity-40"
       >
         {item.Icon && <item.Icon color={item.destructive ? color.destructive : color.textSecondary} size={18} />}
+        {item.swatch && <span className="h-4 w-4 shrink-0 rounded-full" style={{ backgroundColor: item.swatch }} />}
         <span className={cn('truncate text-[15px]', item.destructive && 'text-destructive')}>{item.label}</span>
       </button>)}
     </div>

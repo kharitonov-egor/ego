@@ -1,5 +1,5 @@
 import {
-  BookOpen, CircleCheckBig, Dumbbell, GraduationCap, HeartPulse, Sheet, Smile, Sparkles, SquareKanban, UtensilsCrossed, Wallet,
+  BookOpen, CalendarDays, CircleCheckBig, Dumbbell, GraduationCap, HeartPulse, Sheet, Smile, Sparkles, SquareKanban, UtensilsCrossed, Wallet,
   type LucideIcon
 } from 'lucide-react'
 
@@ -24,5 +24,6 @@ export const APPS: readonly AppEntry[] = [
   { label: 'Habits', Icon: CircleCheckBig, path: '/habits/home', prefix: '/habits' },
   { label: 'Tasks', Icon: SquareKanban, path: '/tasks', prefix: '/tasks' },
   { label: 'Sheets', Icon: Sheet, path: '/sheets', prefix: '/sheets' },
-  { label: 'Food', Icon: UtensilsCrossed, path: '/food', prefix: '/food' }
+  { label: 'Food', Icon: UtensilsCrossed, path: '/food', prefix: '/food' },
+  { label: 'Calendar', Icon: CalendarDays, path: '/calendar', prefix: '/calendar' }
 ]
