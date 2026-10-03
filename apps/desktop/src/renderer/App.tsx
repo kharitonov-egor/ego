@@ -8,9 +8,12 @@ import { LedgerProvider } from './lib/ledger'
 import { MoneyProvider } from './lib/money'
 import { PeriodProvider } from './lib/period'
 import { ReminderProvider } from './lib/reminder'
+import { TasksProvider } from './lib/tasks/context'
+import { TaskNotificationsProvider } from './lib/tasks/notifications'
 import Home from './screens/Home'
 import Settings from './screens/Settings'
 import { moneyRoutes } from './screens/money/Finance'
+import TasksRoutes from './screens/tasks'
 
 function TalkToAI(): React.ReactElement {
   const navigate = useNavigate()
@@ -30,22 +33,27 @@ export default function App(): React.ReactElement {
       <MoneyProvider>
         <PeriodProvider>
           <ReminderProvider>
-            <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
-              <NavigationRequests />
-              <TitleBar />
-              <div className="flex min-h-0 flex-1">
-                <Sidebar />
-                <main className="min-w-0 flex-1 overflow-hidden">
-                  <Routes>
-                    <Route path="/" element={<Home />} />
-                    <Route path="/ai" element={<TalkToAI />} />
-                    {moneyRoutes}
-                    <Route path="/settings" element={<Settings />} />
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                  </Routes>
-                </main>
-              </div>
-            </div>
+            <TasksProvider>
+              <TaskNotificationsProvider>
+                <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
+                  <NavigationRequests />
+                  <TitleBar />
+                  <div className="flex min-h-0 flex-1">
+                    <Sidebar />
+                    <main className="min-w-0 flex-1 overflow-hidden">
+                      <Routes>
+                        <Route path="/" element={<Home />} />
+                        <Route path="/ai" element={<TalkToAI />} />
+                        {moneyRoutes}
+                        <Route path="/tasks/*" element={<TasksRoutes />} />
+                        <Route path="/settings" element={<Settings />} />
+                        <Route path="*" element={<Navigate to="/" replace />} />
+                      </Routes>
+                    </main>
+                  </div>
+                </div>
+              </TaskNotificationsProvider>
+            </TasksProvider>
           </ReminderProvider>
         </PeriodProvider>
       </MoneyProvider>
