@@ -5,13 +5,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApiResult, FoodAnalyzeResponse, FoodProductResponse } from '@ego/api-contracts'
 import { SAVE_DELAY_MS } from '@ego/core'
 import { FoodProvider, useFood } from './context'
+import type { PhotoPick } from './photo'
 
 const mocks = vi.hoisted(() => {
   const write = vi.fn(async (_work: unknown, _scope?: string) => true)
   const foodAnalyze = vi.fn()
   const foodProduct = vi.fn()
+  const deleteStaged = vi.fn(async (_paths: string[]) => undefined)
   return {
-    write, foodAnalyze, foodProduct,
+    write, foodAnalyze, foodProduct, deleteStaged,
     ledger: { api: { foodAnalyze, foodProduct }, db: {}, enabled: true, ready: true, foodVersion: 0, write }
   }
 })
@@ -57,6 +59,9 @@ function current(): ReturnType<typeof useFood> {
 describe('FoodProvider drafts', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    Object.defineProperty(window, 'api', { configurable: true, value: { mediaDeleteStaged: mocks.deleteStaged } })
+    URL.revokeObjectURL = () => undefined
+    mocks.deleteStaged.mockClear()
     mocks.write.mockClear()
     mocks.foodAnalyze.mockReset().mockResolvedValue(PHO)
     mocks.foodProduct.mockReset()
@@ -123,5 +128,40 @@ describe('FoodProvider drafts', () => {
     await act(async () => { await current().logText('two eggs and toast') })
     expect(mocks.write).toHaveBeenCalledTimes(1)
     expect(current().draft?.state).toBe('ready')
+  })
+
+  it('keeps one start time for a run, so a card drawn again shows the time left', async () => {
+    await settle()
+    await act(async () => { await current().logText('a large bowl of pho') })
+    const draft = current().draft
+    expect(draft?.state).toBe('ready')
+    await settle(1000)
+    expect(current().draft?.startedAt).toBe(draft?.startedAt)
+    expect(Date.now() - (draft?.startedAt ?? 0)).toBe(1000)
+    await settle(SAVE_DELAY_MS - 1000)
+    expect(mocks.write).toHaveBeenCalledTimes(1)
+  })
+
+  it('throws away the photo of a fridge draft that failed when a name is typed instead', async () => {
+    mocks.foodAnalyze.mockResolvedValue({ ok: false, error: { code: 'INVALID_REQUEST', message: 'No food showed up in that photo.' } })
+    const pick = async (): Promise<PhotoPick> => ({
+      ok: true,
+      photo: {
+        photo: { mediaId: 'full', previewId: 'small', width: 1600, height: 1200 },
+        image: { base64: 'AAAA', mimeType: 'image/jpeg' },
+        uploads: [
+          { mediaId: 'small', localUri: '/media/small', contentType: 'image/jpeg', size: 10, scope: 'food' },
+          { mediaId: 'full', localUri: '/media/full', contentType: 'image/jpeg', size: 20, scope: 'food' }
+        ],
+        uri: 'blob:full',
+        previewUri: 'blob:small'
+      }
+    })
+    await settle()
+    await act(async () => { await current().stockPhoto(pick) })
+    expect(current().draft?.state).toBe('failed')
+    await act(async () => { await current().stockByName('Milk') })
+    expect(current().draft).toBeNull()
+    expect(mocks.deleteStaged).toHaveBeenCalledWith(['/media/small', '/media/full'])
   })
 })

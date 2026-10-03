@@ -72,6 +72,7 @@ export function DraftCard({ draft, editing = false, onUndo, onEdit, onRetry, onL
   const countdown = <SaveCountdown
     runKey={draft.key}
     paused={draft.paused}
+    startedAt={draft.startedAt}
     label={`Saves in ${SECONDS} seconds. Click to edit.`}
     onUndo={onUndo}
   />

@@ -27,6 +27,8 @@ export type DraftState = 'reading' | 'ready' | 'failed'
 interface DraftBase {
   /** A new key restarts the countdown. */
   key: string
+  /** When this run of the countdown began, so a card drawn again shows the time actually left. */
+  startedAt: number
   state: DraftState
   message: string | null
   /** Held while the user edits it, so it cannot save out from under them. */
@@ -85,6 +87,11 @@ interface FoodContextValue {
 }
 
 const FoodContext = createContext<FoodContextValue | null>(null)
+
+/** A new key and start time, which run the countdown from the top. */
+function run(): Pick<DraftBase, 'key' | 'startedAt'> {
+  return { key: newId(), startedAt: Date.now() }
+}
 
 function failed<T extends FoodDraft>(draft: T, message: string, unknownBarcode: string | null = null): T {
   return { ...draft, state: 'failed', message, unknownBarcode }
@@ -203,15 +210,15 @@ export function FoodProvider({ children }: { children: React.ReactNode }): React
   }, [setDraft])
 
   const readMeal = useCallback(async (photo: PreparedPhoto | null, text: string): Promise<void> => {
-    const key = newId()
-    await begin({ kind: 'meal', key, state: 'reading', message: null, paused: false, unknownBarcode: null, entry: null, photo, hint: text })
+    const { key, startedAt } = run()
+    await begin({ kind: 'meal', key, startedAt, state: 'reading', message: null, paused: false, unknownBarcode: null, entry: null, photo, hint: text })
     const result = await api.foodAnalyze({ mode: 'meal', image: photo?.image ?? null, text })
     settle(key, (current) => {
       if (current.kind !== 'meal') return current
       if (!result.ok) return failed(current, result.error.message)
       if (result.data.mode !== 'meal') return failed(current, 'The server answered with something else. Try again.')
       return {
-        ...current, state: 'ready', key: newId(),
+        ...current, state: 'ready', ...run(),
         entry: entryFromMeal(result.data.meal, photo ? 'photo' : 'text', photo?.photo ?? null, new Date())
       }
     })
@@ -229,8 +236,8 @@ export function FoodProvider({ children }: { children: React.ReactNode }): React
   const logText = useCallback((text: string): Promise<void> => readMeal(null, text), [readMeal])
 
   const logBarcode = useCallback(async (barcode: string, photo: PreparedPhoto | null): Promise<void> => {
-    const key = newId()
-    await begin({ kind: 'meal', key, state: 'reading', message: null, paused: false, unknownBarcode: null, entry: null, photo, hint: '' })
+    const { key, startedAt } = run()
+    await begin({ kind: 'meal', key, startedAt, state: 'reading', message: null, paused: false, unknownBarcode: null, entry: null, photo, hint: '' })
     const result = await api.foodProduct(barcode)
     settle(key, (current) => {
       if (current.kind !== 'meal') return current
@@ -239,19 +246,19 @@ export function FoodProvider({ children }: { children: React.ReactNode }): React
         discardPhoto(photo)
         return failed({ ...current, photo: null }, 'No food database knows this barcode. A photo of the label works instead.', barcode)
       }
-      return { ...current, state: 'ready', key: newId(), entry: entryFromProduct(result.data.product, photo?.photo ?? null, new Date()) }
+      return { ...current, state: 'ready', ...run(), entry: entryFromProduct(result.data.product, photo?.photo ?? null, new Date()) }
     })
   }, [api, begin, settle])
 
   const readFridge = useCallback(async (photo: PreparedPhoto): Promise<void> => {
-    const key = newId()
-    await begin({ kind: 'fridge', key, state: 'reading', message: null, paused: false, unknownBarcode: null, items: [], photo })
+    const { key, startedAt } = run()
+    await begin({ kind: 'fridge', key, startedAt, state: 'reading', message: null, paused: false, unknownBarcode: null, items: [], photo })
     const result = await api.foodAnalyze({ mode: 'fridge', image: photo.image, text: '' })
     settle(key, (current) => {
       if (current.kind !== 'fridge') return current
       if (!result.ok) return failed(current, result.error.message)
       if (result.data.mode !== 'fridge') return failed(current, 'The server answered with something else. Try again.')
-      return { ...current, state: 'ready', key: newId(), items: fridgeItemsFrom(result.data.items, 'photo', new Date()) }
+      return { ...current, state: 'ready', ...run(), items: fridgeItemsFrom(result.data.items, 'photo', new Date()) }
     })
   }, [api, begin, settle])
 
@@ -265,14 +272,14 @@ export function FoodProvider({ children }: { children: React.ReactNode }): React
   }, [readFridge])
 
   const stockBarcode = useCallback(async (barcode: string): Promise<void> => {
-    const key = newId()
-    await begin({ kind: 'fridge', key, state: 'reading', message: null, paused: false, unknownBarcode: null, items: [], photo: null })
+    const { key, startedAt } = run()
+    await begin({ kind: 'fridge', key, startedAt, state: 'reading', message: null, paused: false, unknownBarcode: null, items: [], photo: null })
     const result = await api.foodProduct(barcode)
     settle(key, (current) => {
       if (current.kind !== 'fridge') return current
       if (!result.ok) return failed(current, result.error.message)
       if (!result.data.product) return failed(current, 'No food database knows this barcode. Type the name instead.', barcode)
-      return { ...current, state: 'ready', key: newId(), items: [fridgeItemFromProduct(result.data.product, new Date())] }
+      return { ...current, state: 'ready', ...run(), items: [fridgeItemFromProduct(result.data.product, new Date())] }
     })
   }, [api, begin, settle])
 
@@ -286,7 +293,10 @@ export function FoodProvider({ children }: { children: React.ReactNode }): React
       setError('Give the item a name')
       return false
     }
-    if (draftRef.current?.kind === 'fridge' && draftRef.current.state === 'failed') setDraft(null)
+    if (draftRef.current?.kind === 'fridge' && draftRef.current.state === 'failed') {
+      discardPhoto(draftRef.current.photo)
+      setDraft(null)
+    }
     const saved = await queued(async (database, now) => { await createFridgeItem(database, item, now) })
     if (!saved) setError('This computer could not add that to the fridge')
     return saved
@@ -305,7 +315,7 @@ export function FoodProvider({ children }: { children: React.ReactNode }): React
     const key = draft.key
     const timer = setTimeout(() => {
       if (draftRef.current?.key === key) void saveDraft()
-    }, SAVE_DELAY_MS)
+    }, Math.max(0, draft.startedAt + SAVE_DELAY_MS - Date.now()))
     return () => clearTimeout(timer)
   }, [draft, saveDraft])
 
@@ -324,7 +334,7 @@ export function FoodProvider({ children }: { children: React.ReactNode }): React
 
   const pauseDraft = useCallback((paused: boolean): void => {
     const current = draftRef.current
-    if (current && current.paused !== paused) setDraft({ ...current, paused, key: paused ? current.key : newId() })
+    if (current && current.paused !== paused) setDraft({ ...current, paused, ...(paused ? {} : run()) })
   }, [setDraft])
 
   const editDraftEntry = useCallback((entry: FoodEntryInput): void => {

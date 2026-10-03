@@ -75,7 +75,7 @@ async function keep(mediaId: string, blob: Blob): Promise<Omit<QueuedUpload, 'me
  * until they reach R2.
  */
 export async function preparePhoto(file: Blob): Promise<PreparedPhoto> {
-  const bitmap = await createImageBitmap(file)
+  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
   let main: Encoded
   try {
     main = await jpeg(bitmap, fitWithin(bitmap.width, bitmap.height, PHOTO_EDGE), 0.8)

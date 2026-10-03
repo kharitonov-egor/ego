@@ -65,9 +65,14 @@ function PanelHeader({ title, onClose }: { title: string; onClose: () => void })
 
 /**
  * The phone's entry screen, opened beside the log. `id` is an entry's ID, or `draft` for the card
- * counting down, which stays held while this is open.
+ * counting down, which stays held while this is open. `onDraftEdit` hears the draft as typed so
+ * far, or null while it cannot be saved.
  */
-export function FoodEntryPanel({ id, onClose }: { id: string; onClose: () => void }): React.ReactElement {
+export function FoodEntryPanel({ id, onClose, onDraftEdit }: {
+  id: string
+  onClose: () => void
+  onDraftEdit?: (entry: FoodEntryInput | null) => void
+}): React.ReactElement {
   const food = useFood()
   const isDraft = id === 'draft'
   const draft = isDraft && food.draft?.kind === 'meal' && food.draft.state === 'ready' ? food.draft : null
@@ -79,10 +84,14 @@ export function FoodEntryPanel({ id, onClose }: { id: string; onClose: () => voi
       <FoodMessage title={isDraft ? 'That food already saved' : 'That entry is gone'} detail="It may have been deleted on another device." action="Back" onAction={onClose} />
     </div>
   }
-  return <Editor key={record?.id ?? 'draft'} initial={source} onClose={onClose} />
+  return <Editor key={record?.id ?? 'draft'} initial={source} onClose={onClose} onDraftEdit={onDraftEdit} />
 }
 
-function Editor({ initial, onClose }: { initial: FoodEntryInput & { id?: string }; onClose: () => void }): React.ReactElement {
+function Editor({ initial, onClose, onDraftEdit }: {
+  initial: FoodEntryInput & { id?: string }
+  onClose: () => void
+  onDraftEdit?: (entry: FoodEntryInput | null) => void
+}): React.ReactElement {
   const food = useFood()
   const record = initial.id ? food.data?.entries.find((entry) => entry.id === initial.id) ?? null : null
   const isDraft = record === null
@@ -129,6 +138,13 @@ function Editor({ initial, onClose }: { initial: FoodEntryInput & { id?: string 
     return entryAt({ ...initial, name, serving, note, calories: kcal, protein: grams, carbs: carb, fat: fats }, date, time)
   }, [calories, carbs, date, fat, initial, name, note, protein, serving, time])
   const canSave = edited !== null && name.trim() !== ''
+
+  const report = useRef(onDraftEdit)
+  report.current = onDraftEdit
+  useEffect(() => {
+    if (isDraft) report.current?.(canSave ? edited : null)
+  }, [canSave, edited, isDraft])
+  useEffect(() => () => report.current?.(null), [])
 
   const save = async (): Promise<void> => {
     if (!edited || !canSave) return

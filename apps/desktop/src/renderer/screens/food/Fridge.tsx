@@ -92,13 +92,19 @@ function FridgeList({ onTypeName }: { onTypeName: () => void }): React.ReactElem
   const [editing, setEditing] = useState(false)
   const [leaving, setLeavingState] = useState<Leaving | null>(null)
   const leavingRef = useRef<Leaving | null>(null)
-  const { removeFridgeItems } = food
+  const { removeFridgeItems, pauseDraft } = food
   const draft = food.draft?.kind === 'fridge' ? food.draft : null
 
   // A draft emptied or saved elsewhere must not reopen the sheet when the next one arrives.
   useEffect(() => {
     if (!draft) setEditing(false)
   }, [draft])
+
+  // The sheet holds the timer, so leaving the list any way, like a notification click, lets it run again.
+  useEffect(() => {
+    if (!editing) return
+    return () => pauseDraft(false)
+  }, [editing, pauseDraft])
 
   const setLeaving = useCallback((next: Leaving | null): void => {
     leavingRef.current = next
@@ -188,10 +194,7 @@ function FridgeList({ onTypeName }: { onTypeName: () => void }): React.ReactElem
         setEditing(false)
         void food.saveDraft()
       }}
-      onClose={() => {
-        setEditing(false)
-        food.pauseDraft(false)
-      }}
+      onClose={() => setEditing(false)}
     />
   </PhotoDropZone>
 }

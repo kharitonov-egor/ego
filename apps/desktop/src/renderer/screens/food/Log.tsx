@@ -2,7 +2,7 @@ import React, { memo, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { ImagePlus, Plus, Target } from 'lucide-react'
 import type { FoodEntryRecord } from '@ego/api-contracts'
-import { NO_FOOD_GOAL, NO_MACROS, formatCalories, type FoodDay } from '@ego/core'
+import { NO_FOOD_GOAL, NO_MACROS, formatCalories, type FoodDay, type FoodEntryInput } from '@ego/core'
 import { dayTitle, timeLabel } from '@ego/local/food/drafts'
 import { DraftCard } from '../../components/food/DraftCard'
 import { PhotoDropZone } from '../../components/food/PhotoDrop'
@@ -77,23 +77,29 @@ export default function FoodLog(): React.ReactElement {
   const [scanning, setScanning] = useState(false)
   const [targets, setTargets] = useState(false)
   const goal = food.data?.goal ?? NO_FOOD_GOAL
+  const draftEdit = useRef<FoodEntryInput | null>(null)
 
-  /** Something new saves the held card first, as on the phone, so its editor closes before that. */
-  const leaveDraftEditor = (): void => {
-    if (entryId === 'draft') void navigate('/food')
+  /**
+   * Something new appears in the log, which a narrow window hides behind an open editor. It also
+   * saves the held card first, as on the phone, so that card takes what was typed in its editor.
+   */
+  const leaveEditor = (): void => {
+    if (entryId === null) return
+    if (entryId === 'draft' && draftEdit.current) food.editDraftEntry(draftEdit.current)
+    void navigate('/food')
   }
 
   const logFile = (file: File): void => {
     const current = food.draft
     const label = current?.kind === 'meal' && current.state === 'failed' && current.unknownBarcode !== null
-    leaveDraftEditor()
+    leaveEditor()
     void food.logPhoto(() => photoFromFile(file), label ? LABEL_HINT : '')
   }
 
   const pick = (choice: AddChoice): void => {
     setAdding(false)
     if (choice === 'library') {
-      leaveDraftEditor()
+      leaveEditor()
       void food.logPhoto(chooseFoodPhoto)
     } else if (choice === 'barcode') {
       setScanning(true)
@@ -110,25 +116,29 @@ export default function FoodLog(): React.ReactElement {
     <FoodGate>
       <LogBody
         entryId={entryId}
+        onDraftEdit={(entry) => { draftEdit.current = entry }}
         onTargets={() => setTargets(true)}
         onPhoto={logFile}
         onChoosePhoto={() => {
-          leaveDraftEditor()
+          leaveEditor()
           void food.logPhoto(chooseFoodPhoto)
         }}
-        onLabelPhoto={() => void food.logPhoto(chooseFoodPhoto, LABEL_HINT)}
+        onLabelPhoto={() => {
+          leaveEditor()
+          void food.logPhoto(chooseFoodPhoto, LABEL_HINT)
+        }}
         onDescribe={() => setDescribing(true)}
       />
     </FoodGate>
     <AddSheet visible={adding} mode="log" onPick={pick} onClose={() => setAdding(false)} />
     <BarcodeSheet visible={scanning} mode="log" onClose={() => setScanning(false)} onLookUp={(barcode) => {
       setScanning(false)
-      leaveDraftEditor()
+      leaveEditor()
       void food.logBarcode(barcode, null)
     }} />
     <DescribeSheet visible={describing} onClose={() => setDescribing(false)} onSend={(text) => {
       setDescribing(false)
-      leaveDraftEditor()
+      leaveEditor()
       void food.logText(text)
     }} />
     <TargetsSheet visible={targets} goal={goal} onClose={() => setTargets(false)} onSave={(next) => {
@@ -138,8 +148,9 @@ export default function FoodLog(): React.ReactElement {
   </Screen>
 }
 
-function LogBody({ entryId, onTargets, onPhoto, onChoosePhoto, onLabelPhoto, onDescribe }: {
+function LogBody({ entryId, onDraftEdit, onTargets, onPhoto, onChoosePhoto, onLabelPhoto, onDescribe }: {
   entryId: string | null
+  onDraftEdit: (entry: FoodEntryInput | null) => void
   onTargets: () => void
   onPhoto: (file: File) => void
   onChoosePhoto: () => void
@@ -229,7 +240,7 @@ function LogBody({ entryId, onTargets, onPhoto, onChoosePhoto, onLabelPhoto, onD
       ><ImagePlus color={color.screen} size={26} /></button>}
     </PhotoDropZone>
     {entryId !== null && <aside aria-label="Entry" className="flex min-h-0 w-full flex-col border-border lg:w-[440px] lg:shrink-0 lg:border-l">
-      <FoodEntryPanel id={entryId} onClose={close} />
+      <FoodEntryPanel id={entryId} onClose={close} onDraftEdit={onDraftEdit} />
     </aside>}
   </div>
 }
