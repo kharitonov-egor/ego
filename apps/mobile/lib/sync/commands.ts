@@ -2,7 +2,7 @@ import type { SyncCommand, SyncOperation } from '@ego/api-contracts'
 import type {
   AccountInput, BudgetInput, CategoryInput, DiaryMessageInput, GymCategoryInput, GymExerciseInput, GymPlanInput,
   GymSetInput, GymWorkoutInput, HabitEntryInput, HabitInput, MoodInput, PurchaseInput, SheetInput, SheetRowInput,
-  TaskBoardInput, TaskCardInput, TaskLabelInput, TaskListInput, TransactionInput
+  TaskBoardInput, TaskCardInput, TaskGoalInput, TaskLabelInput, TaskListInput, TransactionInput
 } from '@ego/core'
 import type { LocalDatabase } from '../database/types'
 import { applyCommandLocally } from './local-apply'
@@ -268,6 +268,15 @@ export async function deleteTaskCard(db: LocalDatabase, id: string, revision: nu
     return files.map((file) => file.local_uri)
   })
 }
+
+export const createTaskGoal = (db: LocalDatabase, input: TaskGoalInput, now: string, id = newId()) =>
+  submit(db, id, null, { entity: 'taskGoal', type: 'create', payload: input }, now)
+
+export const updateTaskGoal = (db: LocalDatabase, id: string, revision: number, input: TaskGoalInput, now: string) =>
+  submit(db, id, revision, { entity: 'taskGoal', type: 'update', payload: input }, now)
+
+export const deleteTaskGoal = (db: LocalDatabase, id: string, revision: number, now: string) =>
+  submit(db, id, revision, { entity: 'taskGoal', type: 'delete' }, now)
 
 export const createSheet = (db: LocalDatabase, input: SheetInput, now: string, id = newId()) =>
   submit(db, id, null, { entity: 'sheet', type: 'create', payload: input }, now)

@@ -1,7 +1,7 @@
 import type {
   AccountRecord, BudgetRecord, CategoryRecord, ChangePayload, DiaryMessageRecord, FeedTransaction, GymCategoryRecord,
   GymExerciseRecord, GymPlanRecord, GymSetRecord, GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord,
-  PurchaseRecord, SheetRecord, SheetRowRecord, SyncEntity, TaskBoardRecord, TaskCardRecord, TaskLabelRecord,
+  PurchaseRecord, SheetRecord, SheetRowRecord, SyncEntity, TaskBoardRecord, TaskCardRecord, TaskGoalRecord, TaskLabelRecord,
   TaskListRecord, TransactionRecord
 } from '@ego/api-contracts'
 import type { LocalDatabase } from './types'
@@ -25,6 +25,7 @@ export const TABLES: Record<SyncEntity, string> = {
   taskList: 'task_lists',
   taskLabel: 'task_labels',
   taskCard: 'task_cards',
+  taskGoal: 'task_goals',
   sheet: 'sheets',
   sheetRow: 'sheet_rows'
 }
@@ -293,6 +294,21 @@ async function writeTaskCard(tx: LocalDatabase, record: TaskCardRecord): Promise
     JSON.stringify(record.activity), record.createdAt, record.updatedAt, record.revision])
 }
 
+async function writeTaskGoal(tx: LocalDatabase, record: TaskGoalRecord): Promise<void> {
+  await tx.run(`INSERT INTO task_goals (id, title, why, horizon, target_date, status, position, review_date, milestones,
+    board_ids, card_ids, archived_at, created_at, updated_at, revision, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+    ON CONFLICT(id) DO UPDATE SET title = excluded.title, why = excluded.why, horizon = excluded.horizon,
+      target_date = excluded.target_date, status = excluded.status, position = excluded.position,
+      review_date = excluded.review_date, milestones = excluded.milestones, board_ids = excluded.board_ids,
+      card_ids = excluded.card_ids, archived_at = excluded.archived_at, created_at = excluded.created_at,
+      updated_at = excluded.updated_at, revision = excluded.revision, deleted_at = NULL
+    WHERE excluded.revision >= task_goals.revision`,
+  [record.id, record.title, record.why, record.horizon, record.targetDate, record.status, record.position,
+    record.reviewDate, JSON.stringify(record.milestones), JSON.stringify(record.boardIds), JSON.stringify(record.cardIds),
+    record.archivedAt, record.createdAt, record.updatedAt, record.revision])
+}
+
 async function writeSheet(tx: LocalDatabase, record: SheetRecord): Promise<void> {
   await tx.run(`INSERT INTO sheets (id, name, icon, position, columns, types_enabled, row_types, view, archived_at,
     created_at, updated_at, revision, deleted_at)
@@ -339,6 +355,7 @@ export async function writeRecord(tx: LocalDatabase, payload: ChangePayload): Pr
     case 'taskList': return writeTaskList(tx, payload.record)
     case 'taskLabel': return writeTaskLabel(tx, payload.record)
     case 'taskCard': return writeTaskCard(tx, payload.record)
+    case 'taskGoal': return writeTaskGoal(tx, payload.record)
     case 'sheet': return writeSheet(tx, payload.record)
     case 'sheetRow': return writeSheetRow(tx, payload.record)
   }

@@ -1,6 +1,6 @@
 import type {
   DiaryMessage, GymCategory, GymExercise, GymPlan, GymSet, GymWorkout, Habit, HabitEntry, MoneyAccount, MoneyCategory,
-  MoneyPurchase, MoneyTransaction, MonthlyBudget, MoodEntry, Sheet, SheetRow, TaskBoard, TaskCard, TaskLabel, TaskList,
+  MoneyPurchase, MoneyTransaction, MonthlyBudget, MoodEntry, Sheet, SheetRow, TaskBoard, TaskCard, TaskGoal, TaskLabel, TaskList,
   TransactionKind
 } from '@ego/core'
 
@@ -27,6 +27,7 @@ export type TaskBoardRecord = TaskBoard & { revision: number }
 export type TaskListRecord = TaskList & { revision: number }
 export type TaskLabelRecord = TaskLabel & { revision: number }
 export type TaskCardRecord = TaskCard & { revision: number }
+export type TaskGoalRecord = TaskGoal & { revision: number }
 export type SheetRecord = Sheet & { revision: number }
 export type SheetRowRecord = SheetRow & { revision: number }
 
@@ -78,6 +79,7 @@ export interface BootstrapData {
   taskLists?: TaskListRecord[]
   taskLabels?: TaskLabelRecord[]
   taskCards?: TaskCardRecord[]
+  taskGoals?: TaskGoalRecord[]
   /** Workers from before Sheets leave these out. */
   sheets?: SheetRecord[]
   sheetRows?: SheetRowRecord[]
@@ -119,11 +121,11 @@ export type GymEntity = 'gymCategory' | 'gymExercise' | 'gymSet' | 'gymWorkout' 
 export type HealthEntity = 'mood'
 export type HabitEntity = 'habit' | 'habitEntry'
 export type DiaryEntity = 'diaryMessage'
-export type TaskEntity = 'taskBoard' | 'taskList' | 'taskLabel' | 'taskCard'
+export type TaskEntity = 'taskBoard' | 'taskList' | 'taskLabel' | 'taskCard' | 'taskGoal'
 export type SheetEntity = 'sheet' | 'sheetRow'
 export type SyncEntity = MoneyEntity | GymEntity | HealthEntity | HabitEntity | DiaryEntity | TaskEntity | SheetEntity
 
-export const TASK_ENTITIES: readonly TaskEntity[] = ['taskBoard', 'taskList', 'taskLabel', 'taskCard']
+export const TASK_ENTITIES: readonly TaskEntity[] = ['taskBoard', 'taskList', 'taskLabel', 'taskCard', 'taskGoal']
 
 export const GYM_ENTITIES: readonly GymEntity[] = ['gymCategory', 'gymExercise', 'gymSet', 'gymWorkout', 'gymPlan']
 
@@ -179,6 +181,7 @@ export type ChangePayload =
   | { entity: 'taskList'; record: TaskListRecord | null }
   | { entity: 'taskLabel'; record: TaskLabelRecord | null }
   | { entity: 'taskCard'; record: TaskCardRecord | null }
+  | { entity: 'taskGoal'; record: TaskGoalRecord | null }
   | { entity: 'sheet'; record: SheetRecord | null }
   | { entity: 'sheetRow'; record: SheetRowRecord | null }
 
