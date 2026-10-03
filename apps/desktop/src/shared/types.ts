@@ -7,15 +7,7 @@ export type {
 
 import type { ListShortcut, TrelloBoardSummary, TrelloListSummary, TrelloResult } from '@ego/core'
 import type {
-  AccountInput,
-  ArchiveInput,
-  BudgetInput,
-  CategoryInput,
-  MoneyResult,
-  MoneySnapshot,
-  PurchaseInput,
   TransactionImageAnalysisResult,
-  TransactionInput,
   LivePreferences
 } from '@ego/core'
 import type {
@@ -28,38 +20,7 @@ import type {
   LedgerEvent, LedgerState, MediaFileInput, MediaOpenInput, MediaPathInput, MediaProgress, NotifyInput, RemoteApi, RemoteApiMethod, SignInOutcome, StagedMedia
 } from './local'
 
-export type {
-  AccountInput,
-  AnalyzedTransactionDraft,
-  AccountKind,
-  BudgetAllocation,
-  BudgetAllocationInput,
-  BudgetInput,
-  BudgetState,
-  BudgetSummary,
-  CategoryBudgetStatus,
-  CategoryInput,
-  CategoryKind,
-  DateRange,
-  MoneyAccount,
-  MoneyCategory,
-  MoneyPurchase,
-  MoneyResult,
-  MoneySnapshot,
-  MoneySyncConfigInput,
-  MoneySyncStatus,
-  MoneyTransaction,
-  MonthlyBudget,
-  PeriodPreset,
-  PurchaseInput,
-  ReceiptDraft,
-  ReceiptItem,
-  ReceiptItemInput,
-  ImageAnalysisCategory,
-  TransactionInput,
-  TransactionKind,
-  LivePreferences
-} from '@ego/core'
+export type { LivePreferences } from '@ego/core'
 
 export type BuildStage = 'compiling' | 'packaging' | 'installing' | 'done' | 'error'
 
@@ -186,21 +147,6 @@ export interface IpcApi {
   onLiveSessionStopRequested: (callback: () => void) => () => void
   getLivePreferences: () => Promise<LivePreferences>
   setLivePreferences: (preferences: LivePreferences) => Promise<LivePreferences>
-  moneyGetSnapshot: () => Promise<MoneyResult<MoneySnapshot>>
-  moneyCreateAccount: (input: AccountInput) => Promise<MoneyResult<MoneySnapshot>>
-  moneyUpdateAccount: (id: string, input: AccountInput) => Promise<MoneyResult<MoneySnapshot>>
-  moneyArchiveAccount: (id: string, input: ArchiveInput) => Promise<MoneyResult<MoneySnapshot>>
-  moneyCreateCategory: (input: CategoryInput) => Promise<MoneyResult<MoneySnapshot>>
-  moneyUpdateCategory: (id: string, input: CategoryInput) => Promise<MoneyResult<MoneySnapshot>>
-  moneyArchiveCategory: (id: string, input: ArchiveInput) => Promise<MoneyResult<MoneySnapshot>>
-  moneyCreateTransaction: (input: TransactionInput) => Promise<MoneyResult<MoneySnapshot>>
-  moneyUpdateTransaction: (id: string, input: TransactionInput) => Promise<MoneyResult<MoneySnapshot>>
-  moneyDeleteTransaction: (id: string) => Promise<MoneyResult<MoneySnapshot>>
-  moneySaveBudget: (input: BudgetInput) => Promise<MoneyResult<MoneySnapshot>>
-  moneyDeleteBudget: (month: string) => Promise<MoneyResult<MoneySnapshot>>
-  moneyCreatePurchase: (input: PurchaseInput) => Promise<MoneyResult<MoneySnapshot>>
-  moneyUpdatePurchase: (id: string, input: PurchaseInput) => Promise<MoneyResult<MoneySnapshot>>
-  moneyDeletePurchase: (id: string) => Promise<MoneyResult<MoneySnapshot>>
   getTransactionImageSettings: () => Promise<TransactionImageSettings>
   setTransactionImageSettings: (input: TransactionImageSettingsInput) => Promise<TransactionImageSettings>
   analyzeTransactionImage: (input: DesktopTransactionImageInput) => Promise<TransactionImageAnalysisResult>

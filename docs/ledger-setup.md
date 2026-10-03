@@ -349,17 +349,16 @@ internal builds after two weeks, and the Worker stops offering a build once it e
 
 ## 3. Point the desktop app at it
 
-The desktop Settings screen calls this the Ego service. It takes the Worker address and a token
-from `ego-device enroll`. While a device token is stored, every money
-write becomes one operation with a revision check, and reads come from
-`/v1/legacy/snapshot`. The same credential authorizes Talk to AI session creation. Clear the token
-to fall back to the direct D1 connection. Talk to AI stays unavailable until the service is set.
+The desktop signs in like the phone: Google from its start screen, or a token from
+`ego-device enroll`. It keeps its own SQLite copy of the ledger and syncs it through the same
+outbox and change log, so it has no direct D1 path any more. The same credential authorizes Talk to
+AI session creation. Talk to AI stays unavailable until the desktop is signed in.
 The Talk to AI settings in the desktop app apply to the next voice or chat session. Connect Google
 and Wispr Flow in the same panel, then enable only the tools you want. The Worker validates each
 value and keeps the models, tool schemas, storage policy, and host allowlists fixed on the server.
 
-Desktop writes through the Worker appear on the phone at its next foreground sync. Desktop writes
-through the old direct D1 path do not, because they never reach the change log.
+Desktop writes appear on the phone at its next foreground sync, and phone writes on the desktop
+at its next sync.
 
 ## What the device stores
 
@@ -403,18 +402,16 @@ the backup into it with `wrangler d1 execute`, point `CF_DATABASE_ID` at that co
 Once `compare` agrees, the phone has nothing left to retire: it no longer contains the direct D1
 client. If it still holds keys from the earlier version, Settings lists them under **Old keys on
 this phone**. Copy any you still need into Worker secrets, then tap **Remove from this phone**,
-which also deletes the cached ledger chunks. On desktop, clear the D1 fields in Settings after the
-same check.
+which also deletes the cached ledger chunks. The desktop no longer reads or stores D1 credentials.
 
 After that, revoke the D1 API token in the Cloudflare dashboard. The device tokens stay; revoke
 those individually with `ego-device revoke` or by signing out on the phone.
 
 ## Rollback
 
-Clear the desktop token to put desktop back on the direct D1 path. The phone has no direct path any
-more; rolling it back means installing the previous build. Check its outbox is empty first
-(Settings shows the pending count under Sync), because an operation that never reached the server
-is only stored on the phone.
+Neither app has a direct D1 path any more; rolling one back means installing its previous build.
+Check its outbox is empty first (Settings shows the pending count under Sync), because an operation
+that never reached the server is only stored on that device.
 
 ## Still to do before trusting it
 

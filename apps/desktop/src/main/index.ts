@@ -7,7 +7,6 @@ import { getAppIconPath, getTrayIcon } from './icon'
 import {
   getLivePreferences,
   getLedgerConfig,
-  getMoneyCache,
   getOpenRouterApiKey,
   getQuickAddHotkey,
   getQuickAddListShortcuts,
@@ -30,10 +29,8 @@ import {
 } from './settings'
 import { getT3Status, pairT3, startT3Watcher, unpairT3, wakeT3Watcher } from './t3'
 import { trello } from './trello'
-import { showQuickAddWindow, setupQuickAddIpc, showNotification } from './quickAdd'
-import { money } from './money'
-import { isLedgerConfigured, ledgerMoney } from './moneyLedger'
-import { analyzeTransactionImage, budgetBreachMessage, budgetBreaches, isLivePreferences, type MoneyResult, type MoneySnapshot } from '@ego/core'
+import { showQuickAddWindow, setupQuickAddIpc } from './quickAdd'
+import { analyzeTransactionImage, isLivePreferences } from '@ego/core'
 import type { DesktopTransactionImageInput, LivePreferences, QuickAddListShortcut, TransactionImageSettingsInput } from '../shared/types'
 import type { NotifyInput } from '../shared/local'
 import {
@@ -49,15 +46,6 @@ import { setupLocalIpc } from './local/ipc'
 import { ledgerApi, ledgerDatabase, onLedgerEvent, onMediaProgress, startLedger, stopLedger } from './local/ledger'
 import { handleMediaRequests, registerMediaScheme } from './local/media'
 import { finishGoogleSignIn, registerSignInLinks, signInLinkIn } from './local/signIn'
-
-async function withBudgetAlerts(request: Promise<MoneyResult<MoneySnapshot>>): Promise<MoneyResult<MoneySnapshot>> {
-  const before = getMoneyCache()
-  const result = await request
-  if (result.ok && before) {
-    budgetBreaches(before, result.data).forEach((breach) => showNotification('error', budgetBreachMessage(breach, 'short')))
-  }
-  return result
-}
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -215,9 +203,18 @@ function runCommand(command: string, cwd: string): Promise<string> {
   })
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function isTransactionImageInput(value: unknown): value is DesktopTransactionImageInput {
+  return isRecord(value) && typeof value.base64 === 'string' && typeof value.mimeType === 'string' &&
+    Array.isArray(value.categories) && value.categories.every((category: unknown) => isRecord(category) &&
+      typeof category.id === 'string' && typeof category.name === 'string' &&
+      (category.kind === 'income' || category.kind === 'expense'))
+}
+
 function setupIpcHandlers(): void {
-  /** The Worker owns the database once it is configured; the direct D1 path stays for rollback. */
-  const ledger = (): typeof money | typeof ledgerMoney => isLedgerConfigured() ? ledgerMoney : money
   ipcMain.handle('money-get-ledger-config', () => getLedgerConfig())
   ipcMain.handle('live-create-session', (event, sdp: string) => {
     if (!mainWindow || mainWindow.isDestroyed() || event.sender.id !== mainWindow.webContents.id) {
@@ -239,32 +236,20 @@ function setupIpcHandlers(): void {
   ipcMain.handle('live-set-preferences', (_event, preferences: LivePreferences) => {
     return isLivePreferences(preferences) ? setLivePreferences(preferences) : getLivePreferences()
   })
-  ipcMain.handle('money-get-snapshot', () => ledger().getSnapshot())
-  ipcMain.handle('money-create-account', (_event, input) => ledger().createAccount(input))
-  ipcMain.handle('money-update-account', (_event, id, input) => ledger().updateAccount(id, input))
-  ipcMain.handle('money-archive-account', (_event, id, input) => ledger().archiveAccount(id, input))
-  ipcMain.handle('money-create-category', (_event, input) => ledger().createCategory(input))
-  ipcMain.handle('money-update-category', (_event, id, input) => ledger().updateCategory(id, input))
-  ipcMain.handle('money-archive-category', (_event, id, input) => ledger().archiveCategory(id, input))
-  ipcMain.handle('money-create-transaction', (_event, input) => withBudgetAlerts(ledger().createTransaction(input)))
-  ipcMain.handle('money-update-transaction', (_event, id, input) => withBudgetAlerts(ledger().updateTransaction(id, input)))
-  ipcMain.handle('money-delete-transaction', (_event, id) => ledger().deleteTransaction(id))
-  ipcMain.handle('money-save-budget', (_event, input) => withBudgetAlerts(ledger().saveBudget(input)))
-  ipcMain.handle('money-delete-budget', (_event, month) => ledger().deleteBudget(month))
-  ipcMain.handle('money-create-purchase', (_event, input) => withBudgetAlerts(ledger().createPurchase(input)))
-  ipcMain.handle('money-update-purchase', (_event, id, input) => withBudgetAlerts(ledger().updatePurchase(id, input)))
-  ipcMain.handle('money-delete-purchase', (_event, id) => ledger().deletePurchase(id))
   ipcMain.handle('transaction-image-get-settings', () => getTransactionImageSettings())
   ipcMain.handle('transaction-image-set-settings', (_event, input: TransactionImageSettingsInput) => {
     setTransactionImageSettings(input)
     return getTransactionImageSettings()
   })
-  ipcMain.handle('transaction-image-analyze', (_event, input: DesktopTransactionImageInput) =>
-    analyzeTransactionImage({
-      ...input,
+  ipcMain.handle('transaction-image-analyze', (_event, input: unknown) => isTransactionImageInput(input)
+    ? analyzeTransactionImage({
+      base64: input.base64,
+      mimeType: input.mimeType,
+      categories: input.categories,
       apiKey: getOpenRouterApiKey(),
       model: getTransactionImageSettings().model
-    }, (url, init) => net.fetch(url, init)))
+    }, (url, init) => net.fetch(url, init))
+    : { ok: false, message: 'Choose a JPEG, PNG, or WebP image.' })
 
   ipcMain.handle('t3-get-status', () => getT3Status())
 

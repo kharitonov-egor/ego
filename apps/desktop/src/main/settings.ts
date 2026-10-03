@@ -5,11 +5,7 @@ import type { SignedInAccount } from '../shared/local'
 import {
   DEFAULT_LIVE_PREFERENCES,
   isLivePreferences,
-  parseCachedSnapshot,
   type LivePreferences,
-  type MoneySnapshot,
-  type MoneySyncConfigInput,
-  type MoneySyncStatus,
   type T3Session
 } from '@ego/core'
 
@@ -21,10 +17,6 @@ interface AppSettings {
   trelloBoardId: string
   trelloListId: string
   quickAddListShortcuts: QuickAddListShortcut[]
-  moneyAccountId: string
-  moneyDatabaseId: string
-  moneyApiTokenEncrypted: string
-  moneyCacheEncrypted: string
   moneyApiUrl: string
   moneyDeviceTokenEncrypted: string
   openRouterApiKeyEncrypted: string
@@ -37,6 +29,11 @@ interface AppSettings {
   account: SignedInAccount | null
   /** What the renderer would keep in SecureStore on the phone: small JSON values under `ego.*` keys. */
   preferences: Record<string, string>
+  /** Left behind by the direct D1 client, which is gone. Deleted at startup. */
+  moneyAccountId?: string
+  moneyDatabaseId?: string
+  moneyApiTokenEncrypted?: string
+  moneyCacheEncrypted?: string
 }
 
 /**
@@ -60,10 +57,6 @@ const store = new Store<AppSettings>({
     trelloBoardId: seed.trelloBoardId,
     trelloListId: seed.trelloListId,
     quickAddListShortcuts: [],
-    moneyAccountId: '',
-    moneyDatabaseId: '',
-    moneyApiTokenEncrypted: '',
-    moneyCacheEncrypted: '',
     moneyApiUrl: '',
     moneyDeviceTokenEncrypted: '',
     openRouterApiKeyEncrypted: '',
@@ -77,6 +70,9 @@ const store = new Store<AppSettings>({
     preferences: {}
   }
 })
+
+const RETIRED_KEYS = ['moneyAccountId', 'moneyDatabaseId', 'moneyApiTokenEncrypted', 'moneyCacheEncrypted'] as const
+for (const key of RETIRED_KEYS) if (store.has(key)) store.delete(key)
 
 /** A build can carry the Worker address, so a fresh install needs only the sign-in button. */
 const BUILD_API_URL = (import.meta.env.MAIN_VITE_EGO_API_URL ?? '').trim().replace(/\/+$/, '')
@@ -92,30 +88,6 @@ function decrypt(value: string): string {
     return safeStorage.decryptString(Buffer.from(value, 'base64'))
   } catch {
     return ''
-  }
-}
-
-export function getMoneySyncStatus(): MoneySyncStatus {
-  const accountId = store.get('moneyAccountId')
-  const databaseId = store.get('moneyDatabaseId')
-  const hasApiToken = Boolean(decrypt(store.get('moneyApiTokenEncrypted')))
-  return {
-    configured: Boolean(accountId && databaseId && hasApiToken),
-    accountId,
-    databaseId,
-    hasApiToken
-  }
-}
-
-export function getMoneyApiToken(): string {
-  return decrypt(store.get('moneyApiTokenEncrypted'))
-}
-
-export function setMoneySyncConfig(input: MoneySyncConfigInput): void {
-  store.set('moneyAccountId', input.accountId.trim())
-  store.set('moneyDatabaseId', input.databaseId.trim())
-  if (input.apiToken !== undefined && input.apiToken.length > 0) {
-    store.set('moneyApiTokenEncrypted', encrypt(input.apiToken))
   }
 }
 
@@ -169,14 +141,6 @@ export function setLivePreferences(preferences: LivePreferences): LivePreference
   const next = { ...preferences, customInstructions: preferences.customInstructions.trim() }
   store.set('livePreferences', next)
   return next
-}
-
-export function getMoneyCache(): MoneySnapshot | null {
-  return parseCachedSnapshot(decrypt(store.get('moneyCacheEncrypted')))
-}
-
-export function setMoneyCache(snapshot: MoneySnapshot): void {
-  store.set('moneyCacheEncrypted', encrypt(JSON.stringify(snapshot)))
 }
 
 export function getTransactionImageSettings(): { hasApiKey: boolean; model: string } {
