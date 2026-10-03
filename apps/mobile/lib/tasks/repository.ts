@@ -1,7 +1,8 @@
-import type { TaskBoardRecord, TaskCardRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
+import type { TaskBoardRecord, TaskCardRecord, TaskGoalRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
 import {
   isTaskAttachment, isTaskReminder,
-  type TaskActivity, type TaskAttachment, type TaskChecklist, type TaskLabelColor, type TaskPriority
+  type TaskActivity, type TaskAttachment, type TaskChecklist, type TaskGoalMilestone, type TaskGoalHorizon, type TaskGoalStatus,
+  type TaskLabelColor, type TaskPriority
 } from '@ego/core'
 import type { LocalDatabase } from '../database/types'
 
@@ -10,6 +11,7 @@ export interface TaskData {
   lists: TaskListRecord[]
   labels: TaskLabelRecord[]
   cards: TaskCardRecord[]
+  goals?: TaskGoalRecord[]
   /** Cards with an edit still waiting on its files, and those whose files failed. */
   uploads: ReadonlyMap<string, 'sending' | 'failed'>
 }
@@ -70,6 +72,24 @@ interface CardRow {
   revision: number
 }
 
+interface GoalRow {
+  id: string
+  title: string
+  why: string
+  horizon: TaskGoalHorizon
+  target_date: string | null
+  status: TaskGoalStatus
+  position: number
+  review_date: string | null
+  milestones: string
+  board_ids: string
+  card_ids: string
+  archived_at: string | null
+  created_at: string
+  updated_at: string
+  revision: number
+}
+
 function jsonList(raw: string): unknown[] {
   try {
     const value: unknown = JSON.parse(raw)
@@ -87,6 +107,11 @@ function isActivity(value: unknown): value is TaskActivity {
   return typeof value === 'object' && value !== null && 'at' in value && 'kind' in value && 'text' in value
 }
 
+function isGoalMilestone(value: unknown): value is TaskGoalMilestone {
+  return typeof value === 'object' && value !== null && 'id' in value && 'title' in value &&
+    'dueDate' in value && 'doneAt' in value
+}
+
 function toCard(row: CardRow): TaskCardRecord {
   return {
     id: row.id, boardId: row.board_id, listId: row.list_id, title: row.title, description: row.description,
@@ -102,9 +127,20 @@ function toCard(row: CardRow): TaskCardRecord {
   }
 }
 
+function toGoal(row: GoalRow): TaskGoalRecord {
+  return {
+    id: row.id, title: row.title, why: row.why, horizon: row.horizon, targetDate: row.target_date,
+    status: row.status, position: row.position, reviewDate: row.review_date,
+    milestones: jsonList(row.milestones).filter(isGoalMilestone),
+    boardIds: jsonList(row.board_ids).filter((item): item is string => typeof item === 'string'),
+    cardIds: jsonList(row.card_ids).filter((item): item is string => typeof item === 'string'),
+    archivedAt: row.archived_at, createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
+  }
+}
+
 /** Everything under live boards. Rows under a deleted board or list stay on disk but never show. */
 export async function localTasks(db: LocalDatabase): Promise<TaskData> {
-  const [boards, lists, labels, cards, waiting] = await Promise.all([
+  const [boards, lists, labels, cards, goals, waiting] = await Promise.all([
     db.all<BoardRow>('SELECT * FROM task_boards WHERE deleted_at IS NULL ORDER BY position, created_at'),
     db.all<ListRow>(`SELECT l.* FROM task_lists l
       JOIN task_boards b ON b.id = l.board_id AND b.deleted_at IS NULL
@@ -116,6 +152,7 @@ export async function localTasks(db: LocalDatabase): Promise<TaskData> {
       JOIN task_lists l ON l.id = c.list_id AND l.deleted_at IS NULL
       JOIN task_boards b ON b.id = c.board_id AND b.deleted_at IS NULL
       WHERE c.deleted_at IS NULL ORDER BY c.position, c.created_at`),
+    db.all<GoalRow>('SELECT * FROM task_goals WHERE deleted_at IS NULL ORDER BY position, created_at'),
     db.all<{ entity_id: string; status: 'held' | 'failed' }>(
       "SELECT entity_id, status FROM outbox WHERE entity = 'taskCard' AND status IN ('held', 'failed')")
   ])
@@ -133,11 +170,12 @@ export async function localTasks(db: LocalDatabase): Promise<TaskData> {
       createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
     })),
     cards: cards.map(toCard),
+    goals: goals.map(toGoal),
     uploads: new Map(waiting.map((row) => [row.entity_id, row.status === 'held' ? 'sending' : 'failed']))
   }
 }
 
-export type TaskTable = 'task_boards' | 'task_lists' | 'task_labels' | 'task_cards'
+export type TaskTable = 'task_boards' | 'task_lists' | 'task_labels' | 'task_cards' | 'task_goals'
 
 export async function localTaskRevision(db: LocalDatabase, table: TaskTable, id: string): Promise<number | null> {
   const rows = await db.all<{ revision: number }>(`SELECT revision FROM ${table} WHERE id = ? AND deleted_at IS NULL`, [id])

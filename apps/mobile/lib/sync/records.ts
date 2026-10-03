@@ -1,12 +1,12 @@
 import type {
   AccountRecord, BudgetRecord, CategoryRecord, DiaryMessageRecord, GymCategoryRecord, GymExerciseRecord, GymPlanRecord,
   GymSetRecord, GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord, PurchaseRecord, SheetRecord, SheetRowRecord,
-  TaskBoardRecord, TaskCardRecord, TaskLabelRecord, TaskListRecord, TransactionRecord
+  TaskBoardRecord, TaskCardRecord, TaskGoalRecord, TaskLabelRecord, TaskListRecord, TransactionRecord
 } from '@ego/api-contracts'
 import type {
   AccountInput, BudgetInput, CategoryInput, DiaryMessageInput, GymCategoryInput, GymExerciseInput, GymPlanInput,
   GymSetInput, GymWorkoutInput, HabitEntryInput, HabitInput, MoodInput, PurchaseInput, ReceiptItem, SheetInput,
-  SheetRowInput, TaskBoardInput, TaskCardInput, TaskLabelInput, TaskListInput, TransactionInput
+  SheetRowInput, TaskBoardInput, TaskCardInput, TaskGoalInput, TaskLabelInput, TaskListInput, TransactionInput
 } from '@ego/core'
 
 /**
@@ -289,6 +289,12 @@ export function taskLabelRecordFrom(
 export function taskCardRecordFrom(
   id: string, input: TaskCardInput, createdAt: string, updatedAt: string, revision: number
 ): TaskCardRecord {
+  return { id, ...input, title: input.title.trim(), createdAt, updatedAt, revision }
+}
+
+export function taskGoalRecordFrom(
+  id: string, input: TaskGoalInput, createdAt: string, updatedAt: string, revision: number
+): TaskGoalRecord {
   return { id, ...input, title: input.title.trim(), createdAt, updatedAt, revision }
 }
 

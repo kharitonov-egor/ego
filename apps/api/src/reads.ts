@@ -5,7 +5,7 @@ import {
   type AccountBalances, type ApiResult, type BootstrapData, type ChangePage, type ChangeRecord, type FeedCursor,
   type AccountRecord, type BudgetRecord, type CategoryRecord, type ChangePayload, type DiaryMessageRecord,
   type GymCategoryRecord, type GymExerciseRecord, type GymPlanRecord, type GymSetRecord, type GymWorkoutRecord,
-  type HabitEntryRecord, type HabitRecord, type MoodRecord, type TaskBoardRecord, type TaskCardRecord,
+  type HabitEntryRecord, type HabitRecord, type MoodRecord, type TaskBoardRecord, type TaskCardRecord, type TaskGoalRecord,
   type TaskLabelRecord, type TaskListRecord, type SheetRecord, type SheetRowRecord,
   type PeriodSummary, type PurchaseRecord, type ReceiptDetail, type ReferenceData,
   type TransactionDetail, type TransactionFilters, type TransactionPage, type TransactionRecord
@@ -14,11 +14,11 @@ import type { MoneySnapshot } from '@ego/core'
 import {
   toAccountRecord, toBudgetRecord, toCategoryRecord, toDiaryMessageRecord, toFeedTransaction, toGymCategoryRecord,
   toGymExerciseRecord, toGymPlanRecord, toGymSetRecord, toGymWorkoutRecord, toHabitEntryRecord, toHabitRecord,
-  toMoodRecord, toPurchaseRecord, toReceiptItem, toTaskBoardRecord, toTaskCardRecord, toTaskLabelRecord,
+  toMoodRecord, toPurchaseRecord, toReceiptItem, toTaskBoardRecord, toTaskCardRecord, toTaskGoalRecord, toTaskLabelRecord,
   toTaskListRecord, toTransactionRecord, toSheetRecord, toSheetRowRecord,
   type AccountRow, type BudgetAllocationRow, type BudgetRow, type CategoryRow, type DiaryMessageRow, type FeedRow,
   type GymCategoryRow, type GymExerciseRow, type GymPlanRow, type GymSetRow, type GymWorkoutRow, type HabitEntryRow,
-  type HabitRow, type MoodRow, type PurchaseRow, type ReceiptItemRow, type TaskBoardRow, type TaskCardRow,
+  type HabitRow, type MoodRow, type PurchaseRow, type ReceiptItemRow, type TaskBoardRow, type TaskCardRow, type TaskGoalRow,
   type TaskLabelRow, type TaskListRow, type TransactionRow, type SheetRow, type SheetRowRow
 } from './rows'
 
@@ -181,6 +181,7 @@ function toChangePayload(entity: ChangeRow['entity'], record: unknown): ChangePa
     case 'taskList': return { entity, record: record as TaskListRecord | null }
     case 'taskLabel': return { entity, record: record as TaskLabelRecord | null }
     case 'taskCard': return { entity, record: record as TaskCardRecord | null }
+    case 'taskGoal': return { entity, record: record as TaskGoalRecord | null }
     case 'sheet': return { entity, record: record as SheetRecord | null }
     case 'sheetRow': return { entity, record: record as SheetRowRecord | null }
   }
@@ -266,11 +267,12 @@ export interface TaskRows {
   lists: TaskListRow[]
   labels: TaskLabelRow[]
   cards: TaskCardRow[]
+  goals: TaskGoalRow[]
 }
 
 /** Rows under a deleted board or list are kept but never read. */
 export async function readTaskRows(db: D1Database): Promise<TaskRows> {
-  const [boards, lists, labels, cards] = await Promise.all([
+  const [boards, lists, labels, cards, goals] = await Promise.all([
     query<TaskBoardRow>(db, 'SELECT * FROM task_boards WHERE deleted_at IS NULL ORDER BY position, created_at'),
     query<TaskListRow>(db, `SELECT l.* FROM task_lists l
       JOIN task_boards b ON b.id = l.board_id AND b.deleted_at IS NULL
@@ -281,9 +283,10 @@ export async function readTaskRows(db: D1Database): Promise<TaskRows> {
     query<TaskCardRow>(db, `SELECT c.* FROM task_cards c
       JOIN task_lists l ON l.id = c.list_id AND l.deleted_at IS NULL
       JOIN task_boards b ON b.id = c.board_id AND b.deleted_at IS NULL
-      WHERE c.deleted_at IS NULL ORDER BY c.position, c.created_at`)
+      WHERE c.deleted_at IS NULL ORDER BY c.position, c.created_at`),
+    query<TaskGoalRow>(db, 'SELECT * FROM task_goals WHERE deleted_at IS NULL ORDER BY position, created_at')
   ])
-  return { boards, lists, labels, cards }
+  return { boards, lists, labels, cards, goals }
 }
 
 export interface SheetRows {
@@ -345,6 +348,7 @@ export async function readBootstrap(db: D1Database): Promise<BootstrapData> {
     taskLists: tasks.lists.map(toTaskListRecord),
     taskLabels: tasks.labels.map(toTaskLabelRecord),
     taskCards: tasks.cards.map(toTaskCardRecord),
+    taskGoals: tasks.goals.map(toTaskGoalRecord),
     sheets: sheets.sheets.map(toSheetRecord),
     sheetRows: sheets.rows.map(toSheetRowRecord)
   }

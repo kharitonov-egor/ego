@@ -431,6 +431,27 @@ export const LOCAL_MIGRATIONS: readonly string[][] = [
   ],
   [
     'CREATE TABLE diary_draft (id INTEGER PRIMARY KEY CHECK (id = 1), text TEXT NOT NULL)'
+  ],
+  [
+    `CREATE TABLE IF NOT EXISTS task_goals (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      why TEXT NOT NULL DEFAULT '',
+      horizon TEXT NOT NULL,
+      target_date TEXT,
+      status TEXT NOT NULL,
+      position REAL NOT NULL,
+      review_date TEXT,
+      milestones TEXT NOT NULL DEFAULT '[]',
+      board_ids TEXT NOT NULL DEFAULT '[]',
+      card_ids TEXT NOT NULL DEFAULT '[]',
+      archived_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1,
+      deleted_at TEXT
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_local_task_goals_position ON task_goals(position) WHERE deleted_at IS NULL'
   ]
 ]
 

@@ -5,7 +5,7 @@ import {
   accountRecordFrom, budgetIdFor, budgetRecordFrom, categoryRecordFrom, diaryMessageRecordFrom, gymCategoryRecordFrom,
   gymExerciseRecordFrom, gymPlanRecordFrom, gymSetRecordFrom, gymWorkoutRecordFrom, habitEntryRecordFrom,
   habitRecordFrom, moodIdFor, moodRecordFrom, purchaseRecordFrom, purchaseTransactionInput, receiptTransactionIdFor,
-  sheetRecordFrom, sheetRowRecordFrom, taskBoardRecordFrom, taskCardRecordFrom, taskLabelRecordFrom, taskListRecordFrom,
+  sheetRecordFrom, sheetRowRecordFrom, taskBoardRecordFrom, taskCardRecordFrom, taskGoalRecordFrom, taskLabelRecordFrom, taskListRecordFrom,
   transactionRecordFrom
 } from './records'
 
@@ -169,7 +169,7 @@ export async function applyCommandLocally(
   }
 
   if (command.entity === 'taskBoard' || command.entity === 'taskList' || command.entity === 'taskLabel' ||
-    command.entity === 'taskCard') {
+    command.entity === 'taskCard' || command.entity === 'taskGoal') {
     if (command.type === 'delete') {
       await writeTombstone(tx, command.entity, entityId, revision, now)
       return
@@ -183,6 +183,8 @@ export async function applyCommandLocally(
       await writeRecord(tx, { entity: 'taskList', record: taskListRecordFrom(entityId, command.payload, createdAt, now, nextRevision) })
     } else if (command.entity === 'taskLabel') {
       await writeRecord(tx, { entity: 'taskLabel', record: taskLabelRecordFrom(entityId, command.payload, createdAt, now, nextRevision) })
+    } else if (command.entity === 'taskGoal') {
+      await writeRecord(tx, { entity: 'taskGoal', record: taskGoalRecordFrom(entityId, command.payload, createdAt, now, nextRevision) })
     } else {
       await writeRecord(tx, { entity: 'taskCard', record: taskCardRecordFrom(entityId, command.payload, createdAt, now, nextRevision) })
     }
