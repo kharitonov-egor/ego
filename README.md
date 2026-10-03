@@ -130,6 +130,14 @@ The Gym tile on the phone is a workout log laid out like FitNotes, in the Financ
 Weights are in pounds unless an exercise is set to kilograms. The library holds 116 standard
 exercises across Abs, Back, Biceps, Cardio, Chest, Legs, Shoulders, and Triceps.
 
+On the desktop the log works the same way with a mouse and keyboard. The arrows or the Left and
+Right keys change days. On a wide window the day's exercise list stays open on the right, beside
+the day and the exercise; drag a row to reorder it, or right-click it to superset it or delete that
+day's sets. The weight and rep fields take typing too: Enter saves the set, and Up and Down step the
+value. The exercise list shows the categories beside their exercises, and Enter in the search opens
+the first match. When the rest timer ends, Ego beeps, and if its window is in the background it also
+sends a notification that opens the exercise again.
+
 Gym data lives in the same phone database and Worker as money: categories, exercises, sets, and a
 per-day record for order and supersets. It syncs through the same outbox and change log, so it
 works offline. `scripts/gym-import.mjs` loads a FitNotes CSV export through the Worker; see

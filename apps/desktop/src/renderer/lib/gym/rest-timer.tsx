@@ -1,36 +1,11 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { AppState, PermissionsAndroid, Platform, Vibration, type Permission } from 'react-native'
-import * as SecureStore from 'expo-secure-store'
-import { requireOptionalNativeModule } from 'expo'
+import { useLocation } from 'react-router'
 import { DEFAULT_REST, parseRestPreference, secondsLeft, type RestPreference } from '@ego/local/gym/rest'
-import { hideRestCountdown, showRestCountdown } from '../modules/rest-countdown'
+import { SecureStore } from '../preferences'
 
-export { DEFAULT_REST, REST_PRESETS, parseRestPreference, secondsLeft, type RestPreference } from '@ego/local/gym/rest'
-
-type Notifications = typeof import('expo-notifications')
-
-const AVAILABLE = requireOptionalNativeModule('ExpoNotificationScheduler') !== null
-let loading: Promise<Notifications> | null = null
-function notifications(): Promise<Notifications> {
-  loading ??= import('expo-notifications')
-  return loading
-}
+export { REST_PRESETS } from '@ego/local/gym/rest'
 
 const STORE_KEY = 'ego.gym.rest'
-const NOTIFICATION_ID = 'ego-rest-timer'
-const CHANNEL = 'rest-timer'
-
-/**
- * Android throws from Vibration.vibrate when the manifest lacks VIBRATE, and builds made before the
- * rest timer do lack it. The typings list only runtime permissions, hence the cast.
- */
-const VIBRATE_PERMISSION: string = 'android.permission.VIBRATE'
-let vibrationAllowed: Promise<boolean> | null = null
-function canVibrate(): Promise<boolean> {
-  if (Platform.OS !== 'android') return Promise.resolve(true)
-  vibrationAllowed ??= PermissionsAndroid.check(VIBRATE_PERMISSION as Permission).catch(() => false)
-  return vibrationAllowed
-}
 
 interface RestTimerValue {
   preference: RestPreference
@@ -52,47 +27,52 @@ const RestTimerContext = createContext<RestTimerValue | null>(null)
 /** Separate from the controls, so only the countdown text re-renders every tick. */
 const RestClockContext = createContext<RestClockValue>({ remaining: 0, finished: false })
 
-async function cancelNotification(): Promise<void> {
-  if (!AVAILABLE) return
-  const api = await notifications()
-  await api.cancelScheduledNotificationAsync(NOTIFICATION_ID)
-}
+let audio: AudioContext | null = null
 
-async function askForNotifications(): Promise<void> {
-  if (!AVAILABLE) return
-  const api = await notifications()
-  const permission = await api.getPermissionsAsync()
-  if (!permission.granted && permission.canAskAgain) await api.requestPermissionsAsync()
+/** Two short tones, where the phone vibrates twice. */
+function beep(): void {
+  if (typeof AudioContext === 'undefined') return
+  audio ??= new AudioContext()
+  const context = audio
+  void context.resume().catch(() => undefined)
+  for (const offset of [0, 0.3]) {
+    const at = context.currentTime + offset
+    const tone = context.createOscillator()
+    const gain = context.createGain()
+    tone.type = 'sine'
+    tone.frequency.value = 880
+    gain.gain.setValueAtTime(0.0001, at)
+    gain.gain.exponentialRampToValueAtTime(0.25, at + 0.02)
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.2)
+    tone.connect(gain).connect(context.destination)
+    tone.start(at)
+    tone.stop(at + 0.22)
+  }
 }
 
 /**
- * While the app is open the phone vibrates at zero. When it goes to the background a notification
- * is scheduled for the same moment, and cancelled again when the app returns. The ongoing countdown
- * notification is separate and shows for as long as the timer runs.
+ * The beep sounds either way. When Ego is behind another window or in the tray, a notification
+ * says so too, and clicking it opens the exercise the rest started from.
  */
-async function scheduleNotification(endsAt: number): Promise<void> {
-  if (!AVAILABLE || endsAt <= Date.now()) return
-  const api = await notifications()
-  const permission = await api.getPermissionsAsync()
-  if (!permission.granted) return
-  if (Platform.OS === 'android') {
-    await api.setNotificationChannelAsync(CHANNEL, { name: 'Rest timer', importance: api.AndroidImportance.HIGH })
+function ring(route: string): void {
+  try {
+    beep()
+  } catch {
+    // A missing audio device must not stop the notification.
   }
-  await api.scheduleNotificationAsync({
-    identifier: NOTIFICATION_ID,
-    content: { title: 'Rest is over', body: 'Time for the next set.' },
-    trigger: { type: api.SchedulableTriggerInputTypes.DATE, date: new Date(endsAt), channelId: CHANNEL }
-  })
+  if (!document.hasFocus()) window.api.notify({ title: 'Rest is over', body: 'Time for the next set.', route, silent: true })
 }
 
 export function RestTimerProvider({ children }: { children: React.ReactNode }): React.ReactElement {
+  const location = useLocation()
   const [preference, setPreference] = useState<RestPreference>(DEFAULT_REST)
   const [restored, setRestored] = useState(false)
   const [endsAt, setEndsAt] = useState<number | null>(null)
   const [now, setNow] = useState(Date.now)
   const [finished, setFinished] = useState(false)
-  const endsAtRef = useRef<number | null>(null)
-  endsAtRef.current = endsAt
+  const here = useRef('/gym')
+  here.current = `${location.pathname}${location.search}`
+  const startedFrom = useRef('/gym')
 
   useEffect(() => {
     let active = true
@@ -116,15 +96,10 @@ export function RestTimerProvider({ children }: { children: React.ReactNode }): 
       if (current >= endsAt) {
         setEndsAt(null)
         setFinished(true)
-        void canVibrate().then((allowed) => { if (allowed) Vibration.vibrate([0, 400, 200, 400]) })
+        ring(startedFrom.current)
       }
     }, 250)
     return () => clearInterval(tick)
-  }, [endsAt])
-
-  useEffect(() => {
-    if (endsAt === null) hideRestCountdown()
-    else showRestCountdown(endsAt)
   }, [endsAt])
 
   useEffect(() => {
@@ -133,32 +108,17 @@ export function RestTimerProvider({ children }: { children: React.ReactNode }): 
     return () => clearTimeout(clear)
   }, [finished])
 
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (state) => {
-      const current = endsAtRef.current
-      if (state === 'background' && current !== null) void scheduleNotification(current).catch(() => undefined)
-      if (state === 'active') {
-        void cancelNotification().catch(() => undefined)
-        setNow(Date.now())
-      }
-    })
-    return () => subscription.remove()
-  }, [])
-
   const start = useCallback((seconds?: number) => {
     const current = Date.now()
+    startedFrom.current = here.current
     setNow(current)
     setFinished(false)
     setEndsAt(current + (seconds ?? preference.seconds) * 1000)
-    void askForNotifications().then(() => {
-      if (endsAtRef.current !== null) showRestCountdown(endsAtRef.current)
-    }).catch(() => undefined)
   }, [preference.seconds])
 
   const stop = useCallback(() => {
     setEndsAt(null)
     setFinished(false)
-    void cancelNotification().catch(() => undefined)
   }, [])
 
   const adjust = useCallback((deltaSeconds: number) => {
