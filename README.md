@@ -279,6 +279,9 @@ The phone's start screen has a Tasks tile: Trello's boards, lists, and cards, in
   and due date.
 - Upcoming lists every open card with a due date from every board, in Overdue, Today, Tomorrow,
   This week, and Later.
+- Goals sit between Boards and Upcoming: an outcome, why it matters, a horizon from this quarter
+  to someday, a target and a review date, and a status. A goal holds checkpoints and links whole
+  boards or single cards as its next actions. The filter shows Active, Someday, or All.
 
 Reminders are local notifications. Every change to a card, including one synced from another
 device or made by the AI, cancels what Tasks scheduled and schedules again, so a done, moved, or
@@ -287,11 +290,24 @@ sends one notification at 9 AM with the cards due that day, and date-only cards 
 instead of reminding on their own.
 
 Tasks uses the same local database, outbox, and change log as the other apps, as `taskBoard`,
-`taskList`, `taskLabel`, and `taskCard`. A card is one row with its checklists, attachments, and
+`taskList`, `taskLabel`, `taskCard`, and `taskGoal`. A card is one row with its checklists, attachments, and
 activity inside it, so each edit is one operation and the log always matches the card. Positions
 are fractions, so a drag rewrites only the card that moved. Attachments go to R2 under `tasks/`
 through the same upload queue as the diary, and a card edit that adds files waits until they are
 up. Deleting a board or a list hides everything under it on every device.
+
+On the desktop, Boards, Goals, and Upcoming are tabs in the header. A board shows every list side by side
+at a fixed width and scrolls sideways, and each list scrolls on its own. Drag a card with the mouse
+to move it within its list or into another, or drag a list's name to move the list. Resting near
+an edge scrolls, Escape puts the card back, and dragging the empty board pans it. Boards reorder
+by dragging too, or with Alt and the arrow keys. "Add a card" stays open after Enter for the next
+card. A card opens as its own page. Double-click the description to edit it, where Ctrl+B, Ctrl+I,
+and Ctrl+K format and Ctrl+Enter saves. Files attach from the picker, by dropping them on the card,
+or with Ctrl+V. Photos open in a viewer that steps with the arrow keys, other files open in their
+Windows app, and a right-click removes one. Reminders and the digest are Windows notifications
+timed by the window, which keeps running in the tray, and clicking one opens its card. Goals sit
+two to a row, and a goal's page keeps its linked work beside its checkpoints. The Alt+N quick add
+still sends cards to Trello.
 
 ## Sheets
 
