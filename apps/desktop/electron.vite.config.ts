@@ -14,15 +14,17 @@ function commitHash(): string {
   }
 }
 
-// Resolve the workspace sources so development never depends on a stale dist folder.
+// Resolve the workspace sources so development never depends on a stale dist folder. The dist
+// folders are CommonJS, which the renderer's dev server hands to the browser untouched.
 const workspaceSources = [
   { find: '@ego/core', replacement: resolve(__dirname, '../../packages/core/src/index.ts') },
+  { find: /^@ego\/api-contracts$/, replacement: resolve(__dirname, '../../packages/api-contracts/src/index.ts') },
   { find: /^@ego\/local\/(.*)$/, replacement: resolve(__dirname, '../../packages/local/src/$1') }
 ]
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({ exclude: ['@ego/core', '@ego/local'] })],
+    plugins: [externalizeDepsPlugin({ exclude: ['@ego/core', '@ego/api-contracts', '@ego/local'] })],
     resolve: {
       alias: workspaceSources
     },

@@ -51,6 +51,8 @@ import { googleReturnRouteIn } from './healthLink'
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 const PACKAGED_RENDERER_ENTRY = join(__dirname, '../renderer/index.html')
+/** The same half-level steps as Electron's zoomIn and zoomOut menu roles. */
+const ZOOM_STEPS: Partial<Record<string, number>> = { '=': 0.5, '+': 0.5, '-': -0.5 }
 
 function requestLiveSessionStop(): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -97,6 +99,16 @@ function createWindow(route?: string): void {
     if (details.isMainFrame && !details.isSameDocument) abandonTransactions()
   })
   mainWindow.webContents.on('render-process-gone', abandonTransactions)
+
+  // Electron's default menu binds zoom in to Ctrl+Plus, which needs Shift on a US keyboard, and
+  // ignores the numpad keys.
+  const contents = mainWindow.webContents
+  contents.on('before-input-event', (event, input) => {
+    const step = ZOOM_STEPS[input.key]
+    if (input.type !== 'keyDown' || !input.control || input.alt || step === undefined) return
+    event.preventDefault()
+    contents.setZoomLevel(contents.getZoomLevel() + step)
+  })
 
   if (process.env.ELECTRON_RENDERER_URL) {
     mainWindow.loadURL(route ? `${process.env.ELECTRON_RENDERER_URL}#${route}` : process.env.ELECTRON_RENDERER_URL)
