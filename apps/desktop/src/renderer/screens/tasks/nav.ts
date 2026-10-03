@@ -1,11 +1,12 @@
 import { useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { CalendarClock, SquareKanban } from 'lucide-react'
+import { CalendarClock, SquareKanban, Target } from 'lucide-react'
 import type { TabLinkItem } from '../../components/screen'
 
-/** The phone's two Tasks tabs, drawn in the header. */
+/** The phone's Tasks tabs, drawn in the header. */
 export const TASKS_TABS: readonly TabLinkItem[] = [
   { to: '/tasks', label: 'Boards', Icon: SquareKanban, end: true },
+  { to: '/tasks/goals', label: 'Goals', Icon: Target },
   { to: '/tasks/upcoming', label: 'Upcoming', Icon: CalendarClock }
 ]
 
@@ -13,6 +14,7 @@ export const boardPath = (id: string): string => `/tasks/board/${encodeURICompon
 export const cardPath = (id: string): string => `/tasks/card/${encodeURIComponent(id)}`
 export const activityPath = (id: string): string => `/tasks/activity/${encodeURIComponent(id)}`
 export const archivePath = (id: string): string => `/tasks/archive/${encodeURIComponent(id)}`
+export const goalPath = (id: string): string => `/tasks/goal/${encodeURIComponent(id)}`
 
 function backFrom(state: unknown): string | null {
   return typeof state === 'object' && state !== null && 'back' in state && typeof state.back === 'string' ? state.back : null
