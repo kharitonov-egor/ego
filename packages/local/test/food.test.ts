@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { FoodEntryInput, FoodMealDraft } from '@ego/core'
-import type { LocalDatabase } from '@ego/local/database/types'
-import { queueUploads, releaseReadyMessages } from '@ego/local/diary/uploads'
+import type { LocalDatabase } from '../src/database/types'
+import { queueUploads, releaseReadyMessages } from '../src/diary/uploads'
 import {
   addedLabel, cleanEntry, clockOf, dayTitle, entryAt, entryFromMeal, entryFromProduct, fridgeItemsFrom, localDay, productName
-} from '../lib/food/drafts'
-import { failedFoodUploads, localFood, localFoodRevision } from '../lib/food/repository'
-import { createFridgeItem, deleteFoodEntry, deleteFridgeItem, saveFoodEntry, saveFoodGoal } from '@ego/local/sync/commands'
-import { allOperations } from '@ego/local/sync/outbox'
+} from '../src/food/drafts'
+import { failedFoodUploads, localFood, localFoodRevision } from '../src/food/repository'
+import { createFridgeItem, deleteFoodEntry, deleteFridgeItem, saveFoodEntry, saveFoodGoal } from '../src/sync/commands'
+import { allOperations } from '../src/sync/outbox'
 import { openTestLedger } from './local-db'
 
 const NOW = '2026-10-02T16:30:00.000Z'

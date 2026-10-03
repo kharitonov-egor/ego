@@ -14,7 +14,7 @@ import { SaveCountdown } from '../../../components/ui/countdown'
 import { Text } from '../../../components/ui/text'
 import { Blurred } from '../../../lib/blur'
 import { useFood } from '../../../lib/food/context'
-import { addedLabel } from '../../../lib/food/drafts'
+import { addedLabel } from '@ego/local/food/drafts'
 import { chooseFoodPhoto, takeFoodPhoto } from '../../../lib/food/photo'
 import { newId } from '@ego/local/sync/commands'
 
