@@ -1,7 +1,8 @@
 import type {
   AccountBalances, ApiError, ApiErrorCode, ApiResult, AppBuildStatus, AssistantChatList, AssistantConfirmRequest,
-  AssistantHistory, AssistantStreamEvent, AssistantTurnRequest, AssistantUndoRequest, AssistantUndoResponse, BootstrapData,
-  ChangePage, DiaryMediaInfo, DiaryMultipartPart, DiaryMultipartStart, FeedCursor, MediaScope,
+  AssistantHistory, AssistantStreamEvent, AssistantTurnRequest, BootstrapData, ChangePage, DiaryMediaInfo,
+  DiaryMultipartPart, DiaryMultipartStart, FeedCursor, FoodAnalyzeRequest, FoodAnalyzeResponse, FoodProductResponse,
+  MediaScope,
   HealthConnectStart, HealthSnapshot, OperationResponse, ReceiptDetail, ReferenceData,
   SessionInfo, SignInResult, SignInStartResult, StudyAssignmentList, StudyMark, SyncOperation,
   TransactionFilters, TransactionPage, TrelloCardRequest, TrelloCardResponse
@@ -41,8 +42,8 @@ export interface HealthApi {
 }
 
 /**
- * Diary and Tasks files. Players and image loaders fetch them by URL with the device token in a
- * header; uploads stream straight from disk to these URLs. The scope defaults to the diary.
+ * Diary, Tasks, and Food files. Players and image loaders fetch them by URL with the device token
+ * in a header; uploads stream straight from disk to these URLs. The scope defaults to the diary.
  */
 export interface DiaryMediaApi {
   mediaUrl: (mediaId: string, scope?: MediaScope) => string
@@ -76,10 +77,15 @@ export interface AssistantApi {
   assistantMessages: (chatId: string) => Promise<ApiResult<AssistantHistory>>
   assistantTurn: (request: AssistantTurnRequest, onEvent: AssistantEventHandler) => Promise<ApiResult<{ done: true }>>
   assistantConfirm: (request: AssistantConfirmRequest, onEvent: AssistantEventHandler) => Promise<ApiResult<{ done: true }>>
-  assistantUndo: (request: AssistantUndoRequest) => Promise<ApiResult<AssistantUndoResponse>>
 }
 
-export interface EgoApi extends MoneyApi, StudyApi, HealthApi, DiaryMediaApi, AssistantApi {
+/** The Worker reads food photos with the model and looks barcodes up in USDA and Open Food Facts. */
+export interface FoodApi {
+  foodAnalyze: (request: FoodAnalyzeRequest) => Promise<ApiResult<FoodAnalyzeResponse>>
+  foodProduct: (barcode: string) => Promise<ApiResult<FoodProductResponse>>
+}
+
+export interface EgoApi extends MoneyApi, StudyApi, HealthApi, DiaryMediaApi, AssistantApi, FoodApi {
   session: () => Promise<ApiResult<SessionInfo>>
   signOut: () => Promise<ApiResult<{ signedOut: true }>>
   trelloBoards: () => Promise<ApiResult<TrelloBoardSummary[]>>
@@ -308,10 +314,12 @@ export function moneyApiFor(config: ApiConfig, options: { streamFetch?: StreamFe
     assistantConfirm: (request, onEvent) => isMoneyApiConfigured(config)
       ? stream(streamFetch, base, token, '/v1/assistant/confirm', request, onEvent)
       : Promise.resolve({ ok: false, error: { code: 'AUTH_REQUIRED', message: 'Sign in with Google on the start screen' } }),
-    assistantUndo: (request) => call<AssistantUndoResponse>('/v1/assistant/undo', {
+    foodAnalyze: (request) => call<FoodAnalyzeResponse>('/v1/food/analyze', {
       method: 'POST',
-      body: JSON.stringify(request)
+      body: JSON.stringify(request),
+      timeoutMs: SLOW_REQUEST_TIMEOUT_MS
     }),
+    foodProduct: (barcode) => call<FoodProductResponse>(`/v1/food/products/${encodeURIComponent(barcode)}`),
     studyAssignments: () => call<StudyAssignmentList>('/v1/study/assignments'),
     markStudyAssignment: (id, done) => call<StudyMark>(`/v1/study/assignments/${encodeURIComponent(id)}`, {
       method: 'PUT',

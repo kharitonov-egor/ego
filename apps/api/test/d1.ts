@@ -36,7 +36,7 @@ export function createTestDatabase(): { db: D1Database; close: () => void } {
     bind: (...params: unknown[]) => prepared(sql, params.map(toParam)),
     all: async <T>() => {
       const statement = sqlite.prepare(sql)
-      if (/^\s*select/i.test(sql)) {
+      if (/^\s*select/i.test(sql) || /\breturning\b/i.test(sql)) {
         return { results: statement.all(...bound) as T[], meta: { changes: 0 } }
       }
       const result = statement.run(...bound)

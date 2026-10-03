@@ -1,8 +1,11 @@
 import type { SyncCommand, SyncOperation } from '@ego/api-contracts'
-import type {
-  AccountInput, BudgetInput, CategoryInput, DiaryMessageInput, GymCategoryInput, GymExerciseInput, GymPlanInput,
-  GymSetInput, GymWorkoutInput, HabitEntryInput, HabitInput, MoodInput, PurchaseInput, SheetInput, SheetRowInput,
-  TaskBoardInput, TaskCardInput, TaskGoalInput, TaskLabelInput, TaskListInput, TransactionInput
+import {
+  FOOD_GOAL_ID,
+  type AccountInput, type BudgetInput, type CategoryInput, type DiaryMessageInput, type FoodEntryInput, type FoodGoalInput,
+  type FridgeItemInput, type GymCategoryInput, type GymExerciseInput, type GymPlanInput, type GymSetInput,
+  type GymWorkoutInput, type HabitEntryInput, type HabitInput, type MoodInput, type PurchaseInput, type SheetInput,
+  type SheetRowInput, type TaskBoardInput, type TaskCardInput, type TaskGoalInput, type TaskLabelInput, type TaskListInput,
+  type TransactionInput
 } from '@ego/core'
 import type { LocalDatabase } from '../database/types'
 import { applyCommandLocally } from './local-apply'
@@ -295,3 +298,59 @@ export const updateSheetRow = (db: LocalDatabase, id: string, revision: number, 
 
 export const deleteSheetRow = (db: LocalDatabase, id: string, revision: number, now: string) =>
   submit(db, id, revision, { entity: 'sheetRow', type: 'delete' }, now)
+
+/**
+ * Saves an entry, creating it when `revision` is null. An entry whose photo is still uploading waits
+ * as `held`, and an edit made meanwhile folds into that operation, the same as a task card.
+ */
+export async function saveFoodEntry(
+  db: LocalDatabase, id: string, revision: number | null, input: FoodEntryInput, now: string, held = false
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    const waiting = (await entityOperations(tx, 'foodEntry', id)).find((entry) => entry.status === 'held')
+    if (!waiting) {
+      const command: SyncCommand = revision === null
+        ? { entity: 'foodEntry', type: 'create', payload: input }
+        : { entity: 'foodEntry', type: 'update', payload: input }
+      await submit(tx, id, revision, command, now, held ? 'held' : 'pending')
+      return
+    }
+    const command: SyncCommand = waiting.commandType === 'create'
+      ? { entity: 'foodEntry', type: 'create', payload: input }
+      : { entity: 'foodEntry', type: 'update', payload: input }
+    await replaceCommand(tx, waiting.operationId, command)
+    await applyCommandLocally(tx, { ...waiting, command }, now)
+  })
+}
+
+/** An entry the server never saw is dropped here with its queued photo, whose local copies are returned. */
+export async function deleteFoodEntry(db: LocalDatabase, id: string, revision: number, now: string): Promise<string[]> {
+  return db.transaction(async (tx) => {
+    const operations = await entityOperations(tx, 'foodEntry', id)
+    const unsent = operations.filter((entry) => entry.status === 'held' || entry.status === 'failed')
+    const files = await tx.all<{ local_uri: string }>('SELECT local_uri FROM diary_uploads WHERE message_id = ? AND uploaded_at IS NULL', [id])
+    await tx.run('DELETE FROM diary_uploads WHERE message_id = ? AND uploaded_at IS NULL', [id])
+    for (const entry of unsent) await removeOperation(tx, entry.operationId)
+    if (unsent.some((entry) => entry.commandType === 'create')) {
+      for (const entry of operations) await removeOperation(tx, entry.operationId)
+      await tx.run('DELETE FROM food_entries WHERE id = ?', [id])
+      return files.map((file) => file.local_uri)
+    }
+    await submit(tx, id, unsent[0]?.expectedRevision ?? revision, { entity: 'foodEntry', type: 'delete' }, now)
+    return files.map((file) => file.local_uri)
+  })
+}
+
+export const createFridgeItem = (db: LocalDatabase, input: FridgeItemInput, now: string, id = newId()) =>
+  submit(db, id, null, { entity: 'fridgeItem', type: 'create', payload: input }, now)
+
+export const updateFridgeItem = (db: LocalDatabase, id: string, revision: number, input: FridgeItemInput, now: string) =>
+  submit(db, id, revision, { entity: 'fridgeItem', type: 'update', payload: input }, now)
+
+export const deleteFridgeItem = (db: LocalDatabase, id: string, revision: number, now: string) =>
+  submit(db, id, revision, { entity: 'fridgeItem', type: 'delete' }, now)
+
+export const saveFoodGoal = (db: LocalDatabase, input: FoodGoalInput, revision: number | null, now: string) =>
+  submit(db, FOOD_GOAL_ID, revision, revision === null
+    ? { entity: 'foodGoal', type: 'create', payload: input }
+    : { entity: 'foodGoal', type: 'update', payload: input }, now)

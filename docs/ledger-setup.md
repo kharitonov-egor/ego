@@ -274,6 +274,39 @@ npm run deploy
 Sheets needs no new native module, so an `eas update` is enough. The first sync after the update
 downloads everything again (bootstrap version 6).
 
+## Food
+
+Migration `0018_food.sql` adds `food_entries`, `fridge_items`, `food_goals`, and `food_media`. It is
+additive. Food photos share the `ego-diary` bucket under a `food/` prefix, so there is nothing to
+create in R2.
+
+Barcode lookups work through Open Food Facts with no key. USDA FoodData Central copies the numbers
+from the label and covers more US store brands, so add its free key too
+([sign up](https://fdc.nal.usda.gov/api-key-signup.html)). `FOOD_MODEL` is optional: without it,
+food photos use `ASSISTANT_MODEL`, then `openai/gpt-6-sol`. Whichever model it is has to read
+images.
+
+```sh
+cd apps/api
+npx wrangler secret put USDA_API_KEY    # optional
+npm run migrate:remote
+npm run deploy
+```
+
+The barcode scanner is a native module (`expo-camera`), so the phone app moved to version 0.6.0.
+Updates follow the app version, so an `eas update` only reaches a 0.6.0 build, and a 0.5.0 build
+never loads code it cannot run. Build and install it once:
+
+```sh
+npm run build:preview --workspace @ego/mobile
+```
+
+The first sync on the new build downloads everything again (bootstrap version 8).
+
+The same deploy changes the AI chat for every build: each write now waits on a card, and nothing
+can be undone after it saves. A 0.5.0 build shows that card with its old Confirm and Reject
+buttons, and a new message saves the card instead of dropping it.
+
 ## AI
 
 Migration `0012_assistant.sql` adds `assistant_chats`, `assistant_messages`, and

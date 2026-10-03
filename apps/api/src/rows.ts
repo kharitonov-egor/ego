@@ -1,16 +1,16 @@
 import {
-  isDiaryAttachment, isTaskAttachment, isTaskReminder, parseSheetCells, parseSheetColumns, parseSheetRowTypes,
-  parseSheetView,
-  type AccountKind, type CategoryKind, type DiaryAttachment, type DiaryEntity, type DiarySource, type DistanceUnit,
+  isDiaryAttachment, isFoodPart, isFoodPhoto, isTaskAttachment, isTaskReminder, parseSheetCells, parseSheetColumns,
+  parseSheetRowTypes, parseSheetView,
+  type AccountKind, type FoodPhoto, type FoodSource, type FridgeSource, type CategoryKind, type DiaryAttachment, type DiaryEntity, type DiarySource, type DistanceUnit,
   type ExerciseType, type ExerciseWeightUnit, type HabitEntryKind, type HabitKind, type HabitPeriod,
   type MoneyPurchase, type MoodLevel, type ReceiptItem, type TaskActivity, type TaskAttachment, type TaskChecklist,
   type TaskGoalMilestone, type TaskLabelColor, type TaskPriority, type TransactionKind, type WeightUnit
 } from '@ego/core'
 import type {
-  AccountRecord, BudgetRecord, CategoryRecord, DiaryMessageRecord, FeedTransaction, GymCategoryRecord,
-  GymExerciseRecord, GymPlanRecord, GymSetRecord, GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord,
-  PurchaseRecord, SheetRecord, SheetRowRecord, TaskBoardRecord, TaskCardRecord, TaskGoalRecord, TaskLabelRecord, TaskListRecord,
-  TransactionRecord
+  AccountRecord, BudgetRecord, CategoryRecord, DiaryMessageRecord, FeedTransaction, FoodEntryRecord, FoodGoalRecord,
+  FridgeItemRecord, GymCategoryRecord, GymExerciseRecord, GymPlanRecord, GymSetRecord, GymWorkoutRecord,
+  HabitEntryRecord, HabitRecord, MoodRecord, PurchaseRecord, SheetRecord, SheetRowRecord, TaskBoardRecord,
+  TaskCardRecord, TaskGoalRecord, TaskLabelRecord, TaskListRecord, TransactionRecord
 } from '@ego/api-contracts'
 
 export interface AccountRow {
@@ -566,6 +566,85 @@ export function toSheetRecord(row: SheetRow): SheetRecord {
 export function toSheetRowRecord(row: SheetRowRow): SheetRowRecord {
   return {
     id: row.id, sheetId: row.sheet_id, typeId: row.type_id, cells: parseSheetCells(row.cells),
+    createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
+  }
+}
+
+export interface FoodEntryRow {
+  id: string
+  name: string
+  date: string
+  eaten_at: string
+  serving: string
+  calories: number
+  protein: number
+  carbs: number
+  fat: number
+  parts: string
+  source: FoodSource
+  barcode: string | null
+  photo: string | null
+  note: string
+  created_at: string
+  updated_at: string
+  revision: number
+}
+
+export interface FridgeItemRow {
+  id: string
+  name: string
+  icon: string
+  brand: string | null
+  barcode: string | null
+  source: FridgeSource
+  purchase_id: string | null
+  added_at: string
+  created_at: string
+  updated_at: string
+  revision: number
+}
+
+export interface FoodGoalRow {
+  id: string
+  calories: number | null
+  protein: number | null
+  carbs: number | null
+  fat: number | null
+  created_at: string
+  updated_at: string
+  revision: number
+}
+
+function foodPhoto(raw: string | null): FoodPhoto | null {
+  if (raw === null) return null
+  try {
+    const value: unknown = JSON.parse(raw)
+    return isFoodPhoto(value) ? value : null
+  } catch {
+    return null
+  }
+}
+
+export function toFoodEntryRecord(row: FoodEntryRow): FoodEntryRecord {
+  return {
+    id: row.id, name: row.name, date: row.date, eatenAt: row.eaten_at, serving: row.serving,
+    calories: row.calories, protein: row.protein, carbs: row.carbs, fat: row.fat,
+    parts: jsonList(row.parts).filter(isFoodPart), source: row.source, barcode: row.barcode, photo: foodPhoto(row.photo),
+    note: row.note, createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
+  }
+}
+
+export function toFridgeItemRecord(row: FridgeItemRow): FridgeItemRecord {
+  return {
+    id: row.id, name: row.name, icon: row.icon, brand: row.brand, barcode: row.barcode, source: row.source,
+    purchaseId: row.purchase_id, addedAt: row.added_at, createdAt: row.created_at, updatedAt: row.updated_at,
+    revision: row.revision
+  }
+}
+
+export function toFoodGoalRecord(row: FoodGoalRow): FoodGoalRecord {
+  return {
+    id: row.id, calories: row.calories, protein: row.protein, carbs: row.carbs, fat: row.fat,
     createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
   }
 }

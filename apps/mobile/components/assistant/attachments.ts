@@ -16,7 +16,7 @@ export type AttachmentResult =
   | { ok: true; attachment: Attachment }
   | { ok: false; message: string | null }
 
-/** Enough for the model to read receipt lines, small enough to send from a phone. */
+/** Enough for the model to read receipt lines or a nutrition label, small enough to send from a phone. */
 const RECEIPT_LONG_EDGE = 1800
 
 async function optimize(uri: string, width: number, height: number): Promise<AttachmentResult> {
@@ -46,7 +46,7 @@ export async function fromCamera(): Promise<AttachmentResult> {
 
 export async function fromLibrary(): Promise<AttachmentResult> {
   const permission = await outsideApp(() => ImagePicker.requestMediaLibraryPermissionsAsync())
-  if (!permission.granted) return { ok: false, message: 'Photo access is off. Allow it in system settings to choose a receipt.' }
+  if (!permission.granted) return { ok: false, message: 'Photo access is off. Allow it in system settings to choose a photo.' }
   const result = await outsideApp(() => ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 }))
   if (result.canceled) return { ok: false, message: null }
   return fromAsset(result.assets[0])

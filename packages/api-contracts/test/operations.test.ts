@@ -191,3 +191,26 @@ describe('sheet operations', () => {
     }))).toBe(false)
   })
 })
+
+describe('food operations', () => {
+  const entry = {
+    name: 'Toast', date: '2026-10-02', eatenAt: '2026-10-02T12:00:00.000Z', serving: '2 slices', calories: 180, protein: 6,
+    carbs: 30, fat: 3, parts: [], source: 'manual', barcode: null, photo: null, note: ''
+  }
+  const item = { name: 'Milk', icon: '🥛', brand: null, barcode: null, source: 'manual', purchaseId: null, addedAt: '2026-10-02T12:00:00.000Z' }
+  const goal = { calories: 2200, protein: 150, carbs: null, fat: null }
+
+  it('accepts entries and fridge items with the usual revision rules', () => {
+    expect(isSyncOperation(operation({ entityId: 'f-1', command: { entity: 'foodEntry', type: 'create', payload: entry } }))).toBe(true)
+    expect(isSyncOperation(operation({ entityId: 'f-1', expectedRevision: 1, command: { entity: 'foodEntry', type: 'delete' } }))).toBe(true)
+    expect(isSyncOperation(operation({ entityId: 'f-1', command: { entity: 'foodEntry', type: 'create', payload: { ...entry, calories: -1 } } }))).toBe(false)
+    expect(isSyncOperation(operation({ entityId: 'i-1', command: { entity: 'fridgeItem', type: 'create', payload: item } }))).toBe(true)
+    expect(isSyncOperation(operation({ entityId: 'i-1', command: { entity: 'fridgeItem', type: 'delete' } }))).toBe(false)
+  })
+
+  it('keeps the targets under the one daily ID', () => {
+    expect(isSyncOperation(operation({ entityId: 'daily', command: { entity: 'foodGoal', type: 'create', payload: goal } }))).toBe(true)
+    expect(isSyncOperation(operation({ entityId: 'daily', expectedRevision: 1, command: { entity: 'foodGoal', type: 'update', payload: goal } }))).toBe(true)
+    expect(isSyncOperation(operation({ entityId: 'weekly', command: { entity: 'foodGoal', type: 'create', payload: goal } }))).toBe(false)
+  })
+})

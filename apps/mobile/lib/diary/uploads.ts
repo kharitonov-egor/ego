@@ -4,9 +4,9 @@ import type { MediaUploadRun } from '../sync/coordinator'
 import { retryDelayMs } from '../sync/outbox'
 
 /**
- * Files wait here until they are in R2. A diary message or a task card with files sits in the
- * outbox as `held` and is released to `pending` once its last file is up, so the server never
- * sees a record pointing at a file it does not have. `messageId` is the card's ID for a task file.
+ * Files wait here until they are in R2. A diary message, a task card, or a food entry with files
+ * sits in the outbox as `held` and is released to `pending` once its last file is up, so the server
+ * never sees a record pointing at a file it does not have. `messageId` is the record's own ID.
  */
 
 export interface QueuedUpload {
@@ -19,7 +19,7 @@ export interface QueuedUpload {
   scope?: MediaScope
 }
 
-const HOLDERS = "('diaryMessage', 'taskCard')"
+const HOLDERS = "('diaryMessage', 'taskCard', 'foodEntry')"
 
 export interface PendingUpload extends QueuedUpload {
   attempts: number
@@ -69,13 +69,13 @@ export async function retryMessageUploads(db: LocalDatabase, messageId: string):
   })
 }
 
-/** Puts a card whose files failed back in line. */
-export async function retryCardUploads(db: LocalDatabase, cardId: string): Promise<void> {
+/** Puts a task card or a food entry whose files failed back in line. */
+export async function retryRecordUploads(db: LocalDatabase, entity: 'taskCard' | 'foodEntry', id: string): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.run(`UPDATE diary_uploads SET failed_at = NULL, attempts = 0, next_attempt_at = NULL, last_error = NULL
-      WHERE message_id = ? AND uploaded_at IS NULL`, [cardId])
+      WHERE message_id = ? AND uploaded_at IS NULL`, [id])
     await tx.run(`UPDATE outbox SET status = 'held', last_error = NULL, next_attempt_at = NULL
-      WHERE entity = 'taskCard' AND entity_id = ? AND status = 'failed'`, [cardId])
+      WHERE entity = ? AND entity_id = ? AND status = 'failed'`, [entity, id])
   })
 }
 

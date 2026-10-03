@@ -2,7 +2,7 @@ import type { ApiResult, DeviceIdentity } from '@ego/api-contracts'
 
 export interface Env {
   DB: D1Database
-  /** Diary photos, videos, voice notes, and files, and Tasks attachments. */
+  /** Diary photos, videos, voice notes, and files, Tasks attachments, and Food photos. */
   DIARY_MEDIA?: R2Bucket
   OPENAI_API_KEY?: string
   CONNECTOR_TOKEN_KEY?: string
@@ -16,6 +16,10 @@ export interface Env {
   OPENROUTER_API_KEY?: string
   /** The OpenRouter model behind the AI chat. Defaults to openai/gpt-6-sol. */
   ASSISTANT_MODEL?: string
+  /** The OpenRouter model that reads food photos. Falls back to ASSISTANT_MODEL. */
+  FOOD_MODEL?: string
+  /** A FoodData Central key. Barcode lookups use Open Food Facts alone without it. */
+  USDA_API_KEY?: string
   TRELLO_API_KEY?: string
   TRELLO_TOKEN?: string
   /** The Canvas calendar feed link. Anyone holding it can read the calendar. */

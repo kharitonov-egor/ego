@@ -61,7 +61,6 @@ function Assistant(): React.ReactElement {
   const [streaming, setStreaming] = useState<Streaming | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
-  const [undoing, setUndoing] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [text, setText] = useState('')
   const [attachment, setAttachment] = useState<Attachment | null>(null)
@@ -72,6 +71,26 @@ function Assistant(): React.ReactElement {
   const keyboardVisible = useKeyboardVisible()
   const imageUris = useRef(new Map<string, string>())
   const pendingImage = useRef<string | null>(null)
+  const shown = useRef<AssistantPendingWrite | null>(null)
+  shown.current = pending
+  const unitsRef = useRef(units)
+  unitsRef.current = units
+  const syncRef = useRef(ledger.sync)
+  syncRef.current = ledger.sync
+
+  /** A card left behind by switching chats or leaving the tile was never undone, so it saves. */
+  const saveLeftCard = useCallback((): void => {
+    const card = shown.current
+    if (!card) return
+    shown.current = null
+    void api.assistantConfirm({
+      chatId: card.chatId, callId: card.callId, approved: true, today: isoToday(), timeZone: timeZone(), units: unitsRef.current
+    }, () => undefined).then(() => syncRef.current())
+  }, [api])
+  const leaving = useRef(saveLeftCard)
+  leaving.current = saveLeftCard
+
+  useEffect(() => () => leaving.current(), [])
 
   const scrollToEnd = useCallback((): void => {
     requestAnimationFrame(() => scroll.current?.scrollToEnd({ animated: true }))
@@ -88,6 +107,7 @@ function Assistant(): React.ReactElement {
   }, [keyboardVisible, scrollToEnd])
 
   const open = useCallback(async (chat: AssistantChat | null): Promise<void> => {
+    saveLeftCard()
     setChatId(chat?.id ?? null)
     setPending(null)
     setStreaming(null)
@@ -108,7 +128,7 @@ function Assistant(): React.ReactElement {
     setMessages(result.data.messages)
     setPending(result.data.pending)
     scrollToEnd()
-  }, [api, scrollToEnd])
+  }, [api, saveLeftCard, scrollToEnd])
 
   useEffect(() => {
     if (!ledger.enabled) {
@@ -167,6 +187,7 @@ function Assistant(): React.ReactElement {
     setText('')
     setAttachment(null)
     setError(null)
+    shown.current = null
     setPending(null)
     setBusy(true)
     setStreaming({ text: '', trail: [] })
@@ -180,7 +201,7 @@ function Assistant(): React.ReactElement {
     scrollToEnd()
     const result = await api.assistantTurn({
       chatId, text: message, image: image ? { base64: image.base64, mimeType: image.mimeType } : undefined,
-      today: isoToday(), timeZone: timeZone(), units
+      today: isoToday(), timeZone: timeZone(), units, autoSave: true
     }, handleEvent)
     finishTurn(chatId)
     if (!result.ok) {
@@ -191,9 +212,11 @@ function Assistant(): React.ReactElement {
     }
   }
 
+  /** The card's timer saves; Undo drops everything on it. Either way the card is gone for good. */
   const answer = async (approved: boolean): Promise<void> => {
     if (!pending || busy) return
     const current = pending
+    shown.current = null
     setPending(null)
     setError(null)
     setBusy(true)
@@ -203,23 +226,6 @@ function Assistant(): React.ReactElement {
     }, handleEvent)
     finishTurn(current.chatId)
     if (!result.ok) setError(result.error.message)
-  }
-
-  const undo = async (callId: string): Promise<void> => {
-    if (!chatId || undoing) return
-    setUndoing(callId)
-    const result = await api.assistantUndo({ chatId, callId })
-    setUndoing(null)
-    if (!result.ok) {
-      setError(result.error.message)
-      return
-    }
-    setMessages((current) => [
-      ...current.map((message) => ({ ...message, undo: message.undo.filter((item) => item.callId !== callId) })),
-      result.data.message
-    ])
-    scrollToEnd()
-    void ledger.sync()
   }
 
   const attach = async (pick: () => Promise<AttachmentResult>): Promise<void> => {
@@ -271,9 +277,9 @@ function Assistant(): React.ReactElement {
       {!loading && messages.length === 0 && !streaming && <Intro onPick={setText} />}
       {messages.map((message) => message.role === 'user'
         ? <UserBubble key={message.id} message={message} imageUri={imageUris.current.get(message.id) ?? null} />
-        : <AssistantBubble key={message.id} message={message} undoing={undoing} onUndo={(callId) => void undo(callId)} />)}
+        : <AssistantBubble key={message.id} message={message} />)}
       {streaming && <StreamingBubble text={streaming.text} trail={streaming.trail} />}
-      {pending && !busy && <PendingCard pending={pending} busy={busy} onAnswer={(approved) => void answer(approved)} />}
+      {pending && !busy && <PendingCard pending={pending} onSave={() => void answer(true)} onUndo={() => void answer(false)} />}
       {error && <ErrorBubble text={error} onDismiss={() => setError(null)} />}
     </ScrollView>
 
@@ -284,15 +290,15 @@ function Assistant(): React.ReactElement {
       {attachment && <View className="mb-3 flex-row items-center rounded-2xl border border-border bg-card p-2.5">
         <Image source={{ uri: attachment.uri }} className="h-12 w-12 rounded-xl" resizeMode="cover" />
         <View className="ml-3 flex-1">
-          <Text className="text-[15px] font-semibold">Receipt attached</Text>
+          <Text className="text-[15px] font-semibold">Photo attached</Text>
           <Text className="text-[14px] text-muted-foreground">Add a note or send it now</Text>
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Remove the receipt" onPress={() => setAttachment(null)} className="h-11 w-11 items-center justify-center rounded-full active:bg-surface-800"><X color="#d4d4d4" size={18} /></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Remove the photo" onPress={() => setAttachment(null)} className="h-11 w-11 items-center justify-center rounded-full active:bg-surface-800"><X color="#d4d4d4" size={18} /></Pressable>
       </View>}
       <View className="flex-row items-end rounded-3xl border border-input bg-surface-900 p-1.5 pl-1.5">
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Attach a receipt"
+          accessibilityLabel="Attach a photo"
           disabled={busy}
           onPress={() => setAttaching(true)}
           className="h-11 w-11 items-center justify-center rounded-full active:bg-surface-800"
@@ -318,7 +324,7 @@ function Assistant(): React.ReactElement {
       </View>
     </View>
 
-    <BottomSheet visible={attaching} title="Attach a receipt" onClose={() => setAttaching(false)} dismissOnBackdrop>
+    <BottomSheet visible={attaching} title="Attach a photo" onClose={() => setAttaching(false)} dismissOnBackdrop>
       <AttachOption Icon={Camera} label="Camera" onPress={() => void attach(fromCamera)} />
       <AttachOption Icon={ImageIcon} label="Photos" onPress={() => void attach(fromLibrary)} />
       <AttachOption Icon={ClipboardPaste} label="Paste image" onPress={() => void attach(fromClipboard)} />

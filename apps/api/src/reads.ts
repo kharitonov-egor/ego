@@ -6,8 +6,8 @@ import {
   type AccountRecord, type BudgetRecord, type CategoryRecord, type ChangePayload, type DiaryMessageRecord,
   type GymCategoryRecord, type GymExerciseRecord, type GymPlanRecord, type GymSetRecord, type GymWorkoutRecord,
   type HabitEntryRecord, type HabitRecord, type MoodRecord, type TaskBoardRecord, type TaskCardRecord, type TaskGoalRecord,
-  type TaskLabelRecord, type TaskListRecord, type SheetRecord, type SheetRowRecord,
-  type PeriodSummary, type PurchaseRecord, type ReceiptDetail, type ReferenceData,
+  type TaskLabelRecord, type TaskListRecord, type SheetRecord, type SheetRowRecord, type FoodEntryRecord,
+  type FridgeItemRecord, type FoodGoalRecord, type PeriodSummary, type PurchaseRecord, type ReceiptDetail, type ReferenceData,
   type TransactionDetail, type TransactionFilters, type TransactionPage, type TransactionRecord
 } from '@ego/api-contracts'
 import type { MoneySnapshot } from '@ego/core'
@@ -15,11 +15,13 @@ import {
   toAccountRecord, toBudgetRecord, toCategoryRecord, toDiaryMessageRecord, toFeedTransaction, toGymCategoryRecord,
   toGymExerciseRecord, toGymPlanRecord, toGymSetRecord, toGymWorkoutRecord, toHabitEntryRecord, toHabitRecord,
   toMoodRecord, toPurchaseRecord, toReceiptItem, toTaskBoardRecord, toTaskCardRecord, toTaskGoalRecord, toTaskLabelRecord,
-  toTaskListRecord, toTransactionRecord, toSheetRecord, toSheetRowRecord,
+  toTaskListRecord, toTransactionRecord, toSheetRecord, toSheetRowRecord, toFoodEntryRecord, toFridgeItemRecord,
+  toFoodGoalRecord,
   type AccountRow, type BudgetAllocationRow, type BudgetRow, type CategoryRow, type DiaryMessageRow, type FeedRow,
   type GymCategoryRow, type GymExerciseRow, type GymPlanRow, type GymSetRow, type GymWorkoutRow, type HabitEntryRow,
   type HabitRow, type MoodRow, type PurchaseRow, type ReceiptItemRow, type TaskBoardRow, type TaskCardRow, type TaskGoalRow,
-  type TaskLabelRow, type TaskListRow, type TransactionRow, type SheetRow, type SheetRowRow
+  type TaskLabelRow, type TaskListRow, type TransactionRow, type SheetRow, type SheetRowRow, type FoodEntryRow,
+  type FridgeItemRow, type FoodGoalRow
 } from './rows'
 
 export async function query<T>(db: D1Database, sql: string, params: unknown[] = []): Promise<T[]> {
@@ -184,6 +186,9 @@ function toChangePayload(entity: ChangeRow['entity'], record: unknown): ChangePa
     case 'taskGoal': return { entity, record: record as TaskGoalRecord | null }
     case 'sheet': return { entity, record: record as SheetRecord | null }
     case 'sheetRow': return { entity, record: record as SheetRowRecord | null }
+    case 'foodEntry': return { entity, record: record as FoodEntryRecord | null }
+    case 'fridgeItem': return { entity, record: record as FridgeItemRecord | null }
+    case 'foodGoal': return { entity, record: record as FoodGoalRecord | null }
   }
 }
 
@@ -305,6 +310,21 @@ export async function readSheetRows(db: D1Database): Promise<SheetRows> {
   return { sheets, rows }
 }
 
+export interface FoodRows {
+  entries: FoodEntryRow[]
+  fridge: FridgeItemRow[]
+  goals: FoodGoalRow[]
+}
+
+export async function readFoodRows(db: D1Database): Promise<FoodRows> {
+  const [entries, fridge, goals] = await Promise.all([
+    query<FoodEntryRow>(db, 'SELECT * FROM food_entries WHERE deleted_at IS NULL ORDER BY date DESC, eaten_at DESC'),
+    query<FridgeItemRow>(db, 'SELECT * FROM fridge_items WHERE deleted_at IS NULL ORDER BY added_at DESC, id'),
+    query<FoodGoalRow>(db, 'SELECT * FROM food_goals WHERE deleted_at IS NULL')
+  ])
+  return { entries, fridge, goals }
+}
+
 /**
  * The whole live ledger for a device's first download. The sequence is read first, so any
  * change committed while the tables are read is pulled again afterwards and applied by revision.
@@ -313,7 +333,7 @@ export async function readBootstrap(db: D1Database): Promise<BootstrapData> {
   const sequence = await serverSequence(db)
   const [
     records, gymCategories, gymExercises, gymSets, gymWorkouts, gymPlans, moods, habits, habitEntries, diaryMessages, tasks,
-    sheets
+    sheets, food
   ] = await Promise.all([
     readLiveRecords(db),
     query<GymCategoryRow>(db, 'SELECT * FROM gym_categories WHERE deleted_at IS NULL ORDER BY name COLLATE NOCASE'),
@@ -326,7 +346,8 @@ export async function readBootstrap(db: D1Database): Promise<BootstrapData> {
     query<HabitEntryRow>(db, 'SELECT * FROM habit_entries WHERE deleted_at IS NULL ORDER BY date, created_at'),
     query<DiaryMessageRow>(db, 'SELECT * FROM diary_messages WHERE deleted_at IS NULL ORDER BY sent_at, id'),
     readTaskRows(db),
-    readSheetRows(db)
+    readSheetRows(db),
+    readFoodRows(db)
   ])
   return {
     serverSequence: sequence,
@@ -350,7 +371,10 @@ export async function readBootstrap(db: D1Database): Promise<BootstrapData> {
     taskCards: tasks.cards.map(toTaskCardRecord),
     taskGoals: tasks.goals.map(toTaskGoalRecord),
     sheets: sheets.sheets.map(toSheetRecord),
-    sheetRows: sheets.rows.map(toSheetRowRecord)
+    sheetRows: sheets.rows.map(toSheetRowRecord),
+    foodEntries: food.entries.map(toFoodEntryRecord),
+    fridgeItems: food.fridge.map(toFridgeItemRecord),
+    foodGoals: food.goals.map(toFoodGoalRecord)
   }
 }
 

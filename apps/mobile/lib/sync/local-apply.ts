@@ -2,7 +2,8 @@ import type { SyncOperation } from '@ego/api-contracts'
 import type { LocalDatabase } from '../database/types'
 import { TABLES, writeRecord, writeTombstone } from '../database/writes'
 import {
-  accountRecordFrom, budgetIdFor, budgetRecordFrom, categoryRecordFrom, diaryMessageRecordFrom, gymCategoryRecordFrom,
+  accountRecordFrom, budgetIdFor, budgetRecordFrom, categoryRecordFrom, diaryMessageRecordFrom, foodEntryRecordFrom,
+  foodGoalRecordFrom, fridgeItemRecordFrom, gymCategoryRecordFrom,
   gymExerciseRecordFrom, gymPlanRecordFrom, gymSetRecordFrom, gymWorkoutRecordFrom, habitEntryRecordFrom,
   habitRecordFrom, moodIdFor, moodRecordFrom, purchaseRecordFrom, purchaseTransactionInput, receiptTransactionIdFor,
   sheetRecordFrom, sheetRowRecordFrom, taskBoardRecordFrom, taskCardRecordFrom, taskGoalRecordFrom, taskLabelRecordFrom, taskListRecordFrom,
@@ -203,6 +204,24 @@ export async function applyCommandLocally(
       await writeRecord(tx, { entity: 'sheet', record: sheetRecordFrom(entityId, command.payload, createdAt, now, nextRevision) })
     } else {
       await writeRecord(tx, { entity: 'sheetRow', record: sheetRowRecordFrom(entityId, command.payload, createdAt, now, nextRevision) })
+    }
+    return
+  }
+
+  if (command.entity === 'foodEntry' || command.entity === 'fridgeItem' || command.entity === 'foodGoal') {
+    if (command.type === 'delete') {
+      await writeTombstone(tx, command.entity, entityId, revision, now)
+      return
+    }
+    const current = await existing(tx, TABLES[command.entity], 'id', entityId)
+    const createdAt = current?.created_at ?? now
+    const nextRevision = command.type === 'create' ? 1 : revision
+    if (command.entity === 'foodEntry') {
+      await writeRecord(tx, { entity: 'foodEntry', record: foodEntryRecordFrom(entityId, command.payload, createdAt, now, nextRevision) })
+    } else if (command.entity === 'fridgeItem') {
+      await writeRecord(tx, { entity: 'fridgeItem', record: fridgeItemRecordFrom(entityId, command.payload, createdAt, now, nextRevision) })
+    } else {
+      await writeRecord(tx, { entity: 'foodGoal', record: foodGoalRecordFrom(command.payload, createdAt, now, nextRevision) })
     }
     return
   }
