@@ -13,6 +13,7 @@ import { TaskNotificationsProvider } from './lib/tasks/notifications'
 import Home from './screens/Home'
 import Settings from './screens/Settings'
 import { moneyRoutes } from './screens/money/Finance'
+import SheetsApp from './screens/sheets'
 import TasksRoutes from './screens/tasks'
 
 function TalkToAI(): React.ReactElement {
@@ -46,6 +47,7 @@ export default function App(): React.ReactElement {
                         <Route path="/ai" element={<TalkToAI />} />
                         {moneyRoutes}
                         <Route path="/tasks/*" element={<TasksRoutes />} />
+                        <Route path="/sheets/*" element={<SheetsApp />} />
                         <Route path="/settings" element={<Settings />} />
                         <Route path="*" element={<Navigate to="/" replace />} />
                       </Routes>

@@ -337,6 +337,20 @@ blank sheet.
 - Sheets can be renamed, given an emoji, reordered by holding them, duplicated, archived, and
   deleted.
 
+On the desktop the grid fills the window and scrolls both ways, with the Name column and the
+header row pinned. It works like a spreadsheet: click a cell to select it, move with the arrow
+keys, and press Enter or double-click to edit it in the same sheet, with arrows to the previous and
+next cell. Typing on a text or number cell starts the edit with that key. In the editor, Enter
+saves and moves to the next cell, Shift+Enter goes back, and Escape closes it without saving what
+was typed. Space or a click on the box ticks a checkbox, Delete clears a cell with five seconds of
+Undo, and Ctrl+F searches.
+
+Clicking a name opens the row's form, where Enter in a new row's name adds it. Coming back finds the
+grid as you left it: the same search, folded groups, selected cell, and scroll. Right-click a row,
+or use its "..." button, to duplicate or delete it; Ctrl+Z works like Undo while a toast shows.
+Column headers and the sheet's "..." open their menus where you clicked. Sheets reorder by dragging,
+or with Alt+Up and Alt+Down.
+
 Sheets uses the same local database, outbox, and change log as the other apps, as `sheet` and
 `sheetRow`. A sheet is one record holding its columns, options, row types, and view. A row is one
 record with its cells keyed by column ID, so an edit on another device asks Keep mine or Use saved
