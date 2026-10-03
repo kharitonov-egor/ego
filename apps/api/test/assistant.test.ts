@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { AssistantChatList, AssistantHistory, AssistantStreamEvent, AssistantUndoResponse } from '@ego/api-contracts'
+import type { AssistantChatList, AssistantHistory, AssistantStreamEvent } from '@ego/api-contracts'
 import type { ModelMessage } from '@ego/core'
 import { hashToken, type Env } from '../src/auth'
 import { handle } from '../src/router'
 import { NOW, exec, seedLedger, type Ledger } from './helpers'
+import { createTestBucket } from './r2'
 
 const TOKEN = 'phone-device-token-that-is-long-enough-assist'
 const TODAY = '2026-09-12'
@@ -163,7 +164,7 @@ describe('POST /v1/assistant/turns', () => {
     expect(list[list.length - 1]).toEqual({ type: 'done' })
   })
 
-  it('checks off a habit at once and offers to undo it', async () => {
+  it('puts a habit check-off on a card and saves it when the card is confirmed', async () => {
     const env = await environment()
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(toolCall('call_h', 'log_habit', { habitId: 'habit-read', date: TODAY }))
@@ -171,27 +172,23 @@ describe('POST /v1/assistant/turns', () => {
     vi.stubGlobal('fetch', fetchMock)
     const list = await events(await handle(request('/v1/assistant/turns', { method: 'POST', body: turnBody({ text: 'I read today' }) }), env))
     const chat = find(list, 'chat')[0].chat
-    expect(find(list, 'trail').map((event) => event.line)).toEqual(['Checked off Reading for today'])
-    const reply = find(list, 'message').map((event) => event.message)[1]
-    expect(reply.undo).toEqual([{ callId: expect.any(String), label: 'check-off of Reading for today' }])
+    const pending = find(list, 'pending')[0].pending
+    expect(pending.changes).toEqual([{ toolName: 'log_habit', title: 'Check off a habit', lines: ['Reading for today'] }])
+    expect(pending).toMatchObject({ title: 'Check off a habit', lines: ['Reading for today'] })
+    const before = await env.DB.prepare('SELECT COUNT(*) AS count FROM habit_entries').first<{ count: number }>()
+    expect(before?.count).toBe(0)
+
+    const saved = await events(await handle(request('/v1/assistant/confirm', {
+      method: 'POST', body: JSON.stringify({ chatId: chat.id, callId: pending.callId, approved: true, today: TODAY, timeZone: null, units: 'imperial' })
+    }), env))
+    expect(find(saved, 'trail').map((event) => event.line)).toEqual(['Checked off Reading for today'])
+    expect(find(saved, 'message')[0].message).toMatchObject({ text: 'Checked off Reading.', trail: ['Checked off Reading for today'], undo: [] })
     const entries = await env.DB.prepare(`SELECT date, kind FROM habit_entries WHERE deleted_at IS NULL`).all<{ date: string; kind: string }>()
     expect(entries.results).toEqual([{ date: TODAY, kind: 'done' }])
-
-    const undone = await payload<AssistantUndoResponse>(await handle(request('/v1/assistant/undo', {
-      method: 'POST', body: JSON.stringify({ chatId: chat.id, callId: reply.undo[0].callId })
-    }), env))
-    expect(undone.data.message).toMatchObject({ role: 'assistant', text: 'Undid the check-off of Reading for today.' })
-    const left = await env.DB.prepare(`SELECT COUNT(*) AS count FROM habit_entries WHERE deleted_at IS NULL`).first<{ count: number }>()
-    expect(left?.count).toBe(0)
-    expect((await handle(request('/v1/assistant/undo', {
-      method: 'POST', body: JSON.stringify({ chatId: chat.id, callId: reply.undo[0].callId })
-    }), env)).status).toBe(409)
-    const history = await payload<AssistantHistory>(await handle(request(`/v1/assistant/messages?chat=${chat.id}`), env))
-    expect(history.data.messages.map((message) => message.text)).toEqual(['I read today', 'Checked off Reading.', 'Undid the check-off of Reading for today.'])
-    expect(history.data.messages[1].undo).toEqual([])
+    expect((await handle(request('/v1/assistant/undo', { method: 'POST', body: '{}' }), env)).status).toBe(404)
   })
 
-  it('logs gym sets in order and arranges the day', async () => {
+  it('logs gym sets in order and arranges the day once the card saves', async () => {
     const env = await environment()
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(toolCall('call_g', 'log_gym_sets', {
@@ -200,7 +197,14 @@ describe('POST /v1/assistant/turns', () => {
       .mockResolvedValueOnce(text('Logged.'))
     vi.stubGlobal('fetch', fetchMock)
     const list = await events(await handle(request('/v1/assistant/turns', { method: 'POST', body: turnBody({ text: 'bench 185 x8, x6' }) }), env))
-    expect(find(list, 'trail').map((event) => event.line)).toEqual(['Logged Bench Press 185 lbs × 8 reps, 185 lbs × 6 reps'])
+    const pending = find(list, 'pending')[0].pending
+    expect(pending.changes?.[0]).toEqual({
+      toolName: 'log_gym_sets', title: 'Log 2 sets for today', lines: ['Bench Press: 185 lbs × 8 reps, 185 lbs × 6 reps']
+    })
+    const saved = await events(await handle(request('/v1/assistant/confirm', {
+      method: 'POST', body: JSON.stringify({ chatId: pending.chatId, callId: pending.callId, approved: true, today: TODAY, timeZone: null, units: 'imperial' })
+    }), env))
+    expect(find(saved, 'trail').map((event) => event.line)).toEqual(['Logged Bench Press 185 lbs × 8 reps, 185 lbs × 6 reps'])
     const sets = await env.DB.prepare('SELECT position, weight, weight_unit, reps FROM gym_sets ORDER BY position').all<Record<string, unknown>>()
     expect(sets.results).toEqual([
       { position: 0, weight: 185, weight_unit: 'lbs', reps: 8 },
@@ -227,9 +231,10 @@ describe('POST /v1/assistant/turns', () => {
   })
 })
 
-describe('money writes and the Confirm card', () => {
+describe('writes wait on a card that saves itself', () => {
   const transaction = {
-    kind: 'expense', accountId: 'acc-check', categoryId: 'cat-food', amountCents: 4200, date: TODAY, merchant: 'Publix', notes: null, receipt: null
+    kind: 'expense', accountId: 'acc-check', categoryId: 'cat-food', amountCents: 4200, date: TODAY, merchant: 'Publix', notes: null,
+    receipt: null, fridgeItems: null
   }
 
   async function pendingTurn(env: Env): Promise<{ chatId: string; callId: string; fetchMock: ReturnType<typeof vi.fn> }> {
@@ -237,12 +242,16 @@ describe('money writes and the Confirm card', () => {
     vi.stubGlobal('fetch', fetchMock)
     const list = await events(await handle(request('/v1/assistant/turns', { method: 'POST', body: turnBody({ text: '$42 at Publix' }) }), env))
     const pending = find(list, 'pending')[0]?.pending
-    expect(pending).toMatchObject({ toolName: 'record_transactions', title: 'Record this transaction?', lines: ['−$42.00 Publix · Food · Checking · today'] })
+    expect(pending).toMatchObject({ toolName: 'record_transactions', title: 'Record a transaction', lines: ['−$42.00 Publix · Food · Checking · today'] })
     expect(find(list, 'message').map((event) => event.message.text)).toEqual(['$42 at Publix', 'Recording that.'])
     return { chatId: find(list, 'chat')[0].chat.id, callId: pending.callId, fetchMock }
   }
 
-  it('waits for Confirm, then records and continues the reply', async () => {
+  function confirmBody(chatId: string, callId: string, approved: boolean): string {
+    return JSON.stringify({ chatId, callId, approved, today: TODAY, timeZone: 'America/New_York', units: 'imperial' })
+  }
+
+  it('saves on confirm, then continues the reply', async () => {
     const env = await environment()
     const { chatId, callId, fetchMock } = await pendingTurn(env)
     expect((await env.DB.prepare('SELECT COUNT(*) AS count FROM transactions').first<{ count: number }>())?.count).toBe(0)
@@ -250,71 +259,186 @@ describe('money writes and the Confirm card', () => {
     expect(before.data.pending?.callId).toBe(callId)
 
     fetchMock.mockResolvedValueOnce(text('Recorded $42.00 at Publix.'))
-    const list = await events(await handle(request('/v1/assistant/confirm', {
-      method: 'POST', body: JSON.stringify({ chatId, callId, approved: true, today: TODAY, timeZone: null, units: 'imperial' })
-    }), env))
+    const list = await events(await handle(request('/v1/assistant/confirm', { method: 'POST', body: confirmBody(chatId, callId, true) }), env))
     expect(find(list, 'trail').map((event) => event.line)).toEqual(['Recorded $42.00 Publix'])
-    const reply = find(list, 'message')[0].message
-    expect(reply).toMatchObject({ text: 'Recorded $42.00 at Publix.', trail: ['Recorded $42.00 Publix'], undo: [{ label: '$42.00 Publix' }] })
+    expect(find(list, 'message')[0].message).toMatchObject({ text: 'Recorded $42.00 at Publix.', trail: ['Recorded $42.00 Publix'], undo: [] })
     const saved = await env.DB.prepare('SELECT amount_cents, notes, category_id FROM transactions WHERE deleted_at IS NULL').all<Record<string, unknown>>()
     expect(saved.results).toEqual([{ amount_cents: 4200, notes: 'Publix', category_id: 'cat-food' }])
     const resumed = sentMessages(fetchMock, 1)
     expect(resumed.at(-1)).toMatchObject({ role: 'tool', tool_call_id: 'call_m' })
     expect(String((resumed.at(-1) as { content: string }).content)).toContain('"recorded":1')
-    expect((await handle(request('/v1/assistant/confirm', {
-      method: 'POST', body: JSON.stringify({ chatId, callId, approved: true, today: TODAY, timeZone: null, units: 'imperial' })
-    }), env)).status).toBe(409)
-
-    const undone = await payload<AssistantUndoResponse>(await handle(request('/v1/assistant/undo', {
-      method: 'POST', body: JSON.stringify({ chatId, callId: reply.undo[0].callId })
-    }), env))
-    expect(undone.data.message.text).toBe('Undid the $42.00 Publix.')
-    expect((await env.DB.prepare('SELECT COUNT(*) AS count FROM transactions WHERE deleted_at IS NULL').first<{ count: number }>())?.count).toBe(0)
+    expect((await handle(request('/v1/assistant/confirm', { method: 'POST', body: confirmBody(chatId, callId, true) }), env)).status).toBe(409)
+    const after = await payload<AssistantHistory>(await handle(request(`/v1/assistant/messages?chat=${chatId}`), env))
+    expect(after.data.pending).toBeNull()
   })
 
-  it('tells the model when the card is rejected', async () => {
+  it('drops the whole card on Undo without asking the model again', async () => {
     const env = await environment()
     const { chatId, callId, fetchMock } = await pendingTurn(env)
-    fetchMock.mockResolvedValueOnce(text('What should change?'))
-    const list = await events(await handle(request('/v1/assistant/confirm', {
-      method: 'POST', body: JSON.stringify({ chatId, callId, approved: false, today: TODAY, timeZone: null, units: 'imperial' })
-    }), env))
-    expect(find(list, 'message')[0].message.text).toBe('What should change?')
-    expect(String((sentMessages(fetchMock, 1).at(-1) as { content: string }).content)).toContain('rejected')
+    const list = await events(await handle(request('/v1/assistant/confirm', { method: 'POST', body: confirmBody(chatId, callId, false) }), env))
+    expect(find(list, 'message')[0].message).toMatchObject({ role: 'assistant', text: 'Undone. Nothing was saved.' })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
     expect((await env.DB.prepare('SELECT COUNT(*) AS count FROM transactions').first<{ count: number }>())?.count).toBe(0)
     const status = await env.DB.prepare('SELECT status FROM assistant_tool_calls WHERE call_id = ?').bind(callId).first<{ status: string }>()
     expect(status?.status).toBe('rejected')
+
+    fetchMock.mockResolvedValueOnce(text('Okay.'))
+    await events(await handle(request('/v1/assistant/turns', { method: 'POST', body: turnBody({ chatId, text: 'Thanks' }) }), env))
+    const tool = sentMessages(fetchMock, 1).find((message) => message.role === 'tool')
+    expect(String((tool as { content: string }).content)).toContain('tapped Undo')
   })
 
-  it('closes a card the user walked away from when the next message arrives', async () => {
+  it('saves a card the user wrote past before reading the next message', async () => {
+    const env = await environment()
+    const { chatId, callId, fetchMock } = await pendingTurn(env)
+    fetchMock.mockResolvedValueOnce(text('Sure.'))
+    const list = await events(await handle(request('/v1/assistant/turns', {
+      method: 'POST', body: turnBody({ chatId, text: 'And how much this month?', autoSave: true })
+    }), env))
+    const status = await env.DB.prepare('SELECT status FROM assistant_tool_calls WHERE call_id = ?').bind(callId).first<{ status: string }>()
+    expect(status?.status).toBe('succeeded')
+    expect((await env.DB.prepare('SELECT COUNT(*) AS count FROM transactions').first<{ count: number }>())?.count).toBe(1)
+    const sent = sentMessages(fetchMock, 1)
+    expect(String((sent.find((message) => message.role === 'tool') as { content: string }).content)).toContain('"recorded":1')
+    expect(sent.at(-1)).toEqual({ role: 'user', content: 'And how much this month?' })
+    expect(find(list, 'message').at(-1)?.message.trail).toEqual(['Recorded $42.00 Publix'])
+    expect((await handle(request('/v1/assistant/confirm', { method: 'POST', body: confirmBody(chatId, callId, true) }), env)).status).toBe(409)
+  })
+
+  it('drops the card instead for a build that still says typing drops it', async () => {
     const env = await environment()
     const { chatId, callId, fetchMock } = await pendingTurn(env)
     fetchMock.mockResolvedValueOnce(text('Sure.'))
     await events(await handle(request('/v1/assistant/turns', { method: 'POST', body: turnBody({ chatId, text: 'Never mind' }) }), env))
     const status = await env.DB.prepare('SELECT status FROM assistant_tool_calls WHERE call_id = ?').bind(callId).first<{ status: string }>()
     expect(status?.status).toBe('rejected')
-    const sent = sentMessages(fetchMock, 1)
-    const tool = sent.find((message) => message.role === 'tool')
+    expect((await env.DB.prepare('SELECT COUNT(*) AS count FROM transactions').first<{ count: number }>())?.count).toBe(0)
+    const tool = sentMessages(fetchMock, 1).find((message) => message.role === 'tool')
     expect(String((tool as { content: string }).content)).toContain('did not confirm')
-    expect(sent.at(-1)).toEqual({ role: 'user', content: 'Never mind' })
-    const history = await payload<AssistantHistory>(await handle(request(`/v1/assistant/messages?chat=${chatId}`), env))
-    expect(history.data.pending).toBeNull()
   })
 
-  it('sends a receipt image to the model once and keeps only a note', async () => {
+  it('never saves a card the Worker before this one left waiting', async () => {
+    const env = await environment()
+    const { chatId, callId, fetchMock } = await pendingTurn(env)
+    await env.DB.prepare('UPDATE assistant_tool_calls SET card = ? WHERE call_id = ?')
+      .bind(JSON.stringify({ title: 'Record this transaction?', lines: [] }), callId).run()
+    const history = await payload<AssistantHistory>(await handle(request(`/v1/assistant/messages?chat=${chatId}`), env))
+    expect(history.data.pending).toBeNull()
+    fetchMock.mockResolvedValueOnce(text('Sure.'))
+    await events(await handle(request('/v1/assistant/turns', { method: 'POST', body: turnBody({ chatId, text: 'Hi', autoSave: true }) }), env))
+    expect((await env.DB.prepare('SELECT COUNT(*) AS count FROM transactions').first<{ count: number }>())?.count).toBe(0)
+  })
+
+  it('keeps the save running after the phone hangs up', async () => {
+    const env = await environment()
+    const { chatId, callId, fetchMock } = await pendingTurn(env)
+    fetchMock.mockResolvedValueOnce(text('Saved.'))
+    const kept: Promise<unknown>[] = []
+    const response = await handle(request('/v1/assistant/confirm', { method: 'POST', body: confirmBody(chatId, callId, true) }), env, {
+      waitUntil: (promise) => { kept.push(promise) }
+    })
+    expect(kept).toHaveLength(1)
+    await response.body?.cancel()
+    await Promise.all(kept)
+    expect((await env.DB.prepare('SELECT COUNT(*) AS count FROM transactions').first<{ count: number }>())?.count).toBe(1)
+  })
+
+  it('collects every write in a reply on one card and saves them in order', async () => {
+    const env = await environment()
+    const fetchMock = vi.fn().mockResolvedValueOnce(sse([
+      { choices: [{ delta: { tool_calls: [
+        { index: 0, id: 'call_a', type: 'function', function: { name: 'save_mood', arguments: JSON.stringify({ date: TODAY, mood: 4, note: null }) } },
+        { index: 1, id: 'call_b', type: 'function', function: { name: 'log_habit', arguments: JSON.stringify({ habitId: 'habit-read', date: TODAY, times: null }) } }
+      ] } }] },
+      { choices: [{ delta: {}, finish_reason: 'tool_calls' }] }
+    ])).mockResolvedValueOnce(text('Saved both.'))
+    vi.stubGlobal('fetch', fetchMock)
+    const list = await events(await handle(request('/v1/assistant/turns', { method: 'POST', body: turnBody({ text: 'Mood 4 and I read' }) }), env))
+    const pending = find(list, 'pending')[0].pending
+    expect(pending.title).toBe('Save 2 changes')
+    expect(pending.changes?.map((change) => change.title)).toEqual(['Save mood', 'Check off a habit'])
+    expect(pending.lines).toEqual(['Save mood', 'Good for today', 'Check off a habit', 'Reading for today'])
+    const saved = await events(await handle(request('/v1/assistant/confirm', { method: 'POST', body: confirmBody(pending.chatId, pending.callId, true) }), env))
+    expect(find(saved, 'trail').map((event) => event.line)).toEqual(['Saved Good mood for today', 'Checked off Reading for today'])
+    const resumed = sentMessages(fetchMock, 1).filter((message) => message.role === 'tool').map((message) => (message as { tool_call_id: string }).tool_call_id)
+    expect(resumed).toEqual(['call_a', 'call_b'])
+  })
+
+  it('sends an image to the model once and keeps only a note when nothing logs it', async () => {
     const env = await environment()
     const fetchMock = vi.fn().mockResolvedValueOnce(text('I see a Publix receipt for $42.00.'))
     vi.stubGlobal('fetch', fetchMock)
     const list = await events(await handle(request('/v1/assistant/turns', {
       method: 'POST', body: turnBody({ text: '', image: { base64: 'aGVsbG8=', mimeType: 'image/jpeg' } })
     }), env))
-    expect(find(list, 'chat')[0].chat.title).toBe('Receipt')
+    expect(find(list, 'chat')[0].chat.title).toBe('Photo')
     expect(find(list, 'message')[0].message).toMatchObject({ role: 'user', text: '', hasImage: true })
     const sent = sentMessages(fetchMock, 0)
     expect(JSON.stringify(sent.at(-1))).toContain('data:image/jpeg;base64,aGVsbG8=')
     const stored = await env.DB.prepare(`SELECT payload FROM assistant_messages WHERE role = 'user'`).first<{ payload: string }>()
     expect(stored?.payload).not.toContain('base64,aGVsbG8=')
-    expect(stored?.payload).toContain('receipt image')
+    expect(stored?.payload).toContain('attached an image')
+  })
+
+  it('keeps a meal photo for the entry that asks for it, and deletes it on Undo', async () => {
+    const { bucket, objects } = createTestBucket()
+    const env = await environment({ DIARY_MEDIA: bucket })
+    const meal = {
+      name: 'Chicken bowl', date: TODAY, time: '12:30', serving: '1 bowl', calories: 640, protein: 45, carbs: 60, fat: 22, usePhoto: true
+    }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(toolCall('call_f', 'log_food', { entries: [meal] }))
+      .mockResolvedValueOnce(text('Logged your lunch.'))
+      .mockResolvedValueOnce(toolCall('call_f2', 'log_food', { entries: [meal] }))
+    vi.stubGlobal('fetch', fetchMock)
+    const image = { base64: 'aGVsbG8=', mimeType: 'image/jpeg' }
+    const list = await events(await handle(request('/v1/assistant/turns', { method: 'POST', body: turnBody({ text: 'lunch', image }) }), env))
+    const pending = find(list, 'pending')[0].pending
+    expect(pending.changes?.[0]).toEqual({
+      toolName: 'log_food', title: 'Log food', lines: ['Chicken bowl: 640 kcal · P 45 · C 60 · F 22 · 12:30 PM']
+    })
+    expect([...objects.keys()]).toHaveLength(1)
+    await events(await handle(request('/v1/assistant/confirm', { method: 'POST', body: confirmBody(pending.chatId, pending.callId, true) }), env))
+    const entry = await env.DB.prepare('SELECT name, date, eaten_at, calories, source, photo FROM food_entries').first<Record<string, unknown>>()
+    const mediaId = [...objects.keys()][0].replace('food/', '')
+    expect(entry).toMatchObject({ name: 'Chicken bowl', date: TODAY, eaten_at: '2026-09-12T16:30:00.000Z', calories: 640, source: 'assistant' })
+    expect(JSON.parse(String(entry?.photo))).toEqual({ mediaId, previewId: null, width: null, height: null })
+
+    const second = await events(await handle(request('/v1/assistant/turns', {
+      method: 'POST', body: turnBody({ chatId: pending.chatId, text: 'again', image })
+    }), env))
+    const next = find(second, 'pending')[0].pending
+    expect(objects.size).toBe(2)
+    await events(await handle(request('/v1/assistant/confirm', { method: 'POST', body: confirmBody(next.chatId, next.callId, false) }), env))
+    expect(objects.size).toBe(1)
+    expect((await env.DB.prepare('SELECT COUNT(*) AS count FROM food_entries').first<{ count: number }>())?.count).toBe(1)
+  })
+
+  it('puts the groceries on a receipt in the fridge, linked to the purchase', async () => {
+    const env = await environment()
+    const receipt = {
+      ...transaction,
+      receipt: {
+        merchant: 'Publix', purchaseDate: TODAY, subtotalCents: 4200, discountCents: 0, taxCents: 0, feesCents: 0, totalCents: 4200,
+        items: [
+          { name: 'PUB WHL MLK GAL', quantity: 1, unitPriceCents: 450, grossPriceCents: 450, discountCents: 0, lineTotalCents: 450 },
+          { name: 'PAPER TOWEL 6PK', quantity: 1, unitPriceCents: 3750, grossPriceCents: 3750, discountCents: 0, lineTotalCents: 3750 }
+        ]
+      },
+      fridgeItems: [{ name: 'Whole milk', icon: '🥛', brand: 'Publix' }]
+    }
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(toolCall('call_p', 'record_transactions', { transactions: [receipt] }))
+      .mockResolvedValueOnce(text('Recorded.'))
+    vi.stubGlobal('fetch', fetchMock)
+    const list = await events(await handle(request('/v1/assistant/turns', { method: 'POST', body: turnBody({ text: 'receipt' }) }), env))
+    const pending = find(list, 'pending')[0].pending
+    expect(pending.lines).toEqual(['−$42.00 Publix · Food · Checking · today · 2 items', 'Fridge: Whole milk'])
+    const saved = await events(await handle(request('/v1/assistant/confirm', { method: 'POST', body: confirmBody(pending.chatId, pending.callId, true) }), env))
+    expect(find(saved, 'trail').map((event) => event.line)).toEqual(['Recorded $42.00 Publix and put 1 item in the fridge'])
+    const purchase = await env.DB.prepare('SELECT id FROM purchases').first<{ id: string }>()
+    const fridge = await env.DB.prepare('SELECT name, icon, brand, source, purchase_id FROM fridge_items').all<Record<string, unknown>>()
+    expect(fridge.results).toEqual([{ name: 'Whole milk', icon: '🥛', brand: 'Publix', source: 'receipt', purchase_id: purchase?.id }])
   })
 })
 

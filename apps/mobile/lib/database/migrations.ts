@@ -452,6 +452,54 @@ export const LOCAL_MIGRATIONS: readonly string[][] = [
       deleted_at TEXT
     )`,
     'CREATE INDEX IF NOT EXISTS idx_local_task_goals_position ON task_goals(position) WHERE deleted_at IS NULL'
+  ],
+  [
+    `CREATE TABLE IF NOT EXISTS food_entries (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      date TEXT NOT NULL,
+      eaten_at TEXT NOT NULL,
+      serving TEXT NOT NULL DEFAULT '',
+      calories REAL NOT NULL,
+      protein REAL NOT NULL,
+      carbs REAL NOT NULL,
+      fat REAL NOT NULL,
+      parts TEXT NOT NULL DEFAULT '[]',
+      source TEXT NOT NULL,
+      barcode TEXT,
+      photo TEXT,
+      note TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1,
+      deleted_at TEXT
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_local_food_entries_date ON food_entries(date, eaten_at) WHERE deleted_at IS NULL',
+    `CREATE TABLE IF NOT EXISTS fridge_items (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      icon TEXT NOT NULL DEFAULT '',
+      brand TEXT,
+      barcode TEXT,
+      source TEXT NOT NULL,
+      purchase_id TEXT,
+      added_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1,
+      deleted_at TEXT
+    )`,
+    `CREATE TABLE IF NOT EXISTS food_goals (
+      id TEXT PRIMARY KEY,
+      calories REAL,
+      protein REAL,
+      carbs REAL,
+      fat REAL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1,
+      deleted_at TEXT
+    )`
   ]
 ]
 

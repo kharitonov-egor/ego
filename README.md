@@ -18,22 +18,30 @@ log and disappear from Electron when the session closes.
 The AI tile on the phone's start screen is a text chat with an assistant that reads and writes the
 other apps' data. Ask "what was my mood yesterday" or "max bench press in the past month" and it
 calls the matching read tool, then answers with the number. Tell it "Publix $42 and gas $30",
-"bench 3x8 at 185", "mood 4 today", or "I read today" and it records that.
+"bench 3x8 at 185", "mood 4 today", "I read today", or "two eggs and toast for breakfast" and it
+records that.
 
-- Money writes stop on a Confirm card listing every transaction the message named, with account,
-  category, and date. Nothing is saved until you tap Confirm. Typing a new message drops the card.
-- Mood, habit, gym, study, and task card writes apply at once. The reply carries an Undo line for
-  each. "Add call the landlord to To Do for Friday 5pm" adds a card; "mark pay rent done" or "what's
-  due this week" works on the boards.
+- Every write waits on a card that lists what is about to be saved, with account, category, date,
+  sets, or calories in place of IDs. A bar runs down for three seconds and then the card saves. Undo
+  stops it before then; after that nothing can be taken back. Sending another message, switching
+  chats, or leaving the tile saves the card too. When one message asks for several things, they all
+  go on the same card. A photo of a meal is logged in the reply to that message, since a photo
+  cannot be attached later.
+- "Add call the landlord to To Do for Friday 5pm" adds a card; "mark pay rent done" or "what's due
+  this week" works on the boards. "How much protein today?" and "what's in my fridge?" read Food.
 - Under each reply, a short trail says what was read or changed, like "Read mood for yesterday".
-- The paperclip attaches a receipt photo from the camera, the gallery, or the clipboard. Ego sends
-  it to the model once and keeps only a note that an image was attached.
+- The paperclip attaches a photo from the camera, the gallery, or the clipboard: a receipt, a meal,
+  or groceries. Ego sends it to the model once. It keeps the photo only when the model logs it as a
+  meal, so the Food log can show it. A receipt or a grocery photo leaves only a note that an image
+  was attached.
 - Chats are separate. The list icon opens earlier chats or starts a new one; the tile opens the
   latest. The diary is out of reach: the assistant has no tool for it.
 
 The Worker runs the loop. It holds the OpenRouter key, builds the system prompt from the accounts,
-categories, habits, exercises, and task boards in D1, runs each tool against D1, and streams the reply back
-while the model writes it. The default model is `openai/gpt-6-sol`; set `ASSISTANT_MODEL` on the
+categories, habits, exercises, task boards, and food targets in D1, runs each read against D1, and
+streams the reply back while the model writes it. Writes wait in `assistant_tool_calls` until the
+card saves; the Worker claims each one before it runs, so the phone's timer and a new message
+arriving together cannot save the same write twice. The default model is `openai/gpt-6-sol`; set `ASSISTANT_MODEL` on the
 Worker to change it. Arguments are checked against each tool's schema before anything runs, tool
 results are marked untrusted in the prompt, and a turn stops after eight model calls. Chats,
 messages, and tool calls live in `assistant_chats`, `assistant_messages`, and
@@ -52,7 +60,8 @@ The Money sidebar has six views:
 - Overview reports balance changes, cash flow, monthly totals, averages, and top categories.
 
 On the phone, typed purchases and receipt photos go through the AI tile: "Publix $42 and gas $30"
-becomes one Confirm card with both transactions, and an itemized receipt keeps its purchase rows.
+becomes one card with both transactions, and an itemized receipt keeps its purchase rows. A grocery
+receipt also puts the food on it in the Food app's fridge, under plain names like "Whole milk".
 Desktop still accepts Ctrl+V, drag and drop, and file selection for one-shot transaction image
 analysis, and still reads its OpenRouter key from its own Settings.
 
@@ -300,6 +309,48 @@ Sheets uses the same local database, outbox, and change log as the other apps, a
 `sheetRow`. A sheet is one record holding its columns, options, row types, and view. A row is one
 record with its cells keyed by column ID, so an edit on another device asks Keep mine or Use saved
 version, the same as Tasks. Changing a column's type rewrites only the rows whose values convert.
+
+## Food
+
+The Food tile has two tabs: Log, for what you ate, and Fridge, for the food you have at home.
+
+- Log lists every entry grouped by day, newest first: today at the top, yesterday under it, and so
+  on as you scroll. Each day's header has its calories. Each entry shows the time, the serving,
+  calories, and protein, carbs, and fat. The Pictures checkbox at the top shows or hides the photo
+  beside each entry.
+- The card at the top compares today with the daily targets for calories, protein, carbs, and fat.
+  Tap it, or the target icon, to set them. An empty box means no target for that number.
+- The camera button takes a photo of a plate or a nutrition label. The plus also chooses a photo
+  from the gallery, scans a barcode, or takes a description like "a large bowl of pho". The model
+  reads the photo or the words and splits the meal into parts, each with its own numbers. On a
+  label it copies the label's serving and values.
+- A barcode is looked up in USDA FoodData Central and Open Food Facts. USDA's numbers come from the
+  label, so they win when both know the product; Open Food Facts usually has the plainer name. The
+  scanner keeps a still of the package as the entry's photo. When neither database knows a code,
+  the card offers a photo of the label instead.
+- Whatever gets read lands on a card that saves itself after three seconds, the same as the AI
+  tile's. Undo throws it away. Tapping the card holds the timer and opens the editor, where the
+  name, day, time, serving, and numbers can change before it saves. Any entry in the log opens the
+  same editor later, with Delete. A card saves even if you leave Food before the bar runs out.
+- An entry whose photo the server refuses stays on the phone and says so in the list. Its editor
+  has Try again.
+- Fridge lists items with their brand, when they were added, and where they came from. Add them
+  with a barcode, a photo of groceries or a shelf, a typed name, or a grocery receipt sent to the
+  AI tile. A photo turns into a list of items; tapping its card drops the ones the model got wrong.
+  The check on a row marks an item used up. It leaves the list after three seconds unless you tap
+  Undo. Logging a meal does not touch the fridge.
+- The AI tile reads and writes both: "log my lunch" with a photo, "how much protein today", "what's
+  in my fridge", or "we're out of milk".
+
+Entries, fridge items, and the targets use the same local database, outbox, and change log as the
+other apps, as `foodEntry`, `fridgeItem`, and `foodGoal`, in `food_entries`, `fridge_items`, and
+`food_goals` in D1. An entry keeps its own totals and parts, so it never depends on a database that
+changes later. Photos go to R2 under `food/` through the same upload queue as the diary, with a
+480 px copy for the list, and an entry with a photo waits on the phone until both are up. The Worker
+calls OpenRouter for photos and descriptions (`POST /v1/food/analyze`) with a strict JSON schema,
+then adds the parts up itself rather than trusting the model's arithmetic. `FOOD_MODEL` picks the
+model and falls back to `ASSISTANT_MODEL`. Barcodes go through `GET /v1/food/products/:barcode`,
+which asks USDA only when `USDA_API_KEY` is set.
 
 ## Quick tools
 

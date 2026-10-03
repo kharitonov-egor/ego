@@ -1,12 +1,14 @@
 import {
-  isAccountInput, isBudgetInput, isCategoryInput, isDateString, isDiaryMessageInput, isGymCategoryInput,
-  isGymExerciseInput, isGymPlanInput, isGymSetInput, isGymWorkoutInput, isHabitEntryInput, isHabitInput, isMonthString,
-  isMoodInput, isPurchaseInput, isSheetInput, isSheetRowInput, isTaskBoardInput, isTaskCardInput, isTaskLabelInput,
-  isTaskListInput, isTaskGoalInput, isTransactionInput,
+  FOOD_GOAL_ID, isAccountInput, isBudgetInput, isCategoryInput, isDateString, isDiaryMessageInput, isFoodEntryInput,
+  isFoodGoalInput, isFridgeItemInput, isGymCategoryInput, isGymExerciseInput, isGymPlanInput, isGymSetInput,
+  isGymWorkoutInput, isHabitEntryInput, isHabitInput, isMonthString, isMoodInput, isPurchaseInput, isSheetInput,
+  isSheetRowInput, isTaskBoardInput, isTaskCardInput, isTaskGoalInput, isTaskLabelInput, isTaskListInput,
+  isTransactionInput,
   type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type DiaryMessageInput,
-  type GymCategoryInput, type GymExerciseInput, type GymPlanInput, type GymSetInput, type GymWorkoutInput,
-  type HabitEntryInput, type HabitInput, type MoodInput, type PurchaseInput, type SheetInput, type SheetRowInput,
-  type TaskBoardInput, type TaskCardInput, type TaskGoalInput, type TaskLabelInput, type TaskListInput, type TransactionInput
+  type FoodEntryInput, type FoodGoalInput, type FridgeItemInput, type GymCategoryInput, type GymExerciseInput,
+  type GymPlanInput, type GymSetInput, type GymWorkoutInput, type HabitEntryInput, type HabitInput, type MoodInput,
+  type PurchaseInput, type SheetInput, type SheetRowInput, type TaskBoardInput, type TaskCardInput, type TaskGoalInput,
+  type TaskLabelInput, type TaskListInput, type TransactionInput
 } from '@ego/core'
 import type { ApiError } from './errors'
 import type { SyncEntity } from './records'
@@ -70,6 +72,14 @@ export type SyncCommand =
   | { entity: 'sheetRow'; type: 'create'; payload: SheetRowInput }
   | { entity: 'sheetRow'; type: 'update'; payload: SheetRowInput }
   | { entity: 'sheetRow'; type: 'delete' }
+  | { entity: 'foodEntry'; type: 'create'; payload: FoodEntryInput }
+  | { entity: 'foodEntry'; type: 'update'; payload: FoodEntryInput }
+  | { entity: 'foodEntry'; type: 'delete' }
+  | { entity: 'fridgeItem'; type: 'create'; payload: FridgeItemInput }
+  | { entity: 'fridgeItem'; type: 'update'; payload: FridgeItemInput }
+  | { entity: 'fridgeItem'; type: 'delete' }
+  | { entity: 'foodGoal'; type: 'create'; payload: FoodGoalInput }
+  | { entity: 'foodGoal'; type: 'update'; payload: FoodGoalInput }
 
 /**
  * The device generates `operationId` and `entityId` once and reuses them on every retry,
@@ -184,6 +194,15 @@ function isCommand(value: unknown): value is SyncCommand {
     case 'sheetRow.create':
     case 'sheetRow.update':
       return isSheetRowInput(payload)
+    case 'foodEntry.create':
+    case 'foodEntry.update':
+      return isFoodEntryInput(payload)
+    case 'fridgeItem.create':
+    case 'fridgeItem.update':
+      return isFridgeItemInput(payload)
+    case 'foodGoal.create':
+    case 'foodGoal.update':
+      return isFoodGoalInput(payload)
     case 'transaction.delete':
     case 'purchase.delete':
     case 'budget.delete':
@@ -202,6 +221,8 @@ function isCommand(value: unknown): value is SyncCommand {
     case 'taskGoal.delete':
     case 'sheet.delete':
     case 'sheetRow.delete':
+    case 'foodEntry.delete':
+    case 'fridgeItem.delete':
       return payload === undefined
     default:
       return false
@@ -224,6 +245,7 @@ export function isSyncOperation(value: unknown): value is SyncOperation {
     (!isDateString(value.entityId) || value.command.payload.date !== value.entityId)) return false
   if (value.command.entity === 'mood' && (!isDateString(value.entityId) ||
     (value.command.type === 'save' && value.command.payload.date !== value.entityId))) return false
+  if (value.command.entity === 'foodGoal' && value.entityId !== FOOD_GOAL_ID) return false
   const type = value.command.type
   if (type === 'create' && value.expectedRevision !== null) return false
   if (type !== 'create' && type !== 'save' && value.expectedRevision === null) return false

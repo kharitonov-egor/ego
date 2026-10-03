@@ -13,7 +13,6 @@ export interface AssistantChatList {
   chats: AssistantChat[]
 }
 
-/** A change a reply made that can still be taken back. */
 export interface AssistantUndo {
   callId: string
   label: string
@@ -28,16 +27,28 @@ export interface AssistantMessage {
   createdAt: string
   /** What a reply read or changed, one short line each. */
   trail: string[]
-  /** The user attached a receipt image. Ego reads it once and does not keep it. */
+  /** The user attached an image. Ego sends it to the model once and keeps only a meal photo it logs. */
   hasImage: boolean
-  /** Changes this reply made that can still be taken back. */
+  /** Always empty. Writes can only be taken back before they save; builds before 0.6.0 still read this. */
   undo: AssistantUndo[]
 }
 
-/** A money write waiting on the Confirm card. */
+export interface AssistantPendingChange {
+  toolName: AssistantToolName
+  title: string
+  lines: string[]
+}
+
+/**
+ * Everything one reply asked to save. The phone shows it on a card that saves itself after a few
+ * seconds unless the user taps Undo. `callId` names the whole batch.
+ */
 export interface AssistantPendingWrite {
   callId: string
   chatId: string
+  /** Workers from before 0.6.0 leave this out. */
+  changes?: AssistantPendingChange[]
+  /** The first change's tool, and every change folded into one title and list, for builds before 0.6.0. */
   toolName: AssistantToolName
   title: string
   lines: string[]
@@ -59,8 +70,14 @@ export interface AssistantTurnRequest {
   today: string
   timeZone: string | null
   units: AssistantUnits | null
+  /**
+   * Builds from 0.6.0 send true: a card still counting down when the message arrives saves first.
+   * Older builds told the user that typing drops the card, so without it the card is dropped.
+   */
+  autoSave?: boolean
 }
 
+/** `approved` false is the Undo button: nothing in the batch is saved. */
 export interface AssistantConfirmRequest {
   chatId: string
   callId: string
@@ -68,15 +85,6 @@ export interface AssistantConfirmRequest {
   today: string
   timeZone: string | null
   units: AssistantUnits | null
-}
-
-export interface AssistantUndoRequest {
-  chatId: string
-  callId: string
-}
-
-export interface AssistantUndoResponse {
-  message: AssistantMessage
 }
 
 export interface AssistantHistory {

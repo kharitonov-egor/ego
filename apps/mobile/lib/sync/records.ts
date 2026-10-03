@@ -1,12 +1,16 @@
 import type {
-  AccountRecord, BudgetRecord, CategoryRecord, DiaryMessageRecord, GymCategoryRecord, GymExerciseRecord, GymPlanRecord,
-  GymSetRecord, GymWorkoutRecord, HabitEntryRecord, HabitRecord, MoodRecord, PurchaseRecord, SheetRecord, SheetRowRecord,
-  TaskBoardRecord, TaskCardRecord, TaskGoalRecord, TaskLabelRecord, TaskListRecord, TransactionRecord
+  AccountRecord, BudgetRecord, CategoryRecord, DiaryMessageRecord, FoodEntryRecord, FoodGoalRecord, FridgeItemRecord,
+  GymCategoryRecord, GymExerciseRecord, GymPlanRecord, GymSetRecord, GymWorkoutRecord, HabitEntryRecord, HabitRecord,
+  MoodRecord, PurchaseRecord, SheetRecord, SheetRowRecord, TaskBoardRecord, TaskCardRecord, TaskGoalRecord, TaskLabelRecord,
+  TaskListRecord, TransactionRecord
 } from '@ego/api-contracts'
-import type {
-  AccountInput, BudgetInput, CategoryInput, DiaryMessageInput, GymCategoryInput, GymExerciseInput, GymPlanInput,
-  GymSetInput, GymWorkoutInput, HabitEntryInput, HabitInput, MoodInput, PurchaseInput, ReceiptItem, SheetInput,
-  SheetRowInput, TaskBoardInput, TaskCardInput, TaskGoalInput, TaskLabelInput, TaskListInput, TransactionInput
+import {
+  FOOD_GOAL_ID,
+  type AccountInput, type BudgetInput, type CategoryInput, type DiaryMessageInput, type FoodEntryInput, type FoodGoalInput,
+  type FridgeItemInput, type GymCategoryInput, type GymExerciseInput, type GymPlanInput, type GymSetInput,
+  type GymWorkoutInput, type HabitEntryInput, type HabitInput, type MoodInput, type PurchaseInput, type ReceiptItem,
+  type SheetInput, type SheetRowInput, type TaskBoardInput, type TaskCardInput, type TaskGoalInput, type TaskLabelInput,
+  type TaskListInput, type TransactionInput
 } from '@ego/core'
 
 /**
@@ -308,4 +312,23 @@ export function sheetRowRecordFrom(
   id: string, input: SheetRowInput, createdAt: string, updatedAt: string, revision: number
 ): SheetRowRecord {
   return { id, ...input, createdAt, updatedAt, revision }
+}
+
+export function foodEntryRecordFrom(
+  id: string, input: FoodEntryInput, createdAt: string, updatedAt: string, revision: number
+): FoodEntryRecord {
+  return { id, ...input, name: input.name.trim(), serving: input.serving.trim(), note: input.note.trim(), createdAt, updatedAt, revision }
+}
+
+export function fridgeItemRecordFrom(
+  id: string, input: FridgeItemInput, createdAt: string, updatedAt: string, revision: number
+): FridgeItemRecord {
+  return {
+    id, ...input, name: input.name.trim(), icon: input.icon.trim(), brand: input.brand?.trim() || null,
+    createdAt, updatedAt, revision
+  }
+}
+
+export function foodGoalRecordFrom(input: FoodGoalInput, createdAt: string, updatedAt: string, revision: number): FoodGoalRecord {
+  return { id: FOOD_GOAL_ID, ...input, createdAt, updatedAt, revision }
 }
