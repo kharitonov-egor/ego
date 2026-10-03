@@ -2,13 +2,13 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { AppState } from 'react-native'
 import * as SecureStore from 'expo-secure-store'
 import type { DateRange, MoneySnapshot, MoneyTransaction, PeriodPreset } from '@ego/core'
-import { isoToday } from './dates'
+import { isoToday } from '@ego/local/dates'
 import {
   canStepForward, isCurrentPeriod, isStepped, parseSavedPeriod, periodTitle, rangeForPeriod, relativePeriodName,
   stepAnchor, type SavedPeriod, type SteppedPeriod
-} from './periods'
+} from '@ego/local/periods'
 
-export { PERIOD_PRESETS, rangeForPeriod } from './periods'
+export { PERIOD_PRESETS, rangeForPeriod } from '@ego/local/periods'
 
 export function periodLabel(period: PeriodPreset, custom: DateRange, anchor: string = isoToday()): string {
   return periodTitle(period, anchor, custom)

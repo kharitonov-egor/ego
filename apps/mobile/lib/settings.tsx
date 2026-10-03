@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import * as SecureStore from 'expo-secure-store'
 import type { ListShortcut } from '@ego/core'
-import { normalizeApiUrl } from './api-client'
+import { normalizeApiUrl } from '@ego/local/api-client'
 
 export interface SignedInAccount {
   email: string | null

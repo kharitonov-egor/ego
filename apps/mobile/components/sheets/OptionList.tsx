@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Linking, Pressable, Text, TextInput, View } from 'react-native'
 import { Check, ExternalLink, Mail, MessageCircle, Phone, Plus } from 'lucide-react-native'
 import { SHEET_OPTION_NAME_LIMIT, type SheetColumn } from '@ego/core'
-import { linkUrl, phoneDigits } from '../../lib/sheets/view'
+import { linkUrl, phoneDigits } from '@ego/local/sheets/view'
 import { inputClass } from '../money/Common'
 import { OptionPill } from './ui'
 

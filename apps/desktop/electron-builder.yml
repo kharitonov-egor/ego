@@ -20,3 +20,7 @@ nsis:
   installerIcon: resources/app-icon.ico
   uninstallerIcon: resources/app-icon.ico
   installerHeaderIcon: resources/app-icon.ico
+protocols:
+  - name: Ego sign-in
+    schemes:
+      - ego

@@ -6,18 +6,18 @@ import {
   SAVE_DELAY_MS, foodDays, isFoodGoalInput, isFridgeItemInput,
   type FoodDay, type FoodEntryInput, type FoodGoalInput, type FridgeItemInput
 } from '@ego/core'
-import { isoToday } from '../dates'
+import { isoToday } from '@ego/local/dates'
 import { deleteLocalFiles } from '../diary/media'
-import { localMediaFiles, queueUploads, retryRecordUploads } from '../diary/uploads'
+import { localMediaFiles, queueUploads, retryRecordUploads } from '@ego/local/diary/uploads'
 import { useLedger, type LocalWrite } from '../ledger-context'
 import {
   createFridgeItem, deleteFoodEntry, deleteFridgeItem, newId, saveFoodEntry, saveFoodGoal
-} from '../sync/commands'
+} from '@ego/local/sync/commands'
 import {
   cleanEntry, entryFromMeal, entryFromProduct, fridgeItemFromProduct, fridgeItemsFrom
-} from './drafts'
+} from '@ego/local/food/drafts'
 import { discardPhoto, type PhotoPick, type PreparedPhoto } from './photo'
-import { failedFoodUploads, localFood, localFoodRevision, type FoodData } from './repository'
+import { failedFoodUploads, localFood, localFoodRevision, type FoodData } from '@ego/local/food/repository'
 
 const PICTURES_KEY = 'ego.food.pictures'
 const WRITE_ATTEMPTS = 4

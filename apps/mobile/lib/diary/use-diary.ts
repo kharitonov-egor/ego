@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { rebaseEntities, type DiaryMessageInput } from '@ego/core'
 import { useLedger, type LocalWrite } from '../ledger-context'
-import { createDiaryMessage, deleteDiaryMessage, newId, updateDiaryMessage } from '../sync/commands'
+import { createDiaryMessage, deleteDiaryMessage, newId, updateDiaryMessage } from '@ego/local/sync/commands'
 import { persistDraft, type DraftFile } from './compose'
 import { deleteLocalFiles } from './media'
-import { diaryInputOf, localDiaryMessages, localDiaryRevision, type LocalDiaryMessage } from './repository'
-import { localMediaFiles, queueUploads, retryMessageUploads, type QueuedUpload } from './uploads'
+import { diaryInputOf, localDiaryMessages, localDiaryRevision, type LocalDiaryMessage } from '@ego/local/diary/repository'
+import { localMediaFiles, queueUploads, retryMessageUploads, type QueuedUpload } from '@ego/local/diary/uploads'
 
 export interface DiaryDraft {
   text: string

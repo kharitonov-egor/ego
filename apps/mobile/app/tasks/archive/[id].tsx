@@ -8,7 +8,7 @@ import { color } from '../../../components/money/tokens'
 import { CardFace, TasksError, TasksGate } from '../../../components/tasks/ui'
 import { SegmentedControl } from '../../../components/ui/segmented-control'
 import { Blurred } from '../../../lib/blur'
-import { boardLabels } from '../../../lib/tasks/board'
+import { boardLabels } from '@ego/local/tasks/board'
 import { useTasks } from '../../../lib/tasks/context'
 
 type Target = { kind: 'card'; card: TaskCardRecord } | { kind: 'list'; list: TaskListRecord }

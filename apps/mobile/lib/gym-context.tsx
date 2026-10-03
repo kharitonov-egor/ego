@@ -3,18 +3,18 @@ import {
   GYM_LIBRARY_CATEGORIES, GYM_LIBRARY_EXERCISES, addPlan,
   type GymArrangement, type GymCategoryInput, type GymExerciseInput, type GymPlanInput, type GymSetInput
 } from '@ego/core'
-import { isoToday } from './dates'
-import type { LocalDatabase } from './database/types'
+import { isoToday } from '@ego/local/dates'
+import type { LocalDatabase } from '@ego/local/database/types'
 import { useLedger, type LocalWrite } from './ledger-context'
 import {
   gymCategories, gymDay, gymExercises, gymPlans, gymRevision, gymWorkout, nextSetPosition,
   type GymCategoryView, type GymExerciseView, type GymPlanView
-} from './repositories/gym'
+} from '@ego/local/repositories/gym'
 import {
   createGymCategory, createGymExercise, createGymPlan, createGymSet, deleteGymCategory, deleteGymExercise,
   deleteGymPlan, deleteGymSet, newId, saveGymWorkout, updateGymCategory, updateGymExercise, updateGymPlan,
   updateGymSet
-} from './sync/commands'
+} from '@ego/local/sync/commands'
 
 interface GymContextValue {
   /** The local copy holds a complete download. */

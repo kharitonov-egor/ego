@@ -13,9 +13,9 @@ import { HealthGate, HealthSettingsSheet, MetricTile, ReadinessCard, SyncStatus 
 import { CalendarDialog } from '../../components/money/DatePicker'
 import { color } from '../../components/money/tokens'
 import { Text } from '../../components/ui/text'
-import { formatIso, shiftIso } from '../../lib/dates'
+import { formatIso, shiftIso } from '@ego/local/dates'
 import { useHealth } from '../../lib/health/context'
-import { latestValue, mainSleep, metricValue, weekZoneMinutes, type HealthMetric } from '../../lib/health/metrics'
+import { latestValue, mainSleep, metricValue, weekZoneMinutes, type HealthMetric } from '@ego/local/health/metrics'
 
 const CONNECT_ERRORS: Record<string, string> = {
   cancelled: 'Google Health was not connected. Nothing changed.',

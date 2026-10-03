@@ -5,7 +5,7 @@ import { CalendarCheck, Circle, CircleCheck } from 'lucide-react-native'
 import type { TaskCardRecord } from '@ego/api-contracts'
 import { DueChip, PriorityIcon, TasksError, TasksGate, TasksHeaderRight, TasksMessage } from '../../../components/tasks/ui'
 import { Blurred } from '../../../lib/blur'
-import { UPCOMING_TITLES, dueBadge, upcomingSections } from '../../../lib/tasks/board'
+import { UPCOMING_TITLES, dueBadge, upcomingSections } from '@ego/local/tasks/board'
 import { useTasks } from '../../../lib/tasks/context'
 
 function Row({ card }: { card: TaskCardRecord }): React.ReactElement {

@@ -6,10 +6,10 @@ import { MonthCalendar } from '../../components/habits/MonthCalendar'
 import { HabitIcon, HabitsError, HabitsGate, HabitsMessage, StatTile, plural } from '../../components/habits/ui'
 import { PeriodSwipe } from '../../components/money/PeriodSwipe'
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card'
-import { formatMonth, shiftMonth } from '../../lib/dates'
+import { formatMonth, shiftMonth } from '@ego/local/dates'
 import { useHabits } from '../../lib/habits/context'
 import { BlurBlob, BlurSpan, Blurred, useBlur } from '../../lib/blur'
-import { habitRates, monthSummary, streaks } from '../../lib/habits/stats'
+import { habitRates, monthSummary, streaks } from '@ego/local/habits/stats'
 
 function percent(done: number, possible: number): number {
   return possible === 0 ? 0 : Math.round((done / possible) * 100)

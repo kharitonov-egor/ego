@@ -1,15 +1,30 @@
+import { execFileSync } from 'child_process'
+import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 
+const { version } = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf8')) as { version: string }
+
+function commitHash(): string {
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim().slice(0, 8)
+  } catch {
+    return 'unknown'
+  }
+}
+
+// Resolve the workspace sources so development never depends on a stale dist folder.
+const workspaceSources = [
+  { find: '@ego/core', replacement: resolve(__dirname, '../../packages/core/src/index.ts') },
+  { find: /^@ego\/local\/(.*)$/, replacement: resolve(__dirname, '../../packages/local/src/$1') }
+]
+
 export default defineConfig({
   main: {
-    // Resolve the workspace source so development never depends on a stale core dist folder.
-    plugins: [externalizeDepsPlugin({ exclude: ['@ego/core'] })],
+    plugins: [externalizeDepsPlugin({ exclude: ['@ego/core', '@ego/local'] })],
     resolve: {
-      alias: {
-        '@ego/core': resolve(__dirname, '../../packages/core/src/index.ts')
-      }
+      alias: workspaceSources
     },
     envPrefix: ['MAIN_VITE_']
   },
@@ -18,11 +33,15 @@ export default defineConfig({
   },
   renderer: {
     envPrefix: ['RENDERER_VITE_', 'VITE_'],
+    define: {
+      __EGO_VERSION__: JSON.stringify(version),
+      __EGO_COMMIT__: JSON.stringify(commitHash())
+    },
     resolve: {
-      alias: {
-        '@': resolve('src/renderer'),
-        '@ego/core': resolve(__dirname, '../../packages/core/src/index.ts')
-      }
+      alias: [
+        { find: '@', replacement: resolve('src/renderer') },
+        ...workspaceSources
+      ]
     },
     plugins: [react()],
     css: {

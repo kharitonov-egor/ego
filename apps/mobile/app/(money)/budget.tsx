@@ -7,8 +7,8 @@ import {
   type BudgetInput, type CategoryBudgetStatus, type MoneySnapshot
 } from '@ego/core'
 import { useMoney, useMoneyQuery } from '../../lib/money-context'
-import { localSnapshot } from '../../lib/repositories/snapshot'
-import { formatMonth, isoToday, shiftMonth } from '../../lib/dates'
+import { localSnapshot } from '@ego/local/repositories/snapshot'
+import { formatMonth, isoToday, shiftMonth } from '@ego/local/dates'
 import { AmountSheet } from '../../components/money/AmountSheet'
 import { PeriodSwipe } from '../../components/money/PeriodSwipe'
 import { usePeriod } from '../../lib/period-context'

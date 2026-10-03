@@ -13,7 +13,7 @@ import { PickerSheet } from '../../components/gym/sheets'
 import { Dot, GymGate, HeaderIcon, MenuSheet, SectionLabel, type MenuItem } from '../../components/gym/ui'
 import { Button } from '../../components/ui/button'
 import { Text } from '../../components/ui/text'
-import { exerciseCountLabel, planNameProblem } from '../../lib/gym/plans'
+import { exerciseCountLabel, planNameProblem } from '@ego/local/gym/plans'
 import { useGym } from '../../lib/gym-context'
 import { moveItem } from '../../lib/utils'
 

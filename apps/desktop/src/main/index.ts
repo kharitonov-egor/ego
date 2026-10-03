@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Tray, Menu, net, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Notification, Tray, Menu, net, shell } from 'electron'
 import { join } from 'path'
 import { exec } from 'child_process'
 import { readdirSync } from 'fs'
@@ -17,7 +17,6 @@ import {
   getTrelloBoardId,
   getTrelloListId,
   getTrelloToken,
-  setLedgerConfig,
   setLivePreferences,
   setQuickAddHotkey as saveQuickAddHotkey,
   setQuickAddListShortcuts as saveQuickAddListShortcuts,
@@ -36,6 +35,7 @@ import { money } from './money'
 import { isLedgerConfigured, ledgerMoney } from './moneyLedger'
 import { analyzeTransactionImage, budgetBreachMessage, budgetBreaches, isLivePreferences, type MoneyResult, type MoneySnapshot } from '@ego/core'
 import type { DesktopTransactionImageInput, LivePreferences, QuickAddListShortcut, TransactionImageSettingsInput } from '../shared/types'
+import type { NotifyInput } from '../shared/local'
 import {
   connectorStatus,
   createLiveSession,
@@ -45,6 +45,10 @@ import {
   startWisprConnector
 } from './live'
 import { setupToolPaletteIpc, showToolPalette } from './toolPalette'
+import { setupLocalIpc } from './local/ipc'
+import { ledgerApi, ledgerDatabase, onLedgerEvent, onMediaProgress, startLedger, stopLedger } from './local/ledger'
+import { handleMediaRequests, registerMediaScheme } from './local/media'
+import { finishGoogleSignIn, registerSignInLinks, signInLinkIn } from './local/signIn'
 
 async function withBudgetAlerts(request: Promise<MoneyResult<MoneySnapshot>>): Promise<MoneyResult<MoneySnapshot>> {
   const before = getMoneyCache()
@@ -57,7 +61,6 @@ async function withBudgetAlerts(request: Promise<MoneyResult<MoneySnapshot>>): P
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
-const MAIN_WINDOW_ZOOM = 1.25
 const PACKAGED_RENDERER_ENTRY = join(__dirname, '../renderer/index.html')
 
 function requestLiveSessionStop(): void {
@@ -68,14 +71,14 @@ function requestLiveSessionStop(): void {
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
-    width: 1100,
-    height: 760,
-    minWidth: 800,
+    width: 1180,
+    height: 800,
+    minWidth: 860,
     minHeight: 600,
     frame: false,
     show: false,
     resizable: true,
-    backgroundColor: '#0a0e1a',
+    backgroundColor: '#0a0a0a',
     icon: getAppIconPath(),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -83,15 +86,11 @@ function createWindow(): void {
     }
   })
 
-  mainWindow.webContents.setZoomFactor(MAIN_WINDOW_ZOOM)
-  mainWindow.webContents.on('did-finish-load', () =>
-    mainWindow?.webContents.setZoomFactor(MAIN_WINDOW_ZOOM)
-  )
-
   mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback, details) => {
     const mediaTypes = 'mediaTypes' in details ? details.mediaTypes ?? [] : []
     const microphoneOnly = permission === 'media' && mediaTypes.includes('audio') && !mediaTypes.includes('video')
-    callback(Boolean(mainWindow && !mainWindow.isDestroyed() && webContents.id === mainWindow.webContents.id && microphoneOnly))
+    const allowed = microphoneOnly || permission === 'clipboard-sanitized-write'
+    callback(Boolean(mainWindow && !mainWindow.isDestroyed() && webContents.id === mainWindow.webContents.id && allowed))
   })
 
   mainWindow.on('close', (e) => {
@@ -101,19 +100,72 @@ function createWindow(): void {
   })
   mainWindow.on('hide', requestLiveSessionStop)
 
+  const abandonTransactions = (): void => {
+    void ledgerDatabase().then((database) => database?.abandonRendererTransactions())
+  }
+  mainWindow.webContents.on('did-start-navigation', (details) => {
+    if (details.isMainFrame && !details.isSameDocument) abandonTransactions()
+  })
+  mainWindow.webContents.on('render-process-gone', abandonTransactions)
+
   if (process.env.ELECTRON_RENDERER_URL) {
     mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {
     mainWindow.loadFile(PACKAGED_RENDERER_ENTRY)
   }
+
+  // The window holds the whole IPC bridge, so it never leaves Ego's own pages. Web links open in the browser.
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const page = (address: string): string => address.split('#')[0]
+    // Every file: URL shares the origin "null", so only a reload of the same page may pass.
+    if (page(url) !== page(mainWindow?.webContents.getURL() || url)) event.preventDefault()
+  })
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:\/\//.test(url)) void shell.openExternal(url)
+    return { action: 'deny' }
+  })
 }
 
-function showSettings(): void {
+function showMainWindow(): void {
   if (!mainWindow || mainWindow.isDestroyed()) {
     createWindow()
   }
   mainWindow!.show()
   mainWindow!.focus()
+}
+
+function isNotifyInput(value: unknown): value is NotifyInput {
+  if (typeof value !== 'object' || value === null) return false
+  const input = value as Record<string, unknown>
+  return typeof input.title === 'string' && typeof input.body === 'string' &&
+    (input.route === undefined || (typeof input.route === 'string' && input.route.startsWith('/'))) &&
+    (input.silent === undefined || typeof input.silent === 'boolean')
+}
+
+/** Screens keep running while the window hides in the tray, so their reminders arrive through here. */
+/** Held until dismissed, so a notification is not collected before its click arrives. */
+const shownNotifications = new Set<Notification>()
+
+function notify(input: NotifyInput): void {
+  if (!Notification.isSupported()) return
+  const notification = new Notification({ title: input.title, body: input.body, icon: getAppIconPath(), silent: input.silent })
+  shownNotifications.add(notification)
+  const forget = (): void => { shownNotifications.delete(notification) }
+  notification.on('click', () => {
+    forget()
+    showMainWindow()
+    if (input.route) mainWindow?.webContents.send('navigate', input.route)
+  })
+  notification.on('close', forget)
+  notification.on('failed', forget)
+  notification.show()
+}
+
+/** Google sends the browser back to ego://auth, and Windows starts a second Ego with that link. */
+async function handleSignInLink(link: string): Promise<void> {
+  showMainWindow()
+  const outcome = await finishGoogleSignIn(link)
+  mainWindow?.webContents.send('sign-in-finished', outcome)
 }
 
 function createTray(): void {
@@ -123,7 +175,7 @@ function createTray(): void {
     Menu.buildFromTemplate([
       { label: 'Quick add card', click: showQuickAddWindow },
       { label: 'Quick tools', click: showToolPalette },
-      { label: 'Open settings', click: showSettings },
+      { label: 'Open Ego', click: showMainWindow },
       { type: 'separator' },
       {
         label: 'Quit',
@@ -136,7 +188,7 @@ function createTray(): void {
     ])
   )
 
-  tray.on('double-click', showSettings)
+  tray.on('double-click', showMainWindow)
 }
 
 function registerQuickAddHotkey(): void {
@@ -167,10 +219,6 @@ function setupIpcHandlers(): void {
   /** The Worker owns the database once it is configured; the direct D1 path stays for rollback. */
   const ledger = (): typeof money | typeof ledgerMoney => isLedgerConfigured() ? ledgerMoney : money
   ipcMain.handle('money-get-ledger-config', () => getLedgerConfig())
-  ipcMain.handle('money-set-ledger-config', (_event, input) => {
-    setLedgerConfig(input)
-    return ledgerMoney.testConnection()
-  })
   ipcMain.handle('live-create-session', (event, sdp: string) => {
     if (!mainWindow || mainWindow.isDestroyed() || event.sender.id !== mainWindow.webContents.id) {
       return { ok: false, code: 'NOT_ALLOWED', message: 'Voice calls can only start from the main Ego window.' }
@@ -191,9 +239,6 @@ function setupIpcHandlers(): void {
   ipcMain.handle('live-set-preferences', (_event, preferences: LivePreferences) => {
     return isLivePreferences(preferences) ? setLivePreferences(preferences) : getLivePreferences()
   })
-  ipcMain.handle('money-get-sync-status', () => money.getSyncStatus())
-  ipcMain.handle('money-set-sync-config', (_event, input) => money.setSyncConfig(input))
-  ipcMain.handle('money-test-connection', () => ledger().testConnection())
   ipcMain.handle('money-get-snapshot', () => ledger().getSnapshot())
   ipcMain.handle('money-create-account', (_event, input) => ledger().createAccount(input))
   ipcMain.handle('money-update-account', (_event, id, input) => ledger().updateAccount(id, input))
@@ -283,7 +328,17 @@ function setupIpcHandlers(): void {
     (_event, shortcuts: QuickAddListShortcut[]) => saveQuickAddListShortcuts(shortcuts)
   )
 
-  ipcMain.handle('open-external-url', (_event, url: string) => shell.openExternal(url))
+  ipcMain.handle('open-external-url', (_event, url: unknown) => {
+    if (typeof url !== 'string') return
+    let protocol: string
+    try {
+      protocol = new URL(url).protocol
+    } catch {
+      return
+    }
+    // A link typed into a sheet or a card syncs from other devices, so only these schemes leave Ego.
+    if (['https:', 'http:', 'mailto:', 'tel:', 'sms:'].includes(protocol)) return shell.openExternal(url)
+  })
 
   ipcMain.handle('build-and-install', async () => {
     if (app.isPackaged) return { success: false, error: 'Cannot build in production' }
@@ -316,6 +371,10 @@ function setupIpcHandlers(): void {
     }
   })
 
+  ipcMain.on('notify', (event, input: unknown) => {
+    if (mainWindow && !mainWindow.isDestroyed() && event.sender.id === mainWindow.webContents.id && isNotifyInput(input)) notify(input)
+  })
+
   ipcMain.on('window-minimize', () => mainWindow?.minimize())
   ipcMain.on('window-maximize', () => {
     if (mainWindow?.isMaximized()) {
@@ -335,10 +394,20 @@ const gotSingleInstanceLock = app.requestSingleInstanceLock()
 if (!gotSingleInstanceLock) {
   app.quit()
 } else {
-  app.on('second-instance', showSettings)
+  registerSignInLinks()
+  registerMediaScheme()
+  // Windows matches toasts to the installer's Start menu shortcut by this ID; a dev run has no shortcut.
+  if (process.platform === 'win32') app.setAppUserModelId(app.isPackaged ? 'com.kharitonovegor.ego' : process.execPath)
+
+  app.on('second-instance', (_event, argv) => {
+    const link = signInLinkIn(argv)
+    if (link) void handleSignInLink(link)
+    else showMainWindow()
+  })
 
   app.whenReady().then(() => {
     setupIpcHandlers()
+    setupLocalIpc((sender) => Boolean(mainWindow && !mainWindow.isDestroyed() && sender.id === mainWindow.webContents.id))
     setupQuickAddIpc()
     setupToolPaletteIpc()
     createTray()
@@ -346,11 +415,22 @@ if (!gotSingleInstanceLock) {
     registerQuickAddHotkey()
     registerToolPaletteHotkey()
     startT3Watcher()
+    handleMediaRequests({ database: async () => (await ledgerDatabase())?.local ?? null, api: ledgerApi })
+    onLedgerEvent((event) => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('ledger-event', event)
+    })
+    onMediaProgress((progress) => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('media-progress', progress)
+    })
+    startLedger()
+    const link = signInLinkIn(process.argv)
+    if (link) void handleSignInLink(link)
   })
 
   app.on('will-quit', () => {
     requestLiveSessionStop()
     unregisterAll()
+    void stopLedger()
   })
 
   // Subscribing at all suppresses Electron's default quit-on-last-window-closed.

@@ -3,10 +3,10 @@ import { AppState } from 'react-native'
 import * as SecureStore from 'expo-secure-store'
 import type { ApiError } from '@ego/api-contracts'
 import { useLedger } from '../ledger-context'
-import type { LocalDatabase } from '../database/types'
+import type { LocalDatabase } from '@ego/local/database/types'
 import {
   cachedStudy, deliverStudyMarks, markStudyItem, refreshStudy, type StudyItem
-} from './store'
+} from '@ego/local/study/store'
 
 const STALE_AFTER_MS = 5 * 60 * 1000
 const HIDE_OVERDUE_KEY = 'ego.study.hideOverdue'

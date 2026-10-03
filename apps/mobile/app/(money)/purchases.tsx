@@ -10,10 +10,10 @@ import { Blurred } from '../../lib/blur'
 import { Button } from '../../components/ui/button'
 import { Card } from '../../components/ui/card'
 import { Text } from '../../components/ui/text'
-import { formatIso } from '../../lib/dates'
+import { formatIso } from '@ego/local/dates'
 import { useLedger } from '../../lib/ledger-context'
 import { useMoney } from '../../lib/money-context'
-import type { LocalFeedTransaction, LocalPurchaseHeader } from '../../lib/repositories/transactions'
+import type { LocalFeedTransaction, LocalPurchaseHeader } from '@ego/local/repositories/transactions'
 
 const PAGE_SIZE = 50
 

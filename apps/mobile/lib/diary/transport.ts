@@ -3,9 +3,9 @@ import {
   DIARY_PART_SIZE, DIARY_SINGLE_UPLOAD_LIMIT,
   type ApiResult, type DiaryMediaInfo, type DiaryMultipartPart
 } from '@ego/api-contracts'
-import { resultFrom, type DiaryMediaApi } from '../api-client'
+import { resultFrom, type DiaryMediaApi } from '@ego/local/api-client'
 import { reportUploadProgress } from './progress'
-import type { PendingUpload, UploadTransport } from './uploads'
+import type { PendingUpload, UploadTransport } from '@ego/local/diary/uploads'
 
 const OFFLINE: ApiResult<never> = { ok: false, error: { code: 'OFFLINE', message: 'The Ego server is unreachable' } }
 

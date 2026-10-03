@@ -6,7 +6,7 @@ path, because the Worker reaches D1 through its binding. The Worker also creates
 AI sessions without sending its OpenAI key to Electron.
 
 Phase 2 of `docs/mobile-transactions-overhaul.md`, with the device side in
-`apps/mobile/lib/sync`. Nothing here is deployed yet. See `docs/ledger-setup.md` to run it.
+`packages/local/src/sync`. Nothing here is deployed yet. See `docs/ledger-setup.md` to run it.
 
 ## Endpoints
 

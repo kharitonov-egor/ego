@@ -11,12 +11,12 @@ import { Button } from '../../components/ui/button'
 import { Card } from '../../components/ui/card'
 import { SegmentedControl } from '../../components/ui/segmented-control'
 import { Text } from '../../components/ui/text'
-import { formatIso, shiftIso } from '../../lib/dates'
+import { formatIso, shiftIso } from '@ego/local/dates'
 import { useHealth } from '../../lib/health/context'
 import {
   METRIC_SPECS, isHealthMetric, mainSleep, metricSeries, periodFor, seriesStats, shiftPeriod, weekStart,
   weekZoneMinutes, type ChartPoint, type HealthIndex, type HealthMetric, type HealthRange, type MetricSpec
-} from '../../lib/health/metrics'
+} from '@ego/local/health/metrics'
 
 const RANGES = [
   { value: 'week', label: 'Week' },

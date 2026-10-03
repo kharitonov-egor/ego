@@ -2,7 +2,7 @@ import { Linking, Platform } from 'react-native'
 import * as SecureStore from 'expo-secure-store'
 import Constants from 'expo-constants'
 import type { SignInResult } from '@ego/api-contracts'
-import { exchangeSignIn, startSignIn } from './api-client'
+import { exchangeSignIn, startSignIn } from '@ego/local/api-client'
 
 const PENDING_KEY = 'ego.signin.pending'
 
@@ -69,9 +69,4 @@ export async function abandonGoogleSignIn(): Promise<void> {
   await SecureStore.deleteItemAsync(PENDING_KEY).catch(() => undefined)
 }
 
-export function signInErrorMessage(reason: string | undefined): string {
-  if (reason === 'cancelled') return 'Sign-in was cancelled.'
-  if (reason === 'not_allowed') return 'That Google account is not allowed on this server. Choose the account listed in ALLOWED_EMAILS.'
-  if (reason === 'expired') return 'That sign-in link expired or was already used. Try again.'
-  return 'Google sign-in did not finish. Try again.'
-}
+export { signInErrorMessage } from '@ego/local/sign-in'

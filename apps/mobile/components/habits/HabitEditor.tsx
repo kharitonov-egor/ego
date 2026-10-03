@@ -6,10 +6,10 @@ import {
   HABIT_ICON_LIMIT, HABIT_NAME_LIMIT, HABIT_TARGET_LIMIT, isHabitInput,
   type HabitInput, type HabitKind, type HabitPeriod
 } from '@ego/core'
-import { isoFromParts } from '../../lib/dates'
+import { isoFromParts } from '@ego/local/dates'
 import { useHabits, type EditorTarget } from '../../lib/habits/context'
-import { momentLabel, runSpoken, twoDigits } from '../../lib/habits/format'
-import { quitClock, quitStart } from '../../lib/habits/stats'
+import { momentLabel, runSpoken, twoDigits } from '@ego/local/habits/format'
+import { quitClock, quitStart } from '@ego/local/habits/stats'
 import { BottomSheet, Label, inputClass } from '../money/Common'
 import { DateField } from '../money/DatePicker'
 import { Button } from '../ui/button'

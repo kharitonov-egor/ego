@@ -5,8 +5,8 @@ import {
   SHEET_COLUMN_TYPE_LABELS, SHEET_TEXT_LIMIT, cellFits, cellText, isEmptyCell, parseSheetNumber,
   type SheetCellValue, type SheetColumn
 } from '@ego/core'
-import { isoToday } from '../../lib/dates'
-import { dateLabel, optionOf } from '../../lib/sheets/view'
+import { isoToday } from '@ego/local/dates'
+import { dateLabel, optionOf } from '@ego/local/sheets/view'
 import { BottomSheet, inputClass } from '../money/Common'
 import { CalendarDialog } from '../money/DatePicker'
 import { ContactActions, OptionList } from './OptionList'
