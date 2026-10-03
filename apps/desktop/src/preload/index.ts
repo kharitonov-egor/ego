@@ -5,7 +5,9 @@ import type {
   QuickAddListShortcut,
   QuickAddPayload
 } from '../shared/types'
-import type { LedgerEvent, MediaProgress, RemoteApi, RemoteApiMethod, SignInOutcome } from '../shared/local'
+import type {
+  AssistantStreamMessage, LedgerEvent, MediaProgress, RemoteApi, RemoteApiMethod, SignInOutcome
+} from '../shared/local'
 
 const api: IpcApi = {
   localAll: (transaction, sql, params) => ipcRenderer.invoke('local-all', transaction, sql, params),
@@ -21,6 +23,12 @@ const api: IpcApi = {
   },
   apiCall: <K extends RemoteApiMethod>(method: K, ...args: Parameters<RemoteApi[K]>) =>
     ipcRenderer.invoke('api-call', method, args) as ReturnType<RemoteApi[K]>,
+  assistantStream: (streamId, kind, request) => ipcRenderer.invoke('assistant-stream', streamId, kind, request),
+  onAssistantEvent: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, message: AssistantStreamMessage): void => callback(message)
+    ipcRenderer.on('assistant-event', handler)
+    return () => ipcRenderer.removeListener('assistant-event', handler)
+  },
   signInWithGoogle: (apiUrl) => ipcRenderer.invoke('auth-google', apiUrl),
   signInWithToken: (apiUrl, token) => ipcRenderer.invoke('auth-device-token', apiUrl, token),
   signOut: () => ipcRenderer.invoke('auth-sign-out'),

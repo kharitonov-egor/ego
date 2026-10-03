@@ -51,6 +51,13 @@ messages, and tool calls live in `assistant_chats`, `assistant_messages`, and
 `assistant_tool_calls`. The tile asks for a fingerprint like Mood and Diary, since a reply can
 quote a mood note.
 
+On the desktop, AI opens the same chat with no fingerprint. Earlier chats sit in a column on the
+left, or behind the list icon when the window is narrow. Enter sends and Shift+Enter starts a new
+line. A receipt photo comes from the paperclip, a paste, or a drop onto the chat. The main process
+holds the device token, so it runs each streamed turn and passes the reply back as it arrives. The
+waveform button in the header opens Talk to AI, the voice call, and its back arrow returns to the
+chat.
+
 ## Money
 
 Finance has four tabs, along the bottom on the phone and across the header on the desktop:
@@ -227,6 +234,14 @@ and caches what it has viewed.
 videos, GIFs, round videos, songs, files, stickers (the animated one too), replies, forwards, pins,
 and edit times. Posts Telegram exported one by one as an album become one message with a grid.
 See `docs/ledger-setup.md`.
+
+On the desktop, Diary opens without a fingerprint. The bubbles keep to the right of a centered
+column, and scrolling up loads older messages. Right-click a bubble for Reply, Copy text, Edit, Pin,
+and Delete; hover over it for a reply button. Files come from the paperclip, a paste, or a drop
+anywhere on the chat; there is no camera. Hold the microphone to record and let go to send, or click
+it once and finish with the send button. Escape throws a recording away. The viewer steps through
+photos and videos with the arrow keys and zooms with the mouse wheel or a touchpad pinch. Other files
+open in their Windows app. Ctrl+F searches. Animated stickers show their still preview.
 
 ## Study
 

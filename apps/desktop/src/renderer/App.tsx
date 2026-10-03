@@ -12,6 +12,8 @@ import { PeriodProvider } from './lib/period'
 import { ReminderProvider } from './lib/reminder'
 import { TasksProvider } from './lib/tasks/context'
 import { TaskNotificationsProvider } from './lib/tasks/notifications'
+import Assistant from './screens/ai/Assistant'
+import Diary from './screens/diary/Diary'
 import ExerciseEditor from './screens/gym/ExerciseEditor'
 import Exercises from './screens/gym/Exercises'
 import GymCalendar from './screens/gym/GymCalendar'
@@ -35,7 +37,7 @@ import TasksRoutes from './screens/tasks'
 
 function TalkToAI(): React.ReactElement {
   const navigate = useNavigate()
-  return <TalkToAIView onOpenSettings={() => navigate('/settings')} />
+  return <TalkToAIView onOpenSettings={() => navigate('/settings')} onBack={() => navigate('/ai')} />
 }
 
 /** Follows a notification click to the page it is about. */
@@ -78,7 +80,8 @@ export default function App(): React.ReactElement {
         <main className="min-w-0 flex-1 overflow-hidden">
           <Routes>
             <Route path="/" element={<Home />} />
-            <Route path="/ai" element={<TalkToAI />} />
+            <Route path="/ai" element={<Assistant />} />
+            <Route path="/ai/voice" element={<TalkToAI />} />
             {moneyRoutes}
             <Route path="/gym" element={<GymLog />} />
             <Route path="/gym/track" element={<Track />} />
@@ -92,6 +95,7 @@ export default function App(): React.ReactElement {
               <Route path=":metric" element={<HealthMetricScreen />} />
             </Route>
             <Route path="/mood" element={<MoodScreen />} />
+            <Route path="/diary" element={<Diary />} />
             <Route path="/study" element={<Study />}>
               <Route index element={<Navigate to="/study/assignments" replace />} />
               <Route path="assignments" element={<Assignments />} />

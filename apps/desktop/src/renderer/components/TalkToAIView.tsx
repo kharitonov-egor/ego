@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Headphones, Keyboard, Mic, MicOff, PhoneOff, Send, Settings, Sparkles } from 'lucide-react'
+import { ArrowLeft, Headphones, Keyboard, Mic, MicOff, PhoneOff, Send, Settings, Sparkles } from 'lucide-react'
 import {
   LiveSessionController,
   type LiveSessionMode,
@@ -8,6 +8,7 @@ import {
   type LiveToolApproval,
   type TranscriptMessage
 } from '../live/LiveSessionController'
+import { IconButton } from './ui/button'
 
 const statusCopy: Record<LiveSessionStatus, string> = {
   idle: 'Ready when you are',
@@ -24,7 +25,11 @@ const statusCopy: Record<LiveSessionStatus, string> = {
   error: 'Call could not continue'
 }
 
-export default function TalkToAIView({ onOpenSettings }: { onOpenSettings: () => void }): React.ReactElement {
+export default function TalkToAIView({ onOpenSettings, onBack }: {
+  onOpenSettings: () => void
+  /** Shows a back arrow in the header, for the voice call opened from the AI chat. */
+  onBack?: () => void
+}): React.ReactElement {
   const [status, setStatus] = useState<LiveSessionStatus>('idle')
   const [detail, setDetail] = useState('')
   const [messages, setMessages] = useState<TranscriptMessage[]>([])
@@ -94,7 +99,10 @@ export default function TalkToAIView({ onOpenSettings }: { onOpenSettings: () =>
 
   return <div className="flex h-full flex-col overflow-hidden bg-[radial-gradient(circle_at_50%_14%,rgba(250,250,250,0.06),transparent_34%)]">
     <header className="border-b border-surface-800 px-6 py-4">
-      <div className="flex items-center gap-2 text-surface-100"><Sparkles size={16} className="text-surface-200" /><h1 className="text-base font-semibold">Talk to AI</h1></div>
+      <div className="flex items-center gap-2 text-surface-100">
+        {onBack && <IconButton label="Go back" onClick={onBack} className="-my-2 -ml-2"><ArrowLeft size={20} /></IconButton>}
+        <Sparkles size={16} className="text-surface-200" /><h1 className="text-base font-semibold">Talk to AI</h1>
+      </div>
       <p className="mt-1 text-xs text-surface-500">A temporary conversation. Messages and audio are not saved.</p>
     </header>
 
