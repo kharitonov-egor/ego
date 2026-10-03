@@ -3,7 +3,7 @@ import {
   type FoodEntryInput, type FoodMealDraft, type FoodPhoto, type FoodProduct, type FoodSource, type FridgeDraftItem,
   type FridgeItemInput, type FridgeSource
 } from '@ego/core'
-import { isoFromParts, parseIso } from '@ego/local/dates'
+import { isoFromParts, parseIso } from '../dates'
 
 /** The phone's own calendar day and clock for a moment, so a late dinner counts toward the day it was eaten. */
 export function localDay(at: Date): string {

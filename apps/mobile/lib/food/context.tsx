@@ -15,9 +15,9 @@ import {
 } from '@ego/local/sync/commands'
 import {
   cleanEntry, entryFromMeal, entryFromProduct, fridgeItemFromProduct, fridgeItemsFrom
-} from './drafts'
+} from '@ego/local/food/drafts'
 import { discardPhoto, type PhotoPick, type PreparedPhoto } from './photo'
-import { failedFoodUploads, localFood, localFoodRevision, type FoodData } from './repository'
+import { failedFoodUploads, localFood, localFoodRevision, type FoodData } from '@ego/local/food/repository'
 
 const PICTURES_KEY = 'ego.food.pictures'
 const WRITE_ATTEMPTS = 4

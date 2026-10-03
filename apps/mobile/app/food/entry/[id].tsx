@@ -13,7 +13,7 @@ import { KeyboardScrollView } from '../../../components/ui/keyboard'
 import { SegmentedControl } from '../../../components/ui/segmented-control'
 import { Text } from '../../../components/ui/text'
 import { useFood } from '../../../lib/food/context'
-import { clockOf, entryAt } from '../../../lib/food/drafts'
+import { clockOf, entryAt } from '@ego/local/food/drafts'
 
 type Meridiem = 'am' | 'pm'
 
