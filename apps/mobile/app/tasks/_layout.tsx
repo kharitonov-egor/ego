@@ -13,6 +13,7 @@ export default function TasksLayout(): React.ReactElement {
     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
     <Stack.Screen name="board/[id]" options={{ title: '' }} />
     <Stack.Screen name="card/[id]" options={{ title: '' }} />
+    <Stack.Screen name="goal/[id]" options={{ title: '' }} />
     <Stack.Screen name="archive/[id]" options={{ title: 'Archived items' }} />
     <Stack.Screen name="activity/[id]" options={{ title: 'Activity' }} />
   </Stack>

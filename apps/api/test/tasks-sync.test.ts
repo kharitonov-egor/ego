@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { ApiError, ApiResult, BootstrapData, DiaryMediaInfo, OperationResponse } from '@ego/api-contracts'
-import type { TaskAttachment, TaskCardInput } from '@ego/core'
+import type { TaskAttachment, TaskCardInput, TaskGoalInput } from '@ego/core'
 import { filterQuery, type MoneyApi } from '../../mobile/lib/api-client'
 import type { LocalDatabase } from '../../mobile/lib/database/types'
 import { queueUploads, uploadPendingMedia, type UploadTransport } from '../../mobile/lib/diary/uploads'
 import { localTasks } from '../../mobile/lib/tasks/repository'
 import {
-  createTaskBoard, createTaskLabel, createTaskList, deleteTaskCard, deleteTaskList, saveTaskCard
+  createTaskBoard, createTaskGoal, createTaskLabel, createTaskList, deleteTaskCard, deleteTaskGoal, deleteTaskList,
+  saveTaskCard, updateTaskGoal
 } from '../../mobile/lib/sync/commands'
 import { createSyncCoordinator } from '../../mobile/lib/sync/coordinator'
 import { allOperations } from '../../mobile/lib/sync/outbox'
@@ -90,6 +91,13 @@ const card = (overrides: Partial<TaskCardInput> = {}): TaskCardInput => ({
   labelIds: ['x-1'], priority: 'high', dueDate: '2026-10-03', dueTime: '17:30', reminderMinutes: 60, doneAt: null,
   archivedAt: null, checklists: [{ id: 'c-1', title: 'Steps', items: [{ id: 'i-1', text: 'Book a van', doneAt: null }] }],
   attachments: [], activity: [{ at: NOW, kind: 'create', text: 'Added this card to "To Do"' }], ...overrides
+})
+
+const goal = (overrides: Partial<TaskGoalInput> = {}): TaskGoalInput => ({
+  title: 'Build a calmer financial life', why: 'Make room for choices later.', horizon: 'year', targetDate: '2026-12-31',
+  status: 'active', position: 1024, reviewDate: '2026-10-10', milestones: [
+    { id: 'm-1', title: 'Set a monthly baseline', dueDate: null, doneAt: null }
+  ], boardIds: ['b-1'], cardIds: [], archivedAt: null, ...overrides
 })
 
 async function seedBoard(db: LocalDatabase): Promise<void> {
@@ -192,6 +200,39 @@ describe('tasks between two phones and the Worker', () => {
     const bootstrap = await over<BootstrapData>(env, '/v1/bootstrap')
     expect(bootstrap.ok && bootstrap.data.taskCards).toEqual([])
     expect(bootstrap.ok && bootstrap.data.taskLists?.map((list) => list.id)).toEqual(['l-2'])
+  })
+
+  it('syncs a goal with its checkpoints and links, then removes it', async () => {
+    const env = await setup()
+    const first = await phone(env)
+    await seedBoard(first.db)
+    await createTaskGoal(first.db, goal(), NOW, 'g-1')
+    await first.sync()
+
+    const second = await phone(env)
+    await second.sync()
+    const downloaded = await localTasks(second.db)
+    expect(downloaded.goals).toHaveLength(1)
+    const downloadedGoal = downloaded.goals?.[0]
+    if (!downloadedGoal) throw new Error('The downloaded goal was missing')
+    expect(downloadedGoal).toMatchObject({ id: 'g-1', title: 'Build a calmer financial life', boardIds: ['b-1'] })
+
+    await updateTaskGoal(second.db, 'g-1', downloadedGoal.revision, goal({
+      title: 'Build a calmer financial life, together',
+      milestones: [{ id: 'm-1', title: 'Set a monthly baseline', dueDate: null, doneAt: NOW }]
+    }), NOW)
+    await second.sync()
+    await first.sync()
+    const updatedGoal = (await localTasks(first.db)).goals?.[0]
+    if (!updatedGoal) throw new Error('The updated goal was missing')
+    expect(updatedGoal).toMatchObject({
+      title: 'Build a calmer financial life, together', revision: 2, milestones: [{ doneAt: NOW }]
+    })
+
+    await deleteTaskGoal(first.db, 'g-1', 2, NOW)
+    await first.sync()
+    await second.sync()
+    expect((await localTasks(second.db)).goals).toEqual([])
   })
 })
 

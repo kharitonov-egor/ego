@@ -2,11 +2,11 @@ import {
   isAccountInput, isBudgetInput, isCategoryInput, isDateString, isDiaryMessageInput, isGymCategoryInput,
   isGymExerciseInput, isGymPlanInput, isGymSetInput, isGymWorkoutInput, isHabitEntryInput, isHabitInput, isMonthString,
   isMoodInput, isPurchaseInput, isSheetInput, isSheetRowInput, isTaskBoardInput, isTaskCardInput, isTaskLabelInput,
-  isTaskListInput, isTransactionInput,
+  isTaskListInput, isTaskGoalInput, isTransactionInput,
   type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type DiaryMessageInput,
   type GymCategoryInput, type GymExerciseInput, type GymPlanInput, type GymSetInput, type GymWorkoutInput,
   type HabitEntryInput, type HabitInput, type MoodInput, type PurchaseInput, type SheetInput, type SheetRowInput,
-  type TaskBoardInput, type TaskCardInput, type TaskLabelInput, type TaskListInput, type TransactionInput
+  type TaskBoardInput, type TaskCardInput, type TaskGoalInput, type TaskLabelInput, type TaskListInput, type TransactionInput
 } from '@ego/core'
 import type { ApiError } from './errors'
 import type { SyncEntity } from './records'
@@ -61,6 +61,9 @@ export type SyncCommand =
   | { entity: 'taskCard'; type: 'create'; payload: TaskCardInput }
   | { entity: 'taskCard'; type: 'update'; payload: TaskCardInput }
   | { entity: 'taskCard'; type: 'delete' }
+  | { entity: 'taskGoal'; type: 'create'; payload: TaskGoalInput }
+  | { entity: 'taskGoal'; type: 'update'; payload: TaskGoalInput }
+  | { entity: 'taskGoal'; type: 'delete' }
   | { entity: 'sheet'; type: 'create'; payload: SheetInput }
   | { entity: 'sheet'; type: 'update'; payload: SheetInput }
   | { entity: 'sheet'; type: 'delete' }
@@ -172,6 +175,9 @@ function isCommand(value: unknown): value is SyncCommand {
     case 'taskCard.create':
     case 'taskCard.update':
       return isTaskCardInput(payload)
+    case 'taskGoal.create':
+    case 'taskGoal.update':
+      return isTaskGoalInput(payload)
     case 'sheet.create':
     case 'sheet.update':
       return isSheetInput(payload)
@@ -193,6 +199,7 @@ function isCommand(value: unknown): value is SyncCommand {
     case 'taskList.delete':
     case 'taskLabel.delete':
     case 'taskCard.delete':
+    case 'taskGoal.delete':
     case 'sheet.delete':
     case 'sheetRow.delete':
       return payload === undefined
