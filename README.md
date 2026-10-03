@@ -130,6 +130,14 @@ The Gym tile on the phone is a workout log laid out like FitNotes, in the Financ
 Weights are in pounds unless an exercise is set to kilograms. The library holds 116 standard
 exercises across Abs, Back, Biceps, Cardio, Chest, Legs, Shoulders, and Triceps.
 
+On the desktop the log works the same way with a mouse and keyboard. The arrows or the Left and
+Right keys change days. On a wide window the day's exercise list stays open on the right, beside
+the day and the exercise; drag a row to reorder it, or right-click it to superset it or delete that
+day's sets. The weight and rep fields take typing too: Enter saves the set, and Up and Down step the
+value. The exercise list shows the categories beside their exercises, and Enter in the search opens
+the first match. When the rest timer ends, Ego beeps, and if its window is in the background it also
+sends a notification that opens the exercise again.
+
 Gym data lives in the same phone database and Worker as money: categories, exercises, sets, and a
 per-day record for order and supersets. It syncs through the same outbox and change log, so it
 works offline. `scripts/gym-import.mjs` loads a FitNotes CSV export through the Worker; see
@@ -174,6 +182,10 @@ it on every device.
 Mood and Diary ask for a fingerprint, or the phone's PIN, every time they open and every time Ego
 comes back from the background. Trips Ego starts itself, like the photo picker, the camera, or
 opening a PDF in another app, do not count.
+
+On the computer, Mood has no lock and opens straight away. Once the window is wide enough, the past
+days sit beside the editor instead of below it. The left and right arrow keys step a day, the
+calendar stops at today, and `Ctrl+Enter` in the note saves.
 
 ## Diary
 
@@ -254,6 +266,12 @@ A daily habit is due every day from its start date, so adding one never counts a
 days. Habits use the same local database, outbox, and change log as the other apps. A check-off
 shows at once and reaches D1 in `habits` and `habit_entries` on the next sync. Deleting a habit
 hides its entries on every device.
+
+On the computer, the three tabs sit in the header. A click adds a check-off and a right-click, or
+`Delete` on a focused row, takes one back. A habit counted several times a day also shows a minus
+on hover. The left and right arrow keys move Home's week strip a week at a time and Progress a month
+at a time. Progress puts the month and its calendar beside the streaks and the habit list, and Quit
+lays two or more clocks side by side.
 
 ## Tasks
 
