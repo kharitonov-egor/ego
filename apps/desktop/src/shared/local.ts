@@ -21,7 +21,8 @@ export const REMOTE_API_METHODS = [
   'assistantChats',
   'assistantDeleteChat',
   'assistantMessages',
-  'assistantUndo',
+  'foodAnalyze',
+  'foodProduct',
   'trelloBoards',
   'trelloLists',
   'trelloCard'

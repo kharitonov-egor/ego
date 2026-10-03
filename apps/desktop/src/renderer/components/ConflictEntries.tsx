@@ -26,7 +26,10 @@ const ENTITY_LABELS: Record<SyncEntity, string> = {
   taskCard: 'Card',
   taskGoal: 'Goal',
   sheet: 'Sheet',
-  sheetRow: 'Sheet row'
+  sheetRow: 'Sheet row',
+  foodEntry: 'Food entry',
+  fridgeItem: 'Fridge item',
+  foodGoal: 'Food targets'
 }
 
 const COMMAND_LABELS: Record<string, string> = {

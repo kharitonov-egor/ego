@@ -25,7 +25,8 @@ export const remoteApi: RemoteApi = {
   assistantChats: call('assistantChats'),
   assistantDeleteChat: call('assistantDeleteChat'),
   assistantMessages: call('assistantMessages'),
-  assistantUndo: call('assistantUndo'),
+  foodAnalyze: call('foodAnalyze'),
+  foodProduct: call('foodProduct'),
   trelloBoards: call('trelloBoards'),
   trelloLists: call('trelloLists'),
   trelloCard: call('trelloCard')

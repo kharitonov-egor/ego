@@ -16,7 +16,7 @@ import { mediaUploadTransport } from './media'
 const BACKGROUND_SYNC_MS = 10 * 60 * 1000
 
 const EVERYTHING: Touched = {
-  money: true, gym: true, health: true, habits: true, diary: true, tasks: true, sheets: true
+  money: true, gym: true, health: true, habits: true, diary: true, tasks: true, sheets: true, food: true
 }
 
 interface Session {
@@ -180,7 +180,8 @@ async function runSync(): Promise<LedgerState> {
       ...outcome.touched,
       diary: outcome.touched.diary || outcome.delivered > 0,
       tasks: outcome.touched.tasks || outcome.delivered > 0,
-      sheets: outcome.touched.sheets || outcome.delivered > 0
+      sheets: outcome.touched.sheets || outcome.delivered > 0,
+      food: outcome.touched.food || outcome.delivered > 0
     }
   } catch (failure: unknown) {
     syncError = failure instanceof Error ? failure.message : 'Sync stopped unexpectedly'
