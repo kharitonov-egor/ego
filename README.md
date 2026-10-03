@@ -168,6 +168,16 @@ the last ten days every 15 minutes from a cron trigger. Opening Health asks the 
 again if the last pull is more than a minute old, then downloads only the rows that changed. The
 phone keeps its own copy in SQLite, so Health opens offline.
 
+The desktop has the same overview, metrics, and gear, with the tiles three across and the
+readiness inputs beside the score. A metric's chart runs the width of the window. Hovering shows
+the value under the mouse, a click or drag picks a day as a tap does on the phone, and the arrow
+keys step through the chart once it has focus. Sleep stages and the five-minute heart rate show
+their values on hover too. On the overview the arrow keys change the day, and a refresh button
+stands in for pulling down. Connect Google Health opens the default browser. Ego syncs when its
+window comes back to the front, and the `ego://health` link Google returns to brings the window
+forward with the phone's messages. The desktop keeps its own SQLite copy and refreshes it on the
+same one-minute rule.
+
 ## Mood
 
 The phone's start screen has a Mood tile. It opens a mood journal with one entry per day: a mood
@@ -241,6 +251,13 @@ refresh.
 
 Canvas sends deadlines in UTC. The phone places each one on its own calendar, so a deadline at
 10:59 PM Eastern (02:59 UTC) shows on the evening it is due, not the next morning.
+
+The desktop puts Assignments and Courses in the header, with a refresh button in place of pulling
+down. Click the circle to check a row off, or the rest of the row for the description and Open in
+Canvas, which opens the default browser. In a wide window the course cards sit beside the list,
+and clicking one narrows the list to that course. The desktop keeps its own copy in SQLite and
+refreshes on open, on the button, and when its window comes back to the front once the copy is
+five minutes old. Check marks made offline wait on the computer until the next refresh.
 
 ## Habits
 

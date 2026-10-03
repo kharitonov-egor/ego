@@ -46,6 +46,7 @@ import { setupLocalIpc } from './local/ipc'
 import { ledgerApi, ledgerDatabase, onLedgerEvent, onMediaProgress, startLedger, stopLedger } from './local/ledger'
 import { handleMediaRequests, registerMediaScheme } from './local/media'
 import { finishGoogleSignIn, registerSignInLinks, signInLinkIn } from './local/signIn'
+import { healthRouteIn } from './healthLink'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -386,8 +387,10 @@ if (!gotSingleInstanceLock) {
 
   app.on('second-instance', (_event, argv) => {
     const link = signInLinkIn(argv)
+    const healthRoute = healthRouteIn(argv)
     if (link) void handleSignInLink(link)
     else showMainWindow()
+    if (healthRoute) mainWindow?.webContents.send('navigate', healthRoute)
   })
 
   app.whenReady().then(() => {
