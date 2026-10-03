@@ -7,8 +7,7 @@ and the keys.
 The desktop app opens on the phone's start screen, in the phone's black and white, with every app
 in a sidebar. It keeps its own SQLite copy of the data and syncs it through the Worker the way the
 phone does. It also has what only a computer needs: a global Trello capture hotkey, Quick tools,
-and T3 Code notifications. The phone's apps arrive on the desktop one at a time; until Finance does,
-it shows the older desktop budget views.
+and T3 Code notifications. The phone's apps arrive on the desktop one at a time.
 
 Talk to AI has voice and text chat modes. Both use `gpt-live-1` with delegated work handled by
 `gpt-5.6-terra`. The delegated model can use hosted web search plus the read tools enabled in
@@ -54,29 +53,44 @@ quote a mood note.
 
 ## Money
 
-The Money sidebar has six views:
+Finance has four tabs, along the bottom on the phone and across the header on the desktop:
 
-- Accounts holds manual USD accounts and derives each balance from its opening balance and history.
-- Categories holds user-created income and expense groups.
-- Transactions records income, expenses, and transfers between two accounts.
-- Purchases shows itemized receipts, their product names, and line prices.
+- Home shows the balance across accounts, what was spent and received against the period before,
+  a cash flow chart, a calendar of spending by day for a month, upcoming bills found in the
+  history, average spending, and the top categories. The period bar steps through days, weeks,
+  months, and years, or shows all time or a custom range.
+- Activity lists every transaction, newest first, with search, filters by type, account, and
+  category, and the net for each day. Tapping one opens it to edit or delete it. Holding one starts
+  a selection for deleting several at once.
+- Categories draws the period's spending as a ring with each category around it. Tapping a
+  category opens its transactions; holding it edits it.
 - Budget plans one month at a time: the income you expect and an amount per expense category.
-- Overview reports balance changes, cash flow, monthly totals, averages, and top categories.
+
+Accounts are manual USD accounts, and each balance comes from its opening balance and history. The
+plus in the header records an expense, income, or a transfer between two accounts, with a
+calculator keypad for the amount. Itemized receipts keep their product names and line prices under
+Purchase details.
 
 On the phone, typed purchases and receipt photos go through the AI tile: "Publix $42 and gas $30"
 becomes one card with both transactions, and an itemized receipt keeps its purchase rows. A grocery
 receipt also puts the food on it in the Food app's fridge, under plain names like "Whole milk".
-Desktop still accepts Ctrl+V, drag and drop, and file selection for one-shot transaction image
-analysis, and still reads its OpenRouter key from its own Settings.
 
 A budget covers one month. Set the planned income, give each expense category an amount, and the
 view tracks what is left. A category turns amber at 80 percent of its amount and red once spending
-passes it. Crossing the line raises a desktop notification and an in-app banner on mobile. Money
-spent in a category with no amount is listed separately as unplanned.
+passes it. Crossing the line raises an in-app banner, and on the desktop a Windows notification as
+well. Money spent in a category with no amount is listed separately as unplanned.
 
-When D1 cannot be reached, the app opens the last encrypted snapshot in read-only mode. Configure
-the Cloudflare account ID, D1 database ID, and a token limited to D1 Read and D1 Write under
-Settings. The app creates its tables and indexes when the connection first succeeds.
+The daily reminder, off by default, sends a notification at 7, 8, 9, or 10 PM on days with nothing
+logged. Tapping it opens a new transaction.
+
+On the desktop, Finance is the phone's screens on a wider page. Home and Budget split into two
+columns when the window is wide enough. The keypad becomes a text field that takes the same sums,
+like `12.50+3*2`, and Enter saves. In Activity, a right-click or Ctrl+click starts a selection,
+Shift+click extends it, and Delete removes it. A right-click on a category edits it, and the left
+and right arrow keys step the period. The desktop also reads receipts itself: paste an image with
+Ctrl+V, drop one on the window, or use the scan button in the header. OpenRouter reads it with the
+key from the desktop's Settings, the phone's receipt editor opens with the result, and the entry
+saves and syncs like one made on the phone. The reminder keeps running while Ego sits in the tray.
 
 ### Ego service
 
@@ -84,19 +98,17 @@ A Cloudflare Worker in `apps/api` can own the money database instead of each dev
 itself. It holds the migrations, the domain commands, paginated reads, and a change log, and each
 device authenticates with its own revocable token rather than a Cloudflare account token.
 
-The phone keeps its own SQLite copy of the ledger. Every money screen reads it without the
-network, a saved transaction is durable before it is delivered, and conflicts offer Keep mine or
-Use saved version. The desktop app can route its writes through the same Worker while keeping its
-current screens.
+The phone and the desktop each keep their own SQLite copy of the ledger. Every money screen reads
+it without the network, a saved transaction is durable before it is delivered, and conflicts offer
+Keep mine or Use saved version.
 
 The phone signs in once with Google on its start screen and gets its device token from the
 Worker. That one sign-in covers Finance and Gym, and neither opens until it is done. The phone
 keeps no API keys. The Worker holds the OpenRouter, Trello, and OpenAI keys as secrets and calls
 those services on the phone's behalf.
 
-Money sync and Talk to AI use the same Worker address and device token. Desktop money sync falls back to
-the direct D1 connection when the Worker is not configured. `docs/ledger-setup.md` covers Worker
-deployment, device enrolment, Live setup, the money cutover, and rollback.
+Money sync and Talk to AI use the same Worker address and device token. `docs/ledger-setup.md`
+covers Worker deployment, device enrolment, Live setup, the money cutover, and rollback.
 
 The repo is public so I can point people at it. The credentials are not in it.
 
@@ -403,7 +415,7 @@ A toast slides in from the bottom right on success or failure.
 ## Settings
 
 Settings is the last row of the sidebar. It starts with the phone's sections: the account, Blur,
-sync, and which keys the Worker has. Then the desktop's own:
+the daily reminder, accounts, sync, and which keys the Worker has. Then the desktop's own:
 
 - Quick add to Trello: the global hotkey, the Trello API key and token, the board, the default
   list, and Ctrl+number list shortcuts. The token field warns you if the value doesn't start with

@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import {
-  Check, CircleUserRound, Command, EyeOff, Info, KeyRound, LogOut, Power, RefreshCw, ScanLine, X
+  BellRing, Check, ChevronRight, CircleUserRound, Command, EyeOff, Info, KeyRound, Landmark, LogOut, Power, RefreshCw, ScanLine, X
 } from 'lucide-react'
 import type { ServiceStatus, SessionInfo } from '@ego/api-contracts'
+import { REMINDER_HOURS, hourLabel } from '@ego/local/reminders'
 import HotkeyInput from '../components/HotkeyInput'
 import LiveSettings from '../components/LiveSettings'
+import { Chips, MoneyIcon, money } from '../components/common'
 import T3Settings from '../components/T3Settings'
 import { Screen, ScreenBody, ScreenHeader } from '../components/screen'
 import { FieldLabel, Section, SectionNote } from '../components/Section'
@@ -15,8 +17,9 @@ import { Button } from '../components/ui/button'
 import { ConfirmDialog } from '../components/ui/dialog'
 import { inputClass } from '../components/ui/input'
 import { Switch } from '../components/ui/switch'
-import { useBlur } from '../lib/blur'
+import { Blurred, useBlur } from '../lib/blur'
 import { syncLabel, useLedger } from '../lib/ledger'
+import { useReminder } from '../lib/reminder'
 import { cn } from '../lib/utils'
 
 const SERVICES: Array<{ key: keyof ServiceStatus; label: string; secret: string }> = [
@@ -109,6 +112,43 @@ function BlurSection(): React.ReactElement {
         ? 'Personal numbers and entries are blurred. Ctrl+Shift+B turns it off.'
         : 'Blurs personal numbers and entries, for showing the app to someone. Ctrl+Shift+B turns it on from any screen.'}
     </SectionNote>
+  </Section>
+}
+
+const HOUR_VALUES = REMINDER_HOURS.map(String)
+const HOUR_LABELS = Object.fromEntries(REMINDER_HOURS.map((hour) => [String(hour), hourLabel(hour)]))
+
+function ReminderSection(): React.ReactElement {
+  const reminder = useReminder()
+  return <Section Icon={BellRing} title="Daily reminder" right={<Switch label="Daily reminder" checked={reminder.preference.enabled} onCheckedChange={reminder.setEnabled} />}>
+    <SectionNote>
+      A nudge at {hourLabel(reminder.preference.hour)} on days with nothing logged. It stays quiet once you add anything that day.
+    </SectionNote>
+    {reminder.preference.enabled && <>
+      <FieldLabel>Time</FieldLabel>
+      <Chips values={HOUR_VALUES} value={String(reminder.preference.hour)} labels={HOUR_LABELS} onChange={(value) => reminder.setHour(Number(value))} />
+    </>}
+  </Section>
+}
+
+function AccountsSection(): React.ReactElement {
+  const ledger = useLedger()
+  const navigate = useNavigate()
+  const balances = new Map(ledger.balances.map((item) => [item.accountId, item.balanceCents]))
+  const openAccounts = (ledger.reference?.accounts ?? [])
+    .filter((account) => !account.archivedAt)
+    .map((account) => ({ ...account, balanceCents: balances.get(account.id) ?? account.openingBalanceCents }))
+  return <Section Icon={Landmark} title="Accounts">
+    <div className="mt-3">{openAccounts.map((account) => <div key={account.id} className="flex min-h-14 items-center border-t border-surface-800 py-2">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: account.color }}><MoneyIcon name={account.icon} size={17} /></span>
+      <span className="ml-3 flex-1 truncate text-[16px]">{account.name}</span>
+      <Blurred><span className="text-[16px] font-semibold tabular">{money(account.balanceCents)}</span></Blurred>
+    </div>)}</div>
+    {openAccounts.length === 0 && <p className="mt-2 text-[15px] text-muted-foreground">No accounts yet.</p>}
+    <Button variant="outline" size="lg" onClick={() => navigate('/money/accounts', { state: { from: '/settings' } })} className="mt-3 w-full">
+      Manage accounts
+      <ChevronRight color="#fafafa" size={18} />
+    </Button>
   </Section>
 }
 
@@ -226,6 +266,8 @@ export default function Settings(): React.ReactElement {
     <ScreenBody className="flex flex-col gap-3 pb-10">
       <AccountSection session={session} sessionError={error} />
       <BlurSection />
+      <ReminderSection />
+      {ledger.enabled && ledger.reference && <AccountsSection />}
       {ledger.enabled && <SyncSection />}
       {ledger.enabled && session && <ServerKeysSection session={session} />}
       <QuickAddSettings />
