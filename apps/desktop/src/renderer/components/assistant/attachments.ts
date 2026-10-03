@@ -11,7 +11,7 @@ export type AttachmentResult =
   | { ok: true; attachment: Attachment }
   | { ok: false; message: string | null }
 
-/** Enough for the model to read receipt lines, small enough to send quickly. */
+/** Enough for the model to read receipt lines or a nutrition label, small enough to send quickly. */
 const RECEIPT_LONG_EDGE = 1800
 const UNREADABLE = 'This computer could not read that image. Choose it again.'
 
@@ -46,7 +46,7 @@ async function optimize(bitmap: ImageBitmap): Promise<AttachmentResult> {
   }
 }
 
-/** A receipt picked, pasted, or dropped. */
+/** A photo picked, pasted, or dropped: a receipt, a meal, or groceries. */
 export async function fromFile(file: File): Promise<AttachmentResult> {
   try {
     return await optimize(await createImageBitmap(file))

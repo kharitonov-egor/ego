@@ -1,21 +1,22 @@
 import React from 'react'
-import { Check, MessageSquarePlus, Sparkles, Trash2, Undo2, X } from 'lucide-react'
+import { MessageSquarePlus, Sparkles, Trash2, X } from 'lucide-react'
 import type { AssistantChat, AssistantMessage, AssistantPendingWrite } from '@ego/api-contracts'
-import { BlurSpan, Blurred, useBlur } from '../../lib/blur'
+import { Blurred, useBlur } from '../../lib/blur'
 import { cn } from '../../lib/utils'
 import { Badge } from '../ui/badge'
-import { Button } from '../ui/button'
 import { Card } from '../ui/card'
+import { SAVE_DELAY_MS, SaveCountdown } from '../ui/countdown'
 import { Sheet } from '../ui/dialog'
 import { Spinner } from '../ui/spinner'
 
 const EXAMPLES = [
   'What was my mood yesterday?',
   'Max bench press in the past month?',
-  'How many times did I read this month?',
   'Publix $42 and gas $30',
   'Bench 3x8 at 185, squats 5x5 at 225',
-  'Mood 4 today, slept well'
+  'Two eggs and toast for breakfast',
+  'How much protein today?',
+  'What\'s in my fridge?'
 ]
 
 export function Trail({ lines }: { lines: readonly string[] }): React.ReactElement | null {
@@ -34,35 +35,20 @@ export function UserBubble({ message, imageUri }: { message: AssistantMessage; i
     <div className="max-w-[86%] overflow-hidden rounded-3xl rounded-br-lg bg-primary px-4 py-3">
       {imageUri
         ? <div className="mb-2 h-36 w-52 overflow-hidden rounded-2xl">
-          <img src={imageUri} alt="Receipt" className={cn('h-36 w-52 object-cover', blurred && 'ego-blurred-media')} />
+          <img src={imageUri} alt="Photo" className={cn('h-36 w-52 object-cover', blurred && 'ego-blurred-media')} />
         </div>
-        : message.hasImage && <Badge variant="outline" className="mb-2 border-black/20 text-primary-foreground">Receipt image</Badge>}
+        : message.hasImage && <Badge variant="outline" className="mb-2 border-black/20 text-primary-foreground">Photo</Badge>}
       {message.text.length > 0 && <Blurred><p className="whitespace-pre-wrap break-words text-[16px] leading-6 text-primary-foreground">{message.text}</p></Blurred>}
     </div>
   </div>
 }
 
-export function AssistantBubble({ message, undoing, onUndo }: {
-  message: AssistantMessage
-  undoing: string | null
-  onUndo: (callId: string) => void
-}): React.ReactElement {
+export function AssistantBubble({ message }: { message: AssistantMessage }): React.ReactElement {
   return <div className="mb-3 flex flex-col items-start">
     {message.text.length > 0 && <div className="max-w-[86%] rounded-3xl rounded-bl-lg border border-border bg-card px-4 py-3">
       <Blurred><p className="select-text whitespace-pre-wrap break-words text-[16px] leading-6">{message.text}</p></Blurred>
     </div>}
     <Trail lines={message.trail} />
-    {message.undo.map((undo) => <button
-      key={undo.callId}
-      type="button"
-      aria-label={`Undo the ${undo.label}`}
-      disabled={undoing !== null}
-      onClick={() => onUndo(undo.callId)}
-      className="mt-1.5 flex items-center self-start rounded-full border border-surface-700 px-3 py-1.5 transition-colors hover:bg-surface-800 active:bg-surface-800 disabled:opacity-60"
-    >
-      {undoing === undo.callId ? <Spinner size={14} color="#d4d4d4" /> : <Undo2 color="#d4d4d4" size={14} />}
-      <span className="ml-1.5 text-[13px] font-medium text-surface-200">Undo the <BlurSpan>{undo.label}</BlurSpan></span>
-    </button>)}
   </div>
 }
 
@@ -92,28 +78,29 @@ export function ErrorBubble({ text, onDismiss }: { text: string; onDismiss: () =
   </button>
 }
 
-export function PendingCard({ pending, busy, onAnswer }: {
+/** Everything one reply asked to save. It saves itself unless Undo comes first; sending a new message saves it too. */
+export function PendingCard({ pending, onSave, onUndo }: {
   pending: AssistantPendingWrite
-  busy: boolean
-  onAnswer: (approved: boolean) => void
+  onSave: () => void
+  onUndo: () => void
 }): React.ReactElement {
+  const seconds = SAVE_DELAY_MS / 1000
+  const changes = pending.changes ?? [{ toolName: pending.toolName, title: pending.title, lines: pending.lines }]
   return <Card className="mb-4 overflow-hidden">
     <div className="border-b border-surface-800 px-5 py-4">
-      <Blurred><h2 className="text-[17px] font-semibold">{pending.title}</h2></Blurred>
+      <SaveCountdown
+        runKey={pending.callId}
+        paused={false}
+        label={changes.length === 1 ? `Saves in ${seconds} seconds` : `Saves ${changes.length} changes in ${seconds} seconds`}
+        onElapsed={onSave}
+        onUndo={onUndo}
+      />
     </div>
-    <div className="px-5 py-4">
-      {pending.lines.map((line, index) => <Blurred key={`${index}-${line}`}><p className={cn('text-[15px] leading-6', index ? 'mt-1.5' : '')}>{line}</p></Blurred>)}
-      <div className="mt-4 flex gap-2">
-        <Button variant="outline" size="lg" disabled={busy} onClick={() => onAnswer(false)} className="flex-1">
-          <X color="#d4d4d4" size={18} />
-          Reject
-        </Button>
-        <Button size="lg" disabled={busy} onClick={() => onAnswer(true)} className="flex-1">
-          <Check color="#0a0a0a" size={18} />
-          Confirm
-        </Button>
-      </div>
-      <p className="mt-3 text-[13px] text-muted-foreground">Or just keep typing to drop it.</p>
+    <div className="flex flex-col gap-4 px-5 py-4">
+      {changes.map((change, index) => <div key={`${index}-${change.toolName}`}>
+        <Blurred><h2 className="text-[17px] font-semibold">{change.title}</h2></Blurred>
+        {change.lines.map((line, row) => <Blurred key={`${row}-${line}`}><p className="mt-1 text-[15px] leading-6 text-surface-200">{line}</p></Blurred>)}
+      </div>)}
     </div>
   </Card>
 }
@@ -124,7 +111,7 @@ export function Intro({ onPick }: { onPick: (text: string) => void }): React.Rea
       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-800"><Sparkles color="#fafafa" size={22} /></div>
       <div className="ml-3 flex-1">
         <h2 className="text-[18px] font-semibold">Ask, or tell me what happened</h2>
-        <p className="text-[15px] text-muted-foreground">Money, gym, health, mood, habits, and study</p>
+        <p className="text-[15px] text-muted-foreground">Money, gym, health, mood, habits, study, and food</p>
       </div>
     </div>
     <div className="flex flex-wrap gap-2">

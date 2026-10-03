@@ -47,9 +47,11 @@ export function parseTurnRequest(value: unknown): AssistantTurnRequest | null {
   const attached = value.image === undefined ? undefined : image(value.image)
   if (attached === null) return null
   if (!value.text.trim() && !attached) return null
+  if (value.autoSave !== undefined && typeof value.autoSave !== 'boolean') return null
   return {
     chatId: value.chatId, text: value.text, today: value.today, timeZone: zone, units: preferred,
-    ...(attached ? { image: attached } : {})
+    ...(attached ? { image: attached } : {}),
+    ...(value.autoSave !== undefined ? { autoSave: value.autoSave } : {})
   }
 }
 

@@ -55,7 +55,6 @@ export default function Assistant(): React.ReactElement {
   const [streaming, setStreaming] = useState<Streaming | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
-  const [undoing, setUndoing] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [text, setText] = useState('')
   const [attachment, setAttachment] = useState<Attachment | null>(null)
@@ -68,7 +67,27 @@ export default function Assistant(): React.ReactElement {
   /** Bumped by every open and send, so a slow load or an older stream cannot land in the chat on screen. */
   const generation = useRef(0)
   const { blurred } = useBlur()
+  const shown = useRef<AssistantPendingWrite | null>(null)
+  shown.current = pending
+  const unitsRef = useRef(units)
+  unitsRef.current = units
+  const syncRef = useRef(ledger.sync)
+  syncRef.current = ledger.sync
   useAutosize(input, text)
+
+  /** A card left behind by switching chats or leaving the screen was never undone, so it saves. */
+  const saveLeftCard = useCallback((): void => {
+    const card = shown.current
+    if (!card) return
+    shown.current = null
+    void assistantStream('confirm', {
+      chatId: card.chatId, callId: card.callId, approved: true, today: isoToday(), timeZone: timeZone(), units: unitsRef.current
+    }, () => undefined).then(() => syncRef.current())
+  }, [])
+  const leaving = useRef(saveLeftCard)
+  leaving.current = saveLeftCard
+
+  useEffect(() => () => leaving.current(), [])
 
   const scrollToEnd = useCallback((): void => {
     requestAnimationFrame(() => {
@@ -92,6 +111,7 @@ export default function Assistant(): React.ReactElement {
   }, [])
 
   const open = useCallback(async (chat: AssistantChat | null): Promise<void> => {
+    saveLeftCard()
     const ticket = (generation.current += 1)
     setChatId(chat?.id ?? null)
     setPending(null)
@@ -115,7 +135,7 @@ export default function Assistant(): React.ReactElement {
     setMessages(result.data.messages)
     setPending(result.data.pending)
     scrollToEnd()
-  }, [api, scrollToEnd])
+  }, [api, saveLeftCard, scrollToEnd])
 
   useEffect(() => {
     if (!ledger.enabled) {
@@ -180,6 +200,7 @@ export default function Assistant(): React.ReactElement {
     setText('')
     setAttachment(null)
     setError(null)
+    shown.current = null
     setPending(null)
     setBusy(true)
     setStreaming({ text: '', trail: [] })
@@ -193,7 +214,7 @@ export default function Assistant(): React.ReactElement {
     scrollToEnd()
     const result = await assistantStream('turn', {
       chatId, text: message, ...(image ? { image: { base64: image.base64, mimeType: image.mimeType } } : {}),
-      today: isoToday(), timeZone: timeZone(), units
+      today: isoToday(), timeZone: timeZone(), units, autoSave: true
     }, eventsFor(ticket))
     finishTurn(chatId)
     if (!result.ok && ticket === generation.current) {
@@ -204,10 +225,12 @@ export default function Assistant(): React.ReactElement {
     }
   }
 
+  /** The card's timer saves; Undo drops everything on it. Either way the card is gone for good. */
   const answer = async (approved: boolean): Promise<void> => {
     if (!pending || busy) return
     const current = pending
     const ticket = (generation.current += 1)
+    shown.current = null
     setPending(null)
     setError(null)
     setBusy(true)
@@ -217,25 +240,6 @@ export default function Assistant(): React.ReactElement {
     }, eventsFor(ticket))
     finishTurn(current.chatId)
     if (!result.ok && ticket === generation.current) setError(result.error.message)
-  }
-
-  const undo = async (callId: string): Promise<void> => {
-    if (!chatId || undoing) return
-    const ticket = generation.current
-    setUndoing(callId)
-    const result = await api.assistantUndo({ chatId, callId })
-    setUndoing(null)
-    if (ticket !== generation.current) return
-    if (!result.ok) {
-      setError(result.error.message)
-      return
-    }
-    setMessages((current) => [
-      ...current.map((message) => ({ ...message, undo: message.undo.filter((item) => item.callId !== callId) })),
-      result.data.message
-    ])
-    scrollToEnd()
-    void ledger.sync()
   }
 
   const attach = async (file: File | null): Promise<void> => {
@@ -322,9 +326,9 @@ export default function Assistant(): React.ReactElement {
             }} />}
             {messages.map((message) => message.role === 'user'
               ? <UserBubble key={message.id} message={message} imageUri={imageUris.current.get(message.id) ?? null} />
-              : <AssistantBubble key={message.id} message={message} undoing={undoing} onUndo={(callId) => void undo(callId)} />)}
+              : <AssistantBubble key={message.id} message={message} />)}
             {streaming && <StreamingBubble text={streaming.text} trail={streaming.trail} />}
-            {pending && !busy && <PendingCard pending={pending} busy={busy} onAnswer={(approved) => void answer(approved)} />}
+            {pending && !busy && <PendingCard pending={pending} onSave={() => void answer(true)} onUndo={() => void answer(false)} />}
             {error && <ErrorBubble text={error} onDismiss={() => setError(null)} />}
           </div>
         </div>
@@ -333,16 +337,16 @@ export default function Assistant(): React.ReactElement {
           <div className="mx-auto max-w-3xl">
             {attachment && <div className="mb-3 flex items-center rounded-2xl border border-border bg-card p-2.5">
               <span className="h-12 w-12 shrink-0 overflow-hidden rounded-xl">
-                <img src={attachment.uri} alt="Receipt" className={cn('h-12 w-12 object-cover', blurred && 'ego-blurred-media')} />
+                <img src={attachment.uri} alt="Photo" className={cn('h-12 w-12 object-cover', blurred && 'ego-blurred-media')} />
               </span>
               <div className="ml-3 flex-1">
-                <p className="text-[15px] font-semibold">Receipt attached</p>
+                <p className="text-[15px] font-semibold">Photo attached</p>
                 <p className="text-[14px] text-muted-foreground">Add a note or send it now</p>
               </div>
-              <IconButton label="Remove the receipt" onClick={() => setAttachment(null)} className="h-11 w-11"><X size={18} /></IconButton>
+              <IconButton label="Remove the photo" onClick={() => setAttachment(null)} className="h-11 w-11"><X size={18} /></IconButton>
             </div>}
             <div className="flex items-end rounded-3xl border border-input bg-surface-900 p-1.5 focus-within:border-surface-500">
-              <IconButton label="Attach a receipt" disabled={busy} onClick={() => picker.current?.click()} className="h-11 w-11">
+              <IconButton label="Attach a photo" disabled={busy} onClick={() => picker.current?.click()} className="h-11 w-11">
                 <Paperclip size={20} />
               </IconButton>
               <textarea
@@ -382,7 +386,7 @@ export default function Assistant(): React.ReactElement {
         </div>
 
         {dragging && <div className="pointer-events-none absolute inset-3 flex items-center justify-center rounded-3xl border-2 border-dashed border-surface-500 bg-background/85">
-          <p className="text-[18px] font-semibold">Drop a receipt photo</p>
+          <p className="text-[18px] font-semibold">Drop a photo</p>
         </div>}
       </div>
     </div>

@@ -29,6 +29,7 @@ describe('assistant requests from the window', () => {
     expect(parseTurnRequest({ ...turn, text: '', image: { base64: 'aGk=', mimeType: 'image/jpeg' } }))
       .toEqual({ ...turn, text: '', image: { base64: 'aGk=', mimeType: 'image/jpeg' } })
     expect(parseConfirmRequest({ ...confirm, extra: 1 })).toEqual(confirm)
+    expect(parseTurnRequest({ ...turn, autoSave: true })).toEqual({ ...turn, autoSave: true })
   })
 
   it('turns away malformed requests', () => {
@@ -38,6 +39,7 @@ describe('assistant requests from the window', () => {
     expect(parseTurnRequest({ ...turn, units: 'stone' })).toBeNull()
     expect(parseTurnRequest({ ...turn, chatId: 42 })).toBeNull()
     expect(parseTurnRequest({ ...turn, image: { base64: 1, mimeType: 'image/jpeg' } })).toBeNull()
+    expect(parseTurnRequest({ ...turn, autoSave: 'yes' })).toBeNull()
     expect(parseConfirmRequest({ ...confirm, approved: 'yes' })).toBeNull()
     expect(parseConfirmRequest({ ...confirm, callId: '' })).toBeNull()
     expect(parseConfirmRequest(null)).toBeNull()

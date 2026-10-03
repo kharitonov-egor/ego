@@ -51,12 +51,13 @@ messages, and tool calls live in `assistant_chats`, `assistant_messages`, and
 `assistant_tool_calls`. The tile asks for a fingerprint like Mood and Diary, since a reply can
 quote a mood note.
 
-On the desktop, AI opens the same chat with no fingerprint; Blur hides chat titles and replies
-instead. Earlier chats sit in a column on the left, or behind the list icon when the window is
-narrow. Enter sends and Shift+Enter starts a new line. A receipt photo comes from the paperclip, a
-paste, or a drop onto the chat. The main process holds the device token, so it runs each streamed
-turn and passes the reply back as it arrives. The waveform button in the header opens Talk to AI,
-the voice call, and its back arrow returns to the chat.
+On the desktop, AI opens the same chat with no fingerprint; Blur hides chat titles, replies, and the
+save card instead. Earlier chats sit in a column on the left, or behind the list icon when the
+window is narrow. Enter sends and Shift+Enter starts a new line. A photo comes from the paperclip, a
+paste, or a drop onto the chat. The save card runs its three seconds the same way, and leaving the
+AI screen saves it. The main process holds the device token, so it runs each streamed turn and
+passes the reply back as it arrives. The waveform button in the header opens Talk to AI, the voice
+call, and its back arrow returns to the chat.
 
 ## Money
 
