@@ -15,6 +15,7 @@ import { ConfirmDialog } from '../../components/ui/dialog'
 import { Spinner } from '../../components/ui/spinner'
 import { useAutosize } from '../../hooks/useAutosize'
 import { assistantStream } from '../../lib/assistant'
+import { useBlur } from '../../lib/blur'
 import { useLedger } from '../../lib/ledger'
 import { SecureStore } from '../../lib/preferences'
 import { cn } from '../../lib/utils'
@@ -64,6 +65,9 @@ export default function Assistant(): React.ReactElement {
   const [units, setUnits] = useState<AssistantUnits>('imperial')
   const imageUris = useRef(new Map<string, string>())
   const pendingImage = useRef<string | null>(null)
+  /** Bumped by every open and send, so a slow load or an older stream cannot land in the chat on screen. */
+  const generation = useRef(0)
+  const { blurred } = useBlur()
   useAutosize(input, text)
 
   const scrollToEnd = useCallback((): void => {
@@ -88,6 +92,7 @@ export default function Assistant(): React.ReactElement {
   }, [])
 
   const open = useCallback(async (chat: AssistantChat | null): Promise<void> => {
+    const ticket = (generation.current += 1)
     setChatId(chat?.id ?? null)
     setPending(null)
     setStreaming(null)
@@ -100,6 +105,7 @@ export default function Assistant(): React.ReactElement {
     }
     setLoading(true)
     const result = await api.assistantMessages(chat.id)
+    if (ticket !== generation.current) return
     setLoading(false)
     if (!result.ok) {
       setMessages([])
@@ -117,6 +123,7 @@ export default function Assistant(): React.ReactElement {
       return
     }
     let active = true
+    const ticket = generation.current
     void api.assistantChats().then((result) => {
       if (!active) return
       if (!result.ok) {
@@ -125,7 +132,7 @@ export default function Assistant(): React.ReactElement {
         return
       }
       setChats(result.data.chats)
-      void open(result.data.chats[0] ?? null)
+      if (ticket === generation.current) void open(result.data.chats[0] ?? null)
     })
     return () => { active = false }
   }, [api, ledger.enabled, open])
@@ -153,6 +160,11 @@ export default function Assistant(): React.ReactElement {
     scrollToEnd()
   }, [scrollToEnd])
 
+  /** Events for the stream started under `ticket`, dropped once another chat is on screen. */
+  const eventsFor = (ticket: number) => (event: AssistantStreamEvent): void => {
+    if (ticket === generation.current) handleEvent(event)
+  }
+
   const finishTurn = useCallback((chat: string | null): void => {
     setBusy(false)
     setStreaming(null)
@@ -163,7 +175,8 @@ export default function Assistant(): React.ReactElement {
   const send = async (): Promise<void> => {
     const message = text.trim()
     const image = attachment
-    if (busy || (!message && !image)) return
+    if (busy || loading || (!message && !image)) return
+    const ticket = (generation.current += 1)
     setText('')
     setAttachment(null)
     setError(null)
@@ -181,9 +194,9 @@ export default function Assistant(): React.ReactElement {
     const result = await assistantStream('turn', {
       chatId, text: message, ...(image ? { image: { base64: image.base64, mimeType: image.mimeType } } : {}),
       today: isoToday(), timeZone: timeZone(), units
-    }, handleEvent)
+    }, eventsFor(ticket))
     finishTurn(chatId)
-    if (!result.ok) {
+    if (!result.ok && ticket === generation.current) {
       setError(result.error.message)
       setMessages((current) => current.filter((item) => item.id !== local.id))
       setText(message)
@@ -194,22 +207,25 @@ export default function Assistant(): React.ReactElement {
   const answer = async (approved: boolean): Promise<void> => {
     if (!pending || busy) return
     const current = pending
+    const ticket = (generation.current += 1)
     setPending(null)
     setError(null)
     setBusy(true)
     setStreaming({ text: '', trail: [] })
     const result = await assistantStream('confirm', {
       chatId: current.chatId, callId: current.callId, approved, today: isoToday(), timeZone: timeZone(), units
-    }, handleEvent)
+    }, eventsFor(ticket))
     finishTurn(current.chatId)
-    if (!result.ok) setError(result.error.message)
+    if (!result.ok && ticket === generation.current) setError(result.error.message)
   }
 
   const undo = async (callId: string): Promise<void> => {
     if (!chatId || undoing) return
+    const ticket = generation.current
     setUndoing(callId)
     const result = await api.assistantUndo({ chatId, callId })
     setUndoing(null)
+    if (ticket !== generation.current) return
     if (!result.ok) {
       setError(result.error.message)
       return
@@ -248,6 +264,7 @@ export default function Assistant(): React.ReactElement {
   const chatRows = {
     chats,
     currentId: chatId,
+    disabled: busy,
     onOpen: (chat: AssistantChat) => { setChatsOpen(false); void open(chat) },
     onNew: () => { setChatsOpen(false); void open(null) },
     onDelete: (chat: AssistantChat) => { setChatsOpen(false); setDeleting(chat) }
@@ -257,7 +274,7 @@ export default function Assistant(): React.ReactElement {
     <IconButton label="Talk to AI" onClick={() => navigate('/ai/voice')}><AudioLines size={20} /></IconButton>
     {ledger.enabled && <>
       <IconButton label="Chats" onClick={() => setChatsOpen(true)} className="lg:hidden"><MessagesSquare size={20} /></IconButton>
-      <IconButton label="New chat" onClick={() => void open(null)}><SquarePen size={20} /></IconButton>
+      <IconButton label="New chat" disabled={busy} onClick={() => void open(null)}><SquarePen size={20} /></IconButton>
     </>}
   </>} />
 
@@ -266,14 +283,14 @@ export default function Assistant(): React.ReactElement {
       {header}
       <CenteredMessage
         title="Sign in to talk to Ego"
-        detail="Sign in once with Google on the start screen. The chat then reads and records your data through the Worker."
+        detail="Sign in once with Google on Home. The chat then reads and records your data through the Worker."
         action="Go to sign in"
         onAction={() => navigate('/')}
       />
     </Screen>
   }
 
-  const canSend = !busy && (text.trim().length > 0 || attachment !== null)
+  const canSend = !busy && !loading && (text.trim().length > 0 || attachment !== null)
 
   return <Screen>
     {header}
@@ -315,7 +332,9 @@ export default function Assistant(): React.ReactElement {
         <div className="border-t border-surface-800 bg-background px-6 pb-4 pt-3">
           <div className="mx-auto max-w-3xl">
             {attachment && <div className="mb-3 flex items-center rounded-2xl border border-border bg-card p-2.5">
-              <img src={attachment.uri} alt="Receipt" className="h-12 w-12 rounded-xl object-cover" />
+              <span className="h-12 w-12 shrink-0 overflow-hidden rounded-xl">
+                <img src={attachment.uri} alt="Receipt" className={cn('h-12 w-12 object-cover', blurred && 'ego-blurred-media')} />
+              </span>
               <div className="ml-3 flex-1">
                 <p className="text-[15px] font-semibold">Receipt attached</p>
                 <p className="text-[14px] text-muted-foreground">Add a note or send it now</p>

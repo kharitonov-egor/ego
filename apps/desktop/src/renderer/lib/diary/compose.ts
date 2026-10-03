@@ -41,6 +41,17 @@ function pathOf(file: File): string {
   }
 }
 
+/** The files in a drop or a paste. A dropped folder has no bytes to send, so it is left out. */
+export function filesFrom(transfer: DataTransfer): File[] {
+  const files: File[] = []
+  for (const item of Array.from(transfer.items)) {
+    if (item.kind !== 'file' || item.webkitGetAsEntry()?.isDirectory) continue
+    const file = item.getAsFile()
+    if (file) files.push(file)
+  }
+  return files
+}
+
 /** Images still show as images; everything else keeps its type. */
 export function draftsFromFiles(files: readonly File[]): DraftFile[] {
   return files.map((file) => {
@@ -185,11 +196,13 @@ export async function persistDraft(draft: DraftFile): Promise<PersistedDraft> {
       attachment.durationSeconds = attachment.durationSeconds ?? poster.duration
     }
   }
-  if (preview) {
-    const previewId = newId()
-    const previewCopy = await window.api.mediaStage({
-      mediaId: previewId, fileName: null, mimeType: 'image/jpeg', data: await preview.blob.arrayBuffer()
-    })
+  const previewId = newId()
+  const previewCopy = preview
+    ? await preview.blob.arrayBuffer()
+      .then((data) => window.api.mediaStage({ mediaId: previewId, fileName: null, mimeType: 'image/jpeg', data }))
+      .catch(() => null)
+    : null
+  if (preview && previewCopy) {
     attachment.previewId = previewId
     uploads.unshift({ mediaId: previewId, localUri: previewCopy.localUri, contentType: 'image/jpeg', size: previewCopy.size })
     shown.push([previewId, URL.createObjectURL(preview.blob)])

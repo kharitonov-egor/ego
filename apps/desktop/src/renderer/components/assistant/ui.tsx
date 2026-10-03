@@ -1,6 +1,7 @@
 import React from 'react'
 import { Check, MessageSquarePlus, Sparkles, Trash2, Undo2, X } from 'lucide-react'
 import type { AssistantChat, AssistantMessage, AssistantPendingWrite } from '@ego/api-contracts'
+import { BlurSpan, Blurred, useBlur } from '../../lib/blur'
 import { cn } from '../../lib/utils'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
@@ -22,18 +23,21 @@ export function Trail({ lines }: { lines: readonly string[] }): React.ReactEleme
   return <ul className="mt-1.5 flex flex-col gap-0.5 pl-1">
     {lines.map((line, index) => <li key={`${index}-${line}`} className="flex items-start">
       <span className="mr-2 mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-surface-500" />
-      <span className="flex-1 text-[13px] leading-5 text-muted-foreground">{line}</span>
+      <Blurred><span className="flex-1 text-[13px] leading-5 text-muted-foreground">{line}</span></Blurred>
     </li>)}
   </ul>
 }
 
 export function UserBubble({ message, imageUri }: { message: AssistantMessage; imageUri: string | null }): React.ReactElement {
+  const { blurred } = useBlur()
   return <div className="mb-3 flex flex-col items-end">
     <div className="max-w-[86%] overflow-hidden rounded-3xl rounded-br-lg bg-primary px-4 py-3">
       {imageUri
-        ? <img src={imageUri} alt="Receipt" className="mb-2 h-36 w-52 rounded-2xl object-cover" />
+        ? <div className="mb-2 h-36 w-52 overflow-hidden rounded-2xl">
+          <img src={imageUri} alt="Receipt" className={cn('h-36 w-52 object-cover', blurred && 'ego-blurred-media')} />
+        </div>
         : message.hasImage && <Badge variant="outline" className="mb-2 border-black/20 text-primary-foreground">Receipt image</Badge>}
-      {message.text.length > 0 && <p className="whitespace-pre-wrap break-words text-[16px] leading-6 text-primary-foreground">{message.text}</p>}
+      {message.text.length > 0 && <Blurred><p className="whitespace-pre-wrap break-words text-[16px] leading-6 text-primary-foreground">{message.text}</p></Blurred>}
     </div>
   </div>
 }
@@ -45,7 +49,7 @@ export function AssistantBubble({ message, undoing, onUndo }: {
 }): React.ReactElement {
   return <div className="mb-3 flex flex-col items-start">
     {message.text.length > 0 && <div className="max-w-[86%] rounded-3xl rounded-bl-lg border border-border bg-card px-4 py-3">
-      <p className="select-text whitespace-pre-wrap break-words text-[16px] leading-6">{message.text}</p>
+      <Blurred><p className="select-text whitespace-pre-wrap break-words text-[16px] leading-6">{message.text}</p></Blurred>
     </div>}
     <Trail lines={message.trail} />
     {message.undo.map((undo) => <button
@@ -57,7 +61,7 @@ export function AssistantBubble({ message, undoing, onUndo }: {
       className="mt-1.5 flex items-center self-start rounded-full border border-surface-700 px-3 py-1.5 transition-colors hover:bg-surface-800 active:bg-surface-800 disabled:opacity-60"
     >
       {undoing === undo.callId ? <Spinner size={14} color="#d4d4d4" /> : <Undo2 color="#d4d4d4" size={14} />}
-      <span className="ml-1.5 text-[13px] font-medium text-surface-200">Undo the {undo.label}</span>
+      <span className="ml-1.5 text-[13px] font-medium text-surface-200">Undo the <BlurSpan>{undo.label}</BlurSpan></span>
     </button>)}
   </div>
 }
@@ -66,7 +70,7 @@ export function StreamingBubble({ text, trail }: { text: string; trail: readonly
   return <div className="mb-3 flex flex-col items-start" aria-live="polite">
     {text.trim().length > 0
       ? <div className="max-w-[86%] rounded-3xl rounded-bl-lg border border-border bg-card px-4 py-3">
-        <p className="whitespace-pre-wrap break-words text-[16px] leading-6">{text.trimStart()}</p>
+        <Blurred><p className="whitespace-pre-wrap break-words text-[16px] leading-6">{text.trimStart()}</p></Blurred>
       </div>
       : <div className="flex items-center rounded-3xl rounded-bl-lg border border-border bg-card px-4 py-3">
         <Spinner size={18} />
@@ -95,10 +99,10 @@ export function PendingCard({ pending, busy, onAnswer }: {
 }): React.ReactElement {
   return <Card className="mb-4 overflow-hidden">
     <div className="border-b border-surface-800 px-5 py-4">
-      <h2 className="text-[17px] font-semibold">{pending.title}</h2>
+      <Blurred><h2 className="text-[17px] font-semibold">{pending.title}</h2></Blurred>
     </div>
     <div className="px-5 py-4">
-      {pending.lines.map((line, index) => <p key={`${index}-${line}`} className={cn('text-[15px] leading-6', index ? 'mt-1.5' : '')}>{line}</p>)}
+      {pending.lines.map((line, index) => <Blurred key={`${index}-${line}`}><p className={cn('text-[15px] leading-6', index ? 'mt-1.5' : '')}>{line}</p></Blurred>)}
       <div className="mt-4 flex gap-2">
         <Button variant="outline" size="lg" disabled={busy} onClick={() => onAnswer(false)} className="flex-1">
           <X color="#d4d4d4" size={18} />
@@ -141,15 +145,17 @@ function chatDate(iso: string): string {
 interface ChatRowsProps {
   chats: readonly AssistantChat[]
   currentId: string | null
+  /** While a reply streams, the chat on screen stays put. */
+  disabled: boolean
   onOpen: (chat: AssistantChat) => void
   onNew: () => void
   onDelete: (chat: AssistantChat) => void
 }
 
 /** New chat, then every earlier chat, newest first. */
-function ChatRows({ chats, currentId, onOpen, onNew, onDelete }: ChatRowsProps): React.ReactElement {
+function ChatRows({ chats, currentId, disabled, onOpen, onNew, onDelete }: ChatRowsProps): React.ReactElement {
   return <>
-    <button type="button" onClick={onNew} className="mb-2 flex min-h-14 w-full items-center gap-4 rounded-2xl bg-surface-900 px-4 text-left transition-colors hover:bg-surface-800 active:bg-surface-800">
+    <button type="button" disabled={disabled} onClick={onNew} className="mb-2 flex min-h-14 w-full items-center gap-4 rounded-2xl bg-surface-900 px-4 text-left transition-colors hover:bg-surface-800 active:bg-surface-800 disabled:opacity-50">
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary"><MessageSquarePlus color="#0a0a0a" size={20} /></span>
       <span className="text-[16px] font-semibold">New chat</span>
     </button>
@@ -159,16 +165,18 @@ function ChatRows({ chats, currentId, onOpen, onNew, onDelete }: ChatRowsProps):
       <button
         type="button"
         aria-current={chat.id === currentId ? 'true' : undefined}
+        disabled={disabled}
         onClick={() => onOpen(chat)}
-        className="flex min-h-14 min-w-0 flex-1 flex-col justify-center py-2 text-left"
+        className="flex min-h-14 min-w-0 flex-1 flex-col justify-center py-2 text-left disabled:cursor-default"
       >
-        <span className="w-full truncate text-[16px] font-medium">{chat.title || 'Chat'}</span>
+        <Blurred><span className="w-full truncate text-[16px] font-medium">{chat.title || 'Chat'}</span></Blurred>
         <span className="text-[13px] text-muted-foreground">{chatDate(chat.updatedAt)}</span>
       </button>
       <button
         type="button"
         aria-label={`Delete ${chat.title || 'this chat'}`}
         title="Delete"
+        disabled={disabled}
         onClick={() => onDelete(chat)}
         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-surface-400 opacity-0 transition hover:bg-surface-800 hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
       ><Trash2 size={18} /></button>

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { Film, ImageOff, Play } from 'lucide-react'
 import type { DiaryAttachment } from '@ego/core'
 import { durationLabel } from '@ego/local/diary/format'
+import { useBlur } from '../../lib/blur'
 import { useUploadProgress } from '../../lib/diary/progress'
 import { cn } from '../../lib/utils'
 import { useChat } from './context'
@@ -63,16 +64,17 @@ function Pill({ children, className }: { children: string; className: string }):
 }
 
 export function MissingTile({ attachment, width, height }: { attachment: DiaryAttachment; width: number; height: number }): React.ReactElement {
+  const { blurred } = useBlur()
   const Icon = attachment.kind === 'photo' ? ImageOff : Film
   return <div style={{ width, height, backgroundColor: ink.tile }} className="flex shrink-0 flex-col items-center justify-center px-4">
     <Icon color={ink.faint} size={26} />
     <span className="mt-2 text-center text-[13px] leading-4 text-muted-foreground">Not in the Telegram export</span>
-    {attachment.fileName && <span className="mt-1 max-w-full truncate text-center text-[12px] text-surface-500">{attachment.fileName}</span>}
+    {attachment.fileName && <span className={cn('mt-1 max-w-full truncate text-center text-[12px] text-surface-500', blurred && 'ego-blurred')}>{attachment.fileName}</span>}
   </div>
 }
 
-function LoopingVideo({ src, width, height }: { src: string; width: number; height: number }): React.ReactElement {
-  return <video src={src} autoPlay loop muted playsInline draggable={false} style={{ width, height }} className="object-cover" />
+function LoopingVideo({ src, width, height, blurred }: { src: string; width: number; height: number; blurred: boolean }): React.ReactElement {
+  return <video src={src} autoPlay loop muted playsInline draggable={false} style={{ width, height }} className={cn('object-cover', blurred && 'ego-blurred-media')} />
 }
 
 function Tile({ attachment, width, height }: {
@@ -81,6 +83,7 @@ function Tile({ attachment, width, height }: {
   height: number
 }): React.ReactElement {
   const { source, openViewer } = useChat()
+  const { blurred } = useBlur()
   const [ref, visible] = useInView<HTMLButtonElement>()
   const shownId = attachment.previewId ?? (attachment.kind === 'photo' ? attachment.mediaId : null)
   if (!attachment.mediaId && !shownId) return <MissingTile attachment={attachment} width={width} height={height} />
@@ -94,9 +97,9 @@ function Tile({ attachment, width, height }: {
     className="relative block shrink-0 cursor-zoom-in overflow-hidden"
   >
     {loops && attachment.mediaId
-      ? <LoopingVideo src={source(attachment.mediaId)} width={width} height={height} />
+      ? <LoopingVideo src={source(attachment.mediaId)} width={width} height={height} blurred={blurred} />
       : shownId
-        ? <img src={source(shownId)} alt="" draggable={false} loading="lazy" style={{ width, height }} className="object-cover" />
+        ? <img src={source(shownId)} alt="" draggable={false} loading="lazy" style={{ width, height }} className={cn('object-cover', blurred && 'ego-blurred-media')} />
         : <span style={{ width, height }} className="flex items-center justify-center"><Film color={ink.faint} size={28} /></span>}
     {attachment.kind === 'video' && <>
       <span className="pointer-events-none absolute inset-0 flex items-center justify-center">

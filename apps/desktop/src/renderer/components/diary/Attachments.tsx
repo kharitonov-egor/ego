@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { FileText, Music, Pause, Play } from 'lucide-react'
 import type { DiaryAttachment } from '@ego/core'
 import { durationLabel, extensionLabel, sizeLabel } from '@ego/local/diary/format'
+import { Blurred, useBlur } from '../../lib/blur'
 import { useDiaryAudio } from '../../lib/diary/audio'
 import { openWithAnotherApp } from '../../lib/diary/media'
 import { cn } from '../../lib/utils'
@@ -75,7 +76,7 @@ export function AudioRow({ attachment }: { attachment: DiaryAttachment }): React
     <div className="min-w-0 flex-1">
       <div className="flex items-center gap-1.5">
         <Music color={ink.meta} size={13} className="shrink-0" />
-        <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{title}</span>
+        <Blurred><span className="min-w-0 flex-1 truncate text-[15px] font-semibold">{title}</span></Blurred>
       </div>
       {playback.current && <button
         type="button"
@@ -124,6 +125,7 @@ export function VoiceRow({ attachment }: { attachment: DiaryAttachment }): React
 
 export function FileRow({ attachment }: { attachment: DiaryAttachment }): React.ReactElement {
   const { source } = useChat()
+  const { blurred } = useBlur()
   const [opening, setOpening] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
   const missing = attachment.mediaId === null
@@ -150,7 +152,7 @@ export function FileRow({ attachment }: { attachment: DiaryAttachment }): React.
   >
     <span style={{ backgroundColor: ink.tile }} className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl">
       {attachment.previewId
-        ? <img src={source(attachment.previewId)} alt="" draggable={false} className="h-12 w-12 object-cover" />
+        ? <img src={source(attachment.previewId)} alt="" draggable={false} className={cn('h-12 w-12 object-cover', blurred && 'ego-blurred-media')} />
         : <FileText color={ink.secondary} size={22} />}
       {opening && <span className="absolute inset-0 flex items-center justify-center" style={{ backgroundColor: ink.scrim }}>
         <Spinner size={18} />
@@ -158,7 +160,7 @@ export function FileRow({ attachment }: { attachment: DiaryAttachment }): React.
       <UploadRing mediaId={attachment.mediaId} size={40} />
     </span>
     <span className="min-w-0 flex-1">
-      <span className="line-clamp-2 break-words text-[15px] font-semibold">{attachment.fileName ?? 'File'}</span>
+      <Blurred><span className="line-clamp-2 break-words text-[15px] font-semibold">{attachment.fileName ?? 'File'}</span></Blurred>
       <span className={cn('block text-[13px]', problem ? 'text-rose-300' : 'text-muted-foreground')}>{detail}</span>
     </span>
   </button>

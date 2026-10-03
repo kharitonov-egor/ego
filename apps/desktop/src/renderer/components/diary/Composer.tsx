@@ -6,13 +6,16 @@ import { diaryDraftStore } from '@ego/local/diary/draft'
 import { durationLabel, levelFromDecibels, sizeLabel, waveformBars } from '@ego/local/diary/format'
 import type { LocalDiaryMessage } from '@ego/local/diary/repository'
 import { useAutosize } from '../../hooks/useAutosize'
-import { discardDraft, draftsFromFiles, voiceDraft, type DraftFile } from '../../lib/diary/compose'
+import { Blurred, useBlur } from '../../lib/blur'
+import { discardDraft, draftsFromFiles, filesFrom, voiceDraft, type DraftFile } from '../../lib/diary/compose'
 import type { DiaryDraft } from '../../lib/diary/use-diary'
 import { cn } from '../../lib/utils'
 import { ink } from './theme'
 
 const VOICE_TYPE = 'audio/webm;codecs=opus'
 const SHORTEST_VOICE_SECONDS = 0.7
+/** A recording left running stops and sends here rather than filling the disk. */
+const LONGEST_VOICE_SECONDS = 30 * 60
 /** A press shorter than this is a click: the recording keeps going until the send button. */
 const HOLD_MS = 350
 
@@ -42,7 +45,7 @@ function ContextBar({ Icon, title, detail, onClose }: { Icon: LucideIcon; title:
     <Icon color={ink.text} size={18} className="shrink-0" />
     <div className="ml-2.5 min-w-0 flex-1 border-l-2 pl-2" style={{ borderColor: ink.text }}>
       <p className="text-[13px] font-semibold">{title}</p>
-      <p className="truncate text-[13px] text-surface-300">{detail}</p>
+      <Blurred><p className="truncate text-[13px] text-surface-300">{detail}</p></Blurred>
     </div>
     <button type="button" aria-label={`Cancel ${title.toLowerCase()}`} title="Cancel" onClick={onClose} className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-surface-800">
       <X color={ink.meta} size={18} />
@@ -50,25 +53,27 @@ function ContextBar({ Icon, title, detail, onClose }: { Icon: LucideIcon; title:
   </div>
 }
 
-function DraftThumb({ draft, onRemove }: { draft: DraftFile; onRemove: () => void }): React.ReactElement {
+/** No remove button while the message is on its way, since the chat already shows these files. */
+function DraftThumb({ draft, onRemove }: { draft: DraftFile; onRemove: (() => void) | null }): React.ReactElement {
+  const { blurred } = useBlur()
   const Icon = draft.kind === 'video' ? Film : draft.kind === 'audio' || draft.kind === 'voice' ? Music : FileText
-  return <div style={{ backgroundColor: ink.tile }} className="relative h-[72px] w-[72px] shrink-0 overflow-hidden rounded-xl" title={draft.fileName ?? undefined}>
+  return <div style={{ backgroundColor: ink.tile }} className="relative h-[72px] w-[72px] shrink-0 overflow-hidden rounded-xl" title={blurred ? undefined : draft.fileName ?? undefined}>
     {draft.kind === 'photo'
-      ? <img src={draft.uri} alt="" draggable={false} className="h-[72px] w-[72px] object-cover" />
+      ? <img src={draft.uri} alt="" draggable={false} className={cn('h-[72px] w-[72px] object-cover', blurred && 'ego-blurred-media')} />
       : <div className="flex h-full flex-col items-center justify-center px-1">
         <Icon color={ink.secondary} size={22} />
-        <span className="mt-1 w-full truncate text-center text-[11px] text-surface-300">
+        <span className={cn('mt-1 w-full truncate text-center text-[11px] text-surface-300', blurred && 'ego-blurred')}>
           {draft.kind === 'video' && draft.durationSeconds !== null ? durationLabel(draft.durationSeconds) : draft.fileName ?? sizeLabel(draft.size)}
         </span>
       </div>}
-    <button
+    {onRemove && <button
       type="button"
       aria-label="Remove this attachment"
       title="Remove"
       onClick={onRemove}
       style={{ backgroundColor: ink.scrim }}
       className="absolute right-1 top-1 flex h-[22px] w-[22px] items-center justify-center rounded-full hover:bg-black"
-    ><X color={ink.text} size={13} /></button>
+    ><X color={ink.text} size={13} /></button>}
   </div>
 }
 
@@ -105,20 +110,26 @@ function useVoiceNote(onRecorded: (draft: DraftFile) => void, onNotice: (text: s
       latest.current.onNotice('Allow the microphone for Ego in system settings to record voice messages.')
       return false
     }
+    let audio: AudioContext | null = null
+    let timer: ReturnType<typeof setInterval> | null = null
     try {
       const recorder = new MediaRecorder(stream, {
         mimeType: MediaRecorder.isTypeSupported(VOICE_TYPE) ? VOICE_TYPE : undefined, audioBitsPerSecond: 64000
       })
-      const audio = new AudioContext()
+      const chunks: Blob[] = []
+      const levels: number[] = []
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunks.push(event.data)
+      }
+      recorder.start(250)
+      const startedAt = performance.now()
+      audio = new AudioContext()
       void audio.resume().catch(() => undefined)
       const analyser = audio.createAnalyser()
       analyser.fftSize = 1024
       audio.createMediaStreamSource(stream).connect(analyser)
       const samples = new Float32Array(analyser.fftSize)
-      const chunks: Blob[] = []
-      const levels: number[] = []
-      const startedAt = performance.now()
-      const timer = setInterval(() => {
+      timer = setInterval(() => {
         analyser.getFloatTimeDomainData(samples)
         let sum = 0
         for (const sample of samples) sum += sample * sample
@@ -128,16 +139,14 @@ function useVoiceNote(onRecorded: (draft: DraftFile) => void, onNotice: (text: s
         setLevel(next)
         setSeconds((performance.now() - startedAt) / 1000)
       }, 100)
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) chunks.push(event.data)
-      }
-      recorder.start(250)
       session.current = { recorder, stream, audio, chunks, levels, startedAt, timer }
       setSeconds(0)
       setLevel(0)
       setRecording(true)
       return true
     } catch {
+      if (timer) clearInterval(timer)
+      void audio?.close().catch(() => undefined)
       for (const track of stream.getTracks()) track.stop()
       latest.current.onNotice('This computer could not start recording.')
       return false
@@ -198,9 +207,21 @@ function useVoiceNote(onRecorded: (draft: DraftFile) => void, onNotice: (text: s
       event.stopPropagation()
       void finish(false)
     }
+    // Closing the window only hides it in the tray, so the microphone would otherwise stay on.
+    const hidden = (): void => {
+      if (document.hidden) void finish(false)
+    }
     document.addEventListener('keydown', keys, true)
-    return () => document.removeEventListener('keydown', keys, true)
+    document.addEventListener('visibilitychange', hidden)
+    return () => {
+      document.removeEventListener('keydown', keys, true)
+      document.removeEventListener('visibilitychange', hidden)
+    }
   }, [finish, recording])
+
+  useEffect(() => {
+    if (recording && seconds >= LONGEST_VOICE_SECONDS) void finish(true)
+  }, [finish, recording, seconds])
 
   useEffect(() => () => { void finish(false) }, [finish])
 
@@ -248,6 +269,8 @@ export function Composer({ ref, db, replyTo, editing, onCancelReply, onCancelEdi
   const [sending, setSending] = useState(false)
   const submitting = useRef(false)
   const [files, setFiles] = useState<DraftFile[]>([])
+  /** The drafts as of the last change, read by handlers that run between renders. */
+  const filesNow = useRef<DraftFile[]>([])
   const [notice, setNotice] = useState<string | null>(null)
   const input = useRef<HTMLTextAreaElement>(null)
   const picker = useRef<HTMLInputElement>(null)
@@ -274,24 +297,31 @@ export function Composer({ ref, db, replyTo, editing, onCancelReply, onCancelEdi
   }, [notice])
 
   const sendVoice = (draft: DraftFile): void => {
-    void onSend({ text: '', files: [draft], replyToId: replyTo?.id ?? null })
+    void onSend({ text: '', files: [draft], replyToId: replyTo?.id ?? null }).then((saved) => {
+      if (!saved) discardDraft(draft)
+    })
     onCancelReply()
   }
   const voice = useVoiceNote(sendVoice, setNotice)
 
+  const changeFiles = useCallback((next: DraftFile[]): void => {
+    filesNow.current = next
+    setFiles(next)
+  }, [])
+
+  useEffect(() => () => filesNow.current.forEach(discardDraft), [])
+
   const addFiles = useCallback((picked: readonly File[]): void => {
     if (editingNow.current || picked.length === 0) return
     const next = draftsFromFiles(picked)
-    setFiles((current) => {
-      const room = DIARY_ATTACHMENT_LIMIT - current.length
-      if (next.length > room) {
-        setNotice(`One message holds up to ${DIARY_ATTACHMENT_LIMIT} files.`)
-        next.slice(Math.max(0, room)).forEach(discardDraft)
-      }
-      return [...current, ...next.slice(0, Math.max(0, room))]
-    })
+    const room = Math.max(0, DIARY_ATTACHMENT_LIMIT - filesNow.current.length)
+    if (next.length > room) {
+      setNotice(`One message holds up to ${DIARY_ATTACHMENT_LIMIT} files.`)
+      next.slice(room).forEach(discardDraft)
+    }
+    changeFiles([...filesNow.current, ...next.slice(0, room)])
     input.current?.focus()
-  }, [])
+  }, [changeFiles])
 
   useImperativeHandle(ref, () => ({ addFiles }), [addFiles])
 
@@ -308,7 +338,7 @@ export function Composer({ ref, db, replyTo, editing, onCancelReply, onCancelEdi
       const draft: DiaryDraft = { text, files, replyToId: replyTo?.id ?? null }
       if (await onSend(draft)) {
         if (store.getSnapshot().text === draft.text) store.setText('')
-        setFiles([])
+        changeFiles(filesNow.current.filter((item) => !draft.files.includes(item)))
         onCancelReply()
       }
     } finally {
@@ -327,9 +357,9 @@ export function Composer({ ref, db, replyTo, editing, onCancelReply, onCancelEdi
         ? <ContextBar Icon={Pencil} title="Edit message" detail={diaryPreviewText(editing)} onClose={onCancelEdit} />
         : replyTo && <ContextBar Icon={Reply} title="Reply" detail={diaryPreviewText(replyTo)} onClose={onCancelReply} />}
       {files.length > 0 && !editing && <div className="flex gap-2 overflow-x-auto px-3 pt-2.5">
-        {files.map((draft) => <DraftThumb key={draft.key} draft={draft} onRemove={() => {
+        {files.map((draft) => <DraftThumb key={draft.key} draft={draft} onRemove={sending ? null : () => {
           discardDraft(draft)
-          setFiles((current) => current.filter((item) => item.key !== draft.key))
+          changeFiles(filesNow.current.filter((item) => item.key !== draft.key))
         }} />)}
       </div>}
       <div className="flex min-h-14 items-end gap-1 px-1.5 py-1.5">
@@ -362,7 +392,7 @@ export function Composer({ ref, db, replyTo, editing, onCancelReply, onCancelEdi
                 void submit()
               }}
               onPaste={(event) => {
-                const pasted = Array.from(event.clipboardData.files)
+                const pasted = filesFrom(event.clipboardData)
                 if (pasted.length === 0 || editing) return
                 event.preventDefault()
                 addFiles(pasted)

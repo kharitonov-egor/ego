@@ -4,7 +4,9 @@ import { Copy, Hash, Pencil, Pin, PinOff, Reply, RotateCw, Search, Trash2, type 
 import { diaryPreviewText, matchesDiaryQuery } from '@ego/core'
 import { dateTimeLabel } from '@ego/local/diary/format'
 import type { LocalDiaryMessage } from '@ego/local/diary/repository'
+import { BlurSpan, Blurred, useBlur } from '../../lib/blur'
 import { VISUAL_KINDS } from '../../lib/diary/chat'
+import { cn } from '../../lib/utils'
 import { useChat } from './context'
 import { ink } from './theme'
 
@@ -153,7 +155,7 @@ export function PinnedBar({ pinned, index, onPress }: { pinned: readonly LocalDi
     </span>
     <span className="flex min-w-0 flex-1 flex-col">
       <span className="text-[13px] font-semibold">{pinned.length > 1 ? `Pinned message ${index + 1} of ${pinned.length}` : 'Pinned message'}</span>
-      <span className="truncate text-[14px] text-surface-300">{diaryPreviewText(message)}</span>
+      <Blurred><span className="truncate text-[14px] text-surface-300">{diaryPreviewText(message)}</span></Blurred>
     </span>
     <Pin color={ink.meta} size={16} className="shrink-0" />
   </button>
@@ -161,15 +163,18 @@ export function PinnedBar({ pinned, index, onPress }: { pinned: readonly LocalDi
 
 function ResultRow({ message, onPress }: { message: LocalDiaryMessage; onPress: () => void }): React.ReactElement {
   const { source } = useChat()
+  const { blurred } = useBlur()
   const visual = message.attachments.find((item) => VISUAL_KINDS.has(item.kind))
   const thumbId = visual?.previewId ?? (visual?.kind === 'photo' ? visual.mediaId : null)
   return <button type="button" onClick={onPress} className="flex w-full items-center gap-3 border-b border-border px-4 py-3 text-left transition-colors hover:bg-surface-900 active:bg-surface-900">
     {thumbId
-      ? <img src={source(thumbId)} alt="" draggable={false} loading="lazy" className="h-11 w-11 shrink-0 rounded-lg object-cover" />
+      ? <span className="h-11 w-11 shrink-0 overflow-hidden rounded-lg">
+        <img src={source(thumbId)} alt="" draggable={false} loading="lazy" className={cn('h-11 w-11 object-cover', blurred && 'ego-blurred-media')} />
+      </span>
       : <span style={{ backgroundColor: ink.tile }} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg"><Search color={ink.faint} size={18} /></span>}
     <span className="flex min-w-0 flex-1 flex-col">
       <span className="text-[13px] text-muted-foreground">{dateTimeLabel(message.sentAt)}</span>
-      <span className="line-clamp-2 break-words text-[15px] leading-5">{diaryPreviewText(message)}</span>
+      <Blurred><span className="line-clamp-2 break-words text-[15px] leading-5">{diaryPreviewText(message)}</span></Blurred>
     </span>
   </button>
 }
@@ -218,7 +223,7 @@ export function SearchPanel({ query, messages, tags, onPick, onTag }: {
             className="flex items-center gap-1.5 rounded-full bg-surface-900 px-3 py-2 transition-colors hover:bg-surface-800 active:bg-surface-800"
           >
             <Hash color={ink.meta} size={13} />
-            <span className="text-[15px]">{tag.slice(1)}</span>
+            <span className="text-[15px]"><BlurSpan>{tag.slice(1)}</BlurSpan></span>
             <span className="text-[13px] text-muted-foreground">{count}</span>
           </button>)}
         </div>

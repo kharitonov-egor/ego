@@ -34,6 +34,11 @@ export interface MetricSpec {
 const whole = (value: number): string => Math.round(value).toLocaleString('en-US')
 const compact = (value: number): string => value >= 10000 ? `${Math.round(value / 1000)}k` : whole(value)
 const oneDecimal = (value: number): string => (Math.round(value * 10) / 10).toFixed(1)
+/** A narrow weight range ticks in tenths; rounding those to whole numbers would repeat a label. */
+const wholeOrTenth = (value: number): string => {
+  const tenths = Math.round(value * 10) / 10
+  return Number.isInteger(tenths) ? whole(tenths) : tenths.toFixed(1)
+}
 
 export const METRIC_SPECS: Record<HealthMetric, MetricSpec> = {
   readiness: { title: 'Readiness', mark: 'line', summary: 'level', unit: () => '', format: whole, tick: whole, fromZero: true },
@@ -48,7 +53,7 @@ export const METRIC_SPECS: Record<HealthMetric, MetricSpec> = {
   heart: { title: 'Heart rate', mark: 'line', summary: 'level', unit: () => 'bpm', format: whole, tick: whole, fromZero: false },
   resting: { title: 'Resting heart rate', mark: 'line', summary: 'level', unit: () => 'bpm', format: whole, tick: whole, fromZero: false },
   hrv: { title: 'Heart rate variability', mark: 'line', summary: 'level', unit: () => 'ms', format: whole, tick: whole, fromZero: false },
-  weight: { title: 'Weight', mark: 'line', summary: 'level', unit: bodyWeightUnit, format: oneDecimal, tick: whole, fromZero: false }
+  weight: { title: 'Weight', mark: 'line', summary: 'level', unit: bodyWeightUnit, format: oneDecimal, tick: wholeOrTenth, fromZero: false }
 }
 
 export interface HealthIndex {

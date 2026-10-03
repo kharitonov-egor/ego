@@ -53,9 +53,16 @@ export default function HealthHome(): React.ReactElement {
   const failure = params.get('error')
 
   useEffect(() => {
+    if (!connected && !failure) return
     if (connected) void health.refresh(false)
     if (failure) setNotice(CONNECT_ERRORS[failure] ?? CONNECT_ERRORS.failed)
-  }, [connected, failure])
+    setParams((current) => {
+      const next = new URLSearchParams(current)
+      next.delete('connected')
+      next.delete('error')
+      return next
+    }, { replace: true })
+  }, [connected, failure, setParams])
 
   const pick = (iso: string): void => setParams(iso >= today ? {} : { date: iso }, { replace: true })
   const open = (metric: HealthMetric): void => void navigate(`/health/${metric}?date=${date}`)

@@ -2,7 +2,9 @@ import React, { useRef, useState } from 'react'
 import { Play } from 'lucide-react'
 import type { DiaryAttachment } from '@ego/core'
 import { durationLabel } from '@ego/local/diary/format'
+import { useBlur } from '../../lib/blur'
 import { useDiaryAudio } from '../../lib/diary/audio'
+import { cn } from '../../lib/utils'
 import { useChat } from './context'
 import { UploadRing } from './MediaGrid'
 import { ink } from './theme'
@@ -10,8 +12,8 @@ import { ink } from './theme'
 const STICKER_SIZE = 168
 const NOTE_SIZE = 220
 
-function Emoji({ attachment }: { attachment: DiaryAttachment }): React.ReactElement {
-  return <span role="img" aria-label="Sticker" style={{ fontSize: 96, lineHeight: '120px' }}>{attachment.emoji ?? '🙂'}</span>
+function Emoji({ attachment, blurred }: { attachment: DiaryAttachment; blurred: boolean }): React.ReactElement {
+  return <span role="img" aria-label="Sticker" className={cn(blurred && 'ego-blurred')} style={{ fontSize: 96, lineHeight: '120px' }}>{attachment.emoji ?? '🙂'}</span>
 }
 
 /**
@@ -20,16 +22,17 @@ function Emoji({ attachment }: { attachment: DiaryAttachment }): React.ReactElem
  */
 export function Sticker({ attachment }: { attachment: DiaryAttachment }): React.ReactElement {
   const { source } = useChat()
+  const { blurred } = useBlur()
   const label = attachment.emoji ? `${attachment.emoji} sticker` : 'Sticker'
   const lottie = attachment.mimeType === 'application/json'
   const shownId = lottie ? attachment.previewId : attachment.mediaId ?? attachment.previewId
-  if (!shownId) return <Emoji attachment={attachment} />
+  if (!shownId) return <Emoji attachment={attachment} blurred={blurred} />
   const ratio = attachment.width && attachment.height ? attachment.height / attachment.width : 1
   const size = { width: STICKER_SIZE, height: Math.round(STICKER_SIZE * ratio) }
   if (!lottie && attachment.mimeType.startsWith('video/') && shownId === attachment.mediaId) {
-    return <video src={source(shownId)} autoPlay loop muted playsInline aria-label={label} draggable={false} style={size} className="object-contain" />
+    return <video src={source(shownId)} autoPlay loop muted playsInline aria-label={label} draggable={false} style={size} className={cn('object-contain', blurred && 'ego-blurred-media')} />
   }
-  return <img src={source(shownId)} alt={label} draggable={false} style={size} className="object-contain" />
+  return <img src={source(shownId)} alt={label} draggable={false} style={size} className={cn('object-contain', blurred && 'ego-blurred-media')} />
 }
 
 function ProgressRing({ share, size }: { share: number; size: number }): React.ReactElement {
@@ -42,6 +45,7 @@ function ProgressRing({ share, size }: { share: number; size: number }): React.R
 }
 
 function RoundPlayer({ source, onEnd }: { source: string; onEnd: () => void }): React.ReactElement {
+  const { blurred } = useBlur()
   const video = useRef<HTMLVideoElement>(null)
   const [share, setShare] = useState(0)
   return <button
@@ -53,7 +57,7 @@ function RoundPlayer({ source, onEnd }: { source: string; onEnd: () => void }): 
       if (player.paused) void player.play().catch(() => undefined)
       else player.pause()
     }}
-    className="relative block"
+    className="relative block overflow-hidden rounded-full"
     style={{ width: NOTE_SIZE, height: NOTE_SIZE }}
   >
     <video
@@ -68,7 +72,7 @@ function RoundPlayer({ source, onEnd }: { source: string; onEnd: () => void }): 
       }}
       onEnded={onEnd}
       style={{ width: NOTE_SIZE, height: NOTE_SIZE, borderRadius: NOTE_SIZE / 2 }}
-      className="object-cover"
+      className={cn('object-cover', blurred && 'ego-blurred-media')}
     />
     <ProgressRing share={share} size={NOTE_SIZE} />
   </button>
@@ -77,6 +81,7 @@ function RoundPlayer({ source, onEnd }: { source: string; onEnd: () => void }): 
 /** A round video message. It plays in place, with sound, and stops any voice note playing. */
 export function VideoNote({ attachment }: { attachment: DiaryAttachment }): React.ReactElement {
   const { source } = useChat()
+  const { blurred } = useBlur()
   const audio = useDiaryAudio()
   const [playing, setPlaying] = useState(false)
   const mediaId = attachment.mediaId
@@ -92,7 +97,7 @@ export function VideoNote({ attachment }: { attachment: DiaryAttachment }): Reac
     style={{ width: NOTE_SIZE, height: NOTE_SIZE, borderRadius: NOTE_SIZE / 2, backgroundColor: ink.tile }}
     className="relative block overflow-hidden"
   >
-    {attachment.previewId && <img src={source(attachment.previewId)} alt="" draggable={false} style={{ width: NOTE_SIZE, height: NOTE_SIZE }} className="object-cover" />}
+    {attachment.previewId && <img src={source(attachment.previewId)} alt="" draggable={false} style={{ width: NOTE_SIZE, height: NOTE_SIZE }} className={cn('object-cover', blurred && 'ego-blurred-media')} />}
     <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
       <span style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: ink.scrim }} className="flex items-center justify-center">
         <Play color={ink.text} fill={ink.text} size={22} style={{ marginLeft: 3 }} />

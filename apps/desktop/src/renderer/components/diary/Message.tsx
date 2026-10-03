@@ -3,6 +3,7 @@ import { AlertCircle, Check, Clock, CornerUpRight, Pin, Reply } from 'lucide-rea
 import { diaryPreviewText, type DiaryAttachment } from '@ego/core'
 import { dateTimeLabel, timeLabel } from '@ego/local/diary/format'
 import type { LocalDiaryMessage } from '@ego/local/diary/repository'
+import { BlurSpan, Blurred, useBlur } from '../../lib/blur'
 import { VISUAL_KINDS } from '../../lib/diary/chat'
 import { cn } from '../../lib/utils'
 import { AudioRow, FileRow, VoiceRow } from './Attachments'
@@ -27,6 +28,7 @@ function Meta({ message, onMedia, className }: { message: LocalDiaryMessage; onM
 
 function ReplyQuote({ target, onJump }: { target: LocalDiaryMessage | null; onJump: (id: string) => void }): React.ReactElement {
   const { source } = useChat()
+  const { blurred } = useBlur()
   const thumbnail = target?.attachments.find((item) => VISUAL_KINDS.has(item.kind) || item.kind === 'sticker')
   const thumbId = thumbnail?.previewId ?? (thumbnail?.kind === 'photo' || thumbnail?.kind === 'sticker' ? thumbnail.mediaId : null)
   return <button
@@ -38,10 +40,12 @@ function ReplyQuote({ target, onJump }: { target: LocalDiaryMessage | null; onJu
     style={{ backgroundColor: 'rgba(255, 255, 255, 0.07)', width: 'calc(100% - 12px)' }}
   >
     <span className="w-[3px] shrink-0" style={{ backgroundColor: ink.text }} />
-    {thumbId && <img src={source(thumbId)} alt="" draggable={false} className="m-1 h-9 w-9 shrink-0 rounded object-cover" />}
+    {thumbId && <span className="m-1 h-9 w-9 shrink-0 overflow-hidden rounded">
+      <img src={source(thumbId)} alt="" draggable={false} className={cn('h-9 w-9 object-cover', blurred && 'ego-blurred-media')} />
+    </span>}
     <span className="flex min-w-0 flex-1 flex-col px-2 py-1">
       <span className="truncate text-[13px] font-semibold">{target ? dateTimeLabel(target.sentAt) : 'Reply'}</span>
-      <span className="truncate text-[13px] text-surface-300">{target ? diaryPreviewText(target) : 'Deleted message'}</span>
+      <Blurred active={Boolean(target)}><span className="truncate text-[13px] text-surface-300">{target ? diaryPreviewText(target) : 'Deleted message'}</span></Blurred>
     </span>
   </button>
 }
@@ -50,7 +54,7 @@ function Forwarded({ from }: { from: string | null }): React.ReactElement {
   return <div className="flex items-center gap-[5px] px-2.5 pt-[7px]">
     <CornerUpRight color={ink.meta} size={13} className="shrink-0" />
     <span className="min-w-0 flex-1 truncate" style={{ color: ink.meta, fontSize: 13 }}>
-      {from ? <>Forwarded from <span style={{ color: ink.secondary, fontWeight: 600 }}>{from}</span></> : 'Forwarded message'}
+      {from ? <>Forwarded from <span style={{ color: ink.secondary, fontWeight: 600 }}><BlurSpan>{from}</BlurSpan></span></> : 'Forwarded message'}
     </span>
   </div>
 }

@@ -58,7 +58,8 @@ function requestLiveSessionStop(): void {
   }
 }
 
-function createWindow(): void {
+/** `route` is the page to open on, for a link that started Ego. */
+function createWindow(route?: string): void {
   mainWindow = new BrowserWindow({
     width: 1180,
     height: 800,
@@ -98,9 +99,9 @@ function createWindow(): void {
   mainWindow.webContents.on('render-process-gone', abandonTransactions)
 
   if (process.env.ELECTRON_RENDERER_URL) {
-    mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL)
+    mainWindow.loadURL(route ? `${process.env.ELECTRON_RENDERER_URL}#${route}` : process.env.ELECTRON_RENDERER_URL)
   } else {
-    mainWindow.loadFile(PACKAGED_RENDERER_ENTRY)
+    mainWindow.loadFile(PACKAGED_RENDERER_ENTRY, route ? { hash: route } : undefined)
   }
 
   // The window holds the whole IPC bridge, so it never leaves Ego's own pages. Web links open in the browser.
@@ -399,7 +400,9 @@ if (!gotSingleInstanceLock) {
     setupQuickAddIpc()
     setupToolPaletteIpc()
     createTray()
-    createWindow()
+    const healthRoute = healthRouteIn(process.argv)
+    createWindow(healthRoute ?? undefined)
+    if (healthRoute) showMainWindow()
     registerQuickAddHotkey()
     registerToolPaletteHotkey()
     startT3Watcher()

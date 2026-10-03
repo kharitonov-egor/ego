@@ -14,6 +14,7 @@ import { ConfirmDialog } from '../../components/ui/dialog'
 import { Spinner } from '../../components/ui/spinner'
 import { DiaryAudioProvider } from '../../lib/diary/audio'
 import { buildRows, buildViewerItems, subtitle, tagCounts } from '../../lib/diary/chat'
+import { filesFrom } from '../../lib/diary/compose'
 import { mediaSource } from '../../lib/diary/media'
 import { followUploadProgress } from '../../lib/diary/progress'
 import { useDiary } from '../../lib/diary/use-diary'
@@ -204,7 +205,7 @@ function DiaryChat(): React.ReactElement {
       setSearching(true)
     }
     const paste = (event: ClipboardEvent): void => {
-      const pasted = Array.from(event.clipboardData?.files ?? [])
+      const pasted = event.clipboardData ? filesFrom(event.clipboardData) : []
       if (event.defaultPrevented || pasted.length === 0 || searching) return
       event.preventDefault()
       composer.current?.addFiles(pasted)
@@ -242,7 +243,7 @@ function DiaryChat(): React.ReactElement {
   if (!ledger.enabled) {
     return <Screen>{header}<Notice
       title="Sign in to keep a diary"
-      detail="Sign in once with Google on the start screen. Messages then save on this computer and sync to D1."
+      detail="Sign in once with Google on Home. Messages then save on this computer and sync to D1."
       action="Go to sign in"
       onAction={() => navigate('/')}
     /></Screen>
@@ -283,7 +284,7 @@ function DiaryChat(): React.ReactElement {
           if (!hasFiles(event)) return
           event.preventDefault()
           setDragging(false)
-          composer.current?.addFiles(Array.from(event.dataTransfer.files))
+          composer.current?.addFiles(filesFrom(event.dataTransfer))
         }}
       >
         {pinned.length > 0 && <PinnedBar pinned={pinned} index={pinIndex % pinned.length} onPress={() => {
@@ -363,7 +364,7 @@ function DiaryChat(): React.ReactElement {
           if (target) void diary.remove(target)
         }}
       />
-      <MediaViewer items={viewerItems} start={viewerStart} onClose={() => setViewerStart(null)} />
+      <MediaViewer key={viewerStart ?? 'closed'} items={viewerItems} start={viewerStart} onClose={() => setViewerStart(null)} />
     </Screen>
   </ChatContext.Provider>
 }

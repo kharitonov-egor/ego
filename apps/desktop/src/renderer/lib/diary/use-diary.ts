@@ -48,6 +48,8 @@ export function useDiary(): Diary {
   const [localFiles, setLocalFiles] = useState<ReadonlyMap<string, string>>(new Map())
   const [error, setError] = useState<string | null>(null)
   const [reloads, setReloads] = useState(0)
+  /** Object URLs this hook put in `localFiles`, freed when the diary closes. */
+  const owned = useRef<string[]>([])
   /** A read that lands while a write is still queued would undo what the screen already shows. */
   const pending = useRef(0)
   const queue = useRef<Promise<unknown>>(Promise.resolve())
@@ -67,6 +69,11 @@ export function useDiary(): Diary {
     return () => { active = false }
   }, [db, ready, diaryVersion, reloads])
 
+  useEffect(() => () => {
+    for (const uri of owned.current) URL.revokeObjectURL(uri)
+    owned.current = []
+  }, [])
+
   const queued = useCallback(async (work: LocalWrite): Promise<boolean> => {
     pending.current += 1
     const next = queue.current.then(() => write(work, 'diary'))
@@ -80,10 +87,12 @@ export function useDiary(): Diary {
   const send = useCallback(async (draft: DiaryDraft): Promise<boolean> => {
     const text = draft.text.trim()
     if (!text && draft.files.length === 0) return false
-    let persisted: Awaited<ReturnType<typeof persistDraft>>[]
-    try {
-      persisted = await Promise.all(draft.files.map(persistDraft))
-    } catch {
+    const settled = await Promise.allSettled(draft.files.map(persistDraft))
+    const persisted = settled.flatMap((result) => result.status === 'fulfilled' ? [result.value] : [])
+    if (persisted.length < settled.length) {
+      const drafts = new Set(draft.files.map((file) => file.uri))
+      deleteLocalFiles(persisted.flatMap((item) => item.uploads.map((upload) => upload.localUri)))
+      for (const [, uri] of persisted.flatMap((item) => item.shown)) if (!drafts.has(uri)) URL.revokeObjectURL(uri)
       setError('This computer could not read one of those files')
       return false
     }
@@ -94,7 +103,9 @@ export function useDiary(): Diary {
       forwarded: false, forwardedFrom: null, pinnedAt: null, editedAt: null, source: 'app'
     }
     const uploads: QueuedUpload[] = persisted.flatMap((item) => item.uploads.map((upload) => ({ ...upload, messageId: id })))
-    setLocalFiles((current) => new Map([...current, ...persisted.flatMap((item) => item.shown)]))
+    const shown = persisted.flatMap((item) => item.shown)
+    owned.current.push(...shown.map(([, uri]) => uri))
+    setLocalFiles((current) => new Map([...current, ...shown]))
     setMessages((current) => current && [...current, {
       ...input, id, createdAt: sentAt, updatedAt: sentAt, revision: 1, delivery: 'sending', searchText: text.toLowerCase()
     }])

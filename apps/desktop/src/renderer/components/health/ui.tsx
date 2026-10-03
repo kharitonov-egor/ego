@@ -49,7 +49,7 @@ export function HealthGate({ children }: { children: React.ReactNode }): React.R
   if (!ledger.enabled) {
     return <HealthMessage
       title="Sign in to see your health data"
-      detail="Sign in once with Google on the start screen. Ego then reads your Fitbit data from Google Health."
+      detail="Sign in once with Google on Home. Ego then reads your Fitbit data from Google Health."
       action="Go to sign in"
       onAction={() => navigate('/')}
     />

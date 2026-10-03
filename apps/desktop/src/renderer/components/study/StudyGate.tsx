@@ -38,7 +38,7 @@ export function StudyGate({ children }: { children: React.ReactNode }): React.Re
   if (!ledger.enabled) {
     return <StudyMessage
       title="Sign in to see your assignments"
-      detail="Study reads your Canvas calendar through the Ego server. Sign in once with Google on the start screen."
+      detail="Study reads your Canvas calendar through the Ego server. Sign in once with Google on Home."
       action="Go to sign in"
       onAction={() => navigate('/')}
     />

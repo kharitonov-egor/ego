@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { diarySegments, type DiaryEntity, type DiarySegment } from '@ego/core'
+import { useBlur } from '../../lib/blur'
 import { cn } from '../../lib/utils'
 import { ink } from './theme'
 
@@ -47,7 +48,8 @@ export function RichText({ text, entities, source, onHashtag, trailing }: {
 }): React.ReactElement {
   const segments = useMemo(() => diarySegments(text, entities), [entities, text])
   const [revealed, setRevealed] = useState(false)
-  return <p className="select-text whitespace-pre-wrap break-words text-[16px] leading-[22px]" style={{ color: ink.text }}>
+  const { blurred } = useBlur()
+  return <p className={cn('select-text whitespace-pre-wrap break-words text-[16px] leading-[22px]', blurred && 'ego-blurred')} style={{ color: ink.text }}>
     {segments.map((segment, index) => {
       if (segment.customEmojiId) {
         return <img key={index} src={source(segment.customEmojiId)} alt={segment.text} draggable={false} className="inline-block h-5 w-5 align-text-bottom" />

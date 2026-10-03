@@ -2,7 +2,9 @@ import React, { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { dateTimeLabel } from '@ego/local/diary/format'
+import { Blurred, useBlur } from '../../lib/blur'
 import type { ViewerItem } from '../../lib/diary/chat'
+import { cn } from '../../lib/utils'
 import { useChat } from './context'
 import { ink } from './theme'
 
@@ -24,7 +26,7 @@ interface View {
  * The wheel or a touchpad pinch zooms toward the pointer, a drag pans while zoomed, and a double
  * click toggles. A single click shows or hides the bars, as a tap does on the phone.
  */
-function ZoomableImage({ full, preview, onTap }: { full: string; preview: string | null; onTap: () => void }): React.ReactElement {
+function ZoomableImage({ full, preview, blur, onTap }: { full: string; preview: string | null; blur: string | undefined; onTap: () => void }): React.ReactElement {
   const box = useRef<HTMLDivElement>(null)
   const [view, setView] = useState<View>({ scale: 1, x: 0, y: 0 })
   const [loaded, setLoaded] = useState(false)
@@ -120,31 +122,32 @@ function ZoomableImage({ full, preview, onTap }: { full: string; preview: string
       className="h-full w-full transition-transform duration-150 ease-out motion-reduce:transition-none"
       style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`, transitionDuration: panning ? '0ms' : undefined }}
     >
-      {preview && !loaded && <img src={preview} alt="" draggable={false} className="absolute inset-0 h-full w-full object-contain" />}
-      <img src={full} alt="" draggable={false} onLoad={() => setLoaded(true)} className="relative h-full w-full object-contain" />
+      {preview && !loaded && <img src={preview} alt="" draggable={false} className={cn('absolute inset-0 h-full w-full object-contain', blur)} />}
+      <img src={full} alt="" draggable={false} onLoad={() => setLoaded(true)} className={cn('relative h-full w-full object-contain', blur)} />
     </div>
   </div>
 }
 
 function Page({ item, onTap }: { item: ViewerItem; onTap: () => void }): React.ReactElement {
   const { source } = useChat()
+  const blur = useBlur().blurred ? 'ego-blurred-media' : undefined
   const { attachment } = item
   const preview = attachment.previewId ? source(attachment.previewId) : null
   if (!attachment.mediaId) {
     return <button type="button" onClick={onTap} className="flex h-full w-full flex-col items-center justify-center">
-      {preview && <img src={preview} alt="" draggable={false} className="h-[60%] w-full object-contain" />}
+      {preview && <img src={preview} alt="" draggable={false} className={cn('h-[60%] w-full object-contain', blur)} />}
       <span className="mt-4 text-[15px] text-muted-foreground">Not in the Telegram export</span>
     </button>
   }
   const full = source(attachment.mediaId)
-  if (attachment.kind === 'photo') return <ZoomableImage full={full} preview={preview} onTap={onTap} />
+  if (attachment.kind === 'photo') return <ZoomableImage full={full} preview={preview} blur={blur} onTap={onTap} />
   if (attachment.kind === 'animation') {
     return <button type="button" aria-label="GIF" onClick={onTap} className="flex h-full w-full items-center justify-center">
-      <video src={full} poster={preview ?? undefined} autoPlay loop muted playsInline className="h-full w-full object-contain" />
+      <video src={full} poster={preview ?? undefined} autoPlay loop muted playsInline className={cn('h-full w-full object-contain', blur)} />
     </button>
   }
   return <div className="flex h-full w-full items-center justify-center px-16 py-20">
-    <video src={full} poster={preview ?? undefined} autoPlay controls playsInline className="max-h-full max-w-full" />
+    <video src={full} poster={preview ?? undefined} autoPlay controls playsInline className={cn('max-h-full max-w-full', blur)} />
   </div>
 }
 
@@ -162,7 +165,8 @@ function Arrow({ side, onPress }: { side: 'left' | 'right'; onPress: () => void 
 
 /**
  * Every photo, video, and GIF in the diary over the whole window, one at a time, starting from
- * the one clicked. The arrow buttons and keys step through them; Escape closes.
+ * the one clicked. The arrow buttons and keys step through them; Escape closes. Key it by `start`,
+ * so each opening begins on the item clicked.
  */
 export function MediaViewer({ items, start, onClose }: {
   items: readonly ViewerItem[]
@@ -174,19 +178,15 @@ export function MediaViewer({ items, start, onClose }: {
   const closeRef = useRef(onClose)
   closeRef.current = onClose
   const count = items.length
+  const at = Math.max(0, Math.min(index, count - 1))
 
   useEffect(() => {
     if (start === null) return
-    setIndex(start)
-    setChrome(true)
-  }, [start])
-
-  useEffect(() => {
-    if (start === null) return
+    const step = (by: number): void => setIndex((value) => Math.max(0, Math.min(count - 1, Math.min(value, count - 1) + by)))
     const keys = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') closeRef.current()
-      else if (event.key === 'ArrowLeft') setIndex((at) => Math.max(0, at - 1))
-      else if (event.key === 'ArrowRight') setIndex((at) => Math.min(count - 1, at + 1))
+      else if (event.key === 'ArrowLeft') step(-1)
+      else if (event.key === 'ArrowRight') step(1)
       else return
       event.preventDefault()
       event.stopPropagation()
@@ -196,24 +196,24 @@ export function MediaViewer({ items, start, onClose }: {
   }, [count, start])
 
   if (start === null) return null
-  const current = items[index]
+  const current = items[at]
   return createPortal(<div role="dialog" aria-modal="true" aria-label="Photos and videos" className="fixed inset-0 z-50 select-none bg-black">
     {current && <Page key={current.key} item={current} onTap={() => setChrome((shown) => !shown)} />}
-    {chrome && current && <>
-      <div className="absolute inset-x-0 top-0 flex items-center px-2 pb-2.5 pt-2" style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}>
-        <button type="button" aria-label="Close" title="Close" onClick={onClose} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-white/10">
-          <X color={ink.text} size={24} />
-        </button>
-        <div className="ml-1 flex-1">
-          <p className="text-[15px] font-semibold">{dateTimeLabel(current.sentAt)}</p>
-          <p className="tabular text-[13px] text-surface-300">{index + 1} of {count}</p>
-        </div>
-      </div>
-      {current.caption.trim().length > 0 && <div className="absolute inset-x-0 bottom-0 px-4 pb-4 pt-3" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-        <p className="mx-auto line-clamp-5 max-w-3xl whitespace-pre-wrap text-[15px] leading-5">{current.caption}</p>
+    {(chrome || !current) && <div className="absolute inset-x-0 top-0 flex items-center px-2 pb-2.5 pt-2" style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}>
+      <button type="button" aria-label="Close" title="Close" onClick={onClose} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-white/10">
+        <X color={ink.text} size={24} />
+      </button>
+      {current && <div className="ml-1 flex-1">
+        <p className="text-[15px] font-semibold">{dateTimeLabel(current.sentAt)}</p>
+        <p className="tabular text-[13px] text-surface-300">{at + 1} of {count}</p>
       </div>}
-      {index > 0 && <Arrow side="left" onPress={() => setIndex(index - 1)} />}
-      {index < count - 1 && <Arrow side="right" onPress={() => setIndex(index + 1)} />}
+    </div>}
+    {chrome && current && <>
+      {current.caption.trim().length > 0 && <div className="absolute inset-x-0 bottom-0 px-4 pb-4 pt-3" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+        <Blurred><p className="mx-auto line-clamp-5 max-w-3xl whitespace-pre-wrap text-[15px] leading-5">{current.caption}</p></Blurred>
+      </div>}
+      {at > 0 && <Arrow side="left" onPress={() => setIndex(at - 1)} />}
+      {at < count - 1 && <Arrow side="right" onPress={() => setIndex(at + 1)} />}
     </>}
   </div>, document.body)
 }
