@@ -74,11 +74,6 @@ const api: IpcApi = {
   setTransactionImageSettings: (input) => ipcRenderer.invoke('transaction-image-set-settings', input),
   analyzeTransactionImage: (input) => ipcRenderer.invoke('transaction-image-analyze', input),
 
-  t3GetStatus: () => ipcRenderer.invoke('t3-get-status'),
-  t3Pair: (pairingUrl: string) => ipcRenderer.invoke('t3-pair', pairingUrl),
-  t3Unpair: () => ipcRenderer.invoke('t3-unpair'),
-  t3SetEnabled: (enabled: boolean) => ipcRenderer.invoke('t3-set-enabled', enabled),
-
   getAutoStart: () => ipcRenderer.invoke('get-auto-start'),
   setAutoStart: (enabled: boolean) => ipcRenderer.invoke('set-auto-start', enabled),
 

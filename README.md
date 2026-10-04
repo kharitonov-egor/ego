@@ -6,8 +6,8 @@ and the keys.
 
 The desktop app opens on the phone's start screen, in the phone's black and white, with every app
 in a sidebar. It keeps its own SQLite copy of the data and syncs it through the Worker the way the
-phone does. It also has what only a computer needs: a global Trello capture hotkey, Quick tools,
-and T3 Code notifications. The phone's apps arrive on the desktop one at a time.
+phone does. It also has a global Trello capture hotkey and Quick tools.
+The phone's apps arrive on the desktop one at a time.
 
 Talk to AI has voice and text chat modes. Both use `gpt-live-1` with delegated work handled by
 `gpt-5.6-terra`. The delegated model can use hosted web search plus the read tools enabled in
@@ -566,7 +566,6 @@ the daily reminder, accounts, sync, and which keys the Worker has. Then the desk
 - The Quick tools hotkey
 - Start with Windows
 - Talk to AI: the Google and Wispr Flow connections, the tools the AI may use, and the voice
-- T3 Code notifications
 - The OpenRouter key Finance uses to read receipt photos
 
 Cards are created through the Trello REST API. `POST /1/cards`, then one `POST /1/cards/{id}/attachments`

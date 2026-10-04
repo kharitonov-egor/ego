@@ -5,8 +5,7 @@ import type { SignedInAccount } from '../shared/local'
 import {
   DEFAULT_LIVE_PREFERENCES,
   isLivePreferences,
-  type LivePreferences,
-  type T3Session
+  type LivePreferences
 } from '@ego/core'
 
 interface AppSettings {
@@ -21,10 +20,6 @@ interface AppSettings {
   moneyDeviceTokenEncrypted: string
   openRouterApiKeyEncrypted: string
   transactionImageModel: string
-  t3Origin: string
-  t3TokenEncrypted: string
-  t3TokenExpiresAt: number
-  t3NotifyEnabled: boolean
   livePreferences: LivePreferences
   account: SignedInAccount | null
   /** What the renderer would keep in SecureStore on the phone: small JSON values under `ego.*` keys. */
@@ -61,10 +56,6 @@ const store = new Store<AppSettings>({
     moneyDeviceTokenEncrypted: '',
     openRouterApiKeyEncrypted: '',
     transactionImageModel: 'openai/gpt-5.6-terra',
-    t3Origin: '',
-    t3TokenEncrypted: '',
-    t3TokenExpiresAt: 0,
-    t3NotifyEnabled: true,
     livePreferences: DEFAULT_LIVE_PREFERENCES,
     account: null,
     preferences: {}
@@ -160,27 +151,6 @@ export function setTransactionImageSettings(input: { apiKey?: string; model: str
     store.set('openRouterApiKeyEncrypted', encrypt(input.apiKey.trim()))
   }
   store.set('transactionImageModel', input.model.trim())
-}
-
-export function getT3Session(): T3Session | null {
-  const origin = store.get('t3Origin')
-  const token = decrypt(store.get('t3TokenEncrypted'))
-  if (!origin || !token) return null
-  return { origin, token, expiresAt: store.get('t3TokenExpiresAt') }
-}
-
-export function setT3Session(session: T3Session | null): void {
-  store.set('t3Origin', session?.origin ?? '')
-  store.set('t3TokenEncrypted', session ? encrypt(session.token) : '')
-  store.set('t3TokenExpiresAt', session?.expiresAt ?? 0)
-}
-
-export function getT3NotifyEnabled(): boolean {
-  return store.get('t3NotifyEnabled')
-}
-
-export function setT3NotifyEnabled(enabled: boolean): void {
-  store.set('t3NotifyEnabled', enabled)
 }
 
 export function getQuickAddHotkey(): string {

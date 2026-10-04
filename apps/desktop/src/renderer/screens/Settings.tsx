@@ -9,7 +9,6 @@ import { REMINDER_HOURS, hourLabel } from '@ego/local/reminders'
 import HotkeyInput from '../components/HotkeyInput'
 import LiveSettings from '../components/LiveSettings'
 import { Chips, MoneyIcon, money } from '../components/common'
-import T3Settings from '../components/T3Settings'
 import { Screen, ScreenBody, ScreenHeader } from '../components/screen'
 import { FieldLabel, Section, SectionNote } from '../components/Section'
 import { QuickAddSettings } from '../components/settings/QuickAddSettings'
@@ -293,7 +292,6 @@ export default function Settings(): React.ReactElement {
       <QuickToolsSection />
       <StartupSection />
       <LiveSettings />
-      <T3Settings />
       <ReceiptSection />
       <AboutSection />
     </ScreenBody>

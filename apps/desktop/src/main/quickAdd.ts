@@ -12,7 +12,6 @@ let previewExpanded = false
 const notificationWindows: { window: BrowserWindow; displayId: number; height: number }[] = []
 const notificationWidth = 360
 const notificationHeight = 66
-const notificationDetailHeight = 108
 const notificationMargin = 16
 const notificationGap = 10
 
@@ -109,23 +108,7 @@ function closeNotificationWindow(window: BrowserWindow): void {
   repositionNotifications(displayId)
 }
 
-export type NotificationTone = 'success' | 'error' | 'waiting'
-
-export interface NotificationInput {
-  tone: NotificationTone
-  message: string
-  detail?: string
-  meta?: string
-  project?: string
-  projectEmoji?: string
-  projectImage?: string
-  projectInitial?: string
-  projectColor?: string
-  model?: string
-  providerGlyph?: string
-  theme?: 'ego' | 't3'
-  durationMs?: number
-}
+export type NotificationTone = 'success' | 'error'
 
 /** The page measures its own content and calls back, so no toast is clipped by a guessed height. */
 export function setupNotificationResize(): void {
@@ -146,13 +129,9 @@ export function setupNotificationResize(): void {
 }
 
 export function showNotification(tone: NotificationTone, message: string): void {
-  presentNotification({ tone, message })
-}
-
-export function presentNotification(input: NotificationInput): void {
   const cursorPoint = screen.getCursorScreenPoint()
   const display = screen.getDisplayNearestPoint(cursorPoint)
-  const height = input.theme === 't3' ? notificationDetailHeight : notificationHeight
+  const height = notificationHeight
 
   const notificationWindow = new BrowserWindow({
     width: notificationWidth,
@@ -182,27 +161,12 @@ export function presentNotification(input: NotificationInput): void {
     repositionNotifications(displayId)
   })
 
-  const holdMs = input.durationMs ?? 3000
+  const holdMs = 3000
   const query = new URLSearchParams({
-    type: input.tone,
-    message: input.message,
+    type: tone,
+    message,
     hold: String(holdMs)
   })
-  const optional: Record<string, string | undefined> = {
-    detail: input.detail,
-    meta: input.meta,
-    project: input.project,
-    projectEmoji: input.projectEmoji,
-    projectImage: input.projectImage,
-    projectInitial: input.projectInitial,
-    projectColor: input.projectColor,
-    model: input.model,
-    providerGlyph: input.providerGlyph,
-    theme: input.theme
-  }
-  for (const [key, value] of Object.entries(optional)) {
-    if (value) query.set(key, value)
-  }
   const params = `?${query.toString()}`
 
   if (process.env.ELECTRON_RENDERER_URL) {

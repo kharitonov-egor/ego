@@ -20,14 +20,12 @@ import {
   setQuickAddHotkey as saveQuickAddHotkey,
   setQuickAddListShortcuts as saveQuickAddListShortcuts,
   setToolPaletteHotkey as saveToolPaletteHotkey,
-  setT3NotifyEnabled,
   setTransactionImageSettings,
   setTrelloApiKey as saveTrelloApiKey,
   setTrelloBoardId as saveTrelloBoardId,
   setTrelloListId as saveTrelloListId,
   setTrelloToken as saveTrelloToken
 } from './settings'
-import { getT3Status, pairT3, startT3Watcher, unpairT3, wakeT3Watcher } from './t3'
 import { trello } from './trello'
 import { showQuickAddWindow, setupQuickAddIpc } from './quickAdd'
 import { analyzeTransactionImage, isLivePreferences } from '@ego/core'
@@ -265,25 +263,6 @@ function setupIpcHandlers(): void {
     }, (url, init) => net.fetch(url, init))
     : { ok: false, message: 'Choose a JPEG, PNG, or WebP image.' })
 
-  ipcMain.handle('t3-get-status', () => getT3Status())
-
-  ipcMain.handle('t3-pair', async (_event, pairingUrl: string) => {
-    const result = await pairT3(pairingUrl)
-    if (result.ok) wakeT3Watcher()
-    return result
-  })
-
-  ipcMain.handle('t3-unpair', () => {
-    unpairT3()
-    return getT3Status()
-  })
-
-  ipcMain.handle('t3-set-enabled', (_event, enabled: boolean) => {
-    setT3NotifyEnabled(enabled)
-    if (enabled) wakeT3Watcher()
-    return getT3Status()
-  })
-
   ipcMain.handle('get-auto-start', () => app.getLoginItemSettings().openAtLogin)
 
   ipcMain.handle('set-auto-start', (_event, enabled: boolean) => {
@@ -417,7 +396,6 @@ if (!gotSingleInstanceLock) {
     if (returnRoute) showMainWindow()
     registerQuickAddHotkey()
     registerToolPaletteHotkey()
-    startT3Watcher()
     handleMediaRequests({ database: async () => (await ledgerDatabase())?.local ?? null, api: ledgerApi })
     onLedgerEvent((event) => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('ledger-event', event)
