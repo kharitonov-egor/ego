@@ -10,6 +10,7 @@ import type {
 } from '@ego/ui/platform/local'
 
 const api: IpcApi = {
+  platform: 'desktop',
   localAll: (transaction, sql, params) => ipcRenderer.invoke('local-all', transaction, sql, params),
   localRun: (transaction, sql, params) => ipcRenderer.invoke('local-run', transaction, sql, params),
   localBegin: () => ipcRenderer.invoke('local-begin'),

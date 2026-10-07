@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { useNavigate } from 'react-router'
 import { FileImage, RotateCcw, ScanLine, Upload } from 'lucide-react'
 import { MAX_TRANSACTION_IMAGE_BYTES, splitImageDataUrl, type AnalyzedTransactionDraft, type MoneySnapshot } from '@ego/core'
+import { isWeb } from '../../lib/platform'
 import { useMoney } from '../../lib/money'
 import { Button } from '../ui/button'
 import { Sheet } from '../ui/dialog'
@@ -48,8 +49,9 @@ const ReceiptReaderContext = createContext<ReceiptReaderValue | null>(null)
 
 /**
  * The desktop's own receipt reader, anywhere in Finance: paste an image with Ctrl+V, drop one on
- * the window, or pick one. The image goes to OpenRouter with this computer's key from Settings,
- * and what comes back opens the phone's editor, which saves through the outbox like any entry.
+ * the window, or pick one. The image goes to OpenRouter with this computer's key from Settings, or
+ * the Worker's in a browser, and what comes back opens the phone's editor, which saves through the
+ * outbox like any entry.
  */
 export function ReceiptReaderProvider({ children }: { children: React.ReactNode }): React.ReactElement {
   const { snapshot } = useMoney()
@@ -97,7 +99,7 @@ export function ReceiptReaderProvider({ children }: { children: React.ReactNode 
       }
     } catch {
       setPhase({ step: 'waiting' })
-      setError('The desktop app could not start image analysis. Try again.')
+      setError('Ego could not start image analysis. Try again.')
     }
   }, [])
 
@@ -208,10 +210,12 @@ export function ReceiptReaderProvider({ children }: { children: React.ReactNode 
               <Button onClick={() => picker.current?.click()} className="mt-4"><FileImage size={16} />Choose image</Button>
             </div>}
           {error && error !== KEY_NEEDED && <p aria-live="polite" className="mt-4 text-[15px] leading-5 text-destructive">{error}</p>}
-          {(keyMissing || error === KEY_NEEDED) && phase.step === 'waiting' && <div className="mt-4 flex flex-col items-center">
-            <p className="text-[15px] leading-5 text-attention">{KEY_NEEDED}</p>
-            <Button variant="outline" size="sm" onClick={() => { close(); navigate('/settings') }} className="mt-3">Open settings</Button>
-          </div>}
+          {(keyMissing || error === KEY_NEEDED) && phase.step === 'waiting' && (isWeb()
+            ? <p className="mt-4 text-[15px] leading-5 text-attention">Add OPENROUTER_API_KEY to the Worker to read receipts.</p>
+            : <div className="mt-4 flex flex-col items-center">
+              <p className="text-[15px] leading-5 text-attention">{KEY_NEEDED}</p>
+              <Button variant="outline" size="sm" onClick={() => { close(); navigate('/settings') }} className="mt-3">Open settings</Button>
+            </div>)}
         </div>}
     </Sheet>
   </ReceiptReaderContext.Provider>

@@ -11,6 +11,7 @@ import LiveSettings from '../components/LiveSettings'
 import { Chips, MoneyIcon, money } from '../components/common'
 import { Screen, ScreenBody, ScreenHeader } from '../components/screen'
 import { FieldLabel, Section, SectionNote } from '../components/Section'
+import { DevicesSection } from '../components/settings/DevicesSection'
 import { QuickAddSettings } from '../components/settings/QuickAddSettings'
 import { SignInPanel, useGoogleSignIn } from '../components/SignInPanel'
 import { Button } from '../components/ui/button'
@@ -20,6 +21,7 @@ import { Switch } from '../components/ui/switch'
 import { Blurred, useBlur } from '../lib/blur'
 import { REST_PRESETS, useRestTimer } from '../lib/gym/rest-timer'
 import { syncLabel, useLedger } from '../lib/ledger'
+import { isWeb } from '../lib/platform'
 import { useReminder } from '../lib/reminder'
 import { cn } from '../lib/utils'
 
@@ -66,6 +68,8 @@ function AccountSection({ session, sessionError }: { session: SessionInfo | null
   const pendingCount = (ledger.status?.pendingCount ?? 0) + (ledger.status?.conflictCount ?? 0)
   const email = session?.email ?? ledger.account?.email ?? null
   const device = session?.deviceName ?? ledger.account?.deviceName ?? null
+  const web = isWeb()
+  const unsent = `${pendingCount} ${pendingCount === 1 ? 'change has' : 'changes have'} not reached the server.`
 
   const signOut = async (): Promise<void> => {
     setConfirmingSignOut(false)
@@ -77,13 +81,13 @@ function AccountSection({ session, sessionError }: { session: SessionInfo | null
     {ledger.enabled
       ? <>
         <p className="mt-3 text-[17px]">{email ? `Signed in as ${email}` : 'Connected with a device token'}</p>
-        {device && <p className="mt-0.5 text-[15px] text-muted-foreground">This computer: {device}</p>}
+        {device && <p className="mt-0.5 text-[15px] text-muted-foreground">{web ? 'This browser' : 'This computer'}: {device}</p>}
         {sessionError && <p className="mt-2 text-[15px] leading-5 text-attention">{sessionError}</p>}
         <SectionNote className="mt-1">This one sign-in covers every app.</SectionNote>
         {(sessionError || !email) && <Button size="lg" disabled={google.signingIn} onClick={() => void google.signIn()} className="mt-4 w-full">
           {google.signingIn ? 'Opening Google...' : 'Sign in with Google'}
         </Button>}
-        {google.waiting && <SectionNote>Finish in the browser. Ego comes back to the front when Google is done.</SectionNote>}
+        {google.waiting && !web && <SectionNote>Finish in the browser. Ego comes back to the front when Google is done.</SectionNote>}
         {google.error && <p className="mt-3 text-[15px] leading-5 text-destructive">{google.error}</p>}
         <Button variant="outline" size="lg" onClick={() => setConfirmingSignOut(true)} className="mt-4 w-full">
           <LogOut color="#d4d4d4" size={18} />
@@ -93,10 +97,12 @@ function AccountSection({ session, sessionError }: { session: SessionInfo | null
       : <div className="mt-3"><SignInPanel /></div>}
     <ConfirmDialog
       visible={confirmingSignOut}
-      title="Sign out of this computer?"
-      detail={pendingCount > 0
-        ? `${pendingCount} ${pendingCount === 1 ? 'change has' : 'changes have'} not reached the server. They stay on this computer and sync after you sign in again.`
-        : 'The server stops accepting this computer. Your ledger copy stays here for the next sign-in.'}
+      title={web ? 'Sign out of this browser?' : 'Sign out of this computer?'}
+      detail={web
+        ? `The server stops accepting this browser and Ego erases its copy here.${pendingCount > 0 ? ` ${unsent} They are lost.` : ''}`
+        : pendingCount > 0
+          ? `${unsent} They stay on this computer and sync after you sign in again.`
+          : 'The server stops accepting this computer. Your ledger copy stays here for the next sign-in.'}
       confirmLabel="Sign out"
       destructive
       onCancel={() => setConfirmingSignOut(false)}
@@ -278,21 +284,23 @@ function AboutSection(): React.ReactElement {
 export default function Settings(): React.ReactElement {
   const ledger = useLedger()
   const { session, error } = useSession()
+  const web = isWeb()
   return <Screen>
     <ScreenHeader title="Settings" />
     <ScreenBody className="flex flex-col gap-3 pb-10">
       <AccountSection session={session} sessionError={error} />
       <BlurSection />
-      <ReminderSection />
+      {!web && <ReminderSection />}
       <RestTimerSection />
       {ledger.enabled && ledger.reference && <AccountsSection />}
       {ledger.enabled && <SyncSection />}
+      {ledger.enabled && <DevicesSection />}
       {ledger.enabled && session && <ServerKeysSection session={session} />}
       <QuickAddSettings />
-      <QuickToolsSection />
-      <StartupSection />
+      {!web && <QuickToolsSection />}
+      {!web && <StartupSection />}
       <LiveSettings />
-      <ReceiptSection />
+      {!web && <ReceiptSection />}
       <AboutSection />
     </ScreenBody>
   </Screen>

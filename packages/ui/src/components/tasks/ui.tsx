@@ -7,7 +7,7 @@ import {
 import type { TaskCardRecord, TaskLabelRecord } from '@ego/api-contracts'
 import { TASK_PRIORITY_LABELS, type TaskLabelColor, type TaskPriority } from '@ego/core'
 import { cardBadges, coverOf, type DueBadge } from '@ego/local/tasks/board'
-import { mediaUrl } from '../../platform/local'
+import { mediaUrl } from '../../lib/platform'
 import { BlurBlob, Blurred, useBlur } from '../../lib/blur'
 import { useLedger } from '../../lib/ledger'
 import { useTasks } from '../../lib/tasks/context'

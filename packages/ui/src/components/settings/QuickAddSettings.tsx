@@ -6,11 +6,16 @@ import { FieldLabel, Section, SectionNote } from '../Section'
 import { Badge } from '../ui/badge'
 import { IconButton } from '../ui/button'
 import { inputClass } from '../ui/input'
+import { isWeb } from '../../lib/platform'
 
 const TRELLO_TOKEN_DOCS = 'https://trello.com/power-ups/admin'
 
-/** Alt+N sends a card straight to Trello with this computer's own key and token. */
+/**
+ * Alt+N sends a card straight to Trello. The desktop uses its own key and token from anywhere in
+ * Windows; a browser tab uses the Worker's, so only the board and list are set here.
+ */
 export function QuickAddSettings(): React.ReactElement {
+  const web = isWeb()
   const [quickAddHotkey, setQuickAddHotkey] = useState('')
   const [trelloApiKey, setTrelloApiKey] = useState('')
   const [trelloToken, setTrelloToken] = useState('')
@@ -28,8 +33,8 @@ export function QuickAddSettings(): React.ReactElement {
   const boardsRequest = useRef(0)
   const listsRequest = useRef(0)
 
-  const credsReady = Boolean(trelloApiKey && trelloToken)
-  const ready = credsReady && Boolean(trelloListId) && Boolean(quickAddHotkey)
+  const credsReady = web || Boolean(trelloApiKey && trelloToken)
+  const ready = credsReady && Boolean(trelloListId) && (web || Boolean(quickAddHotkey))
 
   useEffect(() => {
     void window.api.getQuickAddHotkey().then(setQuickAddHotkey)
@@ -133,44 +138,49 @@ export function QuickAddSettings(): React.ReactElement {
   }
 
   return <Section Icon={ListPlus} title="Quick add to Trello" right={<Badge variant={ready ? 'positive' : 'secondary'}>{ready ? 'Ready' : 'Needs setup'}</Badge>}>
-    <SectionNote>Press the hotkey anywhere in Windows to capture a title, a description, and pasted screenshots, then send it straight to a Trello list.</SectionNote>
+    {web
+      ? <SectionNote>Press Alt+N in an Ego tab to capture a title, a description, and pasted screenshots, then send it to this list. The server holds the Trello key.</SectionNote>
+      : <>
+        <SectionNote>Press the hotkey anywhere in Windows to capture a title, a description, and pasted screenshots, then send it straight to a Trello list.</SectionNote>
+        <FieldLabel>Global hotkey</FieldLabel>
+        <HotkeyInput value={quickAddHotkey} onChange={(hotkey) => void changeHotkey(hotkey)} />
+      </>}
 
-    <FieldLabel>Global hotkey</FieldLabel>
-    <HotkeyInput value={quickAddHotkey} onChange={(hotkey) => void changeHotkey(hotkey)} />
-
-    <div className="mt-5 flex items-center justify-between border-t border-surface-800 pt-4">
-      <span className="text-[15px] font-medium text-surface-200">Trello account</span>
-      <button type="button" onClick={() => void window.api.openExternalUrl(TRELLO_TOKEN_DOCS)} className="text-[14px] font-semibold underline">Get key and token</button>
-    </div>
-    <FieldLabel htmlFor="trello-key">API key</FieldLabel>
-    <input
-      id="trello-key"
-      type="password"
-      value={trelloApiKey}
-      onChange={(event) => {
-        const value = event.target.value
-        setTrelloApiKey(value)
-        debounced(apiKeyTimerRef, () => void window.api.setTrelloApiKey(value))
-      }}
-      placeholder="32-character key"
-      className={inputClass}
-    />
-    <FieldLabel htmlFor="trello-token">Token</FieldLabel>
-    <input
-      id="trello-token"
-      type="password"
-      value={trelloToken}
-      onChange={(event) => {
-        const value = event.target.value
-        setTrelloToken(value)
-        debounced(tokenTimerRef, () => void window.api.setTrelloToken(value))
-      }}
-      placeholder="Starts with ATTA"
-      className={inputClass}
-    />
-    {trelloToken && !trelloToken.startsWith('ATTA') && <p className="mt-2 text-[14px] leading-5 text-attention">
-      Trello tokens start with ATTA. A 64-character hex string is the OAuth secret, which will not authenticate.
-    </p>}
+    {!web && <>
+      <div className="mt-5 flex items-center justify-between border-t border-surface-800 pt-4">
+        <span className="text-[15px] font-medium text-surface-200">Trello account</span>
+        <button type="button" onClick={() => void window.api.openExternalUrl(TRELLO_TOKEN_DOCS)} className="text-[14px] font-semibold underline">Get key and token</button>
+      </div>
+      <FieldLabel htmlFor="trello-key">API key</FieldLabel>
+      <input
+        id="trello-key"
+        type="password"
+        value={trelloApiKey}
+        onChange={(event) => {
+          const value = event.target.value
+          setTrelloApiKey(value)
+          debounced(apiKeyTimerRef, () => void window.api.setTrelloApiKey(value))
+        }}
+        placeholder="32-character key"
+        className={inputClass}
+      />
+      <FieldLabel htmlFor="trello-token">Token</FieldLabel>
+      <input
+        id="trello-token"
+        type="password"
+        value={trelloToken}
+        onChange={(event) => {
+          const value = event.target.value
+          setTrelloToken(value)
+          debounced(tokenTimerRef, () => void window.api.setTrelloToken(value))
+        }}
+        placeholder="Starts with ATTA"
+        className={inputClass}
+      />
+      {trelloToken && !trelloToken.startsWith('ATTA') && <p className="mt-2 text-[14px] leading-5 text-attention">
+        Trello tokens start with ATTA. A 64-character hex string is the OAuth secret, which will not authenticate.
+      </p>}
+    </>}
 
     <div className="mt-5 border-t border-surface-800 pt-1">
       <FieldLabel htmlFor="trello-board">Board</FieldLabel>
@@ -196,7 +206,7 @@ export function QuickAddSettings(): React.ReactElement {
       {trelloError && <p role="alert" className="mt-3 text-[14px] text-destructive">{trelloError}</p>}
     </div>
 
-    {lists.length > 0 && <div className="mt-5 border-t border-surface-800 pt-4">
+    {!web && lists.length > 0 && <div className="mt-5 border-t border-surface-800 pt-4">
       <div className="flex items-center justify-between">
         <span className="text-[15px] font-medium text-surface-200">List shortcuts</span>
         {listShortcuts.length < 9 && <button type="button" onClick={addShortcut} className="text-[14px] font-semibold underline">Add</button>}

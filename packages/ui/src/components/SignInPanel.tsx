@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react'
 import { Server } from 'lucide-react'
 import { normalizeApiUrl } from '@ego/local/api-client'
 import { useLedger } from '../lib/ledger'
+import { isWeb } from '../lib/platform'
 import { Button } from './ui/button'
+import { Checkbox } from './ui/checkbox'
 import { inputClass } from './ui/input'
 import { Spinner } from './ui/spinner'
 
@@ -15,7 +17,8 @@ export interface GoogleSignIn {
   /** The browser is open on Google's page and Ego waits for it to come back. */
   waiting: boolean
   error: string | null
-  signIn: () => Promise<void>
+  /** `remember` is the web's "Keep data on this computer"; left out, a browser keeps its current choice. */
+  signIn: (remember?: boolean) => Promise<void>
 }
 
 /** Starts Google sign-in against the typed server address, or the one built into the app. */
@@ -36,7 +39,7 @@ export function useGoogleSignIn(): GoogleSignIn {
     setError(outcome.ok ? null : outcome.message)
   }), [])
 
-  const signIn = async (): Promise<void> => {
+  const signIn = async (remember?: boolean): Promise<void> => {
     const address = normalizeApiUrl(server)
     if (!/^https:\/\//.test(address)) {
       setError('Enter the Worker address, starting with https://')
@@ -45,7 +48,7 @@ export function useGoogleSignIn(): GoogleSignIn {
     }
     setSigningIn(true)
     setError(null)
-    const outcome = await window.api.signInWithGoogle(address)
+    const outcome = await window.api.signInWithGoogle(address, remember === undefined ? undefined : { remember })
     setSigningIn(false)
     if (outcome.ok) setWaiting(true)
     else setError(outcome.message)
@@ -67,6 +70,8 @@ export function SignInPanel(): React.ReactElement {
   const [enteringToken, setEnteringToken] = useState(false)
   const [token, setToken] = useState('')
   const [tokenError, setTokenError] = useState<string | null>(null)
+  const [remember, setRemember] = useState(true)
+  const web = isWeb()
 
   const connectWithToken = async (): Promise<void> => {
     const outcome = await window.api.signInWithToken(google.server, token)
@@ -93,11 +98,19 @@ export function SignInPanel(): React.ReactElement {
         <FieldLabel htmlFor="sign-in-server">Server address</FieldLabel>
         <input id="sign-in-server" value={google.server} onChange={(event) => google.setServer(event.target.value)} spellCheck={false} placeholder="https://ego-money.example.workers.dev" className={inputClass} />
       </div>}
-    <Button size="lg" disabled={google.signingIn} onClick={() => void google.signIn()} className="mt-4 w-full">
+    {web && <div className="mt-3">
+      <Checkbox checked={remember} onCheckedChange={setRemember} label="Keep data on this computer" />
+      <p className="mt-1 text-[14px] leading-5 text-muted-foreground">
+        {remember
+          ? 'Ego keeps a copy here, so it opens offline and stays signed in for 30 days.'
+          : 'For a computer someone else uses. Closing this tab erases the copy and signs this browser out.'}
+      </p>
+    </div>}
+    <Button size="lg" disabled={google.signingIn} onClick={() => void google.signIn(web ? remember : undefined)} className="mt-4 w-full">
       {google.signingIn && <Spinner size={16} color="#0a0a0a" />}
       {google.signingIn ? 'Opening Google...' : 'Sign in with Google'}
     </Button>
-    {google.waiting && <p className="mt-3 text-[15px] leading-5 text-muted-foreground">Finish in the browser. Ego comes back to the front when Google is done.</p>}
+    {google.waiting && !web && <p className="mt-3 text-[15px] leading-5 text-muted-foreground">Finish in the browser. Ego comes back to the front when Google is done.</p>}
     {enteringToken
       ? <div>
         <FieldLabel htmlFor="sign-in-token">Device token</FieldLabel>

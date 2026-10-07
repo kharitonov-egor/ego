@@ -12,6 +12,8 @@ function call<K extends RemoteApiMethod>(method: K): RemoteApi[K] {
 /** The Worker, reached through the main process, which holds the device token. */
 export const remoteApi: RemoteApi = {
   session: call('session'),
+  devices: call('devices'),
+  revokeDevice: call('revokeDevice'),
   reference: call('reference'),
   transactions: call('transactions'),
   receipt: call('receipt'),

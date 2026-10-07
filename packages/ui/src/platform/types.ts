@@ -97,7 +97,14 @@ export type DesktopApiResult<T> =
   | { ok: true; data: T }
   | { ok: false; code: string; message: string }
 
+export interface SignInOptions {
+  /** Web only: false keeps the copy and the token in this tab, gone when it closes. */
+  remember?: boolean
+}
+
 export interface IpcApi {
+  /** Which host runs the screens. The web hides what only the desktop app can do. */
+  platform: 'desktop' | 'web'
   localAll: (transaction: number | null, sql: string, params: SqlParam[]) => Promise<Record<string, unknown>[]>
   localRun: (transaction: number | null, sql: string, params: SqlParam[]) => Promise<SqlResult>
   localBegin: () => Promise<number>
@@ -109,7 +116,7 @@ export interface IpcApi {
   /** A streamed assistant turn or confirmation. Its events arrive on `onAssistantEvent` under `streamId`. */
   assistantStream: <K extends AssistantStreamKind>(streamId: string, kind: K, request: AssistantStreamRequests[K]) => Promise<ApiResult<{ done: true }>>
   onAssistantEvent: (callback: (message: AssistantStreamMessage) => void) => () => void
-  signInWithGoogle: (apiUrl: string) => Promise<SignInOutcome>
+  signInWithGoogle: (apiUrl: string, options?: SignInOptions) => Promise<SignInOutcome>
   signInWithToken: (apiUrl: string, token: string) => Promise<SignInOutcome>
   signOut: () => Promise<void>
   onSignInFinished: (callback: (outcome: SignInOutcome) => void) => () => void

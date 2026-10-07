@@ -10,6 +10,8 @@ import type { SyncOutcome, Touched } from '@ego/local/sync/coordinator'
  */
 export const REMOTE_API_METHODS = [
   'session',
+  'devices',
+  'revokeDevice',
   'reference',
   'transactions',
   'receipt',
@@ -118,11 +120,6 @@ export interface MediaProgress {
   mediaId: string
   /** Between 0 and 1 while sending; null once the attempt is over. */
   share: number | null
-}
-
-/** What an `<img>` or `<video>` loads. The main process answers it from disk or from the Worker. */
-export function mediaUrl(mediaId: string, scope: MediaScope = 'diary'): string {
-  return `ego-media://${scope}/${encodeURIComponent(mediaId)}`
 }
 
 /** A Windows notification from a screen. A click brings Ego forward and opens `route`. */
