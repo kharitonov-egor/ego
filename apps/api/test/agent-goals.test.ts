@@ -268,7 +268,7 @@ describe('notifications', () => {
       method: 'PUT',
       body: JSON.stringify({
         quietStart: '23:00', quietEnd: '07:30', dailyCap: 3, devices: { phone: true, desktop: false, web: true }, proposalDays: 3,
-        trusted: ['log_habit', 'read_mood', 'remember', 'nonsense', 'save_mood']
+        trusted: ['log_habit', 'read_mood', 'remember', 'nonsense', 'save_mood', 'app_change', 'delegate_task']
       })
     })
     expect(saved.body.data.settings).toEqual({

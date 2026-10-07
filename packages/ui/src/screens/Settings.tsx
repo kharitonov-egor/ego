@@ -13,6 +13,7 @@ import { Screen, ScreenBody, ScreenHeader } from '../components/screen'
 import { FieldLabel, Section, SectionNote } from '../components/Section'
 import { AgentSection } from '../components/settings/AgentSection'
 import { AgentSettingsSection } from '../components/settings/AgentSettingsSection'
+import { ComposioSection } from '../components/settings/ComposioSection'
 import { DevicesSection } from '../components/settings/DevicesSection'
 import { QuickAddSettings } from '../components/settings/QuickAddSettings'
 import { SignInPanel, useGoogleSignIn } from '../components/SignInPanel'
@@ -298,6 +299,7 @@ export default function Settings(): React.ReactElement {
       {ledger.enabled && <SyncSection />}
       {ledger.enabled && <AgentSection />}
       {ledger.enabled && <AgentSettingsSection />}
+      {ledger.enabled && <ComposioSection />}
       {ledger.enabled && <DevicesSection />}
       {ledger.enabled && session && <ServerKeysSection session={session} />}
       <QuickAddSettings />

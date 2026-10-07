@@ -1,5 +1,5 @@
 import {
-  ASSISTANT_TOOLS, ASSISTANT_TOOL_NAMES, isAgentTrigger,
+  ASSISTANT_TOOLS, ASSISTANT_TOOL_NAMES, isAgentTrigger, isTriggerSlug,
   type AgentTrigger, type AgentTriggerType, type AssistantToolName
 } from '@ego/core'
 import type {
@@ -16,6 +16,8 @@ export interface GoalDraft {
   weekday: number
   hours: string
   date: string
+  event: string
+  filter: string
 }
 
 export interface GoalFormValue {
@@ -30,8 +32,17 @@ export const TRIGGER_LABELS: Record<AgentTriggerType, string> = {
   weekly: 'Weekly',
   interval: 'Every N hours',
   once: 'Once',
-  manual: 'Only when asked'
+  manual: 'Only when asked',
+  event: 'When an app event happens'
 }
+
+export const EVENT_FILTER_MAX = 200
+
+export const EVENT_PRESETS: ReadonlyArray<{ slug: string; label: string }> = [
+  { slug: 'GMAIL_NEW_GMAIL_MESSAGE', label: 'New Gmail email' },
+  { slug: 'SLACK_RECEIVE_MESSAGE', label: 'New Slack message' },
+  { slug: 'GITHUB_COMMIT_EVENT', label: 'New GitHub commit' }
+]
 
 export const WEEKDAY_VALUES = ['1', '2', '3', '4', '5', '6', '7'] as const
 export type WeekdayValue = typeof WEEKDAY_VALUES[number]
@@ -60,7 +71,9 @@ export function deviceTimeZone(): string | null {
 }
 
 export function blankDraft(today = isoToday()): GoalDraft {
-  return { title: '', instructions: '', type: 'daily', time: '07:00', weekday: 1, hours: '24', date: shiftIso(today, 1) }
+  return {
+    title: '', instructions: '', type: 'daily', time: '07:00', weekday: 1, hours: '24', date: shiftIso(today, 1), event: '', filter: ''
+  }
 }
 
 export function draftFor(goal: Pick<AgentGoal, 'title' | 'instructions' | 'trigger'>, today = isoToday()): GoalDraft {
@@ -73,6 +86,7 @@ export function draftFor(goal: Pick<AgentGoal, 'title' | 'instructions' | 'trigg
     case 'interval': return { ...draft, hours: String(trigger.hours) }
     case 'once': return { ...draft, date: trigger.date, time: trigger.time }
     case 'manual': return draft
+    case 'event': return { ...draft, event: trigger.trigger, filter: trigger.filter ?? '' }
   }
 }
 
@@ -91,6 +105,10 @@ function draftCandidate(draft: GoalDraft): Record<string, unknown> {
     case 'interval': return { type: 'interval', hours: /^\d+$/.test(draft.hours.trim()) ? Number(draft.hours.trim()) : Number.NaN }
     case 'once': return { type: 'once', date: draft.date.trim(), time }
     case 'manual': return { type: 'manual' }
+    case 'event': {
+      const filter = draft.filter.trim()
+      return { type: 'event', trigger: draft.event.trim().toUpperCase(), filter: filter || null }
+    }
   }
 }
 
@@ -98,6 +116,11 @@ function draftCandidate(draft: GoalDraft): Record<string, unknown> {
 export function draftTrigger(draft: GoalDraft): AgentTrigger | string {
   const candidate = draftCandidate(draft)
   if (isAgentTrigger(candidate)) return candidate
+  if (draft.type === 'event') {
+    return isTriggerSlug(draft.event.trim().toUpperCase())
+      ? `Keep the filter under ${EVENT_FILTER_MAX} characters`
+      : 'Enter a trigger name, like GMAIL_NEW_GMAIL_MESSAGE'
+  }
   if (draft.type === 'interval') return 'Hours go from 1 to 168'
   if (!CLOCK.test(normalizeClock(draft.time))) return 'Enter the time as HH:MM, like 07:00'
   if (draft.type === 'once') return 'Enter the date as YYYY-MM-DD'
@@ -114,7 +137,7 @@ export function goalFormValue(draft: GoalDraft): GoalFormValue | string {
   return { title, instructions, trigger }
 }
 
-export const GOAL_EXAMPLES: ReadonlyArray<{ label: string; draft: Omit<GoalDraft, 'date'> }> = [
+export const GOAL_EXAMPLES: ReadonlyArray<{ label: string; draft: Omit<GoalDraft, 'date' | 'event' | 'filter'> }> = [
   {
     label: 'Weekday brief at 7:00',
     draft: {
@@ -162,8 +185,8 @@ export function wakeResultLabel(result: AgentFireResult): string {
   return 'No runs are waiting, so there was nothing to wake it for'
 }
 
-/** Goal tools change the agent's own work, so they always ask. */
-const NEVER_TRUSTED = new Set<AssistantToolName>(['create_goal', 'update_goal', 'delegate_task'])
+/** Goal tools change the agent's own work, and app changes reach outside Ego, so they always ask. */
+const NEVER_TRUSTED = new Set<AssistantToolName>(['create_goal', 'update_goal', 'delegate_task', 'app_change'])
 
 export const TRUSTED_TOOL_LABELS: Partial<Record<AssistantToolName, string>> = {
   record_transactions: 'Record money',

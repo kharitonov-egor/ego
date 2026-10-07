@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { ASSISTANT_TOOLS, type AgentTrigger } from '@ego/core'
+import { ASSISTANT_TOOLS, isTriggerSlug, type AgentTrigger } from '@ego/core'
 import {
-  TRUSTABLE_TOOLS, TRUSTED_TOOL_LABELS, blankDraft, clockLabel, draftFor, draftTrigger, goalFormValue, normalizeClock, shiftClock
+  EVENT_PRESETS, TRUSTABLE_TOOLS, TRUSTED_TOOL_LABELS, blankDraft, clockLabel, draftFor, draftTrigger, goalFormValue,
+  normalizeClock, shiftClock
 } from '../lib/agent'
 
 const today = '2026-10-07'
@@ -14,6 +15,10 @@ describe('goal form', () => {
     expect(draftTrigger({ ...base, type: 'interval', hours: '6' })).toEqual({ type: 'interval', hours: 6 })
     expect(draftTrigger({ ...base, type: 'once' })).toEqual({ type: 'once', date: '2026-10-08', time: '07:00' })
     expect(draftTrigger({ ...base, type: 'manual', time: '' })).toEqual({ type: 'manual' })
+    expect(draftTrigger({ ...base, type: 'event', event: ' gmail_new_gmail_message ', filter: '  ' }))
+      .toEqual({ type: 'event', trigger: 'GMAIL_NEW_GMAIL_MESSAGE', filter: null })
+    expect(draftTrigger({ ...base, type: 'event', event: 'SLACK_RECEIVE_MESSAGE', filter: ' invoice ', time: '' }))
+      .toEqual({ type: 'event', trigger: 'SLACK_RECEIVE_MESSAGE', filter: 'invoice' })
   })
 
   it('says what to fix', () => {
@@ -21,6 +26,14 @@ describe('goal form', () => {
     expect(draftTrigger({ ...base, type: 'interval', hours: '200' })).toBe('Hours go from 1 to 168')
     expect(draftTrigger({ ...base, type: 'interval', hours: '1.5' })).toBe('Hours go from 1 to 168')
     expect(draftTrigger({ ...base, type: 'once', date: '10/08/2026' })).toBe('Enter the date as YYYY-MM-DD')
+    expect(draftTrigger({ ...base, type: 'event', event: '' })).toBe('Enter a trigger name, like GMAIL_NEW_GMAIL_MESSAGE')
+    expect(draftTrigger({ ...base, type: 'event', event: 'NEW EMAIL' })).toBe('Enter a trigger name, like GMAIL_NEW_GMAIL_MESSAGE')
+    expect(draftTrigger({ ...base, type: 'event', event: 'GMAIL_NEW_GMAIL_MESSAGE', filter: 'x'.repeat(201) }))
+      .toBe('Keep the filter under 200 characters')
+  })
+
+  it('offers event presets the server accepts', () => {
+    for (const preset of EVENT_PRESETS) expect(isTriggerSlug(preset.slug)).toBe(true)
   })
 
   it('needs a title and instructions', () => {
@@ -35,7 +48,9 @@ describe('goal form', () => {
       { type: 'weekly', weekday: 3, time: '09:30' },
       { type: 'interval', hours: 12 },
       { type: 'once', date: '2026-12-01', time: '20:00' },
-      { type: 'manual' }
+      { type: 'manual' },
+      { type: 'event', trigger: 'GITHUB_COMMIT_EVENT', filter: null },
+      { type: 'event', trigger: 'GMAIL_NEW_GMAIL_MESSAGE', filter: 'invoice' }
     ]
     for (const trigger of triggers) {
       expect(draftTrigger(draftFor({ title: 'Goal', instructions: 'Do it', trigger }, today))).toEqual(trigger)
@@ -58,6 +73,7 @@ describe('agent settings', () => {
     expect(names).toContain('log_habit')
     expect(names).not.toContain('create_goal')
     expect(names).not.toContain('delegate_task')
+    expect(names).not.toContain('app_change')
   })
 
   it('steps quiet hours around midnight', () => {

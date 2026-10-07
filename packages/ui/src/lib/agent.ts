@@ -3,7 +3,7 @@ import type {
   WebPushTestResult
 } from '@ego/api-contracts'
 import {
-  ASSISTANT_TOOLS, isAgentTrigger, type AgentTrigger, type AgentTriggerType, type AssistantToolName
+  ASSISTANT_TOOLS, isAgentTrigger, isTriggerSlug, type AgentTrigger, type AgentTriggerType, type AssistantToolName
 } from '@ego/core'
 
 const SOURCE_LABELS: Record<AgentMemorySource, string> = { chat: 'Chat', agent: 'Claude', user: 'You' }
@@ -59,8 +59,18 @@ export const TRIGGER_TYPE_LABELS: Record<AgentTriggerType, string> = {
   weekly: 'Weekly',
   interval: 'Every N hours',
   once: 'Once',
-  manual: 'Only when asked'
+  manual: 'Only when asked',
+  event: 'When an app event happens'
 }
+
+export const EVENT_FILTER_MAX = 200
+
+/** One-tap Composio triggers for the When picker. */
+export const EVENT_TRIGGER_EXAMPLES: ReadonlyArray<{ label: string; slug: string }> = [
+  { label: 'New Gmail email', slug: 'GMAIL_NEW_GMAIL_MESSAGE' },
+  { label: 'New Slack message', slug: 'SLACK_RECEIVE_MESSAGE' },
+  { label: 'New GitHub commit', slug: 'GITHUB_COMMIT_EVENT' }
+]
 
 /** 1 is Monday, as in a weekly trigger. */
 export const WEEKDAY_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
@@ -74,10 +84,12 @@ export interface TriggerDraft {
   weekday: number
   hours: string
   date: string
+  slug: string
+  filter: string
 }
 
 export function draftFromTrigger(trigger: AgentTrigger, today: string): TriggerDraft {
-  const draft: TriggerDraft = { type: trigger.type, time: '07:00', weekday: 1, hours: '4', date: today }
+  const draft: TriggerDraft = { type: trigger.type, time: '07:00', weekday: 1, hours: '4', date: today, slug: '', filter: '' }
   switch (trigger.type) {
     case 'daily':
     case 'weekdays': return { ...draft, time: trigger.time }
@@ -85,6 +97,7 @@ export function draftFromTrigger(trigger: AgentTrigger, today: string): TriggerD
     case 'interval': return { ...draft, hours: String(trigger.hours) }
     case 'once': return { ...draft, date: trigger.date, time: trigger.time }
     case 'manual': return draft
+    case 'event': return { ...draft, slug: trigger.trigger, filter: trigger.filter ?? '' }
   }
 }
 
@@ -96,6 +109,10 @@ function triggerOf(draft: TriggerDraft): AgentTrigger {
     case 'interval': return { type: 'interval', hours: draft.hours.trim() === '' ? Number.NaN : Number(draft.hours) }
     case 'once': return { type: 'once', date: draft.date, time: draft.time }
     case 'manual': return { type: 'manual' }
+    case 'event': {
+      const filter = draft.filter.trim()
+      return { type: 'event', trigger: draft.slug.trim().toUpperCase(), filter: filter === '' ? null : filter }
+    }
   }
 }
 
@@ -105,6 +122,11 @@ export function triggerFromDraft(draft: TriggerDraft): AgentTrigger | string {
   if (isAgentTrigger(trigger)) return trigger
   if (draft.type === 'interval') return 'Pick a whole number of hours from 1 to 168'
   if (draft.type === 'once' && !draft.date) return 'Pick a date'
+  if (draft.type === 'event') {
+    return isTriggerSlug(draft.slug.trim().toUpperCase())
+      ? `Keep the filter to ${EVENT_FILTER_MAX} characters`
+      : 'Enter a Composio trigger name, like GMAIL_NEW_GMAIL_MESSAGE'
+  }
   return 'Pick a time'
 }
 
@@ -162,8 +184,8 @@ export function momentInSentence(iso: string, now: Date = new Date()): string {
   return momentLabel(iso, now).replace(/^(Today|Tomorrow|Yesterday)\b/, (word) => word.toLowerCase())
 }
 
-/** Goals and delegation change what the agent does next, so they always wait for Confirm. */
-const NEVER_TRUSTED: ReadonlySet<AssistantToolName> = new Set(['create_goal', 'update_goal', 'delegate_task'])
+/** Goals and delegation change what the agent does next, and app changes reach outside Ego, so they always wait for Confirm. */
+const NEVER_TRUSTED: ReadonlySet<AssistantToolName> = new Set(['create_goal', 'update_goal', 'delegate_task', 'app_change'])
 
 const TRUST_LABELS: Partial<Record<AssistantToolName, string>> = {
   record_transactions: 'Record money',
