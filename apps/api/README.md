@@ -11,7 +11,8 @@ Phase 2 of `docs/mobile-transactions-overhaul.md`, with the device side in
 ## Endpoints
 
 All routes except `/v1/health`, the two sign-in routes, and the two OAuth callbacks need
-`Authorization: Bearer <device token>`.
+`Authorization: Bearer <device token>`. The docket routes also take a docket CLI key (`egodk_...`),
+and the docket pages under `/docket/` check a cookie instead.
 
 | Route | Returns |
 | --- | --- |
@@ -72,6 +73,17 @@ All routes except `/v1/health`, the two sign-in routes, and the two OAuth callba
 | `DELETE /v1/connectors/wispr` | Removes the saved Wispr refresh token |
 | `GET /v1/legacy/snapshot` | The whole ledger, for desktop until it moves to pages |
 | `GET /v1/legacy/revisions` | Revisions by entity ID, so a snapshot client can still send a revision check |
+| `GET /v1/dockets` | The dataset's dockets, newest upload first |
+| `POST /v1/dockets` | Uploads a new docket: multipart with `file` (HTML, up to 10 MB) and `meta` JSON |
+| `GET /v1/dockets/:id` | One docket with its versions |
+| `PATCH /v1/dockets/:id` | Changes the title, the description, or `public` |
+| `DELETE /v1/dockets/:id` | Deletes the docket, every version, and their files in R2 |
+| `POST /v1/dockets/:id/versions` | Uploads the next version. The link stays the same |
+| `GET /v1/dockets/:id/html` | The HTML of the latest version, or of `version=` |
+| `GET`, `POST /v1/docket-keys`, `DELETE /v1/docket-keys/:id` | Lists, makes, and revokes CLI keys. Device token only |
+| `GET /v1/docket-keys/current` | The key making the call. CLI key only |
+| `POST /docket/session` | Sets the private-docket cookie for a browser device |
+| `GET /docket/:id`, `GET /docket/:id/v/:n` | The docket page, sandboxed. A private one needs the cookie |
 
 Feed parameters: `from`, `to`, `accounts`, `categories`, `kinds`, `search`, `limit`, `cursor`.
 `limit` is capped at 100. A cursor is bound to the filters that produced it and a mismatch is a

@@ -552,6 +552,41 @@ Worker stays the only backend, and Vercel serves static files.
 `VITE_EGO_API_URL` sets the Worker address the sign-in screen starts with. The Content-Security-Policy
 in `apps/web/vercel.json` only lets the page call that Worker.
 
+## Docket
+
+Docket publishes the HTML plans and reports that coding agents write. It shows in the web app only,
+under Docket in the sidebar, and the `docket` CLI in `apps/docket` does the uploading.
+
+- Every docket gets a 10-character ID and a link at `https://ego.kharitonovegor.com/docket/<id>`.
+  `docket upload plan.html --id <id>` adds the next version, and the link always shows the latest.
+  `/docket/<id>/v/<n>` pins one version. Ego keeps every version until the docket is deleted.
+- A new docket is private: only a browser signed in to Ego can open it, and anyone else gets a
+  "This docket is private" page. `--public` on upload, `docket publish <id>`, or the switch on the
+  details page opens it to anyone with the link. Public pages carry `noindex`.
+- My dockets groups dockets by the git repository the CLI ran in, and each version records its
+  commit and branch. The details page has the link, the visibility switch, the versions, and Delete.
+- CLI setup makes API keys. Ego shows a key once and keeps only its hash. A key reaches the docket
+  routes and nothing else in Ego, and Revoke stops it at once. On sign-in the CLI renames its key
+  after the computer, like "CLI · JARVIS", so each computer's key can be revoked alone.
+
+Any computer with Node 18 or newer installs the CLI with
+`npm install -g https://ego.kharitonovegor.com/cli/docket.tgz`, and running it again updates it.
+`docket auth login` then opens CLI setup and waits for a pasted key. After generating a key, CLI
+setup also shows both lines with the key filled in, to paste on a new computer. `docket --help`
+lists every command, and `DOCKET_API_KEY` overrides the saved key for an agent in a sandbox.
+
+The web build makes that tarball: `apps/docket/scripts/pack.mjs` bundles the CLI with esbuild into
+one `docket.mjs` and packs it into `dist/cli`. From a checkout, `npm install -g ./apps/docket` links
+the source instead, which Node 22.18 or newer runs as TypeScript with no build.
+
+Vercel passes `/docket/*` on the web domain through to the Worker, which serves the HTML from the
+private R2 bucket `ego-dockets`. Each page carries `Content-Security-Policy: sandbox` without
+`allow-same-origin`, so its scripts get an opaque origin and cannot read the Ego sign-in stored on
+the same domain. For the same reason a docket's scripts cannot use localStorage or cookies. A page
+load does not send the token from storage, so each time the web app starts signed in it asks the
+Worker for an HttpOnly cookie limited to `/docket`. The cookie belongs to that browser's device
+row, so signing out or revoking the device ends it.
+
 ## Quick tools
 
 Press `Alt+S` anywhere in Windows to open a three-item chooser. Use the arrow keys and Enter, or
@@ -647,6 +682,7 @@ packages/ui/          the desktop's screens, shared with the web app
   src/lib/            the phone's contexts, reading the ledger through window.api
   src/screens/        one folder per app
 apps/web/             the browser host: SQLite in a worker, sign-in, the media service worker
+apps/docket/          the docket CLI; the web build bundles it into /cli/docket.tgz
 apps/desktop/
   src/main/           Electron main process
     index.ts          app lifecycle, tray, IPC handlers, the build-and-install command

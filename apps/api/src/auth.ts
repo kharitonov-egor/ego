@@ -36,6 +36,10 @@ export interface Env {
   D1_DATABASE_ID?: string
   /** A Cloudflare API token with D1 Edit on this account. The export API is not reachable through the binding. */
   D1_EXPORT_TOKEN?: string
+  /** The HTML of every docket version. Private: the Worker serves each one only to its owner unless it is public. */
+  DOCKETS?: R2Bucket
+  /** Where docket links point, the web app's origin. Falls back to the first of WEB_ORIGINS. */
+  DOCKET_BASE_URL?: string
 }
 
 interface DeviceRow {
@@ -63,7 +67,7 @@ export async function hashToken(token: string): Promise<string> {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
-function bearer(request: Request): string | null {
+export function bearer(request: Request): string | null {
   const header = request.headers.get('authorization')
   if (!header) return null
   const [scheme, value] = header.split(' ')

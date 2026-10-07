@@ -43,5 +43,12 @@ export const remoteApi: RemoteApi = {
   foodProduct: call('foodProduct'),
   trelloBoards: call('trelloBoards'),
   trelloLists: call('trelloLists'),
-  trelloCard: call('trelloCard')
+  trelloCard: call('trelloCard'),
+  dockets: call('dockets'),
+  docket: call('docket'),
+  updateDocket: call('updateDocket'),
+  deleteDocket: call('deleteDocket'),
+  docketKeys: call('docketKeys'),
+  createDocketKey: call('createDocketKey'),
+  revokeDocketKey: call('revokeDocketKey')
 }

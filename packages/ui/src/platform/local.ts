@@ -41,7 +41,14 @@ export const REMOTE_API_METHODS = [
   'foodProduct',
   'trelloBoards',
   'trelloLists',
-  'trelloCard'
+  'trelloCard',
+  'dockets',
+  'docket',
+  'updateDocket',
+  'deleteDocket',
+  'docketKeys',
+  'createDocketKey',
+  'revokeDocketKey'
 ] as const
 
 export type RemoteApiMethod = typeof REMOTE_API_METHODS[number]

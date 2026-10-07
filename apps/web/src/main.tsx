@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router'
 import App from '@ego/ui/App'
 import '@ego/ui/styles/globals.css'
 import { announceSignIn, createWebApi, requestNavigation, stopLiveSessions } from './api'
+import { docketOpenTarget, refreshDocketCookie, rememberDocketReturn, takeDocketReturn } from './docket'
 import { currentSession, ledgerApi, ledgerDatabase, startLedger, stopLedger } from './ledger'
 import { answerMedia } from './media'
 import { isMediaQuestion, type MediaAnswer } from './media-protocol'
@@ -112,13 +113,37 @@ async function run(): Promise<void> {
   })
 }
 
+/**
+ * A private docket's "Open in Ego" link lands here. With a sign-in, the cookie is all it needs, so
+ * this tab goes straight back without opening Ego. Without one, the docket waits for the sign-in.
+ */
+async function openDocket(): Promise<boolean> {
+  const target = docketOpenTarget(location)
+  if (!target) return false
+  if (await refreshDocketCookie(currentSession())) {
+    location.replace(target)
+    return true
+  }
+  rememberDocketReturn(target)
+  history.replaceState(null, '', '/')
+  return false
+}
+
 async function boot(): Promise<void> {
+  if (await openDocket()) return
   await startServiceWorker()
   answerMediaQuestions()
   if (isSignInReturn()) {
     const outcome = await finishGoogleSignIn(new URLSearchParams(location.search))
     history.replaceState(null, '', '/')
+    const docket = takeDocketReturn()
+    if (outcome.ok && docket && await refreshDocketCookie(currentSession())) {
+      location.replace(docket)
+      return
+    }
     announceSignIn(outcome)
+  } else {
+    void refreshDocketCookie(currentSession())
   }
   if (!('locks' in navigator)) {
     await run()
