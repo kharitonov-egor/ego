@@ -13,6 +13,7 @@ const API = 'https://ego.example'
 let ledger: Ledger | null = null
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllGlobals()
   ledger?.close()
   ledger = null
@@ -106,13 +107,18 @@ describe('MCP keys', () => {
 
 describe('memory routes', () => {
   it('adds, edits, lists newest first, and deletes notes', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-07T12:00:00Z'))
     const env = await environment()
     const first = await call<AgentMemory>(env, '/v1/agent/memories', TOKEN, { method: 'POST', body: JSON.stringify({ text: '  Prefers   metric for body weight ' }) })
     expect(first.body.data).toMatchObject({ text: 'Prefers metric for body weight', source: 'user' })
+    vi.setSystemTime(new Date('2026-10-07T12:01:00Z'))
     const second = await call<AgentMemory>(env, '/v1/agent/memories', TOKEN, { method: 'POST', body: JSON.stringify({ text: 'Lives in Tampa' }) })
+    vi.setSystemTime(new Date('2026-10-07T12:02:00Z'))
     const again = await call<AgentMemory>(env, '/v1/agent/memories', TOKEN, { method: 'POST', body: JSON.stringify({ text: 'lives in tampa' }) })
     expect(again.body.data.id).toBe(second.body.data.id)
 
+    vi.setSystemTime(new Date('2026-10-07T12:03:00Z'))
     const edited = await call<AgentMemory>(env, `/v1/agent/memories/${first.body.data.id}`, TOKEN, {
       method: 'PUT', body: JSON.stringify({ text: 'Prefers kilograms' })
     })
