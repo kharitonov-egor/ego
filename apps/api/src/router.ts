@@ -33,6 +33,7 @@ import { calendarRoute, completeCalendarConnect } from './calendar'
 import { docketRoute } from './dockets'
 import { agentRoute } from './agent'
 import { mcpRoute } from './mcp'
+import { COMPOSIO_WEBHOOK_PATH, receiveComposioWebhook } from './composio'
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -115,6 +116,7 @@ export async function handle(request: Request, env: Env, work?: Pick<ExecutionCo
   if (docket) return docket
   const mcp = mcpRoute(request, env, path)
   if (mcp) return mcp
+  if (request.method === 'POST' && path === COMPOSIO_WEBHOOK_PATH) return receiveComposioWebhook(request, env)
 
   const device = await authorize(request, env.DB)
   if (!device.ok) return failure(device.error)

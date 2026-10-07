@@ -74,5 +74,6 @@ export const remoteApi: RemoteApi = {
   webPushKey: call('webPushKey'),
   saveWebPushSubscription: call('saveWebPushSubscription'),
   deleteWebPushSubscription: call('deleteWebPushSubscription'),
-  testWebPush: call('testWebPush')
+  testWebPush: call('testWebPush'),
+  composioStatus: call('composioStatus')
 }

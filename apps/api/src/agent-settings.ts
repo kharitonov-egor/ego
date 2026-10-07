@@ -18,6 +18,8 @@ export interface AgentSettingsRecord extends AgentSettings {
   lastFireError: string | null
   /** Fire times in the last hour. The routine's API trigger allows only so many. */
   fires: string[]
+  /** The Composio Tool Router session the chat's app tools run in. */
+  composioSessionId: string | null
 }
 
 const DEFAULTS: AgentSettingsRecord = {
@@ -29,7 +31,8 @@ const DEFAULTS: AgentSettingsRecord = {
   readAt: null,
   lastFiredAt: null,
   lastFireError: null,
-  fires: []
+  fires: [],
+  composioSessionId: null
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -60,7 +63,8 @@ export function parseSettings(raw: string | null): AgentSettingsRecord {
     readAt: stringOrNull(value.readAt),
     lastFiredAt: stringOrNull(value.lastFiredAt),
     lastFireError: stringOrNull(value.lastFireError),
-    fires: Array.isArray(value.fires) ? value.fires.filter((item): item is string => typeof item === 'string') : []
+    fires: Array.isArray(value.fires) ? value.fires.filter((item): item is string => typeof item === 'string') : [],
+    composioSessionId: stringOrNull(value.composioSessionId)
   }
 }
 

@@ -78,6 +78,8 @@ export interface AgentGoal {
   lastSummary: string | null
   createdAt: string
   updatedAt: string
+  /** Set on a freshly saved event goal when its Composio trigger could not be turned on. */
+  notice?: string
 }
 
 export interface AgentGoalList {
@@ -229,4 +231,13 @@ export function isWebPushSubscriptionInput(value: unknown): value is WebPushSubs
   return value.endpoint.startsWith('https://') && value.endpoint.length <= 1000 &&
     typeof value.keys.p256dh === 'string' && /^[A-Za-z0-9_-]{80,100}$/.test(value.keys.p256dh) &&
     typeof value.keys.auth === 'string' && /^[A-Za-z0-9_-]{16,32}$/.test(value.keys.auth)
+}
+
+export interface ComposioStatus {
+  /** The Worker holds a Composio API key, so the chat can reach other apps. */
+  configured: boolean
+  /** The Worker holds the webhook secret, so event goals can start. */
+  webhookReady: boolean
+  /** Where the Composio webhook subscription should point. */
+  webhookUrl: string
 }

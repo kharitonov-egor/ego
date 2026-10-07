@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
-  DEFAULT_AGENT_SETTINGS, describeTrigger, inQuietHours, isAgentSettings, isAgentTrigger, nextRunAt, planDelivery,
+  DEFAULT_AGENT_SETTINGS, describeTrigger, eventMatches, inQuietHours, isAgentSettings, isAgentTrigger, nextRunAt, planDelivery,
   triggerFromInput, zonedTime
 } from '../src/agent'
+import { validateToolArguments } from '../src/tool-schema'
 
 const NY = 'America/New_York'
 const at = (iso: string): number => Date.parse(iso)
@@ -43,7 +44,7 @@ describe('nextRunAt', () => {
 
 describe('triggers', () => {
   it('turns the flat tool shape into a trigger or says what is missing', () => {
-    const base = { time: null, weekday: null, hours: null, date: null }
+    const base = { time: null, weekday: null, hours: null, date: null, event: null, filter: null }
     expect(triggerFromInput({ ...base, type: 'daily', time: '07:00' })).toEqual({ type: 'daily', time: '07:00' })
     expect(triggerFromInput({ ...base, type: 'weekly', time: '18:00', weekday: 7 })).toEqual({ type: 'weekly', weekday: 7, time: '18:00' })
     expect(triggerFromInput({ ...base, type: 'weekly', time: '18:00' })).toContain('weekday')
@@ -88,5 +89,31 @@ describe('planDelivery', () => {
     expect(capped.silent).toBe(true)
     const muted = planDelivery({ requestedMs: at('2026-10-08T16:00:00Z'), urgent: false, muted: true, shownToday: 0, settings, timeZone: NY })
     expect(muted.silent).toBe(true)
+  })
+})
+
+describe('event goals', () => {
+  it('reads a Composio trigger, matches events by slug and filter, and never schedules itself', () => {
+    const base = { time: null, weekday: null, hours: null, date: null, event: null, filter: null }
+    const trigger = triggerFromInput({ ...base, type: 'event', event: 'gmail_new_gmail_message', filter: ' Invoice ' })
+    expect(trigger).toEqual({ type: 'event', trigger: 'GMAIL_NEW_GMAIL_MESSAGE', filter: 'Invoice' })
+    expect(triggerFromInput({ ...base, type: 'event', event: 'not a slug' })).toContain('trigger slug')
+    if (typeof trigger === 'string') return
+    expect(isAgentTrigger(trigger)).toBe(true)
+    expect(eventMatches(trigger, 'GMAIL_NEW_GMAIL_MESSAGE', '{"subject":"Your invoice is ready"}')).toBe(true)
+    expect(eventMatches(trigger, 'GMAIL_NEW_GMAIL_MESSAGE', '{"subject":"Lunch"}')).toBe(false)
+    expect(eventMatches(trigger, 'SLACK_RECEIVE_MESSAGE', 'invoice')).toBe(false)
+    expect(nextRunAt(trigger, Date.parse('2026-10-07T12:00:00Z'), 'UTC')).toBeNull()
+    expect(describeTrigger(trigger)).toBe('When Gmail: new gmail message mentions "Invoice"')
+    expect(describeTrigger({ type: 'event', trigger: 'SLACK_RECEIVE_MESSAGE', filter: null })).toBe('When Slack: receive message arrives')
+  })
+})
+
+describe('open objects in tool schemas', () => {
+  it('passes unknown keys through only when the schema allows it', () => {
+    const open = { type: 'object' as const, properties: { tool: { type: 'string' as const } }, required: ['tool'], additionalProperties: false as const }
+    const args = { ...open, properties: { ...open.properties, arguments: { type: 'object' as const, additionalProperties: true } }, required: ['tool', 'arguments'] }
+    expect(validateToolArguments(args, { tool: 'X', arguments: { to: 'a', nested: { b: 1 } } })).toEqual({ ok: true, value: { tool: 'X', arguments: { to: 'a', nested: { b: 1 } } } })
+    expect(validateToolArguments(open, { tool: 'X', extra: 1 })).toEqual({ ok: false, error: 'extra is not a known field' })
   })
 })
