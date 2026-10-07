@@ -552,6 +552,35 @@ Worker stays the only backend, and Vercel serves static files.
 `VITE_EGO_API_URL` sets the Worker address the sign-in screen starts with. The Content-Security-Policy
 in `apps/web/vercel.json` only lets the page call that Worker.
 
+## Docket
+
+Docket publishes the HTML plans and reports that coding agents write. It shows in the web app only,
+under Docket in the sidebar, and the `docket` CLI in `apps/docket` does the uploading.
+
+- Every docket gets a 10-character ID and a link at `https://ego.kharitonovegor.com/docket/<id>`.
+  `docket upload plan.html --id <id>` adds the next version, and the link always shows the latest.
+  `/docket/<id>/v/<n>` pins one version. Ego keeps every version until the docket is deleted.
+- A new docket is private: only a browser signed in to Ego can open it, and anyone else gets a
+  "This docket is private" page. `--public` on upload, `docket publish <id>`, or the switch on the
+  details page opens it to anyone with the link. Public pages carry `noindex`.
+- My dockets groups dockets by the git repository the CLI ran in, and each version records its
+  commit and branch. The details page has the link, the visibility switch, the versions, and Delete.
+- CLI setup makes API keys. Ego shows a key once and keeps only its hash. A key reaches the docket
+  routes and nothing else in Ego, and Revoke stops it at once.
+
+Install the CLI once per computer from a checkout of this repo with `npm install -g ./apps/docket`.
+Node 22.18 or newer runs its TypeScript directly, so there is no build step. `docket auth login`
+opens CLI setup and waits for a pasted key, and `docket --help` lists every command.
+`DOCKET_API_KEY` overrides the saved key, for an agent in a sandbox.
+
+Vercel passes `/docket/*` on the web domain through to the Worker, which serves the HTML from the
+private R2 bucket `ego-dockets`. Each page carries `Content-Security-Policy: sandbox` without
+`allow-same-origin`, so its scripts get an opaque origin and cannot read the Ego sign-in stored on
+the same domain. For the same reason a docket's scripts cannot use localStorage or cookies. A page
+load does not send the token from storage, so each time the web app starts signed in it asks the
+Worker for an HttpOnly cookie limited to `/docket`. The cookie belongs to that browser's device
+row, so signing out or revoking the device ends it.
+
 ## Quick tools
 
 Press `Alt+S` anywhere in Windows to open a three-item chooser. Use the arrow keys and Enter, or
@@ -647,6 +676,7 @@ packages/ui/          the desktop's screens, shared with the web app
   src/lib/            the phone's contexts, reading the ledger through window.api
   src/screens/        one folder per app
 apps/web/             the browser host: SQLite in a worker, sign-in, the media service worker
+apps/docket/          the docket CLI, TypeScript that Node runs directly
 apps/desktop/
   src/main/           Electron main process
     index.ts          app lifecycle, tray, IPC handlers, the build-and-install command

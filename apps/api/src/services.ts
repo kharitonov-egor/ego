@@ -80,7 +80,7 @@ export async function trelloCreateCard(request: Request, env: Env): Promise<Resp
 }
 
 /** The default workers-types declare `FormData.get` as string-only, though the runtime returns files. */
-function formFile(form: FormData, field: string): File | null {
+export function formFile(form: FormData, field: string): File | null {
   for (const [name, value] of form.entries()) {
     if (name === field && typeof value !== 'string') return value
   }

@@ -55,7 +55,7 @@ export function preflight(request: Request, env: Env): Response | null {
     status: 204,
     headers: {
       'access-control-allow-origin': origin,
-      'access-control-allow-methods': 'GET, POST, PUT, DELETE',
+      'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE',
       'access-control-allow-headers': ALLOWED_HEADERS,
       'access-control-max-age': '86400',
       vary: 'origin'

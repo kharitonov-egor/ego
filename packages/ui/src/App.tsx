@@ -15,6 +15,7 @@ import { TaskNotificationsProvider } from './lib/tasks/notifications'
 import Assistant from './screens/ai/Assistant'
 import CalendarScreen from './screens/calendar/Calendar'
 import Diary from './screens/diary/Diary'
+import DocketRoutes from './screens/dockets'
 import FoodApp from './screens/food'
 import ExerciseEditor from './screens/gym/ExerciseEditor'
 import Exercises from './screens/gym/Exercises'
@@ -118,6 +119,7 @@ export default function App({ titleBar, overlay }: AppProps): React.ReactElement
             <Route path="/sheets/*" element={<SheetsApp />} />
             <Route path="/food/*" element={<FoodApp />} />
             <Route path="/calendar" element={<CalendarScreen />} />
+            <Route path="/dockets/*" element={<DocketRoutes />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

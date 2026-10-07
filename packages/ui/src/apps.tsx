@@ -1,7 +1,8 @@
 import {
-  BookOpen, CalendarDays, CircleCheckBig, Dumbbell, GraduationCap, HeartPulse, Sheet, Smile, Sparkles, SquareKanban, UtensilsCrossed, Wallet,
-  type LucideIcon
+  BookOpen, CalendarDays, CircleCheckBig, Dumbbell, FileText, GraduationCap, HeartPulse, Sheet, Smile, Sparkles, SquareKanban,
+  UtensilsCrossed, Wallet, type LucideIcon
 } from 'lucide-react'
+import { isWeb } from './lib/platform'
 
 export interface AppEntry {
   label: string
@@ -10,6 +11,8 @@ export interface AppEntry {
   path: string
   /** Every path under this prefix belongs to the app, so its sidebar row stays lit. */
   prefix: string
+  /** Shown in the browser only. */
+  webOnly?: boolean
 }
 
 /** The phone's start-screen tiles, in the phone's order. */
@@ -25,5 +28,11 @@ export const APPS: readonly AppEntry[] = [
   { label: 'Tasks', Icon: SquareKanban, path: '/tasks', prefix: '/tasks' },
   { label: 'Sheets', Icon: Sheet, path: '/sheets', prefix: '/sheets' },
   { label: 'Food', Icon: UtensilsCrossed, path: '/food', prefix: '/food' },
-  { label: 'Calendar', Icon: CalendarDays, path: '/calendar', prefix: '/calendar' }
+  { label: 'Calendar', Icon: CalendarDays, path: '/calendar', prefix: '/calendar' },
+  { label: 'Docket', Icon: FileText, path: '/dockets', prefix: '/dockets', webOnly: true }
 ]
+
+export function visibleApps(): readonly AppEntry[] {
+  const web = isWeb()
+  return APPS.filter((app) => web || !app.webOnly)
+}

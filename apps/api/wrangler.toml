@@ -12,6 +12,8 @@ D1_ACCOUNT_ID = "92315e9c86dc9762b0924de19d20b10b"
 D1_DATABASE_ID = "efd88bbb-8dca-4164-b3e5-b8040572551e"
 # The web app, and its dev server. Only these origins get CORS headers or a sign-in sent back to them.
 WEB_ORIGINS = "https://ego.kharitonovegor.com, http://localhost:5173"
+# Docket links point here. Vercel passes /docket/* on this domain through to the Worker.
+DOCKET_BASE_URL = "https://ego.kharitonovegor.com"
 
 [[d1_databases]]
 binding = "DB"
@@ -23,6 +25,11 @@ migrations_dir = "migrations"
 [[r2_buckets]]
 binding = "DIARY_MEDIA"
 bucket_name = "ego-diary"
+
+# Docket HTML, one object per version. Private: the Worker decides who sees each page.
+[[r2_buckets]]
+binding = "DOCKETS"
+bucket_name = "ego-dockets"
 
 # Daily D1 dumps. No lifecycle rule, so they are kept forever.
 [[r2_buckets]]

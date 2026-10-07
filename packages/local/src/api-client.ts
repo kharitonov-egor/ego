@@ -2,7 +2,8 @@ import type {
   AccountBalances, ApiError, ApiErrorCode, ApiResult, AppBuildStatus, AssistantChatList, AssistantConfirmRequest,
   AssistantHistory, AssistantStreamEvent, AssistantTurnRequest, BootstrapData, CalendarConnectStart, CalendarCreateRequest,
   CalendarDeleteRequest, CalendarEventRef, CalendarListChange, CalendarRange, CalendarRestoreRequest, CalendarRsvpRequest, CalendarSeries,
-  CalendarSnapshot, CalendarUpdateRequest, ChangePage, DeviceList, DiaryMediaInfo,
+  CalendarSnapshot, CalendarUpdateRequest, ChangePage, DeviceList, DiaryMediaInfo, DocketDetail, DocketKeyCreated, DocketKeyList,
+  DocketList, DocketUpdate,
   DiaryMultipartPart, DiaryMultipartStart, FeedCursor, FoodAnalyzeRequest, FoodAnalyzeResponse, FoodProductResponse,
   MediaScope,
   HealthConnectStart, HealthSnapshot, OperationResponse, ReceiptDetail, ReferenceData,
@@ -107,13 +108,24 @@ export interface FoodApi {
   foodProduct: (barcode: string) => Promise<ApiResult<FoodProductResponse>>
 }
 
+/** Pages the docket CLI uploaded. The CLI's keys are made and revoked here. */
+export interface DocketApi {
+  dockets: () => Promise<ApiResult<DocketList>>
+  docket: (id: string) => Promise<ApiResult<DocketDetail>>
+  updateDocket: (id: string, update: DocketUpdate) => Promise<ApiResult<DocketDetail>>
+  deleteDocket: (id: string) => Promise<ApiResult<{ deleted: true }>>
+  docketKeys: () => Promise<ApiResult<DocketKeyList>>
+  createDocketKey: (name: string | null) => Promise<ApiResult<DocketKeyCreated>>
+  revokeDocketKey: (keyId: string) => Promise<ApiResult<{ revoked: true }>>
+}
+
 export interface ReceiptImageRequest {
   base64: string
   mimeType: string
   categories: ImageAnalysisCategory[]
 }
 
-export interface EgoApi extends MoneyApi, StudyApi, HealthApi, CalendarApi, DiaryMediaApi, AssistantApi, FoodApi {
+export interface EgoApi extends MoneyApi, StudyApi, HealthApi, CalendarApi, DiaryMediaApi, AssistantApi, FoodApi, DocketApi {
   session: () => Promise<ApiResult<SessionInfo>>
   signOut: () => Promise<ApiResult<{ signedOut: true }>>
   devices: () => Promise<ApiResult<DeviceList>>
@@ -414,6 +426,19 @@ export function moneyApiFor(config: ApiConfig, options: { streamFetch?: StreamFe
       timeoutMs: SLOW_REQUEST_TIMEOUT_MS
     }),
     appBuilds: () => call<AppBuildStatus>('/v1/app/builds/latest'),
+    dockets: () => call<DocketList>('/v1/dockets'),
+    docket: (id) => call<DocketDetail>(`/v1/dockets/${encodeURIComponent(id)}`),
+    updateDocket: (id, update) => call<DocketDetail>(`/v1/dockets/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(update)
+    }),
+    deleteDocket: (id) => call<{ deleted: true }>(`/v1/dockets/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    docketKeys: () => call<DocketKeyList>('/v1/docket-keys'),
+    createDocketKey: (name) => call<DocketKeyCreated>('/v1/docket-keys', {
+      method: 'POST',
+      body: JSON.stringify(name ? { name } : {})
+    }),
+    revokeDocketKey: (keyId) => call<{ revoked: true }>(`/v1/docket-keys/${encodeURIComponent(keyId)}`, { method: 'DELETE' }),
     trelloBoards: () => call<TrelloBoardSummary[]>('/v1/trello/boards'),
     trelloLists: (boardId) => call<TrelloListSummary[]>(`/v1/trello/boards/${encodeURIComponent(boardId)}/lists`),
     trelloCard: (card) => call<TrelloCardResponse>('/v1/trello/cards', {

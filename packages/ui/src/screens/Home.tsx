@@ -4,7 +4,7 @@ import { eventColorOf } from '@ego/core'
 import { clockLabel, localDayOf } from '@ego/local/calendar/layout'
 import { isoToday, shiftIso } from '@ego/local/dates'
 import appIcon from '../app-icon.png'
-import { APPS, type AppEntry } from '../apps'
+import { visibleApps, type AppEntry } from '../apps'
 import { SignInPanel } from '../components/SignInPanel'
 import { Spinner } from '../components/ui/spinner'
 import { Blurred } from '../lib/blur'
@@ -81,7 +81,7 @@ export default function Home(): React.ReactElement {
       <Heading size="small" />
       <NextEvent onOpen={() => navigate('/calendar')} />
       <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-3">
-        {APPS.map((app) => <AppTile key={app.path} app={app} onOpen={() => navigate(app.path)} />)}
+        {visibleApps().map((app) => <AppTile key={app.path} app={app} onOpen={() => navigate(app.path)} />)}
       </div>
     </div>
   </div>

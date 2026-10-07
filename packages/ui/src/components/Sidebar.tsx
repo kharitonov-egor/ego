@@ -1,7 +1,7 @@
 import React from 'react'
 import { Link, useLocation } from 'react-router'
 import { Eye, EyeOff, House, Settings, type LucideIcon } from 'lucide-react'
-import { APPS } from '../apps'
+import { visibleApps } from '../apps'
 import { useBlur } from '../lib/blur'
 import { cn } from '../lib/utils'
 import { SyncStatus } from './SyncStatus'
@@ -28,7 +28,7 @@ export function Sidebar(): React.ReactElement {
     <nav aria-label="Apps" className="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1">
       <Row to="/" label="Home" Icon={House} active={pathname === '/'} />
       <div className="my-2 border-t border-border" />
-      {APPS.map((app) => <Row
+      {visibleApps().map((app) => <Row
         key={app.path}
         to={app.path}
         label={app.label}

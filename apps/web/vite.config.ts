@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 
 const here = (path: string): string => fileURLToPath(new URL(path, import.meta.url))
 const { version } = JSON.parse(readFileSync(here('./package.json'), 'utf8')) as { version: string }
@@ -25,7 +25,7 @@ export const workspaceSources = [
   { find: /^@ego\/ui\/(.*)$/, replacement: here('../../packages/ui/src/$1') }
 ]
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
   define: {
     __EGO_VERSION__: JSON.stringify(version),
@@ -38,7 +38,11 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
-    headers: { 'Service-Worker-Allowed': '/' }
+    headers: { 'Service-Worker-Allowed': '/' },
+    // Vercel passes /docket/* to the Worker in production; this does the same for the dev server.
+    proxy: {
+      '^/docket/': { target: loadEnv(mode, here('.'), 'VITE_').VITE_EGO_API_URL || 'http://127.0.0.1:8787', changeOrigin: true }
+    }
   },
   build: {
     target: 'es2022',
@@ -50,4 +54,4 @@ export default defineConfig({
       }
     }
   }
-})
+}))

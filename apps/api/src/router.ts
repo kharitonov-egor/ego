@@ -30,6 +30,7 @@ import { mediaRoute } from './diary'
 import { foodRoute } from './food'
 import { readAppBuilds, receiveBuildWebhook } from './app-builds'
 import { calendarRoute, completeCalendarConnect } from './calendar'
+import { docketRoute } from './dockets'
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -108,6 +109,8 @@ export async function handle(request: Request, env: Env, work?: Pick<ExecutionCo
     return completeWisprConnector(request, env)
   }
   if (request.method === 'POST' && path === '/v1/app/builds/webhook') return respond(await receiveBuildWebhook(request, env))
+  const docket = docketRoute(request, env, path, new Date().toISOString())
+  if (docket) return docket
 
   const device = await authorize(request, env.DB)
   if (!device.ok) return failure(device.error)

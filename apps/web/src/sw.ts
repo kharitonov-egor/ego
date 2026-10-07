@@ -135,6 +135,8 @@ async function serveAsset(request: Request): Promise<Response> {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url)
   if (url.origin !== self.location.origin || event.request.method !== 'GET') return
+  // Docket pages come from the Worker through Vercel. They are not Ego's page and must not replace it in the cache.
+  if (url.pathname.startsWith('/docket/')) return
   const media = /^\/media\/([a-z]+)\/([^/]+)$/.exec(url.pathname)
   if (media) {
     event.respondWith(serveMedia(event, media[1], decodeURIComponent(media[2])))

@@ -2,6 +2,7 @@ import { WEB_SIGN_IN_PATH } from '@ego/api-contracts'
 import { exchangeSignIn, moneyApiFor, normalizeApiUrl, startSignIn } from '@ego/local/api-client'
 import { signInErrorMessage } from '@ego/local/sign-in'
 import type { SignInOutcome } from '@ego/ui/platform/local'
+import { refreshDocketCookie } from './docket'
 import { adoptSession, currentSession, endSession, ledgerApi } from './ledger'
 import { browserName, savePendingSignIn, takePendingSignIn, type WebSession } from './session'
 
@@ -61,6 +62,7 @@ export async function connectWithToken(apiUrl: string, token: string): Promise<S
   const previous = currentSession()
   await adoptSession({ apiUrl: address, token: trimmed, account: null, remember: previous?.remember ?? true })
   retire(previous, trimmed)
+  void refreshDocketCookie(currentSession())
   return { ok: true }
 }
 
