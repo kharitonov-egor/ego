@@ -4,6 +4,12 @@
 
 <h1 align="center">Ego</h1>
 
+<p align="center"><b>Windows desktop · Android phone · Web browser</b></p>
+
+> [!NOTE]
+> Everything shown in this README is throwaway demo data made up for these screenshots and GIFs.
+> None of it is my real app data.
+
 <p align="center">
   My personal app for money, workouts, health, tasks, the calendar, food, and a diary, with an AI
   chat that reads and writes all of it. It runs on my Android phone, on my Windows desktop, and in
@@ -14,7 +20,7 @@
   <img src="docs/media/tour.gif" alt="Clicking through Ego's apps on the desktop" width="900">
 </p>
 
-It's built for one user, me. Every screenshot here uses made-up demo data.
+It's built for one user, me.
 
 ## Apps
 
