@@ -1,9 +1,9 @@
 import { isAgentSettings } from '@ego/core'
 import {
   AGENT_KEY_NAME_MAX, AGENT_KEY_PREFIX, HTTP_STATUS, MCP_PATH, isAgentGoalInput, isAgentGoalUpdate, isAgentMemoryInput,
-  isAgentProposalAnswer,
+  isAgentProposalAnswer, isWebPushSubscriptionInput,
   type AgentFireResult, type AgentGoalList, type AgentKeyCreated, type AgentKeyList, type AgentKeySummary, type AgentMemoryList,
-  type AgentRunList, type AgentSettingsView, type ApiError, type DeviceIdentity
+  type AgentRunList, type AgentSettingsView, type ApiError, type DeviceIdentity, type WebPushKey, type WebPushTestResult
 } from '@ego/api-contracts'
 import { agentInbox, agentToolContext, answerProposal, listNotifications, markAgentRead } from './agent-chat'
 import { agentTimeZone, readAgentSettings, trustedTools, updateAgentSettings, userSettings } from './agent-settings'
@@ -12,6 +12,8 @@ import {
   GoalError, createGoal, deleteGoal, fireRoutine, listGoals, listRuns, routineConfigured, runGoalNow, updateGoal
 } from './goals'
 import { MemoryError, addMemory, forgetMemory, listMemories, updateMemory } from './memory'
+import { removeSubscription, saveSubscription, testPush } from './push-delivery'
+import { vapidKeys } from './web-push'
 import { query } from './reads'
 
 interface KeyRow {
@@ -151,6 +153,12 @@ export function agentRoute(request: Request, env: Env, device: DeviceIdentity, p
     return listNotifications(env, datasetId, new URL(request.url).searchParams.get('after')).then(ok)
   }
   if (method === 'POST' && path === '/v1/agent/routine/fire') return fireRoutine(env, datasetId, now).then(ok<AgentFireResult>)
+  if (path === '/v1/agent/web-push') {
+    if (method === 'GET') return Promise.resolve(ok<WebPushKey>({ publicKey: vapidKeys(env)?.publicKey ?? null }))
+    if (method === 'POST') return subscribe(request, env, device, now)
+    if (method === 'DELETE') return unsubscribe(request, env, device, now)
+  }
+  if (method === 'POST' && path === '/v1/agent/web-push/test') return testPush(env, device, now).then(ok<WebPushTestResult>)
   return Promise.resolve(failure('NOT_FOUND', 'That endpoint does not exist'))
 }
 
@@ -215,4 +223,20 @@ async function answer(request: Request, env: Env, device: DeviceIdentity, propos
   if (!isAgentProposalAnswer(body)) return failure('INVALID_REQUEST', 'Say whether to save the change')
   const message = await answerProposal(env, await agentToolContext(env, device, now), proposalId, body.approved)
   return message ? ok({ message }) : failure('CONFLICT', 'That change was already answered or expired')
+}
+
+async function subscribe(request: Request, env: Env, device: DeviceIdentity, now: string): Promise<Response> {
+  if (!vapidKeys(env)) return failure('NOT_CONFIGURED', 'Set WEB_PUSH_PUBLIC_KEY and WEB_PUSH_PRIVATE_KEY on the Worker')
+  const body = await readJson(request)
+  if (!isWebPushSubscriptionInput(body)) return failure('INVALID_REQUEST', 'That is not a push subscription')
+  await saveSubscription(env.DB, device, body, now)
+  return ok({ subscribed: true })
+}
+
+async function unsubscribe(request: Request, env: Env, device: DeviceIdentity, now: string): Promise<Response> {
+  const body = await readJson(request)
+  const endpoint = typeof body === 'object' && body !== null && 'endpoint' in body && typeof body.endpoint === 'string' ? body.endpoint : null
+  if (!endpoint) return failure('INVALID_REQUEST', 'Say which subscription to drop')
+  await removeSubscription(env.DB, device, endpoint, now)
+  return ok({ unsubscribed: true })
 }

@@ -3,7 +3,9 @@ import { Platform } from 'react-native'
 import * as SecureStore from 'expo-secure-store'
 import { requireOptionalNativeModule } from 'expo'
 import { useRootNavigationState, useRouter } from 'expo-router'
+import type { NotificationRequest } from 'expo-notifications'
 import { useTasks } from './context'
+import { agentNotificationRoute } from '../agent'
 import {
   DEFAULT_TASK_NOTIFICATIONS, TASK_DIGEST_PREFIX, TASK_REMINDER_PREFIX, cardIdFromNotification, parseTaskNotifications,
   taskNotificationPlan, type TaskNotificationPreference
@@ -90,10 +92,21 @@ export function TaskNotificationsProvider({ children }: { children: React.ReactN
     return () => clearTimeout(timer)
   }, [data, hour, preference, restored])
 
-  /** A card keeps one identifier across reminders, so the delivery time tells two taps apart. */
-  const open = useCallback((identifier: string, deliveredAt: number): void => {
+  /**
+   * A card keeps one identifier across reminders, so the delivery time tells two taps apart. Agent
+   * messages open the Agent chat from here rather than from a listener of their own.
+   */
+  const open = useCallback((request: NotificationRequest, deliveredAt: number): void => {
+    const { identifier } = request
     const key = `${identifier}@${deliveredAt}`
-    if (!identifier.startsWith(TASK_REMINDER_PREFIX) || handled.current === key) return
+    if (handled.current === key) return
+    const agentRoute = agentNotificationRoute(identifier, request.content.data)
+    if (agentRoute) {
+      handled.current = key
+      router.push(agentRoute)
+      return
+    }
+    if (!identifier.startsWith(TASK_REMINDER_PREFIX)) return
     handled.current = key
     if (identifier.startsWith(TASK_DIGEST_PREFIX)) {
       router.push('/tasks/upcoming')
@@ -110,9 +123,9 @@ export function TaskNotificationsProvider({ children }: { children: React.ReactN
     void notifications().then(async (api) => {
       if (!active) return
       subscription = api.addNotificationResponseReceivedListener((response) =>
-        open(response.notification.request.identifier, response.notification.date))
+        open(response.notification.request, response.notification.date))
       const launch = await api.getLastNotificationResponseAsync()
-      if (active && launch) open(launch.notification.request.identifier, launch.notification.date)
+      if (active && launch) open(launch.notification.request, launch.notification.date)
     }).catch(() => undefined)
     return () => {
       active = false

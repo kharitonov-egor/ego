@@ -1,7 +1,7 @@
 import type {
   AccountBalances, AgentFireResult, AgentGoal, AgentGoalInput, AgentGoalList, AgentGoalUpdate, AgentInbox, AgentKeyCreated,
   AgentKeyList, AgentMemory, AgentMemoryList, AgentNotificationPage, AgentRunList, AgentSettings, AgentSettingsView, ApiError,
-  AssistantMessage, ApiErrorCode, ApiResult, AppBuildStatus, AssistantChatList, AssistantConfirmRequest,
+  AssistantMessage, WebPushKey, WebPushSubscriptionInput, WebPushTestResult, ApiErrorCode, ApiResult, AppBuildStatus, AssistantChatList, AssistantConfirmRequest,
   AssistantHistory, AssistantStreamEvent, AssistantTurnRequest, BootstrapData, CalendarConnectStart, CalendarCreateRequest,
   CalendarDeleteRequest, CalendarEventRef, CalendarListChange, CalendarRange, CalendarRestoreRequest, CalendarRsvpRequest, CalendarSeries,
   CalendarSnapshot, CalendarUpdateRequest, ChangePage, DeviceList, DiaryMediaInfo, DocketDetail, DocketKeyCreated, DocketKeyList,
@@ -151,6 +151,10 @@ export interface AgentApi {
   /** Null `after` returns no notifications, only the cursor to start from. */
   agentNotifications: (after: string | null) => Promise<ApiResult<AgentNotificationPage>>
   fireAgentRoutine: () => Promise<ApiResult<AgentFireResult>>
+  webPushKey: () => Promise<ApiResult<WebPushKey>>
+  saveWebPushSubscription: (subscription: WebPushSubscriptionInput) => Promise<ApiResult<{ subscribed: true }>>
+  deleteWebPushSubscription: (endpoint: string) => Promise<ApiResult<{ unsubscribed: true }>>
+  testWebPush: () => Promise<ApiResult<WebPushTestResult>>
 }
 
 export interface EgoApi extends MoneyApi, StudyApi, HealthApi, CalendarApi, DiaryMediaApi, AssistantApi, FoodApi, DocketApi, AgentApi {
@@ -485,6 +489,10 @@ export function moneyApiFor(config: ApiConfig, options: { streamFetch?: StreamFe
     markAgentRead: () => call<AgentInbox>('/v1/agent/inbox/read', { method: 'POST', body: '{}' }),
     agentNotifications: (after) => call<AgentNotificationPage>(after ? `/v1/agent/notifications?after=${encodeURIComponent(after)}` : '/v1/agent/notifications'),
     fireAgentRoutine: () => call<AgentFireResult>('/v1/agent/routine/fire', { method: 'POST', body: '{}' }),
+    webPushKey: () => call<WebPushKey>('/v1/agent/web-push'),
+    saveWebPushSubscription: (subscription) => call<{ subscribed: true }>('/v1/agent/web-push', { method: 'POST', body: JSON.stringify(subscription) }),
+    deleteWebPushSubscription: (endpoint) => call<{ unsubscribed: true }>('/v1/agent/web-push', { method: 'DELETE', body: JSON.stringify({ endpoint }) }),
+    testWebPush: () => call<WebPushTestResult>('/v1/agent/web-push/test', { method: 'POST', body: '{}' }),
     docketKeys: () => call<DocketKeyList>('/v1/docket-keys'),
     createDocketKey: (name) => call<DocketKeyCreated>('/v1/docket-keys', {
       method: 'POST',

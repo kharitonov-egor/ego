@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import type { AssistantChat } from '@ego/api-contracts'
 import { ASSISTANT_TOOLS, isAgentTrigger } from '@ego/core'
 import {
-  defaultChat, draftFromTrigger, findChat, fireMessage, momentInSentence, momentLabel, putChatFirst, triggerFromDraft, trustOptions, withTrust,
-  type TriggerDraft
+  defaultChat, draftFromTrigger, findChat, fireMessage, momentInSentence, momentLabel, putChatFirst, testPushMessage, triggerFromDraft, trustOptions,
+  withTrust, type TriggerDraft
 } from './agent'
 
 const BLANK: TriggerDraft = { type: 'daily', time: '07:00', weekday: 1, hours: '4', date: '2026-10-07' }
@@ -52,6 +52,13 @@ describe('agent labels', () => {
     expect(fireMessage({ fired: true, runs: 1, sessionUrl: null, error: null })).toBe('The agent is on it')
     expect(fireMessage({ fired: false, runs: 1, sessionUrl: null, error: 'The routine could not be reached' })).toBe('The routine could not be reached')
     expect(fireMessage({ fired: false, runs: 0, sessionUrl: null, error: null })).toBe('No goals are due right now')
+  })
+
+  it('reports a test push as sent, refused, or with no subscription to send to', () => {
+    expect(testPushMessage({ sent: 1, failed: 0 })).toEqual({ text: 'Sent. It should show in a few seconds.', good: true })
+    expect(testPushMessage({ sent: 1, failed: 1 }).good).toBe(true)
+    expect(testPushMessage({ sent: 0, failed: 1 })).toEqual({ text: 'The push service turned it down. Turn notifications off and on again.', good: false })
+    expect(testPushMessage({ sent: 0, failed: 0 }).text).toMatch(/no subscription for this browser/)
   })
 })
 

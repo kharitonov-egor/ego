@@ -8,6 +8,7 @@ import { docketOpenTarget, refreshDocketCookie, rememberDocketReturn, takeDocket
 import { currentSession, ledgerApi, ledgerDatabase, startLedger, stopLedger } from './ledger'
 import { answerMedia } from './media'
 import { isMediaQuestion, type MediaAnswer } from './media-protocol'
+import { isOpenRequest } from './notification-protocol'
 import { QuickAdd } from './QuickAdd'
 import { finishGoogleSignIn, isSignInReturn } from './sign-in'
 import { Elsewhere } from './Elsewhere'
@@ -15,6 +16,8 @@ import { Elsewhere } from './Elsewhere'
 /** Only one tab runs Ego, since only one can hold the browser's copy of the database open. */
 const TAB_LOCK = 'ego-tab'
 const tabs = new BroadcastChannel('ego-tab')
+/** Whether this tab holds the lock and shows Ego, rather than the page that says Ego is open elsewhere. */
+let running = false
 
 type TabMessage = { type: 'take-over' } | { type: 'navigate'; route: string }
 
@@ -33,9 +36,14 @@ window.addEventListener('drop', (event) => event.preventDefault())
 
 const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement)
 
-function answerMediaQuestions(): void {
+function answerServiceWorker(): void {
   navigator.serviceWorker?.addEventListener('message', (event: MessageEvent<unknown>) => {
     const port = event.ports[0]
+    if (port && isOpenRequest(event.data)) {
+      port.postMessage(running)
+      if (running) requestNavigation(event.data.route)
+      return
+    }
     if (!port || !isMediaQuestion(event.data)) return
     const question = event.data
     void (async (): Promise<MediaAnswer> => {
@@ -93,6 +101,7 @@ function renderElsewhere(reason: 'open' | 'moved' | 'connected'): void {
 
 /** Runs Ego in this tab until another tab takes over, then lets go of the database and the lock. */
 async function run(): Promise<void> {
+  running = true
   startLedger()
   renderApp()
   await new Promise<void>((released) => {
@@ -104,6 +113,7 @@ async function run(): Promise<void> {
         return
       }
       tabs.onmessage = null
+      running = false
       stopLiveSessions()
       void stopLedger().finally(() => {
         renderElsewhere('moved')
@@ -132,7 +142,7 @@ async function openDocket(): Promise<boolean> {
 async function boot(): Promise<void> {
   if (await openDocket()) return
   await startServiceWorker()
-  answerMediaQuestions()
+  answerServiceWorker()
   if (isSignInReturn()) {
     const outcome = await finishGoogleSignIn(new URLSearchParams(location.search))
     history.replaceState(null, '', '/')

@@ -17,6 +17,7 @@ import { TRUSTABLE_TOOLS, clockLabel, shiftClock, wakeResultLabel } from '../lib
 import { timeAgo } from '@ego/local/dates'
 import type { ListShortcut, TrelloBoardSummary, TrelloListSummary } from '@ego/core'
 import { isSignedIn, useSettings, type RetiredCredentials } from '../lib/settings'
+import { useNotificationPermission, type NotificationPermission } from '../lib/agent-notifications'
 import type { EgoApi } from '@ego/local/api-client'
 import {
   canInstallBuilds, installBuild, installedBuildNumber, newerBuild, useInstallState, useLatestBuild
@@ -354,6 +355,28 @@ function RoutineSteps(): React.ReactElement {
   </View>
 }
 
+const PERMISSION_LABELS: Record<NotificationPermission, string> = {
+  granted: 'Allowed on this phone',
+  ask: 'Not allowed yet',
+  blocked: 'Off in system settings'
+}
+
+function PhoneNotifications({ phoneOn }: { phoneOn: boolean }): React.ReactElement {
+  const { permission, allow } = useNotificationPermission()
+  return <View className="mt-4 rounded-2xl bg-surface-900 p-4">
+    <Text className="text-[17px] font-semibold">Phone notifications</Text>
+    <Text className="mt-1 text-[15px] leading-5 text-muted-foreground">Ego checks for new messages about every 15 minutes in the background. Opening Ego gets them right away.</Text>
+    {permission !== null && <View className="mt-3 min-h-12 flex-row items-center">
+      <View className={`h-8 w-8 items-center justify-center rounded-full ${permission === 'granted' ? 'bg-positive/15' : 'bg-surface-800'}`}>
+        {permission === 'granted' ? <Check color="#34d399" size={17} /> : <X color="#a3a3a3" size={17} />}
+      </View>
+      <Text className="ml-3 flex-1 text-[16px]">{PERMISSION_LABELS[permission]}</Text>
+      {permission !== 'granted' && <Button size="sm" onPress={() => void allow()}><Text>Allow</Text></Button>}
+    </View>}
+    {!phoneOn && <Text className="mt-3 text-[15px] leading-5 text-attention">Phone is off under Notify on, so this phone stays quiet.</Text>}
+  </View>
+}
+
 function goalCountLabel(count: number): string {
   if (count === 0) return 'None yet'
   return count === 1 ? '1 goal' : `${count} goals`
@@ -495,6 +518,7 @@ function AgentSection({ api }: { api: EgoApi }): React.ReactElement {
           <SwitchRow label="Desktop" value={settings.devices.desktop} onChange={(desktop) => update({ devices: { ...settings.devices, desktop } })} />
           <SwitchRow label="Web" value={settings.devices.web} onChange={(web) => update({ devices: { ...settings.devices, web } })} />
         </View>
+        <PhoneNotifications phoneOn={settings.devices.phone} />
         <FieldLabel>Proposals expire after</FieldLabel>
         <Stepper
           value={settings.proposalDays === 1 ? '1 day' : `${settings.proposalDays} days`}

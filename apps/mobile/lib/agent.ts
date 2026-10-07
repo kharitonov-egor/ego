@@ -2,7 +2,9 @@ import {
   ASSISTANT_TOOLS, ASSISTANT_TOOL_NAMES, isAgentTrigger,
   type AgentTrigger, type AgentTriggerType, type AssistantToolName
 } from '@ego/core'
-import type { AgentFireResult, AgentGoal, AgentGoalStatus, AgentRunReason, AgentRunStatus } from '@ego/api-contracts'
+import type {
+  AgentFireResult, AgentGoal, AgentGoalStatus, AgentNotificationPage, AgentRunReason, AgentRunStatus
+} from '@ego/api-contracts'
 import { isoToday, shiftIso } from '@ego/local/dates'
 import { dayKeyOf, timeLabel } from '@ego/local/diary/format'
 
@@ -197,4 +199,43 @@ export function clockLabel(time: string): string {
 export function shiftClock(time: string, minutes: number): string {
   const total = (((Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5)) + minutes) % 1440) + 1440) % 1440
   return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
+}
+
+export const AGENT_CHAT_ROUTE = '/ai?chat=agent'
+export const AGENT_NOTIFICATION_PREFIX = 'ego-agent-'
+/** Older than this, a message is old news. It still waits in the Agent chat. */
+export const AGENT_NOTIFICATION_MAX_AGE_MS = 6 * 60 * 60 * 1000
+
+export interface AgentNotificationSchedule {
+  identifier: string
+  title: string
+  body: string
+  /** Null shows it right away. */
+  at: Date | null
+}
+
+export function agentNotificationIdentifier(id: string): string {
+  return `${AGENT_NOTIFICATION_PREFIX}${id}`
+}
+
+/** `shown` holds identifiers already on this phone, shown or scheduled, so a second check never rings twice. */
+export function agentNotificationPlan(
+  page: AgentNotificationPage, now: Date, shown: ReadonlySet<string>
+): AgentNotificationSchedule[] {
+  if (!page.devices.phone) return []
+  const nowMs = now.getTime()
+  return page.notifications.flatMap((notification) => {
+    const identifier = agentNotificationIdentifier(notification.id)
+    const deliverMs = Date.parse(notification.deliverAt)
+    if (notification.silent || shown.has(identifier) || !Number.isFinite(deliverMs)) return []
+    if (nowMs - deliverMs > AGENT_NOTIFICATION_MAX_AGE_MS) return []
+    return [{ identifier, title: notification.title, body: notification.body, at: deliverMs > nowMs ? new Date(deliverMs) : null }]
+  })
+}
+
+/** Where a tap on an agent notification goes, or null for any other notification. */
+export function agentNotificationRoute(identifier: string, data: Record<string, unknown> | undefined): string | null {
+  if (!identifier.startsWith(AGENT_NOTIFICATION_PREFIX)) return null
+  const route = data?.route
+  return typeof route === 'string' && route.startsWith('/') ? route : AGENT_CHAT_ROUTE
 }

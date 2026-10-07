@@ -12,6 +12,7 @@ import {
 import { deleteStaged, openMedia, stageMedia } from './media'
 import { getPreference, setPreference } from './session'
 import { beginGoogleSignIn, connectWithToken, signOut } from './sign-in'
+import { pushState, pushSubscribe, pushUnsubscribe } from './web-push'
 
 const NOT_HERE = 'This works in the desktop app only.'
 
@@ -127,6 +128,9 @@ export function createWebApi(): IpcApi {
     onMediaProgress: (callback: (progress: MediaProgress) => void) => onMediaProgress(callback),
     pathForFile: () => '',
     notify: () => undefined,
+    pushState,
+    pushSubscribe,
+    pushUnsubscribe,
     onNavigate: (callback) => listen(navigateListeners, callback),
     preferenceGet: async (key) => getPreference(key),
     preferenceSet: async (key, value) => setPreference(key, value),

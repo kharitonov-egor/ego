@@ -6,6 +6,7 @@ import { agentTimeZone, readAgentSettings, updateAgentSettings } from './agent-s
 import { describeWrite, executeAssistantWrite, type ToolContext, type WriteCard } from './assistant-tools'
 import type { Env } from './auth'
 import { localDate } from './google-health'
+import { deliverWebPushes } from './push-delivery'
 import { query } from './reads'
 
 export const AGENT_CHAT_TITLE = 'Agent'
@@ -109,6 +110,7 @@ export async function createNotification(env: Env, input: {
   await env.DB.prepare(`INSERT INTO agent_notifications (id, dataset_id, chat_id, message_id, goal_id, title, body, deliver_at, silent, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(row.id, input.datasetId, row.chat_id, input.messageId, input.goalId, row.title, row.body, row.deliver_at, row.silent, row.created_at).run()
+  if (!plan.silent && plan.deliverMs <= nowMs) await deliverWebPushes(env, input.now, input.datasetId)
   return toNotification(row)
 }
 
@@ -132,7 +134,8 @@ export async function listNotifications(env: Env, datasetId: string, after: stri
   if (!after) {
     const latest = await query<NotificationRow>(env.DB, `SELECT * FROM agent_notifications WHERE dataset_id = ?
       ORDER BY created_at DESC, id DESC LIMIT 1`, [datasetId])
-    return { notifications: [], cursor: latest[0] ? cursorOf(latest[0]) : null, devices: settings.devices }
+    const start = latest[0] ? cursorOf(latest[0]) : `${new Date().toISOString()}|`
+    return { notifications: [], cursor: start, devices: settings.devices }
   }
   const [createdAt, id = ''] = after.split('|')
   const rows = await query<NotificationRow>(env.DB, `SELECT * FROM agent_notifications WHERE dataset_id = ?

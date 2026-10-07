@@ -3,6 +3,7 @@ import React from 'react'
 import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { SettingsProvider } from '../lib/settings'
+import { AgentNotificationChecks } from '../lib/agent-notifications'
 import { BlurProvider } from '../lib/blur'
 import { MoneyProvider } from '../lib/money-context'
 import { LedgerProvider } from '../lib/ledger-context'
@@ -52,6 +53,7 @@ function Screens(): React.ReactElement {
 export default function RootLayout(): React.ReactElement {
   return (
     <SettingsProvider>
+      <AgentNotificationChecks />
       <BlurProvider>
         <LedgerProvider>
           <MoneyProvider>

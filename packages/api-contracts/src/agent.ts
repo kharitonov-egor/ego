@@ -207,3 +207,26 @@ export function isAgentGoalUpdate(value: unknown): value is AgentGoalUpdate {
 export function isAgentProposalAnswer(value: unknown): value is AgentProposalAnswer {
   return isRecord(value) && typeof value.approved === 'boolean'
 }
+
+/** The Worker's VAPID public key for PushManager.subscribe, or null when Web Push is not set up. */
+export interface WebPushKey {
+  publicKey: string | null
+}
+
+/** What PushSubscription.toJSON() gives, minus expirationTime. */
+export interface WebPushSubscriptionInput {
+  endpoint: string
+  keys: { p256dh: string; auth: string }
+}
+
+export interface WebPushTestResult {
+  sent: number
+  failed: number
+}
+
+export function isWebPushSubscriptionInput(value: unknown): value is WebPushSubscriptionInput {
+  if (!isRecord(value) || typeof value.endpoint !== 'string' || !isRecord(value.keys)) return false
+  return value.endpoint.startsWith('https://') && value.endpoint.length <= 1000 &&
+    typeof value.keys.p256dh === 'string' && /^[A-Za-z0-9_-]{80,100}$/.test(value.keys.p256dh) &&
+    typeof value.keys.auth === 'string' && /^[A-Za-z0-9_-]{16,32}$/.test(value.keys.auth)
+}

@@ -107,6 +107,19 @@ after seven days. Settings, Agent sets the trusted changes, the expiry, quiet ho
 a daily limit on notifications (six), and which devices get them. Messages over the limit, or from a
 muted goal, still arrive in the chat without a notification. On the desktop, notifications show as
 Windows notifications from the tray.
+### Notifications
+
+None of this uses Firebase. On the phone, Expo's background task asks the Worker for new agent
+notifications about every 15 minutes, as Android allows, and shows them as the same local
+notifications Tasks reminders use. Opening Ego asks right away. Android may stretch the gap when the
+phone sits idle, and checks stop if Ego is force-stopped. Goals with a set time start 30 minutes
+early, so their notification waits on the phone and fires on the minute. The desktop asks every
+minute from the tray.
+
+The web app uses Web Push with the Worker's own VAPID keys. Settings, Agent turns it on for that
+browser and sends a test. The Worker encrypts each payload as RFC 8291 describes and pushes it the
+moment a message is ready, or from the 15-minute cron once quiet hours end. Make the keys once with
+`node scripts/web-push-keys.mjs` and store them as `WEB_PUSH_PUBLIC_KEY` and `WEB_PUSH_PRIVATE_KEY`.
 
 ## Money
 

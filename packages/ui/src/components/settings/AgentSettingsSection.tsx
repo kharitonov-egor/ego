@@ -6,6 +6,7 @@ import { AGENT_ROUTINE_PROMPT, type AgentDevices, type AgentSettings } from '@eg
 import { timeAgo } from '@ego/local/dates'
 import { fireMessage, trustOptions, withTrust } from '../../lib/agent'
 import { useLedger } from '../../lib/ledger'
+import { isWeb } from '../../lib/platform'
 import { cn } from '../../lib/utils'
 import { Code, CopyField } from '../copy'
 import { ExternalLink } from '../ExternalLink'
@@ -13,6 +14,7 @@ import { Section, SectionNote } from '../Section'
 import { Button } from '../ui/button'
 import { inputClass } from '../ui/input'
 import { Switch } from '../ui/switch'
+import { BrowserNotifications } from './BrowserNotifications'
 
 const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/
 const ROUTINES_URL = 'https://claude.ai/code/routines'
@@ -98,6 +100,7 @@ function SetupSteps(): React.ReactElement {
 export function AgentSettingsSection(): React.ReactElement {
   const ledger = useLedger()
   const navigate = useNavigate()
+  const web = isWeb()
   const [view, setView] = useState<AgentSettingsView | null>(null)
   const [settings, setSettings] = useState<AgentSettings | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -242,6 +245,7 @@ export function AgentSettingsSection(): React.ReactElement {
         checked={settings.devices[device.key]}
         onChange={(on) => change((current) => ({ ...current, devices: { ...current.devices, [device.key]: on } }))}
       />)}
+      {!web && <SectionNote className="mb-2 mt-1">On Windows, Ego shows notifications from the tray.</SectionNote>}
       <NumberSetting
         before="Proposals expire after"
         after="days"
@@ -250,6 +254,11 @@ export function AgentSettingsSection(): React.ReactElement {
         max={60}
         onCommit={(proposalDays) => change((current) => ({ ...current, proposalDays }))}
       />
+
+      {web && <>
+        <Heading>Notifications in this browser</Heading>
+        <BrowserNotifications webOff={!settings.devices.web} />
+      </>}
 
       <Heading>Changes it can make without asking</Heading>
       <SectionNote className="mb-2">Everything else waits in the Agent chat for you to confirm.</SectionNote>

@@ -1,5 +1,7 @@
 /// <reference lib="webworker" />
 import type { MediaAnswer, MediaQuestion } from './media-protocol'
+import type { OpenRequest } from './notification-protocol'
+import { clickedRoute, parsePushPayload } from './push-payload'
 
 declare const self: ServiceWorkerGlobalScope
 
@@ -10,6 +12,9 @@ const SHELL_CACHE_ENTRIES = 120
 /** Whole files under this size are kept after the first view, so a diary grid does not download twice. */
 const CACHE_LIMIT = 25 * 1024 * 1024
 const ANSWER_TIMEOUT_MS = 10_000
+const NOTIFICATION_ICON = '/icons/icon-192.png'
+/** Firefox lets a notification click focus or open a window for one second, so tabs get less than that to answer. */
+const OPEN_ANSWER_MS = 400
 
 self.addEventListener('install', () => {
   void self.skipWaiting()
@@ -147,4 +152,56 @@ self.addEventListener('fetch', (event) => {
     return
   }
   if (url.pathname.startsWith('/assets/')) event.respondWith(serveAsset(event.request))
+})
+
+self.addEventListener('push', (event) => {
+  const message = parsePushPayload(event.data?.text())
+  event.waitUntil(self.registration.showNotification(message.title, {
+    body: message.body,
+    tag: message.tag,
+    icon: NOTIFICATION_ICON,
+    data: { route: message.route },
+    requireInteraction: message.urgent
+  }))
+})
+
+/** True from the tab running Ego, false from any other Ego tab, null from a tab too busy or too old to answer. */
+function askToOpen(client: WindowClient, route: string): Promise<boolean | null> {
+  return new Promise((resolve) => {
+    const channel = new MessageChannel()
+    const timer = setTimeout(() => resolve(null), OPEN_ANSWER_MS)
+    channel.port1.onmessage = (event: MessageEvent<unknown>) => {
+      clearTimeout(timer)
+      resolve(event.data === true)
+    }
+    client.postMessage({ type: 'ego-open', route } satisfies OpenRequest, [channel.port2])
+  })
+}
+
+/**
+ * The tab running Ego moves to the page without reloading. A busy tab still gets the request once it
+ * is free. With only tabs that are not running Ego, one reloads at the page, which lets it take over.
+ * Docket pages share the origin but never run Ego, so they are left alone.
+ */
+async function openRoute(route: string): Promise<void> {
+  const url = new URL(route, self.location.origin).href
+  const windows = (await self.clients.matchAll({ type: 'window', includeUncontrolled: true }))
+    .filter((client) => !new URL(client.url).pathname.startsWith('/docket/'))
+  const answers = await Promise.all(windows.map((client) => askToOpen(client, route)))
+  const running = windows.find((_, index) => answers[index] === true) ?? windows.find((_, index) => answers[index] === null)
+  if (running) {
+    await running.focus().catch(() => null)
+    return
+  }
+  const idle = windows[0]
+  if (idle) {
+    await idle.focus().catch(() => null)
+    if (await idle.navigate(url).catch(() => null)) return
+  }
+  await self.clients.openWindow(url)
+}
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  event.waitUntil(openRoute(clickedRoute(event.notification.data)))
 })

@@ -14,7 +14,8 @@ import type {
   ApiResult,
   ConnectorStatus,
   LiveToolExecuteRequest,
-  LiveToolExecuteResult
+  LiveToolExecuteResult,
+  WebPushSubscriptionInput
 } from '@ego/api-contracts'
 import type { SqlParam, SqlResult } from '@ego/local/database/types'
 import type {
@@ -97,6 +98,17 @@ export type DesktopApiResult<T> =
   | { ok: true; data: T }
   | { ok: false; code: string; message: string }
 
+export interface PushState {
+  supported: boolean
+  permission: 'default' | 'granted' | 'denied'
+  /** Where the push service reaches this browser, or null while it is not subscribed. */
+  endpoint: string | null
+}
+
+export type PushSubscribeResult =
+  | { ok: true; subscription: WebPushSubscriptionInput }
+  | { ok: false; message: string }
+
 export interface SignInOptions {
   /** Web only: false keeps the copy and the token in this tab, gone when it closes. */
   remember?: boolean
@@ -129,6 +141,12 @@ export interface IpcApi {
   /** The path of a dropped or picked file, so a large video goes to the main process by name, not by bytes. */
   pathForFile: (file: File) => string
   notify: (input: NotifyInput) => void
+  /** Web Push for the agent's notifications. The desktop shows them from the tray instead. */
+  pushState: () => Promise<PushState>
+  /** Asks for notification permission first, so call it straight from a click. */
+  pushSubscribe: (publicKey: string) => Promise<PushSubscribeResult>
+  /** Resolves with the endpoint it dropped, for the Worker to forget, or null when there was none. */
+  pushUnsubscribe: () => Promise<string | null>
   /** A notification click or a sign-in link asks the window to open a page. */
   onNavigate: (callback: (route: string) => void) => () => void
   preferenceGet: (key: string) => Promise<string | null>

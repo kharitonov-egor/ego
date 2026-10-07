@@ -49,6 +49,9 @@ const api: IpcApi = {
   },
   pathForFile: (file) => webUtils.getPathForFile(file),
   notify: (input) => ipcRenderer.send('notify', input),
+  pushState: async () => ({ supported: false, permission: 'default', endpoint: null }),
+  pushSubscribe: async () => ({ ok: false, message: 'Ego on Windows shows notifications from the tray.' }),
+  pushUnsubscribe: async () => null,
   onNavigate: (callback) => {
     const handler = (_event: Electron.IpcRendererEvent, route: string): void => callback(route)
     ipcRenderer.on('navigate', handler)
