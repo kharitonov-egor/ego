@@ -1,5 +1,5 @@
 import {
-  SIGN_IN_RETURN_URL,
+  BROWSER_IDLE_DAYS, SIGN_IN_RETURN_URL, TAB_IDLE_DAYS,
   type DeviceIdentity,
   type SessionInfo,
   type SignInResult,
@@ -9,6 +9,7 @@ import { hashToken, type Env } from './auth'
 import { fromBase64, randomUrlToken, sha256 } from './connector-crypto'
 import { connectorStatus, googleCallbackUrl } from './connectors'
 import { healthConnected } from './health'
+import { webSignInReturn } from './web'
 
 const GOOGLE_AUTHORIZE = 'https://accounts.google.com/o/oauth2/v2/auth'
 const GOOGLE_TOKEN = 'https://oauth2.googleapis.com/token'
@@ -29,6 +30,8 @@ interface SignInRow {
   account_email: string | null
   expires_at: string
   consumed_at: string | null
+  return_url: string | null
+  idle_days: number | null
 }
 
 interface IdTokenClaims {
@@ -50,10 +53,10 @@ function failure(status: number, code: string, message: string): Response {
   return json({ ok: false, error: { code, message } }, status)
 }
 
-function returnToApp(params: { code: string } | { error: SignInError }): Response {
+function returnToApp(returnUrl: string | null, params: { code: string } | { error: SignInError }): Response {
   return new Response(null, {
     status: 302,
-    headers: { location: `${SIGN_IN_RETURN_URL}?${new URLSearchParams(params)}`, 'cache-control': 'no-store' }
+    headers: { location: `${returnUrl ?? SIGN_IN_RETURN_URL}?${new URLSearchParams(params)}`, 'cache-control': 'no-store' }
   })
 }
 
@@ -135,6 +138,12 @@ export async function startSignIn(request: Request, env: Env, now = new Date()):
     return failure(503, 'NOT_CONFIGURED', 'Google sign-in is not set up on the server')
   }
   const body = await readJson(request)
+  const askedReturn = isRecord(body) ? body.returnUrl : undefined
+  const returnUrl = askedReturn === undefined ? null : webSignInReturn(env, askedReturn)
+  if (askedReturn !== undefined && !returnUrl) {
+    return failure(400, 'INVALID_REQUEST', 'This web address may not sign in to Ego')
+  }
+  const idleDays = returnUrl ? (isRecord(body) && body.remember === false ? TAB_IDLE_DAYS : BROWSER_IDLE_DAYS) : null
   const nowIso = now.toISOString()
   await env.DB.prepare('DELETE FROM sign_in_requests WHERE expires_at <= ?').bind(nowIso).run()
   const minuteAgo = new Date(now.getTime() - 60_000).toISOString()
@@ -149,10 +158,10 @@ export async function startSignIn(request: Request, env: Env, now = new Date()):
   const exchangeSecret = randomUrlToken()
   const expiresAt = new Date(now.getTime() + SIGN_IN_TTL_MS).toISOString()
   await env.DB.prepare(`INSERT INTO sign_in_requests
-    (state_hash, exchange_secret_hash, google_verifier, device_name, client_hash, expires_at, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)`)
+    (state_hash, exchange_secret_hash, google_verifier, device_name, client_hash, expires_at, created_at, return_url, idle_days)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .bind(await sha256(state), await sha256(exchangeSecret), verifier,
-      deviceNameFrom(isRecord(body) ? body.deviceName : undefined), client, expiresAt, nowIso)
+      deviceNameFrom(isRecord(body) ? body.deviceName : undefined), client, expiresAt, nowIso, returnUrl, idleDays)
     .run()
   const params = new URLSearchParams({
     client_id: env.GOOGLE_CLIENT_ID,
@@ -183,16 +192,17 @@ export async function completeSignIn(request: Request, env: Env, now = new Date(
   const nowIso = now.toISOString()
   const claimed = await env.DB.prepare(`UPDATE sign_in_requests SET callback_at = ?
     WHERE state_hash = ? AND callback_at IS NULL AND expires_at > ?`).bind(nowIso, stateHash, nowIso).run()
-  if ((claimed.meta.changes ?? 0) !== 1) return returnToApp({ error: 'expired' })
+  const back = row.return_url
+  if ((claimed.meta.changes ?? 0) !== 1) return returnToApp(back, { error: 'expired' })
   const code = url.searchParams.get('code')
-  if (url.searchParams.has('error') || !code) return returnToApp({ error: 'cancelled' })
+  if (url.searchParams.has('error') || !code) return returnToApp(back, { error: 'cancelled' })
   const email = await verifiedGoogleEmail(code, row.google_verifier, googleCallbackUrl(request, env), env, now)
-  if (!email) return returnToApp({ error: 'failed' })
-  if (!allowedEmails(env).has(email)) return returnToApp({ error: 'not_allowed' })
+  if (!email) return returnToApp(back, { error: 'failed' })
+  if (!allowedEmails(env).has(email)) return returnToApp(back, { error: 'not_allowed' })
   const appCode = randomUrlToken()
   await env.DB.prepare('UPDATE sign_in_requests SET code_hash = ?, account_email = ? WHERE state_hash = ?')
     .bind(await sha256(appCode), email, stateHash).run()
-  return returnToApp({ code: appCode })
+  return returnToApp(back, { code: appCode })
 }
 
 export async function exchangeSignIn(request: Request, env: Env, now = new Date()): Promise<Response> {
@@ -213,9 +223,11 @@ export async function exchangeSignIn(request: Request, env: Env, now = new Date(
   if ((claimed.meta.changes ?? 0) !== 1) return expired
   const token = randomUrlToken(36)
   const deviceId = `device-${randomHex(6)}`
-  await env.DB.prepare(`INSERT INTO devices (id, name, token_hash, dataset_id, created_at, account_email)
-    VALUES (?, ?, ?, ?, ?, ?)`)
-    .bind(deviceId, row.device_name, await hashToken(token), env.DATASET_ID ?? DEFAULT_DATASET, nowIso, row.account_email)
+  const webOrigin = row.return_url ? new URL(row.return_url).origin : null
+  await env.DB.prepare(`INSERT INTO devices (id, name, token_hash, dataset_id, created_at, account_email, web_origin, idle_days)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind(deviceId, row.device_name, await hashToken(token), env.DATASET_ID ?? DEFAULT_DATASET, nowIso, row.account_email,
+      webOrigin, row.idle_days)
     .run()
   const data: SignInResult = { token, deviceId, deviceName: row.device_name, email: row.account_email }
   return json({ ok: true, data })

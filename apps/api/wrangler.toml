@@ -10,6 +10,8 @@ crons = ["*/15 * * * *", "0 7 * * *"]
 [vars]
 D1_ACCOUNT_ID = "92315e9c86dc9762b0924de19d20b10b"
 D1_DATABASE_ID = "efd88bbb-8dca-4164-b3e5-b8040572551e"
+# The web app, and its dev server. Only these origins get CORS headers or a sign-in sent back to them.
+WEB_ORIGINS = "https://ego.kharitonovegor.com, http://localhost:5173"
 
 [[d1_databases]]
 binding = "DB"

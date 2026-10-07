@@ -21,7 +21,8 @@ import {
 } from './connectors'
 import { auditLocalLiveTool, executeLiveTool } from './live-tools'
 import { completeSignIn, exchangeSignIn, readSession, signOut, startSignIn } from './sign-in'
-import { trelloAddAttachment, trelloBoards, trelloCreateCard, trelloLists } from './services'
+import { analyzeReceiptImage, trelloAddAttachment, trelloBoards, trelloCreateCard, trelloLists } from './services'
+import { listDevices, revokeDevice } from './devices'
 import { assistantRoute } from './assistant'
 import { markStudyAssignment, readStudyAssignments } from './study'
 import { completeHealthConnect, disconnectHealth, readHealth, startHealthConnect, syncHealthRequest } from './health'
@@ -112,6 +113,13 @@ export async function handle(request: Request, env: Env, work?: Pick<ExecutionCo
   if (!device.ok) return failure(device.error)
   const now = new Date().toISOString()
   void touchDevice(env.DB, device.data.deviceId, now).catch(() => undefined)
+
+  if (request.method === 'GET' && path === '/v1/devices') return ok(await listDevices(env.DB, device.data, now))
+  if (request.method === 'DELETE' && path.startsWith('/v1/devices/')) {
+    const revoked = await revokeDevice(env.DB, device.data, decodeURIComponent(path.slice('/v1/devices/'.length)), now)
+    return revoked ? ok({ revoked: true }) : failure({ code: 'NOT_FOUND', message: 'That device is already signed out' })
+  }
+  if (request.method === 'POST' && path === '/v1/money/receipt-image') return analyzeReceiptImage(request, env)
 
   if (path === '/v1/session') {
     if (request.method === 'GET') return ok(await readSession(env, device.data))

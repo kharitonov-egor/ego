@@ -3,16 +3,19 @@ import { BACKUP_CRON, runScheduledBackup } from './backup'
 import { runScheduledCalendarSync } from './calendar'
 import { runScheduledHealthSync } from './health'
 import { handle } from './router'
+import { preflight, withCors } from './web'
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const asked = preflight(request, env)
+    if (asked) return asked
     try {
-      return await handle(request, env, ctx)
+      return withCors(request, env, await handle(request, env, ctx))
     } catch {
-      return new Response(
+      return withCors(request, env, new Response(
         JSON.stringify({ ok: false, error: { code: 'SERVER_ERROR', message: 'The request could not be completed' } }),
         { status: 500, headers: { 'content-type': 'application/json; charset=utf-8' } }
-      )
+      ))
     }
   },
 
