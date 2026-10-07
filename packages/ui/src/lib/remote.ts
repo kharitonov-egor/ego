@@ -70,5 +70,9 @@ export const remoteApi: RemoteApi = {
   agentInbox: call('agentInbox'),
   markAgentRead: call('markAgentRead'),
   agentNotifications: call('agentNotifications'),
-  fireAgentRoutine: call('fireAgentRoutine')
+  fireAgentRoutine: call('fireAgentRoutine'),
+  webPushKey: call('webPushKey'),
+  saveWebPushSubscription: call('saveWebPushSubscription'),
+  deleteWebPushSubscription: call('deleteWebPushSubscription'),
+  testWebPush: call('testWebPush')
 }

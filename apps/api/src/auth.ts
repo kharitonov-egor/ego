@@ -44,6 +44,12 @@ export interface Env {
   AGENT_ROUTINE_URL?: string
   /** The routine's API trigger token, from claude.ai/code/routines. */
   AGENT_ROUTINE_TOKEN?: string
+  /** VAPID public key, base64url of the uncompressed P-256 point. Browsers subscribe with it. */
+  WEB_PUSH_PUBLIC_KEY?: string
+  /** VAPID private key, base64url of the 32-byte P-256 scalar. Make both with scripts/web-push-keys.mjs. */
+  WEB_PUSH_PRIVATE_KEY?: string
+  /** Who push services can contact about this sender, a mailto: or https: URL. Defaults to the web app. */
+  WEB_PUSH_SUBJECT?: string
 }
 
 interface DeviceRow {

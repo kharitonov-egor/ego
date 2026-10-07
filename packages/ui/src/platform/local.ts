@@ -68,7 +68,11 @@ export const REMOTE_API_METHODS = [
   'agentInbox',
   'markAgentRead',
   'agentNotifications',
-  'fireAgentRoutine'
+  'fireAgentRoutine',
+  'webPushKey',
+  'saveWebPushSubscription',
+  'deleteWebPushSubscription',
+  'testWebPush'
 ] as const
 
 export type RemoteApiMethod = typeof REMOTE_API_METHODS[number]
