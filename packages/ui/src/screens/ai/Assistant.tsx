@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { AudioLines, MessagesSquare, Paperclip, Send, SquarePen, X } from 'lucide-react'
+import { AudioLines, Brain, MessagesSquare, Paperclip, Send, SquarePen, X } from 'lucide-react'
 import type {
   AssistantChat, AssistantMessage, AssistantPendingWrite, AssistantStreamEvent, AssistantUnits
 } from '@ego/api-contracts'
@@ -277,6 +277,7 @@ export default function Assistant(): React.ReactElement {
   const header = <ScreenHeader title="AI" right={<>
     <IconButton label="Talk to AI" onClick={() => navigate('/ai/voice')}><AudioLines size={20} /></IconButton>
     {ledger.enabled && <>
+      <IconButton label="Memory" onClick={() => navigate('/ai/memory')}><Brain size={20} /></IconButton>
       <IconButton label="Chats" onClick={() => setChatsOpen(true)} className="lg:hidden"><MessagesSquare size={20} /></IconButton>
       <IconButton label="New chat" disabled={busy} onClick={() => void open(null)}><SquarePen size={20} /></IconButton>
     </>}

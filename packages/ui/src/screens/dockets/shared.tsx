@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import { useNavigate } from 'react-router'
-import { Check, Copy, FileText, Globe, KeyRound, Lock, type LucideIcon } from 'lucide-react'
+import { FileText, Globe, KeyRound, Lock, type LucideIcon } from 'lucide-react'
 import { Screen, ScreenHeader, TabLinks } from '../../components/screen'
 import { Button } from '../../components/ui/button'
 import { Spinner } from '../../components/ui/spinner'
@@ -62,26 +62,4 @@ export function VisibilityBadge({ visible }: { visible: boolean }): React.ReactE
     <Icon size={13} />
     {visible ? 'Public' : 'Private'}
   </span>
-}
-
-/** Copies `text` and says so for two seconds. */
-export function CopyButton({ text, label = 'Copy', size = 'sm' }: {
-  text: string
-  label?: string
-  size?: 'sm' | 'default'
-}): React.ReactElement {
-  const [copied, setCopied] = useState(false)
-  useEffect(() => {
-    if (!copied) return
-    const timer = setTimeout(() => setCopied(false), 2000)
-    return () => clearTimeout(timer)
-  }, [copied])
-  return <Button
-    variant="outline"
-    size={size}
-    onClick={() => void navigator.clipboard.writeText(text).then(() => setCopied(true), () => undefined)}
-  >
-    {copied ? <Check size={15} /> : <Copy size={15} />}
-    {copied ? 'Copied' : label}
-  </Button>
 }
