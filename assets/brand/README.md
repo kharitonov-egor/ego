@@ -13,6 +13,7 @@ The desktop app uses the dark variant: white ring and dot on black.
 | `ego-icon-dark.svg` | White on black, square. What the desktop app ships. |
 | `ego-icon-light.svg` | Black on white, square. |
 | `ego-icon-rounded.svg` | Black on white with a 229px corner radius (22.4%, matching the iOS squircle ratio). |
+| `ego-icon-dark-rounded.svg` | White on black with the same corner radius. The logo at the top of the repo README. |
 | `ego-favicon.svg` | Rounded square that flips with `prefers-color-scheme`. Drop-in favicon for web. |
 | `ego-maskable-512.png` | PWA maskable icon. Has the safe-zone padding Android needs before it crops. |
 | `ego-apple-touch-180.png` | iOS home screen. Reference as `apple-touch-icon`. |
