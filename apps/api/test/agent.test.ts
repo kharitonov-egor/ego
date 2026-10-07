@@ -157,7 +157,7 @@ describe('POST /mcp', () => {
     expect(await viaHeader.json()).toEqual({ jsonrpc: '2.0', id: 7, result: {} })
   })
 
-  it('initializes, accepts the initialized notification, and lists tools without data writes', async () => {
+  it('initializes, accepts the initialized notification, and lists tools with writes as proposals', async () => {
     const env = await environment()
     const { token } = await newKey(env)
     const init = await rpcCall(env, token, 'initialize', {
@@ -178,8 +178,10 @@ describe('POST /mcp', () => {
     expect(names).toContain('read_mood')
     expect(names).toContain('remember')
     expect(names).toContain('recall')
-    expect(names).not.toContain('record_transactions')
-    expect(names).not.toContain('log_habit')
+    expect(names).toContain('record_transactions')
+    expect(names).toContain('start_runs')
+    expect(names).not.toContain('delegate_task')
+    expect(tools.find((tool) => tool.name === 'record_transactions')?.annotations.readOnlyHint).toBe(false)
     expect(tools.find((tool) => tool.name === 'read_mood')?.annotations.readOnlyHint).toBe(true)
     expect(tools.find((tool) => tool.name === 'remember')?.annotations.readOnlyHint).toBe(false)
 
@@ -205,7 +207,7 @@ describe('POST /mcp', () => {
 
     const bad = await toolCall(env, token, 'read_mood', { from: 'yesterday', to: '2026-09-11' })
     expect(bad.isError).toBe(true)
-    const missing = await rpcCall(env, token, 'tools/call', { name: 'record_transactions', arguments: {} })
+    const missing = await rpcCall(env, token, 'tools/call', { name: 'delegate_task', arguments: {} })
     expect(missing.error?.code).toBe(-32602)
   })
 
@@ -269,6 +271,6 @@ describe('memory in the AI chat', () => {
     expect(notes.body.data.memories.find((memory) => memory.text === 'Is vegetarian')?.source).toBe('chat')
 
     const settings = await env.DB.prepare(`SELECT settings FROM agent_settings WHERE dataset_id = 'ego'`).first<{ settings: string }>()
-    expect(JSON.parse(settings?.settings ?? '{}')).toEqual({ timeZone: 'Europe/Berlin', units: 'metric' })
+    expect(JSON.parse(settings?.settings ?? '{}')).toMatchObject({ timeZone: 'Europe/Berlin', units: 'metric' })
   })
 })

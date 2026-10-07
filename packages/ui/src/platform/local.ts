@@ -55,7 +55,20 @@ export const REMOTE_API_METHODS = [
   'agentMemories',
   'addAgentMemory',
   'updateAgentMemory',
-  'deleteAgentMemory'
+  'deleteAgentMemory',
+  'agentSettings',
+  'saveAgentSettings',
+  'agentGoals',
+  'createAgentGoal',
+  'updateAgentGoal',
+  'deleteAgentGoal',
+  'runAgentGoal',
+  'agentRuns',
+  'answerAgentProposal',
+  'agentInbox',
+  'markAgentRead',
+  'agentNotifications',
+  'fireAgentRoutine'
 ] as const
 
 export type RemoteApiMethod = typeof REMOTE_API_METHODS[number]

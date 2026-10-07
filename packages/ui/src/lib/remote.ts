@@ -57,5 +57,18 @@ export const remoteApi: RemoteApi = {
   agentMemories: call('agentMemories'),
   addAgentMemory: call('addAgentMemory'),
   updateAgentMemory: call('updateAgentMemory'),
-  deleteAgentMemory: call('deleteAgentMemory')
+  deleteAgentMemory: call('deleteAgentMemory'),
+  agentSettings: call('agentSettings'),
+  saveAgentSettings: call('saveAgentSettings'),
+  agentGoals: call('agentGoals'),
+  createAgentGoal: call('createAgentGoal'),
+  updateAgentGoal: call('updateAgentGoal'),
+  deleteAgentGoal: call('deleteAgentGoal'),
+  runAgentGoal: call('runAgentGoal'),
+  agentRuns: call('agentRuns'),
+  answerAgentProposal: call('answerAgentProposal'),
+  agentInbox: call('agentInbox'),
+  markAgentRead: call('markAgentRead'),
+  agentNotifications: call('agentNotifications'),
+  fireAgentRoutine: call('fireAgentRoutine')
 }

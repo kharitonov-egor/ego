@@ -36,6 +36,10 @@ export type AssistantToolName =
   | 'answer_calendar_event'
   | 'remember'
   | 'forget'
+  | 'list_goals'
+  | 'create_goal'
+  | 'update_goal'
+  | 'delegate_task'
 
 /** `direct` tools change something small and run inside the turn, with no card: memory notes. */
 export type AssistantToolAccess = 'read' | 'write' | 'direct'
@@ -144,6 +148,16 @@ const gymSet = object({
   durationSeconds: { type: ['integer', 'null'], minimum: 0 },
   comment: { type: ['string', 'null'], maxLength: 500 }
 })
+
+const goalTitle: ToolSchema = { type: 'string', minLength: 1, maxLength: 80 }
+const goalInstructions: ToolSchema = { type: 'string', minLength: 3, maxLength: 4000, description: 'What to do on each run, in plain words' }
+const goalTrigger = object({
+  type: { type: 'string', enum: ['daily', 'weekdays', 'weekly', 'interval', 'once', 'manual'], description: 'manual runs only when asked' },
+  time: { ...nullableTime, description: '24-hour HH:MM on the user\'s clock, for daily, weekdays, weekly, and once' },
+  weekday: { type: ['integer', 'null'], minimum: 1, maximum: 7, description: '1 for Monday to 7 for Sunday, for weekly' },
+  hours: { type: ['integer', 'null'], minimum: 1, maximum: 168, description: 'Hours between runs, for interval' },
+  date: { ...nullableDate, description: 'YYYY-MM-DD, for once' }
+}, 'When the goal runs. Fields its type does not use are null.')
 
 export const ASSISTANT_TOOLS: Record<AssistantToolName, AssistantToolDefinition> = {
   read_mood: {
@@ -411,6 +425,30 @@ export const ASSISTANT_TOOLS: Record<AssistantToolName, AssistantToolDefinition>
     description: 'Delete a note about the user that is wrong or no longer true, by its id from the notes list.',
     parameters: object({ id }),
     access: 'direct'
+  },
+  list_goals: {
+    name: 'list_goals',
+    description: 'The user\'s standing goals: what Ego\'s agent does on its own and when, whether each is paused or muted, and its last result.',
+    parameters: object({}),
+    access: 'read'
+  },
+  create_goal: {
+    name: 'create_goal',
+    description: 'Add a standing goal that Ego\'s agent works on by itself in the background, like a weekday brief at 7:00 or a Sunday money review. It posts results in the Agent chat.',
+    parameters: object({ title: goalTitle, instructions: goalInstructions, trigger: goalTrigger }),
+    access: 'write'
+  },
+  update_goal: {
+    name: 'update_goal',
+    description: 'Pause, resume, mute, unmute, delete, or run now one standing goal, by its id from list_goals.',
+    parameters: object({ goalId: id, action: { type: 'string', enum: ['pause', 'resume', 'mute', 'unmute', 'delete', 'run_now'] } }),
+    access: 'write'
+  },
+  delegate_task: {
+    name: 'delegate_task',
+    description: 'Hand a one-off job to Ego\'s agent, which works in the background with more time and the user\'s other apps, like researching something, checking email, or comparing prices. It posts the answer in the Agent chat later.',
+    parameters: object({ title: goalTitle, instructions: goalInstructions }),
+    access: 'write'
   }
 }
 

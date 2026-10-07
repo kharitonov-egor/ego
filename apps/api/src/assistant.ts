@@ -15,6 +15,7 @@ import {
   assistantSystemPrompt, describeWrite, executeAssistantDirect, executeAssistantRead, executeAssistantWrite, type ToolContext, type WriteCard
 } from './assistant-tools'
 import { rememberClientContext } from './agent-settings'
+import { ensureAgentChat, listProposals } from './agent-chat'
 
 const MAX_TURNS_PER_MINUTE = 30
 /** Under the phone's streaming timeout, with room for the last tool call to finish. */
@@ -28,6 +29,8 @@ const IMAGE_NOTE = '(The user attached an image. Ego read it once and keeps it o
 const UNDONE_REPLY = 'Undone. Nothing was saved.'
 const UNDONE_RESULT = 'The user tapped Undo before this saved. Nothing was saved.'
 const DROPPED_RESULT = 'The user did not confirm this change and wrote a new message instead.'
+/** The Agent chat opens with the agent's own posts, which the model would otherwise drop for lack of a user turn. */
+const AGENT_POSTS_NOTE = '(What follows starts with messages Ego\'s agent posted from standing goals while the user was away.)'
 
 interface ChatRow {
   id: string
@@ -36,6 +39,7 @@ interface ChatRow {
   created_at: string
   updated_at: string
   deleted_at: string | null
+  kind: 'chat' | 'agent'
 }
 
 interface MessageRow {
@@ -51,6 +55,7 @@ interface MessageRow {
   input_tokens: number | null
   output_tokens: number | null
   created_at: string
+  goal_id: string | null
 }
 
 /**
@@ -165,10 +170,10 @@ function parseConfirm(value: unknown): ConfirmInput | null {
 }
 
 function toChat(row: ChatRow): AssistantChat {
-  return { id: row.id, title: row.title, createdAt: row.created_at, updatedAt: row.updated_at }
+  return { id: row.id, title: row.title, createdAt: row.created_at, updatedAt: row.updated_at, kind: row.kind }
 }
 
-function toMessage(row: MessageRow): AssistantMessage {
+function toMessage(row: MessageRow, goalTitles: ReadonlyMap<string, string> = new Map()): AssistantMessage {
   return {
     id: row.id,
     chatId: row.chat_id,
@@ -178,7 +183,8 @@ function toMessage(row: MessageRow): AssistantMessage {
     createdAt: row.created_at,
     trail: stringList(row.trail),
     hasImage: row.has_image === 1,
-    undo: []
+    undo: [],
+    ...(row.goal_id ? { agent: { goalId: row.goal_id, goalTitle: goalTitles.get(row.goal_id) ?? null } } : {})
   }
 }
 
@@ -221,13 +227,13 @@ async function chatFor(env: Env, datasetId: string, id: string): Promise<ChatRow
 /** The batch still waiting on its card, oldest first. Rows already claimed are being saved. */
 async function pendingFor(env: Env, chatId: string): Promise<CallRow[]> {
   return query<CallRow>(env.DB, `SELECT * FROM assistant_tool_calls
-    WHERE chat_id = ? AND status = 'pending' AND resolved_at IS NULL ORDER BY created_at, rowid`, [chatId])
+    WHERE chat_id = ? AND status = 'pending' AND resolved_at IS NULL AND batch_id IS NULL ORDER BY created_at, rowid`, [chatId])
 }
 
 /** Takes the whole waiting batch in one statement, so two callers can never split it between them. */
 async function claim(env: Env, chatId: string, now: string): Promise<CallRow[]> {
   const rows = await query<CallRow & { position: number }>(env.DB, `UPDATE assistant_tool_calls SET resolved_at = ?
-    WHERE chat_id = ? AND status = 'pending' AND resolved_at IS NULL RETURNING *, rowid AS position`, [now, chatId])
+    WHERE chat_id = ? AND status = 'pending' AND resolved_at IS NULL AND batch_id IS NULL RETURNING *, rowid AS position`, [now, chatId])
   return rows.sort((left, right) => left.created_at.localeCompare(right.created_at) || left.position - right.position)
 }
 
@@ -259,8 +265,8 @@ function parseMessage(row: MessageRow): ModelMessage | null {
  * a size budget, and closes any tool call that never got its result, so a turn cut short by a
  * dropped connection cannot break the next one.
  */
-async function contextFor(env: Env, chatId: string): Promise<ModelMessage[]> {
-  const rows = await query<MessageRow>(env.DB, 'SELECT * FROM assistant_messages WHERE chat_id = ? ORDER BY seq DESC LIMIT ?', [chatId, WINDOW_ROWS])
+async function contextFor(env: Env, chat: Pick<ChatRow, 'id' | 'kind'>): Promise<ModelMessage[]> {
+  const rows = await query<MessageRow>(env.DB, 'SELECT * FROM assistant_messages WHERE chat_id = ? ORDER BY seq DESC LIMIT ?', [chat.id, WINDOW_ROWS])
   let messages = rows.reverse().map(parseMessage).filter((message): message is ModelMessage => message !== null)
   let size = messages.reduce((total, message) => total + JSON.stringify(message).length, 0)
   while (messages.length > 1 && size > WINDOW_CHARS) {
@@ -268,7 +274,11 @@ async function contextFor(env: Env, chatId: string): Promise<ModelMessage[]> {
     messages = messages.slice(1)
   }
   const start = messages.findIndex((message) => message.role === 'user')
+  const posted = chat.kind === 'agent' && start > 0
+    ? messages.slice(0, start).filter((message) => message.role === 'assistant' && !message.tool_calls?.length)
+    : []
   messages = start > 0 ? messages.slice(start) : start < 0 ? [] : messages
+  if (posted.length > 0) messages = [{ role: 'user', content: AGENT_POSTS_NOTE }, ...posted, ...messages]
   const closed: ModelMessage[] = []
   let open: string[] = []
   const flush = (): void => {
@@ -517,7 +527,7 @@ async function turn(request: Request, env: Env, device: DeviceIdentity, now: str
     const id = crypto.randomUUID()
     await env.DB.prepare('INSERT INTO assistant_chats (id, dataset_id, title, created_at, updated_at) VALUES (?, ?, ?, ?, ?)')
       .bind(id, device.datasetId, titleFrom(input), now, now).run()
-    chat = { id, dataset_id: device.datasetId, title: titleFrom(input), created_at: now, updated_at: now, deleted_at: null }
+    chat = { id, dataset_id: device.datasetId, title: titleFrom(input), created_at: now, updated_at: now, deleted_at: null, kind: 'chat' }
     created = true
   }
   const stream = ndjson()
@@ -544,7 +554,7 @@ async function turn(request: Request, env: Env, device: DeviceIdentity, now: str
         : stored
       const row = await insertMessage(env, current.id, 'user', stored, now, { shown: true, text, hasImage: input.image !== null })
       await stream.emit({ type: 'message', message: toMessage(row) })
-      const history = await contextFor(env, current.id)
+      const history = await contextFor(env, current)
       if (input.image && history.length > 0) history[history.length - 1] = live
       await runTurn({
         env, device, chat: current, ctx, history, earlierCallIds: saved.callIds, earlierTrail: saved.trail,
@@ -586,7 +596,7 @@ async function confirm(request: Request, env: Env, device: DeviceIdentity, now: 
       }
       const saved = await saveBatch(env, chat, ctx, rows, stream.emit)
       await runTurn({
-        env, device, chat, ctx, history: await contextFor(env, chat.id), earlierCallIds: saved.callIds,
+        env, device, chat, ctx, history: await contextFor(env, chat), earlierCallIds: saved.callIds,
         earlierTrail: saved.trail, image: null, emit: stream.emit
       })
     } catch (error: unknown) {
@@ -600,9 +610,11 @@ async function confirm(request: Request, env: Env, device: DeviceIdentity, now: 
   return stream.response
 }
 
-async function listChats(env: Env, device: DeviceIdentity): Promise<Response> {
-  const rows = await query<ChatRow>(env.DB,
-    'SELECT * FROM assistant_chats WHERE dataset_id = ? AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT ?', [device.datasetId, MAX_CHATS])
+/** The Agent chat first, then the rest, most recently used first. */
+async function listChats(env: Env, device: DeviceIdentity, now: string): Promise<Response> {
+  await ensureAgentChat(env.DB, device.datasetId, now)
+  const rows = await query<ChatRow>(env.DB, `SELECT * FROM assistant_chats WHERE dataset_id = ? AND deleted_at IS NULL
+    ORDER BY CASE kind WHEN 'agent' THEN 0 ELSE 1 END, updated_at DESC LIMIT ?`, [device.datasetId, MAX_CHATS])
   const data: AssistantChatList = { chats: rows.map(toChat) }
   return ok(data)
 }
@@ -610,6 +622,7 @@ async function listChats(env: Env, device: DeviceIdentity): Promise<Response> {
 async function deleteChat(env: Env, device: DeviceIdentity, id: string, now: string): Promise<Response> {
   const chat = await chatFor(env, device.datasetId, id)
   if (!chat) return failure(404, { code: 'NOT_FOUND', message: 'That chat does not exist' })
+  if (chat.kind === 'agent') return failure(400, { code: 'INVALID_REQUEST', message: 'The Agent chat stays. Mute or pause goals instead.' })
   await env.DB.prepare('UPDATE assistant_chats SET deleted_at = ?, updated_at = ? WHERE id = ?').bind(now, now, id).run()
   return ok({ deleted: true })
 }
@@ -621,14 +634,21 @@ async function history(env: Env, device: DeviceIdentity, id: string | null): Pro
   }
   const chat = await chatFor(env, device.datasetId, id)
   if (!chat) return failure(404, { code: 'NOT_FOUND', message: 'That chat does not exist' })
-  const [rows, pending] = await Promise.all([
+  const [rows, pending, proposals] = await Promise.all([
     query<MessageRow>(env.DB, 'SELECT * FROM assistant_messages WHERE chat_id = ? AND shown = 1 ORDER BY seq DESC LIMIT ?', [chat.id, ASSISTANT_HISTORY_LIMIT]),
-    pendingFor(env, chat.id)
+    pendingFor(env, chat.id),
+    chat.kind === 'agent' ? listProposals(env.DB, chat.id) : Promise.resolve([])
   ])
+  const goalIds = [...new Set(rows.map((row) => row.goal_id).filter((goalId): goalId is string => goalId !== null))]
+  const titles = goalIds.length > 0
+    ? await query<{ id: string; title: string }>(env.DB, `SELECT id, title FROM agent_goals WHERE id IN (${goalIds.map(() => '?').join(', ')})`, goalIds)
+    : []
+  const goalTitles = new Map(titles.map((goal) => [goal.id, goal.title]))
   const data: AssistantHistory = {
     chat: toChat(chat),
-    messages: rows.reverse().map(toMessage),
-    pending: toPending(pending.filter(savesItself))
+    messages: rows.reverse().map((row) => toMessage(row, goalTitles)),
+    pending: toPending(pending.filter(savesItself)),
+    ...(chat.kind === 'agent' ? { proposals } : {})
   }
   return ok(data)
 }
@@ -637,7 +657,7 @@ export function assistantRoute(
   request: Request, env: Env, device: DeviceIdentity, path: string, now: string, work?: Work
 ): Promise<Response> | null {
   const url = new URL(request.url)
-  if (request.method === 'GET' && path === '/v1/assistant/chats') return listChats(env, device)
+  if (request.method === 'GET' && path === '/v1/assistant/chats') return listChats(env, device, now)
   if (request.method === 'DELETE' && path.startsWith('/v1/assistant/chats/')) {
     return deleteChat(env, device, decodeURIComponent(path.slice('/v1/assistant/chats/'.length)), now)
   }

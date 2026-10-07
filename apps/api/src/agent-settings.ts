@@ -1,3 +1,4 @@
+import { ASSISTANT_TOOLS, DEFAULT_AGENT_SETTINGS, isAgentSettings, isAssistantToolName, type AgentSettings } from '@ego/core'
 import type { AssistantUnits } from '@ego/api-contracts'
 import { isValidTimeZone } from './google-health'
 
@@ -5,28 +6,61 @@ import { isValidTimeZone } from './google-health'
 export const FALLBACK_TIME_ZONE = 'America/New_York'
 
 /**
- * What the agent remembers between requests. The apps send their time zone and units with every
- * chat turn, so Claude's calls over MCP read "today" on the same clock.
+ * Everything the agent keeps per dataset: the user's settings, the latest device clock and units
+ * (the apps send them with every chat turn, so Claude reads "today" on the same clock), when the
+ * Agent chat was last read, and how the routine's last fires went.
  */
-export interface AgentSettingsRecord {
+export interface AgentSettingsRecord extends AgentSettings {
   timeZone: string | null
   units: AssistantUnits
+  readAt: string | null
+  lastFiredAt: string | null
+  lastFireError: string | null
+  /** Fire times in the last hour. The routine's API trigger allows only so many. */
+  fires: string[]
 }
 
-const DEFAULTS: AgentSettingsRecord = { timeZone: null, units: 'imperial' }
+const DEFAULTS: AgentSettingsRecord = {
+  ...DEFAULT_AGENT_SETTINGS,
+  devices: { ...DEFAULT_AGENT_SETTINGS.devices },
+  trusted: [...DEFAULT_AGENT_SETTINGS.trusted],
+  timeZone: null,
+  units: 'imperial',
+  readAt: null,
+  lastFiredAt: null,
+  lastFireError: null,
+  fires: []
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' ? value : null
+}
+
+/** Only write tools can be trusted; anything else in the list is dropped. */
+export function trustedTools(list: readonly string[]): string[] {
+  return [...new Set(list)].filter((name) => isAssistantToolName(name) && ASSISTANT_TOOLS[name].access === 'write')
+}
+
 export function parseSettings(raw: string | null): AgentSettingsRecord {
-  if (!raw) return { ...DEFAULTS }
+  if (!raw) return { ...DEFAULTS, devices: { ...DEFAULTS.devices }, trusted: [...DEFAULTS.trusted] }
   let value: unknown
-  try { value = JSON.parse(raw) } catch { return { ...DEFAULTS } }
-  if (!isRecord(value)) return { ...DEFAULTS }
+  try { value = JSON.parse(raw) } catch { value = null }
+  if (!isRecord(value)) return parseSettings(null)
+  const user: AgentSettings = isAgentSettings(value)
+    ? { quietStart: value.quietStart, quietEnd: value.quietEnd, dailyCap: value.dailyCap, devices: { ...value.devices }, proposalDays: value.proposalDays, trusted: trustedTools(value.trusted) }
+    : { ...DEFAULT_AGENT_SETTINGS, devices: { ...DEFAULT_AGENT_SETTINGS.devices }, trusted: [...DEFAULT_AGENT_SETTINGS.trusted] }
   return {
+    ...user,
     timeZone: isValidTimeZone(value.timeZone) ? value.timeZone : null,
-    units: value.units === 'metric' ? 'metric' : 'imperial'
+    units: value.units === 'metric' ? 'metric' : 'imperial',
+    readAt: stringOrNull(value.readAt),
+    lastFiredAt: stringOrNull(value.lastFiredAt),
+    lastFireError: stringOrNull(value.lastFireError),
+    fires: Array.isArray(value.fires) ? value.fires.filter((item): item is string => typeof item === 'string') : []
   }
 }
 
@@ -41,6 +75,15 @@ export async function writeAgentSettings(db: D1Database, datasetId: string, sett
     .bind(datasetId, JSON.stringify(settings), now).run()
 }
 
+/** Reads, changes, and writes the record in one go. */
+export async function updateAgentSettings(
+  db: D1Database, datasetId: string, now: string, change: (current: AgentSettingsRecord) => AgentSettingsRecord
+): Promise<AgentSettingsRecord> {
+  const next = change(await readAgentSettings(db, datasetId))
+  await writeAgentSettings(db, datasetId, next, now)
+  return next
+}
+
 /** Keeps the latest device clock and units. Writes only when either changed. */
 export async function rememberClientContext(
   db: D1Database, datasetId: string, timeZone: string | null, units: AssistantUnits, now: string
@@ -51,6 +94,17 @@ export async function rememberClientContext(
   await writeAgentSettings(db, datasetId, { ...current, timeZone: zone, units }, now)
 }
 
-export function agentTimeZone(settings: AgentSettingsRecord): string {
+export function agentTimeZone(settings: Pick<AgentSettingsRecord, 'timeZone'>): string {
   return settings.timeZone ?? FALLBACK_TIME_ZONE
+}
+
+export function userSettings(record: AgentSettingsRecord): AgentSettings {
+  return {
+    quietStart: record.quietStart,
+    quietEnd: record.quietEnd,
+    dailyCap: record.dailyCap,
+    devices: { ...record.devices },
+    proposalDays: record.proposalDays,
+    trusted: [...record.trusted]
+  }
 }

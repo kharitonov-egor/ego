@@ -1,8 +1,16 @@
+import { isAgentSettings } from '@ego/core'
 import {
-  AGENT_KEY_NAME_MAX, AGENT_KEY_PREFIX, HTTP_STATUS, MCP_PATH, isAgentMemoryInput,
-  type AgentKeyCreated, type AgentKeyList, type AgentKeySummary, type AgentMemoryList, type ApiError, type DeviceIdentity
+  AGENT_KEY_NAME_MAX, AGENT_KEY_PREFIX, HTTP_STATUS, MCP_PATH, isAgentGoalInput, isAgentGoalUpdate, isAgentMemoryInput,
+  isAgentProposalAnswer,
+  type AgentFireResult, type AgentGoalList, type AgentKeyCreated, type AgentKeyList, type AgentKeySummary, type AgentMemoryList,
+  type AgentRunList, type AgentSettingsView, type ApiError, type DeviceIdentity
 } from '@ego/api-contracts'
+import { agentInbox, agentToolContext, answerProposal, listNotifications, markAgentRead } from './agent-chat'
+import { agentTimeZone, readAgentSettings, trustedTools, updateAgentSettings, userSettings } from './agent-settings'
 import { hashToken, type Env } from './auth'
+import {
+  GoalError, createGoal, deleteGoal, fireRoutine, listGoals, listRuns, routineConfigured, runGoalNow, updateGoal
+} from './goals'
 import { MemoryError, addMemory, forgetMemory, listMemories, updateMemory } from './memory'
 import { query } from './reads'
 
@@ -114,5 +122,97 @@ export function agentRoute(request: Request, env: Env, device: DeviceIdentity, p
     if (method === 'PUT') return writeMemory(request, env, datasetId, id, now)
     if (method === 'DELETE') return deleteMemory(env, datasetId, id, now)
   }
+  if (path === '/v1/agent/settings') {
+    if (method === 'GET') return settingsView(env, datasetId).then(ok)
+    if (method === 'PUT') return saveSettings(request, env, datasetId, now)
+  }
+  if (path === '/v1/agent/goals') {
+    if (method === 'GET') return listGoals(env.DB, datasetId).then((goals) => ok<AgentGoalList>({ goals }))
+    if (method === 'POST') return addGoal(request, env, datasetId, now)
+  }
+  if (path.startsWith('/v1/agent/goals/')) {
+    const rest = decodeURIComponent(path.slice('/v1/agent/goals/'.length))
+    if (method === 'POST' && rest.endsWith('/run')) return runNow(env, datasetId, rest.slice(0, -'/run'.length), now)
+    if (method === 'PATCH') return changeGoal(request, env, datasetId, rest, now)
+    if (method === 'DELETE') {
+      return deleteGoal(env.DB, datasetId, rest, now).then((deleted) => deleted ? ok({ deleted: true }) : failure('NOT_FOUND', 'That goal was already deleted'))
+    }
+  }
+  if (method === 'GET' && path === '/v1/agent/runs') {
+    const goalId = new URL(request.url).searchParams.get('goal')
+    return listRuns(env.DB, datasetId, goalId).then((runs) => ok<AgentRunList>({ runs }))
+  }
+  if (method === 'POST' && path.startsWith('/v1/agent/proposals/')) {
+    return answer(request, env, device, decodeURIComponent(path.slice('/v1/agent/proposals/'.length)), now)
+  }
+  if (method === 'GET' && path === '/v1/agent/inbox') return agentInbox(env, datasetId, now).then(ok)
+  if (method === 'POST' && path === '/v1/agent/inbox/read') return markAgentRead(env, datasetId, now).then(ok)
+  if (method === 'GET' && path === '/v1/agent/notifications') {
+    return listNotifications(env, datasetId, new URL(request.url).searchParams.get('after')).then(ok)
+  }
+  if (method === 'POST' && path === '/v1/agent/routine/fire') return fireRoutine(env, datasetId, now).then(ok<AgentFireResult>)
   return Promise.resolve(failure('NOT_FOUND', 'That endpoint does not exist'))
+}
+
+async function settingsView(env: Env, datasetId: string): Promise<AgentSettingsView> {
+  const record = await readAgentSettings(env.DB, datasetId)
+  return {
+    settings: userSettings(record),
+    routine: { configured: routineConfigured(env), lastFiredAt: record.lastFiredAt, lastError: record.lastFireError },
+    timeZone: agentTimeZone(record)
+  }
+}
+
+async function saveSettings(request: Request, env: Env, datasetId: string, now: string): Promise<Response> {
+  const body = await readJson(request)
+  if (!isAgentSettings(body)) return failure('INVALID_REQUEST', 'Check the quiet hours, the daily limit, the devices, and the days')
+  await updateAgentSettings(env.DB, datasetId, now, (current) => ({
+    ...current,
+    quietStart: body.quietStart,
+    quietEnd: body.quietEnd,
+    dailyCap: body.dailyCap,
+    devices: { phone: body.devices.phone, desktop: body.devices.desktop, web: body.devices.web },
+    proposalDays: body.proposalDays,
+    trusted: trustedTools(body.trusted)
+  }))
+  return ok(await settingsView(env, datasetId))
+}
+
+function goalFailure(error: unknown): Response {
+  if (error instanceof GoalError) return failure('INVALID_REQUEST', error.message)
+  throw error
+}
+
+async function addGoal(request: Request, env: Env, datasetId: string, now: string): Promise<Response> {
+  const body = await readJson(request)
+  if (!isAgentGoalInput(body)) return failure('INVALID_REQUEST', 'A goal needs a title, instructions, and when it runs')
+  try {
+    return ok(await createGoal(env.DB, datasetId, body, now))
+  } catch (error: unknown) {
+    return goalFailure(error)
+  }
+}
+
+async function changeGoal(request: Request, env: Env, datasetId: string, id: string, now: string): Promise<Response> {
+  const body = await readJson(request)
+  if (!isAgentGoalUpdate(body)) return failure('INVALID_REQUEST', 'Check the change to this goal')
+  try {
+    const goal = await updateGoal(env.DB, datasetId, id, body, now)
+    return goal ? ok(goal) : failure('NOT_FOUND', 'That goal was deleted')
+  } catch (error: unknown) {
+    return goalFailure(error)
+  }
+}
+
+async function runNow(env: Env, datasetId: string, goalId: string, now: string): Promise<Response> {
+  const runId = await runGoalNow(env.DB, datasetId, goalId, now)
+  if (!runId) return failure('NOT_FOUND', 'That goal was deleted')
+  return ok<AgentFireResult>(await fireRoutine(env, datasetId, now))
+}
+
+async function answer(request: Request, env: Env, device: DeviceIdentity, proposalId: string, now: string): Promise<Response> {
+  const body = await readJson(request)
+  if (!isAgentProposalAnswer(body)) return failure('INVALID_REQUEST', 'Say whether to save the change')
+  const message = await answerProposal(env, await agentToolContext(env, device, now), proposalId, body.approved)
+  return message ? ok({ message }) : failure('CONFLICT', 'That change was already answered or expired')
 }
