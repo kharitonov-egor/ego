@@ -10,41 +10,14 @@ import {
 import { resultFrom, type DiaryMediaApi } from '@ego/local/api-client'
 import type { PendingUpload, UploadTransport } from '@ego/local/diary/uploads'
 import type { LocalDatabase } from '@ego/local/database/types'
-import type { MediaFileInput, MediaOpenInput, MediaPathInput, StagedMedia } from '../../shared/local'
+import type { MediaFileInput, MediaOpenInput, MediaPathInput, StagedMedia } from '@ego/ui/platform/local'
+import { MEDIA_ID, extensionFor, isMediaScope as isScope } from '@ego/ui/platform/media-files'
 
 export const MEDIA_SCHEME = 'ego-media'
 
 /** Whole files under this size are kept after the first view, so a diary grid does not download twice. */
 const CACHE_LIMIT = 25 * 1024 * 1024
 
-const EXTENSIONS: Record<string, string> = {
-  'image/jpeg': '.jpg',
-  'image/png': '.png',
-  'image/webp': '.webp',
-  'image/gif': '.gif',
-  'image/heic': '.heic',
-  'video/mp4': '.mp4',
-  'video/quicktime': '.mov',
-  'video/webm': '.webm',
-  'audio/mp4': '.m4a',
-  'audio/mpeg': '.mp3',
-  'audio/ogg': '.ogg',
-  'audio/webm': '.weba',
-  'audio/aac': '.aac',
-  'audio/wav': '.wav',
-  'application/pdf': '.pdf',
-  'application/json': '.json'
-}
-
-export function extensionFor(mimeType: string, fileName: string | null): string {
-  const known = EXTENSIONS[mimeType]
-  if (known) return known
-  const dot = fileName?.lastIndexOf('.') ?? -1
-  return fileName && dot > 0 ? fileName.slice(dot).toLowerCase().replace(/[^.a-z0-9]/g, '') : ''
-}
-
-const isScope = (value: string): value is MediaScope => value === 'diary' || value === 'tasks' || value === 'food'
-const MEDIA_ID = /^[A-Za-z0-9_-]{1,80}$/
 
 function folder(name: string): string {
   return join(app.getPath('userData'), 'ledger', name)

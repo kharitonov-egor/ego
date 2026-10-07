@@ -6,6 +6,7 @@ import {
 } from '@ego/api-contracts'
 import { splitRecurrence, untilToken } from '@ego/core'
 import type { Env } from './auth'
+import { connectReturn } from './web'
 import { decryptConnectorToken, encryptConnectorToken, fromBase64, randomUrlToken, sha256 } from './connector-crypto'
 import { exchangeGoogleToken, googleCallbackUrl } from './connectors'
 import {
@@ -50,6 +51,7 @@ interface AccountRow {
 
 interface StateRow {
   dataset_id: string
+  device_id: string
   pkce_verifier: string
   redirect_uri: string
   expires_at: string
@@ -102,10 +104,10 @@ function invalid<T>(message: string): ApiResult<T> {
   return { ok: false, error: { code: 'INVALID_REQUEST', message } }
 }
 
-function returnToApp(params: Record<string, string>): Response {
+function returnToApp(back: string, params: Record<string, string>): Response {
   return new Response(null, {
     status: 302,
-    headers: { location: `${CALENDAR_RETURN_URL}?${new URLSearchParams(params)}`, 'cache-control': 'no-store' }
+    headers: { location: `${back}?${new URLSearchParams(params)}`, 'cache-control': 'no-store' }
   })
 }
 
@@ -211,27 +213,28 @@ export async function completeCalendarConnect(request: Request, env: Env, now = 
   const state = url.searchParams.get('state')
   if (!state) return null
   const stateHash = await sha256(state)
-  const row = await env.DB.prepare(`SELECT dataset_id, pkce_verifier, redirect_uri, expires_at, consumed_at
+  const row = await env.DB.prepare(`SELECT dataset_id, device_id, pkce_verifier, redirect_uri, expires_at, consumed_at
     FROM calendar_oauth_states WHERE state_hash = ?`).bind(stateHash).first<StateRow>()
   if (!row) return null
+  const back = await connectReturn(env, row.device_id, CALENDAR_RETURN_URL, '/calendar')
   const nowIso = now.toISOString()
   const claimed = await env.DB.prepare(`UPDATE calendar_oauth_states SET consumed_at = ?
     WHERE state_hash = ? AND consumed_at IS NULL AND expires_at > ?`).bind(nowIso, stateHash, nowIso).run()
-  if ((claimed.meta.changes ?? 0) !== 1) return returnToApp({ error: 'expired' })
+  if ((claimed.meta.changes ?? 0) !== 1) return returnToApp(back, { error: 'expired' })
   const code = url.searchParams.get('code')
-  if (url.searchParams.has('error') || !code) return returnToApp({ error: 'cancelled' })
+  if (url.searchParams.has('error') || !code) return returnToApp(back, { error: 'cancelled' })
   const token = await exchangeGoogleToken(new URLSearchParams({
     code,
     redirect_uri: row.redirect_uri,
     grant_type: 'authorization_code',
     code_verifier: row.pkce_verifier
   }), env)
-  if (!token?.refresh_token) return returnToApp({ error: 'failed' })
+  if (!token?.refresh_token) return returnToApp(back, { error: 'failed' })
   const scopes = [...new Set((token.scope ?? '').split(/\s+/).filter(Boolean))].sort()
-  if (!scopes.includes(CALENDAR_SCOPE)) return returnToApp({ error: 'no_access' })
+  if (!scopes.includes(CALENDAR_SCOPE)) return returnToApp(back, { error: 'no_access' })
   const claims = token.id_token ? idTokenClaims(token.id_token) : null
   const email = typeof claims?.email === 'string' ? claims.email.toLowerCase() : null
-  if (!email) return returnToApp({ error: 'failed' })
+  if (!email) return returnToApp(back, { error: 'failed' })
   const protectedToken = await encryptConnectorToken(token.refresh_token, env)
   await env.DB.prepare(`INSERT INTO calendar_accounts
     (dataset_id, id, encrypted_refresh_token, token_key_version, granted_scopes, created_at, updated_at, revoked_at)
@@ -246,7 +249,7 @@ export async function completeCalendarConnect(request: Request, env: Env, now = 
       revoked_at = NULL`)
     .bind(row.dataset_id, email, protectedToken.encrypted, protectedToken.keyVersion, JSON.stringify(scopes), nowIso, nowIso).run()
   accessTokens.delete(`${row.dataset_id}/${email}`)
-  return returnToApp({ connected: '1' })
+  return returnToApp(back, { connected: '1' })
 }
 
 /** Takes the account's calendars and events off every device and forgets the grant. */

@@ -1,0 +1,15 @@
+import { resolve } from 'path'
+import { defineConfig } from 'vitest/config'
+
+export default defineConfig({
+  resolve: {
+    alias: [
+      { find: '@ego/core', replacement: resolve(import.meta.dirname, '../core/src/index.ts') },
+      { find: /^@ego\/api-contracts$/, replacement: resolve(import.meta.dirname, '../api-contracts/src/index.ts') },
+      { find: /^@ego\/local\/(.*)$/, replacement: resolve(import.meta.dirname, '../local/src/$1') }
+    ]
+  },
+  test: {
+    include: ['src/**/*.test.{ts,tsx}']
+  }
+})

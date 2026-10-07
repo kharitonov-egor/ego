@@ -2,15 +2,15 @@ import type {
   AccountBalances, ApiError, ApiErrorCode, ApiResult, AppBuildStatus, AssistantChatList, AssistantConfirmRequest,
   AssistantHistory, AssistantStreamEvent, AssistantTurnRequest, BootstrapData, CalendarConnectStart, CalendarCreateRequest,
   CalendarDeleteRequest, CalendarEventRef, CalendarListChange, CalendarRange, CalendarRestoreRequest, CalendarRsvpRequest, CalendarSeries,
-  CalendarSnapshot, CalendarUpdateRequest, ChangePage, DiaryMediaInfo,
+  CalendarSnapshot, CalendarUpdateRequest, ChangePage, DeviceList, DiaryMediaInfo,
   DiaryMultipartPart, DiaryMultipartStart, FeedCursor, FoodAnalyzeRequest, FoodAnalyzeResponse, FoodProductResponse,
   MediaScope,
   HealthConnectStart, HealthSnapshot, OperationResponse, ReceiptDetail, ReferenceData,
-  SessionInfo, SignInResult, SignInStartResult, StudyAssignmentList, StudyMark, SyncOperation,
+  SessionInfo, SignInResult, SignInStartInput, SignInStartResult, StudyAssignmentList, StudyMark, SyncOperation,
   TransactionFilters, TransactionPage, TrelloCardRequest, TrelloCardResponse
 } from '@ego/api-contracts'
 import { encodeCursor } from '@ego/api-contracts'
-import type { TrelloBoardSummary, TrelloListSummary } from '@ego/core'
+import type { AnalyzedTransactionDraft, ImageAnalysisCategory, TrelloBoardSummary, TrelloListSummary } from '@ego/core'
 
 export interface MoneyApi {
   reference: () => Promise<ApiResult<ReferenceData>>
@@ -107,9 +107,19 @@ export interface FoodApi {
   foodProduct: (barcode: string) => Promise<ApiResult<FoodProductResponse>>
 }
 
+export interface ReceiptImageRequest {
+  base64: string
+  mimeType: string
+  categories: ImageAnalysisCategory[]
+}
+
 export interface EgoApi extends MoneyApi, StudyApi, HealthApi, CalendarApi, DiaryMediaApi, AssistantApi, FoodApi {
   session: () => Promise<ApiResult<SessionInfo>>
   signOut: () => Promise<ApiResult<{ signedOut: true }>>
+  devices: () => Promise<ApiResult<DeviceList>>
+  revokeDevice: (deviceId: string) => Promise<ApiResult<{ revoked: true }>>
+  /** Reads a receipt photo with the Worker's OpenRouter key. */
+  receiptImage: (request: ReceiptImageRequest) => Promise<ApiResult<AnalyzedTransactionDraft>>
   trelloBoards: () => Promise<ApiResult<TrelloBoardSummary[]>>
   trelloLists: (boardId: string) => Promise<ApiResult<TrelloListSummary[]>>
   trelloCard: (card: TrelloCardRequest) => Promise<ApiResult<TrelloCardResponse>>
@@ -327,6 +337,13 @@ export function moneyApiFor(config: ApiConfig, options: { streamFetch?: StreamFe
     }),
     session: () => call<SessionInfo>('/v1/session'),
     signOut: () => call<{ signedOut: true }>('/v1/session', { method: 'DELETE' }),
+    devices: () => call<DeviceList>('/v1/devices'),
+    revokeDevice: (deviceId) => call<{ revoked: true }>(`/v1/devices/${encodeURIComponent(deviceId)}`, { method: 'DELETE' }),
+    receiptImage: (request) => call<AnalyzedTransactionDraft>('/v1/money/receipt-image', {
+      method: 'POST',
+      body: JSON.stringify(request),
+      timeoutMs: SLOW_REQUEST_TIMEOUT_MS
+    }),
     assistantChats: () => call<AssistantChatList>('/v1/assistant/chats'),
     assistantDeleteChat: (chatId) => call<{ deleted: true }>(`/v1/assistant/chats/${encodeURIComponent(chatId)}`, { method: 'DELETE' }),
     assistantMessages: (chatId) => call<AssistantHistory>(`/v1/assistant/messages?chat=${encodeURIComponent(chatId)}`),
@@ -415,10 +432,13 @@ export function moneyApiFor(config: ApiConfig, options: { streamFetch?: StreamFe
   }
 }
 
-export function startSignIn(apiUrl: string, deviceName: string): Promise<ApiResult<SignInStartResult>> {
+export function startSignIn(
+  apiUrl: string, deviceName: string, web: Pick<SignInStartInput, 'returnUrl' | 'remember'> = {}
+): Promise<ApiResult<SignInStartResult>> {
+  const input: SignInStartInput = { deviceName, ...web }
   return send<SignInStartResult>(normalizeApiUrl(apiUrl), null, '/v1/auth/google/start', {
     method: 'POST',
-    body: JSON.stringify({ deviceName })
+    body: JSON.stringify(input)
   })
 }
 

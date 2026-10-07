@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 import { SIGN_IN_RETURN_URL } from '@ego/api-contracts'
 import { exchangeSignIn, moneyApiFor, normalizeApiUrl, startSignIn } from '@ego/local/api-client'
 import { signInErrorMessage } from '@ego/local/sign-in'
-import type { SignInOutcome } from '../../shared/local'
+import type { SignInOutcome } from '@ego/ui/platform/local'
 import { getLedgerConfig, getLedgerToken, setAccount, setLedgerConfig } from '../settings'
 import { ledgerApi, reopenLedger } from './ledger'
 

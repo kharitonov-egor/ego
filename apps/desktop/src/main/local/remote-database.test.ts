@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { saveMood } from '@ego/local/sync/commands'
 import { localMoods } from '@ego/local/repositories/moods'
 import { allOperations } from '@ego/local/sync/outbox'
-import { createRemoteDatabase, type DatabaseBridge } from '../../shared/remote-database'
+import { createRemoteDatabase, type DatabaseBridge } from '@ego/ui/platform/remote-database'
 import { openLedgerDatabase, type LedgerDatabase } from './database'
 
 let folder = ''

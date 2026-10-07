@@ -1,0 +1,36 @@
+{
+  "name": "@ego/ui",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The screens the desktop and web apps share, and the window.api contract each host implements",
+  "exports": {
+    "./*": "./src/*"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ego/api-contracts": "*",
+    "@ego/core": "*",
+    "@ego/local": "*",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.50.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-router": "^7.18.4",
+    "tailwind-merge": "^2.6.1"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.3",
+    "@types/node": "^24.19.1",
+    "@types/react": "~19.2.0",
+    "@types/react-dom": "~19.2.0",
+    "jsdom": "^27.4.0",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11",
+    "vitest": "^4.1.11"
+  }
+}

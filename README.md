@@ -528,6 +528,30 @@ with the sync state, Blur, and Settings at the bottom.
 - Diary, task, and food files load through `ego-media://` links. The main process answers them from
   the copy it sent, from its cache, or from the Worker, so the device token never reaches the page.
 
+## Web
+
+The same screens run in a browser at https://ego.kharitonovegor.com, from `apps/web` on Vercel. The
+Worker stays the only backend, and Vercel serves static files.
+
+- Sign in with Google from Home. Google returns to `/auth` on the same tab. The browser becomes one
+  more row in the Worker's device list, and its token stops working after 30 days without use.
+  The Worker only sends a sign-in back to an origin in `WEB_ORIGINS`.
+- "Keep data on this computer" is on by default: the browser keeps its own SQLite copy (SQLite
+  WebAssembly in the origin private file system), so screens open offline. With it off, the copy
+  and the token live in that tab only and disappear when it closes, and the Worker drops the token
+  after a day. Signing out erases the copy, staged files, and cached media.
+- One tab runs Ego at a time, since only one can hold the database open. Another tab offers
+  "Use Ego here".
+- A service worker answers `/media/` links the way `ego-media://` works on the desktop: from the
+  browser's copy of a file it sent, its cache, or the Worker with the tab's token.
+- Alt+N opens Quick add to Trello inside the tab, through the Worker's Trello keys. Receipt photos
+  go through the Worker's OpenRouter key (`RECEIPT_MODEL`, default `openai/gpt-5.6-terra`).
+- Left out: global hotkeys, Quick tools, reminders and notifications, Start with Windows, and
+  build-and-install.
+
+`VITE_EGO_API_URL` sets the Worker address the sign-in screen starts with. The Content-Security-Policy
+in `apps/web/vercel.json` only lets the page call that Worker.
+
 ## Quick tools
 
 Press `Alt+S` anywhere in Windows to open a three-item chooser. Use the arrow keys and Enter, or
@@ -618,6 +642,11 @@ a terminal.
 
 ```
 packages/local/       the phone's data layer: SQLite schema, repositories, outbox, sync, API client
+packages/ui/          the desktop's screens, shared with the web app
+  src/platform/       the window.api contract each host implements
+  src/lib/            the phone's contexts, reading the ledger through window.api
+  src/screens/        one folder per app
+apps/web/             the browser host: SQLite in a worker, sign-in, the media service worker
 apps/desktop/
   src/main/           Electron main process
     index.ts          app lifecycle, tray, IPC handlers, the build-and-install command
@@ -627,10 +656,7 @@ apps/desktop/
     settings.ts       electron-store schema and accessors
     hotkeys.ts        global shortcut registration
   src/preload/        contextBridge API
-  src/renderer/       the React app, plus the plain-HTML overlay windows
-    lib/              the phone's contexts, reading the ledger over IPC
-    screens/          one folder per app
-  src/shared/         types shared across the process boundary
+  src/renderer/       the entry, the title bar, and the plain-HTML overlay windows
 ```
 
 The renderer runs the phone's repositories and commands unchanged. Their SQL goes over IPC to the

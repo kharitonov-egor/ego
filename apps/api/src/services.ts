@@ -1,5 +1,8 @@
 import { MAX_TRELLO_ATTACHMENT_BYTES, type TrelloCardResponse } from '@ego/api-contracts'
-import { createTrelloClient, type TrelloClient } from '@ego/core'
+import {
+  MAX_TRANSACTION_IMAGE_BYTES, analyzeTransactionImage, createTrelloClient,
+  type ImageAnalysisCategory, type TrelloClient
+} from '@ego/core'
 import type { Env } from './auth'
 
 const TRELLO_ID = /^[A-Za-z0-9]{1,64}$/
@@ -102,4 +105,42 @@ export async function trelloAddAttachment(request: Request, env: Env, cardId: st
     mimeType: file.type || 'application/octet-stream'
   })
   return result.ok ? ok({ attached: true }) : trelloFailed(result.detail)
+}
+
+/** The desktop's default for its own key, so a receipt reads the same from either. */
+const DEFAULT_RECEIPT_MODEL = 'openai/gpt-5.6-terra'
+const MAX_RECEIPT_REQUEST_CHARS = Math.ceil(MAX_TRANSACTION_IMAGE_BYTES / 3) * 4 + 256 * 1024
+
+function receiptCategories(value: unknown): ImageAnalysisCategory[] | null {
+  if (!Array.isArray(value) || value.length > 500) return null
+  const categories: ImageAnalysisCategory[] = []
+  for (const item of value) {
+    if (!isRecord(item) || typeof item.id !== 'string' || typeof item.name !== 'string') return null
+    if (item.kind !== 'income' && item.kind !== 'expense') return null
+    categories.push({ id: item.id.slice(0, 100), name: item.name.slice(0, 100), kind: item.kind })
+  }
+  return categories
+}
+
+/** Reads a receipt photo with the Worker's OpenRouter key, for the web app, which holds no keys. */
+export async function analyzeReceiptImage(request: Request, env: Env): Promise<Response> {
+  if (!env.OPENROUTER_API_KEY) return failure(503, 'NOT_CONFIGURED', 'Add OPENROUTER_API_KEY to the Worker to read receipts')
+  const declared = Number(request.headers.get('content-length') ?? '')
+  if (Number.isFinite(declared) && declared > MAX_RECEIPT_REQUEST_CHARS) {
+    return failure(400, 'INVALID_REQUEST', 'This image is larger than 10 MB. Choose a smaller image.')
+  }
+  let body: unknown
+  try { body = await request.json() } catch { return failure(400, 'INVALID_REQUEST', 'Send the image as JSON') }
+  const categories = isRecord(body) ? receiptCategories(body.categories) : null
+  if (!isRecord(body) || typeof body.base64 !== 'string' || typeof body.mimeType !== 'string' || !categories) {
+    return failure(400, 'INVALID_REQUEST', 'Send the image, its type, and the categories')
+  }
+  const result = await analyzeTransactionImage({
+    base64: body.base64,
+    mimeType: body.mimeType,
+    categories,
+    apiKey: env.OPENROUTER_API_KEY,
+    model: env.RECEIPT_MODEL?.trim() || DEFAULT_RECEIPT_MODEL
+  }, (url, init) => fetch(url, init))
+  return result.ok ? ok(result.data) : failure(502, 'UPSTREAM_ERROR', result.message)
 }

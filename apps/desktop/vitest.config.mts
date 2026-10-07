@@ -6,7 +6,8 @@ export default defineConfig({
     alias: [
       { find: '@ego/core', replacement: resolve(import.meta.dirname, '../../packages/core/src/index.ts') },
       { find: /^@ego\/api-contracts$/, replacement: resolve(import.meta.dirname, '../../packages/api-contracts/src/index.ts') },
-      { find: /^@ego\/local\/(.*)$/, replacement: resolve(import.meta.dirname, '../../packages/local/src/$1') }
+      { find: /^@ego\/local\/(.*)$/, replacement: resolve(import.meta.dirname, '../../packages/local/src/$1') },
+      { find: /^@ego\/ui\/(.*)$/, replacement: resolve(import.meta.dirname, '../../packages/ui/src/$1') }
     ]
   },
   test: {

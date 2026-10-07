@@ -1,7 +1,7 @@
 import { net } from 'electron'
 import { getLedgerConfig, getLedgerToken, getLivePreferences } from './settings'
-import type { LiveCreateSessionResult } from '../shared/types'
-import type { DesktopApiResult } from '../shared/types'
+import type { LiveCreateSessionResult } from '@ego/ui/platform/types'
+import type { DesktopApiResult } from '@ego/ui/platform/types'
 import type {
   ConnectorStatus,
   LiveLocalToolAuditRequest,

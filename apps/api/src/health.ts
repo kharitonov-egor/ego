@@ -14,6 +14,7 @@ import {
   type HealthSnapshot
 } from '@ego/api-contracts'
 import type { Env } from './auth'
+import { connectReturn } from './web'
 import { decryptConnectorToken, encryptConnectorToken, randomUrlToken, sha256 } from './connector-crypto'
 import { exchangeGoogleToken, googleCallbackUrl } from './connectors'
 import {
@@ -60,6 +61,7 @@ interface ConnectionRow {
 
 interface StateRow {
   dataset_id: string
+  device_id: string
   pkce_verifier: string
   redirect_uri: string
   expires_at: string
@@ -125,10 +127,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function returnToApp(params: Record<string, string>): Response {
+function returnToApp(back: string, params: Record<string, string>): Response {
   return new Response(null, {
     status: 302,
-    headers: { location: `${HEALTH_RETURN_URL}?${new URLSearchParams(params)}`, 'cache-control': 'no-store' }
+    headers: { location: `${back}?${new URLSearchParams(params)}`, 'cache-control': 'no-store' }
   })
 }
 
@@ -220,25 +222,26 @@ export async function completeHealthConnect(request: Request, env: Env, now = ne
   const state = url.searchParams.get('state')
   if (!state) return null
   const stateHash = await sha256(state)
-  const row = await env.DB.prepare(`SELECT dataset_id, pkce_verifier, redirect_uri, expires_at, consumed_at
+  const row = await env.DB.prepare(`SELECT dataset_id, device_id, pkce_verifier, redirect_uri, expires_at, consumed_at
     FROM health_oauth_states WHERE state_hash = ?`).bind(stateHash).first<StateRow>()
   if (!row) return null
+  const back = await connectReturn(env, row.device_id, HEALTH_RETURN_URL, '/health')
   const nowIso = now.toISOString()
   const claimed = await env.DB.prepare(`UPDATE health_oauth_states SET consumed_at = ?
     WHERE state_hash = ? AND consumed_at IS NULL AND expires_at > ?`).bind(nowIso, stateHash, nowIso).run()
-  if ((claimed.meta.changes ?? 0) !== 1) return returnToApp({ error: 'expired' })
+  if ((claimed.meta.changes ?? 0) !== 1) return returnToApp(back, { error: 'expired' })
   const code = url.searchParams.get('code')
-  if (url.searchParams.has('error') || !code) return returnToApp({ error: 'cancelled' })
+  if (url.searchParams.has('error') || !code) return returnToApp(back, { error: 'cancelled' })
   const token = await exchangeGoogleToken(new URLSearchParams({
     code,
     redirect_uri: row.redirect_uri,
     grant_type: 'authorization_code',
     code_verifier: row.pkce_verifier
   }), env)
-  if (!token?.refresh_token) return returnToApp({ error: 'failed' })
+  if (!token?.refresh_token) return returnToApp(back, { error: 'failed' })
   const scopes = scopesFrom(token.scope)
   const grants = grantsFrom(scopes)
-  if (!grants.activity && !grants.body && !grants.sleep) return returnToApp({ error: 'no_access' })
+  if (!grants.activity && !grants.body && !grants.sleep) return returnToApp(back, { error: 'no_access' })
   const claims = token.id_token ? idTokenClaims(token.id_token) : null
   const email = typeof claims?.email === 'string' ? claims.email.toLowerCase() : null
   const previous = await readConnection(env, row.dataset_id)
@@ -267,7 +270,7 @@ export async function completeHealthConnect(request: Request, env: Env, now = ne
     .bind(row.dataset_id, protectedToken.encrypted, protectedToken.keyVersion, JSON.stringify(scopes),
       email, nowIso, nowIso, switchedAccount ? 1 : 0))
   await env.DB.batch(statements)
-  return returnToApp({ connected: '1' })
+  return returnToApp(back, { connected: '1' })
 }
 
 export async function disconnectHealth(env: Env, datasetId: string): Promise<void> {

@@ -27,4 +27,5 @@ The desktop app uses the dark variant: white ring and dot on black.
 
 `resources/app-icon.png` (512px) and `resources/app-icon.ico` (16 through 256 in one file) are
 generated from `ego-icon-dark-1024.png`. `src/renderer/app-icon.png` (256px) is the same image, imported
-by the title bar. Regenerate them if the mark ever changes.
+by the title bar, and `packages/ui/src/app-icon.png` is a copy for Home. The web app's `public/`
+icons come from the files above. Regenerate them if the mark ever changes.
