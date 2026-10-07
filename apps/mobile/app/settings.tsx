@@ -1,14 +1,17 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, Linking, Pressable, Switch, View } from 'react-native'
 import { KeyboardScrollView } from '../components/ui/keyboard'
 import {
-  AlarmClock, BellRing, Check, ChevronRight, CircleUserRound, Download, EyeOff, Info, KeyRound, Landmark, ListPlus, LogOut, RefreshCw, Trash2, X,
+  AlarmClock, BellRing, Brain, Check, ChevronRight, CircleUserRound, Copy, Download, EyeOff, Info, KeyRound, Landmark, ListPlus, LogOut, Plug,
+  Plus, RefreshCw, Trash2, X,
   type LucideIcon
 } from 'lucide-react-native'
 import { formatSetDuration } from '@ego/core'
 import Constants from 'expo-constants'
-import { useRouter } from 'expo-router'
-import type { ServiceStatus, SessionInfo } from '@ego/api-contracts'
+import * as Clipboard from 'expo-clipboard'
+import { useFocusEffect, useRouter } from 'expo-router'
+import type { AgentKeyCreated, AgentKeySummary, ServiceStatus, SessionInfo } from '@ego/api-contracts'
+import { timeAgo } from '@ego/local/dates'
 import type { ListShortcut, TrelloBoardSummary, TrelloListSummary } from '@ego/core'
 import { isSignedIn, useSettings, type RetiredCredentials } from '../lib/settings'
 import type { EgoApi } from '@ego/local/api-client'
@@ -108,6 +111,162 @@ function NewBuild({ api }: { api: EgoApi }): React.ReactElement | null {
     {failed && <Text className="mt-3 text-[15px] leading-5 text-destructive">{failed}</Text>}
     <Text className="mt-3 text-[14px] leading-5 text-muted-foreground">Android asks you to confirm, then replaces Ego and keeps its data. Tap Open when it finishes.</Text>
   </View>
+}
+
+function shortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function noteCountLabel(count: number): string {
+  if (count === 0) return 'No notes'
+  return count === 1 ? '1 note' : `${count} notes`
+}
+
+function CopyField({ label, value }: { label: string; value: string }): React.ReactElement {
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!copied) return
+    const timer = setTimeout(() => setCopied(false), 2000)
+    return () => clearTimeout(timer)
+  }, [copied])
+  return <View className="mt-2 flex-row items-center rounded-xl border border-input bg-surface-900 pl-4">
+    <Text selectable className="flex-1 py-3 font-mono text-[14px] leading-5 text-surface-200">{value}</Text>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={copied ? `${label} copied` : `Copy ${label}`}
+      onPress={() => void Clipboard.setStringAsync(value).then(() => setCopied(true))}
+      className="h-12 w-12 items-center justify-center rounded-xl active:bg-surface-800"
+    >{copied ? <Check color="#fafafa" size={18} /> : <Copy color="#d4d4d4" size={18} />}</Pressable>
+  </View>
+}
+
+function NewAgentKey({ created, onDone }: { created: AgentKeyCreated; onDone: () => void }): React.ReactElement {
+  const steps = [
+    'In claude.ai, open Settings, then Connectors, then Add custom connector.',
+    'Name it Ego and paste the URL above.',
+    'Under Request headers, add Authorization with the value below.',
+    'Choose No sign in.'
+  ]
+  return <View className="mt-4 rounded-2xl bg-surface-900 p-4">
+    <Text className="text-[17px] font-semibold">{created.key.name}</Text>
+    <Text className="mt-1 text-[14px] leading-5 text-muted-foreground">Copy it now. Ego keeps only a hash, so it cannot show this key again.</Text>
+    <View className="mt-3 gap-1.5">{steps.map((step, index) => <View key={step} className="flex-row">
+      <Text className="w-6 text-[15px] leading-5 text-muted-foreground">{index + 1}.</Text>
+      <Text className="flex-1 text-[15px] leading-5 text-surface-200">{step}</Text>
+    </View>)}</View>
+    <CopyField label="Authorization value" value={`Bearer ${created.token}`} />
+    <Button variant="ghost" size="sm" onPress={onDone} className="mt-2 self-end"><Text>Done</Text></Button>
+  </View>
+}
+
+function ClaudeConnector({ api }: { api: EgoApi }): React.ReactElement {
+  const router = useRouter()
+  const [keys, setKeys] = useState<AgentKeySummary[] | null>(null)
+  const [mcpUrl, setMcpUrl] = useState<string | null>(null)
+  const [noteCount, setNoteCount] = useState<number | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [created, setCreated] = useState<AgentKeyCreated | null>(null)
+  const [revoking, setRevoking] = useState<AgentKeySummary | null>(null)
+  const [revokeBusy, setRevokeBusy] = useState(false)
+
+  const loadKeys = useCallback(async (): Promise<void> => {
+    const result = await api.agentKeys()
+    if (result.ok) {
+      setKeys(result.data.keys)
+      setMcpUrl(result.data.mcpUrl)
+      setError(null)
+    } else setError(result.error.message)
+  }, [api])
+
+  useFocusEffect(useCallback(() => {
+    let cancelled = false
+    void Promise.all([api.agentKeys(), api.agentMemories()]).then(([keyResult, memoryResult]) => {
+      if (cancelled) return
+      if (keyResult.ok) {
+        setKeys(keyResult.data.keys)
+        setMcpUrl(keyResult.data.mcpUrl)
+        setError(null)
+      } else setError(keyResult.error.message)
+      if (memoryResult.ok) setNoteCount(memoryResult.data.memories.length)
+    })
+    return () => { cancelled = true }
+  }, [api]))
+
+  const create = async (): Promise<void> => {
+    setCreating(true)
+    const result = await api.createAgentKey(null)
+    setCreating(false)
+    if (!result.ok) {
+      setError(result.error.message)
+      return
+    }
+    setCreated(result.data)
+    setMcpUrl(result.data.mcpUrl)
+    setError(null)
+    await loadKeys()
+  }
+
+  const revoke = async (): Promise<void> => {
+    if (!revoking) return
+    const target = revoking
+    setRevokeBusy(true)
+    const result = await api.revokeAgentKey(target.id)
+    setRevokeBusy(false)
+    setRevoking(null)
+    if (target.id === created?.key.id) setCreated(null)
+    if (!result.ok && result.error.code !== 'NOT_FOUND') setError(result.error.message)
+    await loadKeys()
+  }
+
+  return <Section Icon={Plug} title="Connect Claude">
+    <Text className="mt-3 text-[15px] leading-6 text-muted-foreground">Claude can read your Ego data through this connector and keep notes about you in Memory. It cannot change your data.</Text>
+    {mcpUrl && <>
+      <FieldLabel>Connector URL</FieldLabel>
+      <CopyField label="connector URL" value={mcpUrl} />
+    </>}
+    <FieldLabel>Keys</FieldLabel>
+    {keys === null && !error && <ActivityIndicator size="small" color="#fafafa" className="self-start" />}
+    {keys !== null && keys.length === 0 && <Text className="text-[15px] text-muted-foreground">No keys yet.</Text>}
+    {keys !== null && keys.length > 0 && <View>{keys.map((key) => <View key={key.id} className="min-h-14 flex-row items-center border-t border-surface-800 py-2">
+      <View className="flex-1 pr-3">
+        <Text numberOfLines={1} className="text-[16px]">{key.name}</Text>
+        <Text className="text-[14px] text-muted-foreground">
+          Created {shortDate(key.createdAt)} · {key.lastUsedAt ? `Last used ${timeAgo(key.lastUsedAt, new Date())}` : 'Never used'}
+        </Text>
+      </View>
+      <Button variant="outline" size="sm" onPress={() => setRevoking(key)}><Text>Revoke</Text></Button>
+    </View>)}</View>}
+    <Button size="lg" disabled={creating} onPress={() => void create()} className="mt-4">
+      {creating ? <ActivityIndicator size="small" color="#0a0a0a" /> : <Plus color="#0a0a0a" size={18} />}
+      <Text>{creating ? 'Creating...' : 'New key'}</Text>
+    </Button>
+    {created && <NewAgentKey created={created} onDone={() => setCreated(null)} />}
+    {error && <Text className="mt-3 text-[15px] leading-5 text-destructive">{error}</Text>}
+    <Pressable
+      accessibilityRole="button"
+      accessibilityHint="Opens the notes the chat and Claude keep about you"
+      onPress={() => router.push('/memory')}
+      className="mt-4 min-h-14 flex-row items-center rounded-2xl bg-surface-900 px-4 active:bg-surface-800"
+    >
+      <Brain color="#d4d4d4" size={19} />
+      <Text className="ml-3 flex-1 text-[16px] font-medium">Memory</Text>
+      {noteCount !== null && <Text className="mr-2 text-[15px] text-muted-foreground">{noteCountLabel(noteCount)}</Text>}
+      <ChevronRight color="#a3a3a3" size={18} />
+    </Pressable>
+
+    <ConfirmDialog
+      visible={revoking !== null}
+      title={`Revoke ${revoking?.name ?? 'this key'}?`}
+      detail="Claude stops reaching Ego with this key at once. Notes it saved stay in Memory."
+      confirmLabel="Revoke"
+      destructive
+      busy={revokeBusy}
+      hideNavigation={false}
+      onCancel={() => setRevoking(null)}
+      onConfirm={() => void revoke()}
+    />
+  </Section>
 }
 
 export default function Settings(): React.ReactElement {
@@ -314,6 +473,8 @@ export default function Settings(): React.ReactElement {
         <Text className="mt-1 text-[15px] leading-6 text-muted-foreground">Changes save on this phone first and reach the server when it is reachable.</Text>
         <Button variant="outline" size="lg" disabled={ledger.syncing} onPress={() => void ledger.sync()} className="mt-4"><Text>Sync now</Text></Button>
       </Section>}
+
+      {signedIn && <ClaudeConnector api={api} />}
 
       {signedIn && session && <Section Icon={KeyRound} title="Server keys">
         <Text className="mt-3 text-[15px] leading-6 text-muted-foreground">The Worker keeps these as secrets and calls each service for this phone. Add a missing one with npx wrangler secret put.</Text>

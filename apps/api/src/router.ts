@@ -31,6 +31,8 @@ import { foodRoute } from './food'
 import { readAppBuilds, receiveBuildWebhook } from './app-builds'
 import { calendarRoute, completeCalendarConnect } from './calendar'
 import { docketRoute } from './dockets'
+import { agentRoute } from './agent'
+import { mcpRoute } from './mcp'
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -111,6 +113,8 @@ export async function handle(request: Request, env: Env, work?: Pick<ExecutionCo
   if (request.method === 'POST' && path === '/v1/app/builds/webhook') return respond(await receiveBuildWebhook(request, env))
   const docket = docketRoute(request, env, path, new Date().toISOString())
   if (docket) return docket
+  const mcp = mcpRoute(request, env, path)
+  if (mcp) return mcp
 
   const device = await authorize(request, env.DB)
   if (!device.ok) return failure(device.error)
@@ -133,6 +137,8 @@ export async function handle(request: Request, env: Env, work?: Pick<ExecutionCo
   }
   const assistant = assistantRoute(request, env, device.data, path, now, work)
   if (assistant) return assistant
+  const agent = agentRoute(request, env, device.data, path, now)
+  if (agent) return agent
   if (request.method === 'GET' && path === '/v1/trello/boards') return trelloBoards(env)
   if (request.method === 'GET' && path.startsWith('/v1/trello/boards/') && path.endsWith('/lists')) {
     return trelloLists(env, decodeURIComponent(path.slice('/v1/trello/boards/'.length, -'/lists'.length)))

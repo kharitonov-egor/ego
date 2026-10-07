@@ -11,6 +11,7 @@ import LiveSettings from '../components/LiveSettings'
 import { Chips, MoneyIcon, money } from '../components/common'
 import { Screen, ScreenBody, ScreenHeader } from '../components/screen'
 import { FieldLabel, Section, SectionNote } from '../components/Section'
+import { AgentSection } from '../components/settings/AgentSection'
 import { DevicesSection } from '../components/settings/DevicesSection'
 import { QuickAddSettings } from '../components/settings/QuickAddSettings'
 import { SignInPanel, useGoogleSignIn } from '../components/SignInPanel'
@@ -294,6 +295,7 @@ export default function Settings(): React.ReactElement {
       <RestTimerSection />
       {ledger.enabled && ledger.reference && <AccountsSection />}
       {ledger.enabled && <SyncSection />}
+      {ledger.enabled && <AgentSection />}
       {ledger.enabled && <DevicesSection />}
       {ledger.enabled && session && <ServerKeysSection session={session} />}
       <QuickAddSettings />

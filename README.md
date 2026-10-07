@@ -59,6 +59,27 @@ AI screen saves it. The main process holds the device token, so it runs each str
 passes the reply back as it arrives. The waveform button in the header opens Talk to AI, the voice
 call, and its back arrow returns to the chat.
 
+### Memory
+
+The chat keeps short notes about you in `agent_memories`: lasting preferences, people, routines,
+and plans, one fact each, up to 200. It reads all of them on every turn and saves new ones itself
+with `remember`, or corrects and deletes them with `remember` and `forget`. A saved note shows in
+the trail under the reply, like "Remembered: Is vegetarian". Memory, behind the brain icon in the
+AI header, lists the notes with who wrote them (Chat, Claude, or You) and lets you add, edit, and
+delete them. The diary never goes into a note.
+
+### Connect Claude
+
+The Worker serves Ego's tools to Claude over MCP at `/mcp` on its own address. Settings, Connect
+Claude makes a key that starts with `egomcp_` and shows it once. In claude.ai, add a custom
+connector with that URL, put `Authorization: Bearer <key>` under Request headers, and choose No
+sign in. The key reaches `/mcp` and nothing else, and Settings revokes it.
+
+Claude gets `ego_context` (today on your clock, the ids of accounts, categories, habits,
+exercises, and boards, and every note), each read tool the chat has, and `remember`, `forget`,
+and `recall`. It cannot change your data. Each chat turn sends the device's time zone and units,
+so Claude reads "today" on the same clock as the apps.
+
 ## Money
 
 Finance has four tabs, along the bottom on the phone and across the header on the desktop:

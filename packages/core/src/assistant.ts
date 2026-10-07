@@ -76,7 +76,7 @@ export interface RunAssistantOptions {
   /** The chat so far, ending with the user's message or the tool result that resumes a turn. */
   history: ModelMessage[]
   tools?: readonly AssistantToolName[]
-  /** Runs a read. A throw becomes an error result for the model. */
+  /** Runs a read, or a direct tool such as remember. A throw becomes an error result for the model. */
   run: (call: AssistantCall) => Promise<ToolOutcome>
   /** Called as text streams in, after each tool runs, and for every message to store. */
   onEvent: (event: AssistantEvent) => void | Promise<void>

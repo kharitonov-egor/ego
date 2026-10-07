@@ -48,7 +48,14 @@ export const REMOTE_API_METHODS = [
   'deleteDocket',
   'docketKeys',
   'createDocketKey',
-  'revokeDocketKey'
+  'revokeDocketKey',
+  'agentKeys',
+  'createAgentKey',
+  'revokeAgentKey',
+  'agentMemories',
+  'addAgentMemory',
+  'updateAgentMemory',
+  'deleteAgentMemory'
 ] as const
 
 export type RemoteApiMethod = typeof REMOTE_API_METHODS[number]

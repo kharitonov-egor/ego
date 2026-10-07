@@ -6,7 +6,7 @@ import { useKeyboardVisible } from '../components/ui/keyboard'
 import { Stack, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as SecureStore from 'expo-secure-store'
-import { Camera, ClipboardPaste, Image as ImageIcon, LayoutGrid, MessagesSquare, Paperclip, Send, SquarePen, X } from 'lucide-react-native'
+import { Brain, Camera, ClipboardPaste, Image as ImageIcon, LayoutGrid, MessagesSquare, Paperclip, Send, SquarePen, X } from 'lucide-react-native'
 import type {
   AssistantChat, AssistantMessage, AssistantPendingWrite, AssistantStreamEvent, AssistantUnits
 } from '@ego/api-contracts'
@@ -250,6 +250,7 @@ function Assistant(): React.ReactElement {
   const header = <Stack.Screen options={{
     headerLeft: () => <HeaderIcon label="All apps" onPress={() => router.dismissTo('/')}><LayoutGrid color="#fafafa" size={21} /></HeaderIcon>,
     headerRight: () => <View className="flex-row">
+      <HeaderIcon label="Memory" onPress={() => router.push('/memory')}><Brain color="#fafafa" size={21} /></HeaderIcon>
       <HeaderIcon label="Chats" onPress={() => setChatsOpen(true)}><MessagesSquare color="#fafafa" size={21} /></HeaderIcon>
       <HeaderIcon label="New chat" onPress={() => void open(null)}><SquarePen color="#fafafa" size={21} /></HeaderIcon>
     </View>

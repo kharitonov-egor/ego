@@ -13,6 +13,7 @@ import { ReminderProvider } from './lib/reminder'
 import { TasksProvider } from './lib/tasks/context'
 import { TaskNotificationsProvider } from './lib/tasks/notifications'
 import Assistant from './screens/ai/Assistant'
+import Memory from './screens/ai/Memory'
 import CalendarScreen from './screens/calendar/Calendar'
 import Diary from './screens/diary/Diary'
 import DocketRoutes from './screens/dockets'
@@ -94,6 +95,7 @@ export default function App({ titleBar, overlay }: AppProps): React.ReactElement
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/ai" element={<Assistant />} />
+            <Route path="/ai/memory" element={<Memory />} />
             <Route path="/ai/voice" element={<TalkToAI />} />
             {moneyRoutes}
             <Route path="/gym" element={<GymLog />} />

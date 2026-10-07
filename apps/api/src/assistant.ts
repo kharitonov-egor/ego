@@ -12,8 +12,9 @@ import type { Env } from './auth'
 import { deleteFoodPhoto, storeFoodPhoto } from './diary'
 import { query } from './reads'
 import {
-  assistantSystemPrompt, describeWrite, executeAssistantRead, executeAssistantWrite, type ToolContext, type WriteCard
+  assistantSystemPrompt, describeWrite, executeAssistantDirect, executeAssistantRead, executeAssistantWrite, type ToolContext, type WriteCard
 } from './assistant-tools'
+import { rememberClientContext } from './agent-settings'
 
 const MAX_TURNS_PER_MINUTE = 30
 /** Under the phone's streaming timeout, with room for the last tool call to finish. */
@@ -340,9 +341,10 @@ async function runTurn(input: RunInput): Promise<void> {
     history: input.history,
     deadline: Date.now() + TURN_BUDGET_MS,
     run: async (call): Promise<ToolOutcome> => {
-      if (ASSISTANT_TOOLS[call.name].access !== 'read') throw new Error(`${call.name} is not a read tool`)
+      const access = ASSISTANT_TOOLS[call.name].access
+      if (access === 'write') throw new Error(`${call.name} waits on a card`)
       try {
-        const outcome = await executeAssistantRead(ctx, call)
+        const outcome = access === 'direct' ? await executeAssistantDirect(ctx, call, 'chat') : await executeAssistantRead(ctx, call)
         callIds.push(await recordRead(env, chat, call, 'succeeded', ctx.now))
         return outcome
       } catch (error: unknown) {
@@ -505,6 +507,7 @@ async function turn(request: Request, env: Env, device: DeviceIdentity, now: str
   if (await rateLimited(env, device.datasetId, now)) {
     return failure(429, { code: 'RATE_LIMITED', message: 'Too many messages. Wait a moment and try again.' })
   }
+  await rememberClientContext(env.DB, device.datasetId, input.timeZone, input.units, now)
   let chat: ChatRow | null = null
   let created = false
   if (input.chatId) {
