@@ -1,9 +1,11 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { Bot, MessageSquarePlus, Sparkles, Target, Trash2, X } from 'lucide-react'
 import type { AgentProposal, AssistantChat, AssistantMessage, AssistantPendingWrite } from '@ego/api-contracts'
 import { momentInSentence } from '../../lib/agent'
 import { Blurred, useBlur } from '../../lib/blur'
+import { linkParts } from '../../lib/links'
 import { cn } from '../../lib/utils'
+import { ExternalLink } from '../ExternalLink'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
 import { Card } from '../ui/card'
@@ -18,7 +20,8 @@ const EXAMPLES = [
   'Bench 3x8 at 185, squats 5x5 at 225',
   'Two eggs and toast for breakfast',
   'How much protein today?',
-  'What\'s in my fridge?'
+  'What\'s in my fridge?',
+  'Any unread email from today?'
 ]
 
 export function Trail({ lines }: { lines: readonly string[] }): React.ReactElement | null {
@@ -53,11 +56,22 @@ export function GoalLabel({ title, className }: { title: string | null; classNam
   </span>
 }
 
+/** While Blur is on, links stay plain text, so hovering one cannot show its address in the browser's status bar. */
+function LinkedText({ text }: { text: string }): React.ReactElement {
+  const { blurred } = useBlur()
+  const parts = useMemo(() => linkParts(text), [text])
+  return <Blurred><p className="select-text whitespace-pre-wrap break-words text-[16px] leading-6">
+    {blurred ? text : parts.map((part, index) => part.type === 'link'
+      ? <ExternalLink key={index} href={part.href} className="inline text-left font-medium underline underline-offset-4 [overflow-wrap:anywhere] hover:text-surface-300">{part.text}</ExternalLink>
+      : part.text)}
+  </p></Blurred>
+}
+
 export function AssistantBubble({ message }: { message: AssistantMessage }): React.ReactElement {
   return <div className="mb-3 flex flex-col items-start">
     {message.agent && <GoalLabel title={message.agent.goalTitle} className="mb-1 ml-1 max-w-[86%]" />}
     {message.text.length > 0 && <div className="max-w-[86%] rounded-3xl rounded-bl-lg border border-border bg-card px-4 py-3">
-      <Blurred><p className="select-text whitespace-pre-wrap break-words text-[16px] leading-6">{message.text}</p></Blurred>
+      <LinkedText text={message.text} />
     </div>}
     <Trail lines={message.trail} />
   </div>

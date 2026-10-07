@@ -1,9 +1,11 @@
-import React from 'react'
-import { ActivityIndicator, Image, Pressable, ScrollView, View } from 'react-native'
+import React, { useMemo } from 'react'
+import { ActivityIndicator, Image, Linking, Pressable, ScrollView, View } from 'react-native'
 import { Bot, MessageSquarePlus, Sparkles, Target, Trash2, X } from 'lucide-react-native'
 import type { AgentProposal, AssistantChat, AssistantMessage, AssistantPendingWrite } from '@ego/api-contracts'
 import { expiresLabel } from '../../lib/agent'
-import { Blurred } from '../../lib/blur'
+import { Blurred, useBlur } from '../../lib/blur'
+import { linkParts } from '../../lib/links'
+import { outsideApp } from '../../lib/private-lock'
 import { BottomSheet } from '../money/Common'
 import { Badge } from '../ui/badge'
 import { Button } from '../ui/button'
@@ -18,7 +20,8 @@ const EXAMPLES = [
   'Bench 3x8 at 185, squats 5x5 at 225',
   'Two eggs and toast for breakfast',
   'How much protein today?',
-  'What\'s in my fridge?'
+  'What\'s in my fridge?',
+  'Any unread email from today?'
 ]
 
 export function Trail({ lines }: { lines: readonly string[] }): React.ReactElement | null {
@@ -51,11 +54,32 @@ export function GoalLabel({ title, className = '' }: { title: string | null; cla
   </View>
 }
 
+function openLink(url: string): void {
+  void outsideApp(() => Linking.openURL(url)).catch(() => undefined)
+}
+
+/** While Blur is on, links blur with the rest of the reply and do not open. */
+function ReplyText({ text }: { text: string }): React.ReactElement {
+  const { blurred } = useBlur()
+  const parts = useMemo(() => linkParts(text), [text])
+  return <Blurred>
+    <Text className="text-[16px] leading-6">{parts.map((part, index) => part.kind === 'text'
+      ? <React.Fragment key={index}>{part.text}</React.Fragment>
+      : <Text
+        key={index}
+        accessibilityRole="link"
+        onPress={blurred ? undefined : () => openLink(part.url)}
+        suppressHighlighting
+        className="font-medium underline"
+      >{part.text}</Text>)}</Text>
+  </Blurred>
+}
+
 export function AssistantBubble({ message }: { message: AssistantMessage }): React.ReactElement {
   return <View className="mb-3 items-start">
     {message.agent && <GoalLabel title={message.agent.goalTitle} className="mb-1 ml-1 max-w-[86%]" />}
     {message.text.length > 0 && <View className="max-w-[86%] rounded-3xl rounded-bl-lg border border-border bg-card px-4 py-3">
-      <Text className="text-[16px] leading-6">{message.text}</Text>
+      <ReplyText text={message.text} />
     </View>}
     <Trail lines={message.trail} />
   </View>
@@ -65,7 +89,7 @@ export function StreamingBubble({ text, trail }: { text: string; trail: readonly
   return <View className="mb-3 items-start">
     {text.trim().length > 0
       ? <View className="max-w-[86%] rounded-3xl rounded-bl-lg border border-border bg-card px-4 py-3">
-        <Text className="text-[16px] leading-6">{text.trimStart()}</Text>
+        <ReplyText text={text.trimStart()} />
       </View>
       : <View className="flex-row items-center rounded-3xl rounded-bl-lg border border-border bg-card px-4 py-3">
         <ActivityIndicator size="small" color="#fafafa" />

@@ -3,7 +3,7 @@ import {
   AGENT_KEY_NAME_MAX, AGENT_KEY_PREFIX, HTTP_STATUS, MCP_PATH, isAgentGoalInput, isAgentGoalUpdate, isAgentMemoryInput,
   isAgentProposalAnswer, isWebPushSubscriptionInput,
   type AgentFireResult, type AgentGoalList, type AgentKeyCreated, type AgentKeyList, type AgentKeySummary, type AgentMemoryList,
-  type AgentRunList, type AgentSettingsView, type ApiError, type DeviceIdentity, type WebPushKey, type WebPushTestResult
+  type AgentRunList, type AgentSettingsView, type ApiError, type ComposioStatus, type DeviceIdentity, type WebPushKey, type WebPushTestResult
 } from '@ego/api-contracts'
 import { agentInbox, agentToolContext, answerProposal, listNotifications, markAgentRead } from './agent-chat'
 import { agentTimeZone, readAgentSettings, trustedTools, updateAgentSettings, userSettings } from './agent-settings'
@@ -13,6 +13,7 @@ import {
 } from './goals'
 import { MemoryError, addMemory, forgetMemory, listMemories, updateMemory } from './memory'
 import { removeSubscription, saveSubscription, testPush } from './push-delivery'
+import { composioStatus, enableTrigger } from './composio'
 import { vapidKeys } from './web-push'
 import { query } from './reads'
 
@@ -159,6 +160,7 @@ export function agentRoute(request: Request, env: Env, device: DeviceIdentity, p
     if (method === 'DELETE') return unsubscribe(request, env, device, now)
   }
   if (method === 'POST' && path === '/v1/agent/web-push/test') return testPush(env, device, now).then(ok<WebPushTestResult>)
+  if (method === 'GET' && path === '/v1/agent/composio') return composioStatus(env, request).then(ok<ComposioStatus>)
   return Promise.resolve(failure('NOT_FOUND', 'That endpoint does not exist'))
 }
 
@@ -195,7 +197,9 @@ async function addGoal(request: Request, env: Env, datasetId: string, now: strin
   const body = await readJson(request)
   if (!isAgentGoalInput(body)) return failure('INVALID_REQUEST', 'A goal needs a title, instructions, and when it runs')
   try {
-    return ok(await createGoal(env.DB, datasetId, body, now))
+    const goal = await createGoal(env.DB, datasetId, body, now)
+    const notice = await enableTrigger(env, datasetId, goal.trigger)
+    return ok(notice ? { ...goal, notice } : goal)
   } catch (error: unknown) {
     return goalFailure(error)
   }
@@ -206,7 +210,9 @@ async function changeGoal(request: Request, env: Env, datasetId: string, id: str
   if (!isAgentGoalUpdate(body)) return failure('INVALID_REQUEST', 'Check the change to this goal')
   try {
     const goal = await updateGoal(env.DB, datasetId, id, body, now)
-    return goal ? ok(goal) : failure('NOT_FOUND', 'That goal was deleted')
+    if (!goal) return failure('NOT_FOUND', 'That goal was deleted')
+    const notice = body.trigger ? await enableTrigger(env, datasetId, goal.trigger) : null
+    return ok(notice ? { ...goal, notice } : goal)
   } catch (error: unknown) {
     return goalFailure(error)
   }

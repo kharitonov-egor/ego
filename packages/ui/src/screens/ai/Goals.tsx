@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { Bell, BellOff, ChevronDown, ExternalLink as ExternalLinkIcon, Pause, Pencil, Play, Plus, Target, Trash2, Zap } from 'lucide-react'
+import { Bell, BellOff, ChevronDown, ExternalLink as ExternalLinkIcon, Pause, Pencil, Play, Plus, Target, Trash2, X, Zap } from 'lucide-react'
 import {
   AGENT_GOAL_INSTRUCTIONS_MAX, AGENT_GOAL_TITLE_MAX, type AgentGoal, type AgentGoalUpdate, type AgentRun, type AgentRunStatus
 } from '@ego/api-contracts'
@@ -16,7 +16,7 @@ import { ConfirmDialog, Sheet } from '../../components/ui/dialog'
 import { inputClass } from '../../components/ui/input'
 import { Spinner } from '../../components/ui/spinner'
 import {
-  TRIGGER_TYPE_LABELS, WEEKDAY_OPTIONS, deviceTimeZone, draftFromTrigger, fireMessage, goalStatusLabel, momentInSentence, momentLabel,
+  EVENT_FILTER_MAX, EVENT_TRIGGER_EXAMPLES, TRIGGER_TYPE_LABELS, WEEKDAY_OPTIONS, deviceTimeZone, draftFromTrigger, fireMessage, goalStatusLabel, momentInSentence, momentLabel,
   runReasonLabel, runStatusLabel, runTime, triggerFromDraft, type TriggerDraft
 } from '../../lib/agent'
 import { Blurred } from '../../lib/blur'
@@ -95,14 +95,51 @@ function WhenFields({ when, onChange }: { when: TriggerDraft; onChange: (when: T
         {time}
       </>}
       {when.type === 'manual' && <p className="text-[15px] leading-6 text-muted-foreground">It runs when you press Run now or ask for it in the chat.</p>}
+      {when.type === 'event' && <EventFields when={when} set={set} />}
     </div>
   </>
+}
+
+function EventFields({ when, set }: { when: TriggerDraft; set: (change: Partial<TriggerDraft>) => void }): React.ReactElement {
+  return <div className="w-full">
+    <input
+      aria-label="Trigger name"
+      value={when.slug}
+      onChange={(event) => set({ slug: event.target.value.toUpperCase() })}
+      placeholder="GMAIL_NEW_GMAIL_MESSAGE"
+      autoCapitalize="characters"
+      autoComplete="off"
+      spellCheck={false}
+      className={cn(inputClass, 'font-mono')}
+    />
+    <div className="mt-2 flex flex-wrap gap-2">
+      {EVENT_TRIGGER_EXAMPLES.map((example) => <button
+        key={example.slug}
+        type="button"
+        aria-pressed={when.slug === example.slug}
+        onClick={() => set({ slug: example.slug })}
+        className={cn('rounded-full border px-3.5 py-2 text-[14px] transition-colors hover:bg-surface-800 active:bg-surface-800',
+          when.slug === example.slug ? 'border-surface-400 bg-surface-800 text-foreground' : 'border-surface-700 text-surface-200')}
+      >{example.label}</button>)}
+    </div>
+    <p className="mt-2 text-[14px] leading-5 text-muted-foreground">Trigger names come from Composio. Set it up in Settings under Other apps.</p>
+    <Field label="Only when it mentions" htmlFor="goal-filter">
+      <input
+        id="goal-filter"
+        value={when.filter}
+        onChange={(event) => set({ filter: event.target.value })}
+        maxLength={EVENT_FILTER_MAX}
+        placeholder="Leave empty for every event"
+        className={inputClass}
+      />
+    </Field>
+  </div>
 }
 
 function GoalEditor({ editing, onClose, onSaved }: {
   editing: Editing
   onClose: () => void
-  onSaved: () => void
+  onSaved: (goal: AgentGoal) => void
 }): React.ReactElement {
   const ledger = useLedger()
   const [draft, setDraft] = useState(editing.draft)
@@ -130,7 +167,7 @@ function GoalEditor({ editing, onClose, onSaved }: {
       ? await ledger.api.updateAgentGoal(editing.goal.id, { title, instructions, trigger })
       : await ledger.api.createAgentGoal({ title, instructions, trigger, timeZone: deviceTimeZone() })
     setSaving(false)
-    if (result.ok) onSaved()
+    if (result.ok) onSaved(result.data)
     else setProblem(result.error.message)
   }
 
@@ -324,6 +361,7 @@ export default function Goals(): React.ReactElement {
   const [editing, setEditing] = useState<Editing | null>(null)
   const [deleting, setDeleting] = useState<AgentGoal | null>(null)
   const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
 
   const load = useCallback(async (): Promise<void> => {
     const result = await ledger.api.agentGoals()
@@ -388,6 +426,15 @@ export default function Goals(): React.ReactElement {
         The agent works on these by itself and posts in the Agent chat. Changes it wants to make wait there for you unless you trust them in Settings.
       </p>
       {error && <p role="alert" className="mt-3 text-[15px] leading-5 text-destructive">{error}</p>}
+      {notice && <div role="status" className="mt-3 flex items-start gap-3 rounded-2xl border border-attention/30 bg-attention/10 py-3 pl-4 pr-2">
+        <p className="flex-1 text-[15px] leading-6 text-attention">Goal saved. {notice}</p>
+        <button
+          type="button"
+          aria-label="Dismiss"
+          onClick={() => setNotice(null)}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-attention transition-colors hover:bg-attention/15"
+        ><X size={16} /></button>
+      </div>}
       {goals === null && !error && <div className="flex justify-center py-10"><Spinner /></div>}
       {goals !== null && goals.length === 0 && <Empty onPick={startNew} />}
       {goals !== null && goals.length > 0 && <div className="mt-5 flex flex-col gap-3">
@@ -403,8 +450,9 @@ export default function Goals(): React.ReactElement {
     {editing && <GoalEditor
       editing={editing}
       onClose={() => setEditing(null)}
-      onSaved={() => {
+      onSaved={(saved) => {
         setEditing(null)
+        setNotice(saved.notice ?? null)
         void load()
       }}
     />}

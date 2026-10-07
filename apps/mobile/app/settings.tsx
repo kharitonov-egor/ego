@@ -28,6 +28,7 @@ import { syncLabel, useLedger } from '../lib/ledger-context'
 import { clearLegacySnapshot } from '../lib/retired'
 import { REST_PRESETS, useRestTimer } from '../lib/rest-timer'
 import { SignInPanel, useGoogleSignIn } from '../components/SignInPanel'
+import { ComposioSection } from '../components/settings/ComposioSection'
 import { useReminder } from '../lib/reminder-context'
 import { REMINDER_HOURS, hourLabel } from '@ego/local/reminders'
 import { Chips, ConfirmDialog, MoneyIcon, money } from '../components/money/Common'
@@ -760,6 +761,8 @@ export default function Settings(): React.ReactElement {
       {signedIn && <ClaudeConnector api={api} />}
 
       {signedIn && <AgentSection api={api} />}
+
+      {signedIn && <ComposioSection api={api} />}
 
       {signedIn && session && <Section Icon={KeyRound} title="Server keys">
         <Text className="mt-3 text-[15px] leading-6 text-muted-foreground">The Worker keeps these as secrets and calls each service for this phone. Add a missing one with npx wrangler secret put.</Text>

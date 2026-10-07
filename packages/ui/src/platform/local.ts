@@ -72,7 +72,8 @@ export const REMOTE_API_METHODS = [
   'webPushKey',
   'saveWebPushSubscription',
   'deleteWebPushSubscription',
-  'testWebPush'
+  'testWebPush',
+  'composioStatus'
 ] as const
 
 export type RemoteApiMethod = typeof REMOTE_API_METHODS[number]

@@ -16,8 +16,8 @@ import { Button } from '../components/ui/button'
 import { Card, CardHeader, CardTitle } from '../components/ui/card'
 import { Text } from '../components/ui/text'
 import {
-  GOAL_EXAMPLES, GOAL_STATUS_LABELS, RUN_REASON_LABELS, RUN_STATUS_LABELS, TRIGGER_LABELS, WEEKDAY_LABELS, WEEKDAY_VALUES,
-  blankDraft, deviceTimeZone, draftFor, draftTrigger, goalFormValue, momentLabel, runResultLabel, weekdayValue,
+  EVENT_FILTER_MAX, EVENT_PRESETS, GOAL_EXAMPLES, GOAL_STATUS_LABELS, RUN_REASON_LABELS, RUN_STATUS_LABELS, TRIGGER_LABELS, WEEKDAY_LABELS,
+  WEEKDAY_VALUES, blankDraft, deviceTimeZone, draftFor, draftTrigger, goalFormValue, momentLabel, runResultLabel, weekdayValue,
   type GoalDraft, type GoalFormValue
 } from '../lib/agent'
 import { Blurred } from '../lib/blur'
@@ -43,6 +43,9 @@ const RUN_COLORS: Record<AgentRunStatus, string> = {
 
 const RECENT_RUNS = 10
 
+const PRESET_SLUGS = EVENT_PRESETS.map((preset) => preset.slug)
+const PRESET_LABELS: Record<string, string> = Object.fromEntries(EVENT_PRESETS.map((preset) => [preset.slug, preset.label]))
+
 function capitalized(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
@@ -58,7 +61,7 @@ function scheduleLine(goal: AgentGoal): string {
 
 function triggerSummary(trigger: AgentTrigger, timeZone: string | null): string {
   if (trigger.type === 'manual') return 'Runs only when you tap Run now or ask for it in chat.'
-  if (trigger.type === 'interval' || !timeZone) return describeTrigger(trigger)
+  if (trigger.type === 'interval' || trigger.type === 'event' || !timeZone) return describeTrigger(trigger)
   return `${describeTrigger(trigger)}, ${timeZone} time`
 }
 
@@ -259,7 +262,7 @@ function GoalForm({ request, busy, error, onSave, onClose }: {
   const value = goalFormValue(draft)
   const canSave = !busy && typeof value !== 'string'
   const save = (): void => { if (canSave) onSave(goal, value) }
-  const timed = draft.type !== 'interval' && draft.type !== 'manual'
+  const timed = draft.type === 'daily' || draft.type === 'weekdays' || draft.type === 'weekly' || draft.type === 'once'
 
   return <BottomSheet visible={request !== null} title={goal ? 'Edit goal' : 'New goal'} onClose={onClose}>
     <Label text="Title">
@@ -308,6 +311,37 @@ function GoalForm({ request, busy, error, onSave, onClose }: {
         className={inputClass}
       />
     </Label>}
+    {draft.type === 'event' && <>
+      <Label text="Trigger">
+        <TextInput
+          value={draft.event}
+          onChangeText={(event) => patch({ event: event.toUpperCase() })}
+          accessibilityLabel="Trigger"
+          placeholder="GMAIL_NEW_GMAIL_MESSAGE"
+          placeholderTextColor="#737373"
+          autoCapitalize="characters"
+          autoCorrect={false}
+          maxLength={100}
+          className={`${inputClass} font-mono`}
+        />
+        <View className="mt-3">
+          <Chips values={PRESET_SLUGS} value={draft.event.trim()} labels={PRESET_LABELS} onChange={(event) => patch({ event })} />
+        </View>
+        <Text className="mt-2 text-[14px] leading-5 text-muted-foreground">Trigger names come from Composio. Connect the app first by asking the chat.</Text>
+      </Label>
+      <Label text="Only when it mentions">
+        <TextInput
+          value={draft.filter}
+          onChangeText={(filter) => patch({ filter })}
+          accessibilityLabel="Only when it mentions"
+          placeholder="Optional, like invoice"
+          placeholderTextColor="#737373"
+          autoCapitalize="none"
+          maxLength={EVENT_FILTER_MAX}
+          className={inputClass}
+        />
+      </Label>
+    </>}
     <Text className={`text-[15px] leading-5 ${typeof trigger === 'string' ? 'text-attention' : 'text-muted-foreground'}`}>
       {typeof trigger === 'string' ? trigger : triggerSummary(trigger, goal?.timeZone ?? deviceTimeZone())}
     </Text>
@@ -414,8 +448,11 @@ function Goals(): React.ReactElement {
     setSheetError(null)
     const result = await api.updateAgentGoal(goal.id, update)
     setBusy(null)
-    if (result.ok) keep(result.data)
-    else if (result.error.code === 'NOT_FOUND') {
+    if (result.ok) {
+      const { notice: warning, ...saved } = result.data
+      keep(saved)
+      if (warning) setNotice({ goalId: saved.id, text: warning, failed: true, sessionUrl: null })
+    } else if (result.error.code === 'NOT_FOUND') {
       forget(goal.id)
       setSelectedId(null)
       setListError(result.error.message)
@@ -445,9 +482,11 @@ function Goals(): React.ReactElement {
       setFormError(result.error.message)
       return
     }
-    keep(result.data)
+    const { notice: warning, ...saved } = result.data
+    keep(saved)
     setForm(null)
-    if (goal) openGoal(result.data)
+    if (goal || warning) openGoal(saved)
+    if (warning) setNotice({ goalId: saved.id, text: warning, failed: true, sessionUrl: null })
   }
 
   const closeForm = (): void => {

@@ -120,6 +120,21 @@ The web app uses Web Push with the Worker's own VAPID keys. Settings, Agent turn
 browser and sends a test. The Worker encrypts each payload as RFC 8291 describes and pushes it the
 moment a message is ready, or from the 15-minute cron once quiet hours end. Make the keys once with
 `node scripts/web-push-keys.mjs` and store them as `WEB_PUSH_PUBLIC_KEY` and `WEB_PUSH_PRIVATE_KEY`.
+### Other apps
+
+The chat reaches the user's other apps through Composio: Gmail, Google Drive, Slack, Notion, web
+search, and hundreds more. `app_search` finds actions, `app_run` runs the ones that only read, and
+`app_change` puts anything that sends, creates, changes, or deletes on the chat's card first. When an
+app is not connected, `app_connect` returns a link to connect it. Each dataset has one Composio user,
+`ego-<dataset>`, and one Tool Router session. Wispr Flow meetings and notes reach the text chat
+through the token Ego already keeps for Talk to AI.
+
+A goal can also run on an app event: a Composio trigger like `GMAIL_NEW_GMAIL_MESSAGE`, plus text
+the event must contain. Saving the goal turns the trigger on. Composio posts each event to
+`/v1/composio/webhook`, which checks the signature, handles each delivery once, and starts a run with
+the event attached as untrusted text. The Worker needs `COMPOSIO_API_KEY`, and
+`COMPOSIO_WEBHOOK_SECRET` from a Composio webhook subscription that points at that URL and sends
+`composio.trigger.message`.
 
 ## Money
 

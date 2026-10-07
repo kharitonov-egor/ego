@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { AssistantChat } from '@ego/api-contracts'
-import { ASSISTANT_TOOLS, isAgentTrigger } from '@ego/core'
+import { ASSISTANT_TOOLS, isAgentTrigger, isTriggerSlug } from '@ego/core'
 import {
-  defaultChat, draftFromTrigger, findChat, fireMessage, momentInSentence, momentLabel, putChatFirst, testPushMessage, triggerFromDraft, trustOptions,
-  withTrust, type TriggerDraft
+  EVENT_TRIGGER_EXAMPLES, defaultChat, draftFromTrigger, findChat, fireMessage, momentInSentence, momentLabel, putChatFirst, testPushMessage,
+  triggerFromDraft, trustOptions, withTrust, type TriggerDraft
 } from './agent'
 
-const BLANK: TriggerDraft = { type: 'daily', time: '07:00', weekday: 1, hours: '4', date: '2026-10-07' }
+const BLANK: TriggerDraft = { type: 'daily', time: '07:00', weekday: 1, hours: '4', date: '2026-10-07', slug: '', filter: '' }
 
 describe('the When picker', () => {
   it('builds each kind of trigger from only the fields it needs', () => {
@@ -15,6 +15,15 @@ describe('the When picker', () => {
     expect(triggerFromDraft({ ...BLANK, type: 'interval', hours: '6' })).toEqual({ type: 'interval', hours: 6 })
     expect(triggerFromDraft({ ...BLANK, type: 'once', date: '2026-10-09', time: '15:30' })).toEqual({ type: 'once', date: '2026-10-09', time: '15:30' })
     expect(triggerFromDraft({ ...BLANK, type: 'manual', time: '' })).toEqual({ type: 'manual' })
+    expect(triggerFromDraft({ ...BLANK, type: 'event', time: '', slug: 'GMAIL_NEW_GMAIL_MESSAGE' }))
+      .toEqual({ type: 'event', trigger: 'GMAIL_NEW_GMAIL_MESSAGE', filter: null })
+  })
+
+  it('tidies an event trigger: the name in capitals, a blank filter as none', () => {
+    expect(triggerFromDraft({ ...BLANK, type: 'event', slug: ' slack_receive_message ', filter: '  invoice ' }))
+      .toEqual({ type: 'event', trigger: 'SLACK_RECEIVE_MESSAGE', filter: 'invoice' })
+    expect(triggerFromDraft({ ...BLANK, type: 'event', slug: 'GITHUB_COMMIT_EVENT', filter: '   ' }))
+      .toEqual({ type: 'event', trigger: 'GITHUB_COMMIT_EVENT', filter: null })
   })
 
   it('says what is missing instead of saving a trigger the Worker would refuse', () => {
@@ -23,12 +32,20 @@ describe('the When picker', () => {
     expect(triggerFromDraft({ ...BLANK, type: 'interval', hours: '' })).toBe('Pick a whole number of hours from 1 to 168')
     expect(triggerFromDraft({ ...BLANK, type: 'interval', hours: '2.5' })).toBe('Pick a whole number of hours from 1 to 168')
     expect(triggerFromDraft({ ...BLANK, type: 'interval', hours: '169' })).toBe('Pick a whole number of hours from 1 to 168')
+    expect(triggerFromDraft({ ...BLANK, type: 'event', slug: '' })).toBe('Enter a Composio trigger name, like GMAIL_NEW_GMAIL_MESSAGE')
+    expect(triggerFromDraft({ ...BLANK, type: 'event', slug: 'new email' })).toBe('Enter a Composio trigger name, like GMAIL_NEW_GMAIL_MESSAGE')
+    expect(triggerFromDraft({ ...BLANK, type: 'event', slug: 'GMAIL_NEW_GMAIL_MESSAGE', filter: 'x'.repeat(201) })).toBe('Keep the filter to 200 characters')
+  })
+
+  it('offers example events the Worker accepts', () => {
+    for (const example of EVENT_TRIGGER_EXAMPLES) expect(isTriggerSlug(example.slug)).toBe(true)
   })
 
   it('round-trips a saved trigger through the picker', () => {
     for (const trigger of [
       { type: 'daily', time: '21:15' }, { type: 'weekly', weekday: 3, time: '08:00' }, { type: 'interval', hours: 12 },
-      { type: 'once', date: '2026-12-31', time: '23:59' }, { type: 'manual' }
+      { type: 'once', date: '2026-12-31', time: '23:59' }, { type: 'manual' },
+      { type: 'event', trigger: 'GMAIL_NEW_GMAIL_MESSAGE', filter: null }, { type: 'event', trigger: 'SLACK_RECEIVE_MESSAGE', filter: 'standup' }
     ]) {
       expect(isAgentTrigger(trigger)).toBe(true)
       if (isAgentTrigger(trigger)) expect(triggerFromDraft(draftFromTrigger(trigger, '2026-10-07'))).toEqual(trigger)
@@ -87,7 +104,7 @@ describe('the chat list', () => {
 })
 
 describe('trusted changes', () => {
-  it('offers every write tool except goals and delegation, each with a plain label', () => {
+  it('offers every write tool except goals, delegation, and app changes, each with a plain label', () => {
     const options = trustOptions()
     const names = options.map((option) => option.name)
     expect(names).toContain('log_habit')
@@ -95,6 +112,7 @@ describe('trusted changes', () => {
     expect(names).not.toContain('create_goal')
     expect(names).not.toContain('update_goal')
     expect(names).not.toContain('delegate_task')
+    expect(names).not.toContain('app_change')
     expect(names.every((name) => ASSISTANT_TOOLS[name].access === 'write')).toBe(true)
     expect(options.filter((option) => option.label === option.name.replace(/_/g, ' '))).toEqual([])
   })

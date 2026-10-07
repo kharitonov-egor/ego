@@ -18,7 +18,8 @@ export interface ToolSchema {
   maxItems?: number
   properties?: Record<string, ToolSchema>
   required?: string[]
-  additionalProperties?: false
+  /** true passes unknown keys through unchecked, for arguments another service validates. */
+  additionalProperties?: boolean
 }
 
 export type ToolValidation =
@@ -84,10 +85,11 @@ function check(schema: ToolSchema, value: unknown, path: string): Checked {
   if (typeof value === 'object') {
     const properties = schema.properties ?? {}
     const input = value as Record<string, unknown>
+    const open = schema.additionalProperties === true
     for (const key of Object.keys(input)) {
-      if (!Object.prototype.hasOwnProperty.call(properties, key)) return { ok: false, error: `${path}.${key} is not a known field` }
+      if (!open && !Object.prototype.hasOwnProperty.call(properties, key)) return { ok: false, error: `${path}.${key} is not a known field` }
     }
-    const output: Record<string, unknown> = {}
+    const output: Record<string, unknown> = open ? { ...input } : {}
     for (const [key, property] of Object.entries(properties)) {
       const checked = check(property, input[key], path === '' ? key : `${path}.${key}`)
       if (!checked.ok) return checked

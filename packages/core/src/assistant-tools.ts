@@ -40,6 +40,13 @@ export type AssistantToolName =
   | 'create_goal'
   | 'update_goal'
   | 'delegate_task'
+  | 'app_search'
+  | 'app_schemas'
+  | 'app_connect'
+  | 'app_run'
+  | 'app_change'
+  | 'wispr_tools'
+  | 'wispr_call'
 
 /** `direct` tools change something small and run inside the turn, with no card: memory notes. */
 export type AssistantToolAccess = 'read' | 'write' | 'direct'
@@ -152,12 +159,17 @@ const gymSet = object({
 const goalTitle: ToolSchema = { type: 'string', minLength: 1, maxLength: 80 }
 const goalInstructions: ToolSchema = { type: 'string', minLength: 3, maxLength: 4000, description: 'What to do on each run, in plain words' }
 const goalTrigger = object({
-  type: { type: 'string', enum: ['daily', 'weekdays', 'weekly', 'interval', 'once', 'manual'], description: 'manual runs only when asked' },
+  type: { type: 'string', enum: ['daily', 'weekdays', 'weekly', 'interval', 'once', 'manual', 'event'], description: 'manual runs only when asked; event runs when a connected app reports something' },
   time: { ...nullableTime, description: '24-hour HH:MM on the user\'s clock, for daily, weekdays, weekly, and once' },
   weekday: { type: ['integer', 'null'], minimum: 1, maximum: 7, description: '1 for Monday to 7 for Sunday, for weekly' },
   hours: { type: ['integer', 'null'], minimum: 1, maximum: 168, description: 'Hours between runs, for interval' },
-  date: { ...nullableDate, description: 'YYYY-MM-DD, for once' }
+  date: { ...nullableDate, description: 'YYYY-MM-DD, for once' },
+  event: { type: ['string', 'null'], maxLength: 100, description: 'A Composio trigger slug like GMAIL_NEW_GMAIL_MESSAGE, for event' },
+  filter: { type: ['string', 'null'], maxLength: 200, description: 'Text the event must contain, for event, or null for every one' }
 }, 'When the goal runs. Fields its type does not use are null.')
+
+const appSlug: ToolSchema = { type: 'string', minLength: 3, maxLength: 120, pattern: '^[A-Z0-9_]+$', description: 'A tool slug from app_search, like GMAIL_FETCH_EMAILS' }
+const appArguments: ToolSchema = { type: 'object', additionalProperties: true, description: 'Arguments exactly as the tool\'s schema from app_search or app_schemas lists them' }
 
 export const ASSISTANT_TOOLS: Record<AssistantToolName, AssistantToolDefinition> = {
   read_mood: {
@@ -443,6 +455,55 @@ export const ASSISTANT_TOOLS: Record<AssistantToolName, AssistantToolDefinition>
     description: 'Pause, resume, mute, unmute, delete, or run now one standing goal, by its id from list_goals.',
     parameters: object({ goalId: id, action: { type: 'string', enum: ['pause', 'resume', 'mute', 'unmute', 'delete', 'run_now'] } }),
     access: 'write'
+  },
+  app_search: {
+    name: 'app_search',
+    description: 'Find actions in the user\'s other apps through Composio: Gmail, Google Drive, Docs, Sheets, Slack, Notion, GitHub, Outlook, web search, and hundreds more. Describe one task; it returns matching tool slugs with their argument schemas and whether the app is connected.',
+    parameters: object({
+      task: { type: 'string', minLength: 3, maxLength: 500, description: 'One action in plain English with the app named, like "fetch unread Gmail emails from today"' },
+      knownFields: { type: ['string', 'null'], maxLength: 200, description: 'Known identifiers as key:value pairs, like "channel_name:general", or null' }
+    }),
+    access: 'read'
+  },
+  app_schemas: {
+    name: 'app_schemas',
+    description: 'The full argument schemas for tool slugs app_search returned, when its summary was not enough.',
+    parameters: object({ tools: { type: 'array', minItems: 1, maxItems: 10, items: appSlug } }),
+    access: 'read'
+  },
+  app_connect: {
+    name: 'app_connect',
+    description: 'Start connecting one of the user\'s apps, like gmail or slack, when app_search says it is not connected. Returns a link; give it to the user as is and ask them to reply when done.',
+    parameters: object({ app: { type: 'string', minLength: 2, maxLength: 60, pattern: '^[a-z0-9_]+$', description: 'The toolkit slug from app_search, like gmail' } }),
+    access: 'read'
+  },
+  app_run: {
+    name: 'app_run',
+    description: 'Run an app action that only reads, like fetching emails, searching files, or a web search. Anything that sends, creates, changes, or deletes must go through app_change instead.',
+    parameters: object({ tool: appSlug, arguments: appArguments }),
+    access: 'read'
+  },
+  app_change: {
+    name: 'app_change',
+    description: 'Run an app action that sends, creates, changes, or deletes something, like sending an email or creating a document. It waits on a card for the user to confirm.',
+    parameters: object({
+      tool: appSlug,
+      arguments: appArguments,
+      summary: { type: 'string', minLength: 3, maxLength: 200, description: 'What this will do, in one plain sentence for the card' }
+    }),
+    access: 'write'
+  },
+  wispr_tools: {
+    name: 'wispr_tools',
+    description: 'The tools of the user\'s Wispr Flow connection, with their argument schemas: meetings, transcripts, notes, and the calendar events they came from.',
+    parameters: object({}),
+    access: 'read'
+  },
+  wispr_call: {
+    name: 'wispr_call',
+    description: 'Call one Wispr Flow tool listed by wispr_tools. Every one only reads.',
+    parameters: object({ tool: { type: 'string', minLength: 2, maxLength: 80, pattern: '^[a-z0-9_]+$' }, arguments: appArguments }),
+    access: 'read'
   },
   delegate_task: {
     name: 'delegate_task',

@@ -1,7 +1,7 @@
 import type {
   AccountBalances, AgentFireResult, AgentGoal, AgentGoalInput, AgentGoalList, AgentGoalUpdate, AgentInbox, AgentKeyCreated,
   AgentKeyList, AgentMemory, AgentMemoryList, AgentNotificationPage, AgentRunList, AgentSettings, AgentSettingsView, ApiError,
-  AssistantMessage, WebPushKey, WebPushSubscriptionInput, WebPushTestResult, ApiErrorCode, ApiResult, AppBuildStatus, AssistantChatList, AssistantConfirmRequest,
+  AssistantMessage, ComposioStatus, WebPushKey, WebPushSubscriptionInput, WebPushTestResult, ApiErrorCode, ApiResult, AppBuildStatus, AssistantChatList, AssistantConfirmRequest,
   AssistantHistory, AssistantStreamEvent, AssistantTurnRequest, BootstrapData, CalendarConnectStart, CalendarCreateRequest,
   CalendarDeleteRequest, CalendarEventRef, CalendarListChange, CalendarRange, CalendarRestoreRequest, CalendarRsvpRequest, CalendarSeries,
   CalendarSnapshot, CalendarUpdateRequest, ChangePage, DeviceList, DiaryMediaInfo, DocketDetail, DocketKeyCreated, DocketKeyList,
@@ -155,6 +155,7 @@ export interface AgentApi {
   saveWebPushSubscription: (subscription: WebPushSubscriptionInput) => Promise<ApiResult<{ subscribed: true }>>
   deleteWebPushSubscription: (endpoint: string) => Promise<ApiResult<{ unsubscribed: true }>>
   testWebPush: () => Promise<ApiResult<WebPushTestResult>>
+  composioStatus: () => Promise<ApiResult<ComposioStatus>>
 }
 
 export interface EgoApi extends MoneyApi, StudyApi, HealthApi, CalendarApi, DiaryMediaApi, AssistantApi, FoodApi, DocketApi, AgentApi {
@@ -493,6 +494,7 @@ export function moneyApiFor(config: ApiConfig, options: { streamFetch?: StreamFe
     saveWebPushSubscription: (subscription) => call<{ subscribed: true }>('/v1/agent/web-push', { method: 'POST', body: JSON.stringify(subscription) }),
     deleteWebPushSubscription: (endpoint) => call<{ unsubscribed: true }>('/v1/agent/web-push', { method: 'DELETE', body: JSON.stringify({ endpoint }) }),
     testWebPush: () => call<WebPushTestResult>('/v1/agent/web-push/test', { method: 'POST', body: '{}' }),
+    composioStatus: () => call<ComposioStatus>('/v1/agent/composio'),
     docketKeys: () => call<DocketKeyList>('/v1/docket-keys'),
     createDocketKey: (name) => call<DocketKeyCreated>('/v1/docket-keys', {
       method: 'POST',

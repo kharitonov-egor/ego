@@ -9,9 +9,11 @@ export type AgentTrigger =
   | { type: 'interval'; hours: number }
   | { type: 'once'; date: string; time: string }
   | { type: 'manual' }
+  /** A Composio trigger, like GMAIL_NEW_GMAIL_MESSAGE. `filter` is text the event must contain. */
+  | { type: 'event'; trigger: string; filter: string | null }
 
 export type AgentTriggerType = AgentTrigger['type']
-export const AGENT_TRIGGER_TYPES: readonly AgentTriggerType[] = ['daily', 'weekdays', 'weekly', 'interval', 'once', 'manual']
+export const AGENT_TRIGGER_TYPES: readonly AgentTriggerType[] = ['daily', 'weekdays', 'weekly', 'interval', 'once', 'manual', 'event']
 
 /** The flat shape tools send, since their schemas cannot branch. Fields a type does not use are null. */
 export interface AgentTriggerInput {
@@ -20,6 +22,8 @@ export interface AgentTriggerInput {
   weekday: number | null
   hours: number | null
   date: string | null
+  event: string | null
+  filter: string | null
 }
 
 export interface AgentDevices {
@@ -61,6 +65,7 @@ export function isAgentTrigger(value: unknown): value is AgentTrigger {
     case 'interval': return isInteger(value.hours, 1, 168)
     case 'once': return isClock(value.time) && typeof value.date === 'string' && DATE.test(value.date)
     case 'manual': return true
+    case 'event': return isTriggerSlug(value.trigger) && (value.filter === null || (typeof value.filter === 'string' && value.filter.length <= 200))
     default: return false
   }
 }
@@ -82,7 +87,32 @@ export function triggerFromInput(input: AgentTriggerInput): AgentTrigger | strin
       return input.date && DATE.test(input.date) ? { type: 'once', date: input.date, time } : 'A one-off goal needs date as YYYY-MM-DD'
     case 'manual':
       return { type: 'manual' }
+    case 'event': {
+      const slug = input.event?.trim().toUpperCase() ?? ''
+      if (!isTriggerSlug(slug)) return 'An event goal needs event as a Composio trigger slug, like GMAIL_NEW_GMAIL_MESSAGE'
+      const filter = input.filter?.trim() ?? ''
+      return { type: 'event', trigger: slug, filter: filter ? filter.slice(0, 200) : null }
+    }
   }
+}
+
+const TRIGGER_SLUG = /^[A-Z][A-Z0-9_]{2,99}$/
+
+export function isTriggerSlug(value: unknown): value is string {
+  return typeof value === 'string' && TRIGGER_SLUG.test(value)
+}
+
+/** Whether a Composio event starts an event goal: the same trigger, and the filter text somewhere in it. */
+export function eventMatches(trigger: AgentTrigger, slug: string, payload: string): boolean {
+  if (trigger.type !== 'event' || trigger.trigger !== slug.toUpperCase()) return false
+  return trigger.filter === null || payload.toLowerCase().includes(trigger.filter.toLowerCase())
+}
+
+/** GMAIL_NEW_GMAIL_MESSAGE reads as "Gmail: new gmail message". */
+export function describeSlug(slug: string): string {
+  const [app = '', ...rest] = slug.toLowerCase().split('_')
+  const name = app.charAt(0).toUpperCase() + app.slice(1)
+  return rest.length > 0 ? `${name}: ${rest.join(' ')}` : name
 }
 
 export function isAgentSettings(value: unknown): value is AgentSettings {
@@ -192,6 +222,7 @@ function weekdayOf(date: string): number {
 export function nextRunAt(trigger: AgentTrigger, afterMs: number, timeZone: string, lastRunMs: number | null = null): number | null {
   switch (trigger.type) {
     case 'manual':
+    case 'event':
       return null
     case 'interval': {
       const step = trigger.hours * 3_600_000
@@ -240,6 +271,7 @@ export function describeTrigger(trigger: AgentTrigger): string {
       return `Once on ${day} at ${clockLabel(trigger.time)}`
     }
     case 'manual': return 'Only when asked'
+    case 'event': return `When ${describeSlug(trigger.trigger)}${trigger.filter ? ` mentions "${trigger.filter}"` : ' arrives'}`
   }
 }
 

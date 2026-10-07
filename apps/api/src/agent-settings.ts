@@ -18,6 +18,8 @@ export interface AgentSettingsRecord extends AgentSettings {
   lastFireError: string | null
   /** Fire times in the last hour. The routine's API trigger allows only so many. */
   fires: string[]
+  /** The Composio Tool Router session the chat's app tools run in. */
+  composioSessionId: string | null
 }
 
 const DEFAULTS: AgentSettingsRecord = {
@@ -29,7 +31,8 @@ const DEFAULTS: AgentSettingsRecord = {
   readAt: null,
   lastFiredAt: null,
   lastFireError: null,
-  fires: []
+  fires: [],
+  composioSessionId: null
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -40,9 +43,12 @@ function stringOrNull(value: unknown): string | null {
   return typeof value === 'string' ? value : null
 }
 
-/** Only write tools can be trusted; anything else in the list is dropped. */
+/** Goal management and actions in other apps always need the user, so they can never be trusted. */
+const NEVER_TRUSTED: ReadonlySet<string> = new Set(['create_goal', 'update_goal', 'delegate_task', 'app_change'])
+
+/** Only write tools on Ego's own data can be trusted; anything else in the list is dropped. */
 export function trustedTools(list: readonly string[]): string[] {
-  return [...new Set(list)].filter((name) => isAssistantToolName(name) && ASSISTANT_TOOLS[name].access === 'write')
+  return [...new Set(list)].filter((name) => isAssistantToolName(name) && ASSISTANT_TOOLS[name].access === 'write' && !NEVER_TRUSTED.has(name))
 }
 
 export function parseSettings(raw: string | null): AgentSettingsRecord {
@@ -60,7 +66,8 @@ export function parseSettings(raw: string | null): AgentSettingsRecord {
     readAt: stringOrNull(value.readAt),
     lastFiredAt: stringOrNull(value.lastFiredAt),
     lastFireError: stringOrNull(value.lastFireError),
-    fires: Array.isArray(value.fires) ? value.fires.filter((item): item is string => typeof item === 'string') : []
+    fires: Array.isArray(value.fires) ? value.fires.filter((item): item is string => typeof item === 'string') : [],
+    composioSessionId: stringOrNull(value.composioSessionId)
   }
 }
 

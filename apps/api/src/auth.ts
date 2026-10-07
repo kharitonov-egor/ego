@@ -50,6 +50,10 @@ export interface Env {
   WEB_PUSH_PRIVATE_KEY?: string
   /** Who push services can contact about this sender, a mailto: or https: URL. Defaults to the web app. */
   WEB_PUSH_SUBJECT?: string
+  /** A Composio project API key. The chat reaches the user's other apps through it. */
+  COMPOSIO_API_KEY?: string
+  /** The signing secret of the Composio webhook subscription that points at /v1/composio/webhook. */
+  COMPOSIO_WEBHOOK_SECRET?: string
 }
 
 interface DeviceRow {
