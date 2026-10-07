@@ -19,12 +19,13 @@ function commitHash(): string {
 const workspaceSources = [
   { find: '@ego/core', replacement: resolve(__dirname, '../../packages/core/src/index.ts') },
   { find: /^@ego\/api-contracts$/, replacement: resolve(__dirname, '../../packages/api-contracts/src/index.ts') },
-  { find: /^@ego\/local\/(.*)$/, replacement: resolve(__dirname, '../../packages/local/src/$1') }
+  { find: /^@ego\/local\/(.*)$/, replacement: resolve(__dirname, '../../packages/local/src/$1') },
+  { find: /^@ego\/ui\/(.*)$/, replacement: resolve(__dirname, '../../packages/ui/src/$1') }
 ]
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({ exclude: ['@ego/core', '@ego/api-contracts', '@ego/local'] })],
+    plugins: [externalizeDepsPlugin({ exclude: ['@ego/core', '@ego/api-contracts', '@ego/local', '@ego/ui'] })],
     resolve: {
       alias: workspaceSources
     },
@@ -40,10 +41,7 @@ export default defineConfig({
       __EGO_COMMIT__: JSON.stringify(commitHash())
     },
     resolve: {
-      alias: [
-        { find: '@', replacement: resolve('src/renderer') },
-        ...workspaceSources
-      ]
+      alias: workspaceSources
     },
     plugins: [react()],
     css: {

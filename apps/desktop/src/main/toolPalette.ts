@@ -18,7 +18,7 @@ import type {
   MediaDownloadResult,
   MediaDownloaderStatus,
   OcrResult
-} from '../shared/types'
+} from '@ego/ui/platform/types'
 
 const PALETTE_WIDTH = 560
 const PALETTE_HEIGHT = 420

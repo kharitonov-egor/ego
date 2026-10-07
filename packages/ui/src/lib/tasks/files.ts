@@ -1,7 +1,7 @@
 import type { TaskAttachment, TaskAttachmentKind } from '@ego/core'
 import type { QueuedUpload } from '@ego/local/diary/uploads'
 import { newId } from '@ego/local/sync/commands'
-import type { StagedMedia } from '../../../shared/local'
+import type { StagedMedia } from '../../platform/local'
 
 /** Photos above this edge get a smaller copy for the board. The original stays for the viewer. */
 const PREVIEW_EDGE = 1280

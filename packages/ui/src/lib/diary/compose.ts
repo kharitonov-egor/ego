@@ -1,7 +1,7 @@
 import type { DiaryAttachment, DiaryAttachmentKind } from '@ego/core'
 import type { QueuedUpload } from '@ego/local/diary/uploads'
 import { newId } from '@ego/local/sync/commands'
-import type { StagedMedia } from '../../../shared/local'
+import type { StagedMedia } from '../../platform/local'
 
 /** Something picked, pasted, dropped, or recorded in the composer, not yet copied or queued. */
 export interface DraftFile {

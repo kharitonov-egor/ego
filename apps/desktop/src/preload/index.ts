@@ -4,10 +4,10 @@ import type {
   IpcApi,
   QuickAddListShortcut,
   QuickAddPayload
-} from '../shared/types'
+} from '@ego/ui/platform/types'
 import type {
   AssistantStreamMessage, LedgerEvent, MediaProgress, RemoteApi, RemoteApiMethod, SignInOutcome
-} from '../shared/local'
+} from '@ego/ui/platform/local'
 
 const api: IpcApi = {
   localAll: (transaction, sql, params) => ipcRenderer.invoke('local-all', transaction, sql, params),

@@ -5,7 +5,7 @@ import {
   formatCalories, formatGrams,
   type FoodEntryInput, type FoodGoalInput, type FoodMacros, type FoodPhoto
 } from '@ego/core'
-import { mediaUrl } from '../../../shared/local'
+import { mediaUrl } from '../../platform/local'
 import { useBlur } from '../../lib/blur'
 import { useFood } from '../../lib/food/context'
 import { useLedger } from '../../lib/ledger'

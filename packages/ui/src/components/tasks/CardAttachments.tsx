@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, FileText, Play, RotateCcw, Trash2, TriangleA
 import type { TaskCardRecord } from '@ego/api-contracts'
 import type { TaskAttachment } from '@ego/core'
 import { extensionLabel, sizeLabel } from '@ego/local/diary/format'
-import { mediaUrl } from '../../../shared/local'
+import { mediaUrl } from '../../platform/local'
 import { useBlur } from '../../lib/blur'
 import { useTasks } from '../../lib/tasks/context'
 import { useUploadProgress } from '../../lib/tasks/progress'

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TaskBoardRecord, TaskCardRecord, TaskListRecord } from '@ego/api-contracts'
 import type { TaskData } from '@ego/local/tasks/repository'
 import { taskNotificationPlan, type PlannedNotification } from '@ego/local/tasks/reminders'
-import type { NotifyInput } from '../../../shared/local'
+import type { NotifyInput } from '../../platform/local'
 import { LONGEST_TIMER_MS, createReminderScheduler, notificationRoute } from './scheduler'
 
 const STAMP = '2026-10-01T09:00:00.000Z'

@@ -1,6 +1,6 @@
 import { ipcMain, type IpcMainInvokeEvent, type WebContents } from 'electron'
 import type { SqlParam } from '@ego/local/database/types'
-import { isRemoteApiMethod, type MediaFileInput, type MediaOpenInput, type MediaPathInput } from '../../shared/local'
+import { isRemoteApiMethod, type MediaFileInput, type MediaOpenInput, type MediaPathInput } from '@ego/ui/platform/local'
 import { getPreference, setPreference } from '../settings'
 import { streamAssistant } from './assistant'
 import { ledgerApi, ledgerDatabase, ledgerState, syncLedger } from './ledger'

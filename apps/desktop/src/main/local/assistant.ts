@@ -5,7 +5,7 @@ import {
 } from '@ego/api-contracts'
 import { MAX_TRANSACTION_IMAGE_BYTES } from '@ego/core'
 import type { AssistantApi } from '@ego/local/api-client'
-import type { AssistantStreamMessage } from '../../shared/local'
+import type { AssistantStreamMessage } from '@ego/ui/platform/local'
 
 const STREAM_ID = /^[A-Za-z0-9_-]{1,64}$/
 const DAY = /^\d{4}-\d{2}-\d{2}$/

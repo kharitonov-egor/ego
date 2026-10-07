@@ -1,6 +1,5 @@
 import React from 'react'
 import { Navigate, Route, Routes, useNavigate } from 'react-router'
-import TitleBar from './components/TitleBar'
 import TalkToAIView from './components/TalkToAIView'
 import { Sidebar } from './components/Sidebar'
 import { BlurProvider } from './lib/blur'
@@ -75,11 +74,19 @@ function Providers({ children }: { children: React.ReactNode }): React.ReactElem
   </BlurProvider>
 }
 
-export default function App(): React.ReactElement {
+export interface AppProps {
+  /** The desktop's frameless window draws its own title bar here. */
+  titleBar?: React.ReactNode
+  /** Windows the host opens over every screen, like the web's quick add. */
+  overlay?: React.ReactNode
+}
+
+export default function App({ titleBar, overlay }: AppProps): React.ReactElement {
   return <Providers>
     <div className="flex h-screen flex-col overflow-hidden bg-background text-foreground">
       <NavigationRequests />
-      <TitleBar />
+      {titleBar}
+      {overlay}
       <div className="flex min-h-0 flex-1">
         <Sidebar />
         <main className="min-w-0 flex-1 overflow-hidden">

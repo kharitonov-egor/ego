@@ -1,4 +1,4 @@
-import type { DesktopApiResult, LiveCreateSessionResult } from '../../shared/types'
+import type { DesktopApiResult, LiveCreateSessionResult } from '../platform/types'
 import {
   LIVE_TOOL_REGISTRY,
   isLiveToolName,

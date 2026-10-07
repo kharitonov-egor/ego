@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AssistantConfirmRequest, AssistantStreamEvent, AssistantTurnRequest } from '@ego/api-contracts'
 import type { AssistantEventHandler } from '@ego/local/api-client'
-import type { AssistantStreamMessage } from '../../shared/local'
+import type { AssistantStreamMessage } from '@ego/ui/platform/local'
 import { parseConfirmRequest, parseTurnRequest, streamAssistant } from './assistant'
 
 const turn: AssistantTurnRequest = {

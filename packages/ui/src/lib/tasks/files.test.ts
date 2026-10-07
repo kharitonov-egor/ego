@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { MediaFileInput, StagedMedia } from '../../../shared/local'
+import type { MediaFileInput, StagedMedia } from '../../platform/local'
 import { persistFiles, transferredFiles } from './files'
 
 function stubApi(fail: (input: MediaFileInput) => boolean): { deleted: string[][] } {

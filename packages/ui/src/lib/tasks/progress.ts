@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import type { MediaProgress } from '../../../shared/local'
+import type { MediaProgress } from '../../platform/local'
 
 /** Upload progress by media ID, from 0 to 1, as the main process sends a file during sync. */
 const progress = new Map<string, number>()

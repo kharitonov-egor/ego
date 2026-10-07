@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
 import { LiveSessionController, appendTranscript, type LiveSessionStatus } from './LiveSessionController'
-import type { LiveCreateSessionResult } from '../../shared/types'
+import type { LiveCreateSessionResult } from '../platform/types'
 import type { LiveToolExecuteRequest, LiveToolExecuteResult } from '@ego/api-contracts'
 
 class FakeTrack {

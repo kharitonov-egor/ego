@@ -1,5 +1,5 @@
-import type { RemoteApi, RemoteApiMethod } from '../../shared/local'
-import { createRemoteDatabase } from '../../shared/remote-database'
+import type { RemoteApi, RemoteApiMethod } from '../platform/local'
+import { createRemoteDatabase } from '../platform/remote-database'
 
 export const remoteDatabase = createRemoteDatabase(() => window.api)
 

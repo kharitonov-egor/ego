@@ -1,7 +1,7 @@
 import { safeStorage } from 'electron'
 import Store from 'electron-store'
-import type { QuickAddListShortcut } from '../shared/types'
-import type { SignedInAccount } from '../shared/local'
+import type { QuickAddListShortcut } from '@ego/ui/platform/types'
+import type { SignedInAccount } from '@ego/ui/platform/local'
 import {
   DEFAULT_LIVE_PREFERENCES,
   isLivePreferences,

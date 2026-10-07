@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { ListPlus, RefreshCw, X } from 'lucide-react'
-import type { QuickAddListShortcut, TrelloBoardSummary, TrelloListSummary } from '../../../shared/types'
+import type { QuickAddListShortcut, TrelloBoardSummary, TrelloListSummary } from '../../platform/types'
 import HotkeyInput from '../HotkeyInput'
 import { FieldLabel, Section, SectionNote } from '../Section'
 import { Badge } from '../ui/badge'

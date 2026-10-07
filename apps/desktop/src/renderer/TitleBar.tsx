@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { Minus, Square, X, Package, LoaderCircle, Check, CircleAlert } from 'lucide-react'
-import { windowMinimize, windowMaximize, windowClose } from '../hooks/useIpc'
-import appIcon from '../app-icon.png'
-import type { BuildStage } from '../../shared/types'
-import { cn } from '../lib/utils'
+import { windowMinimize, windowMaximize, windowClose } from './windowControls'
+import appIcon from './app-icon.png'
+import type { BuildStage } from '@ego/ui/platform/types'
+import { cn } from '@ego/ui/lib/utils'
 
 type BuildStatus = 'idle' | BuildStage
 

@@ -1,5 +1,5 @@
 import { TASK_DIGEST_PREFIX, cardIdFromNotification, type PlannedNotification } from '@ego/local/tasks/reminders'
-import type { NotifyInput } from '../../../shared/local'
+import type { NotifyInput } from '../../platform/local'
 
 /** The longest delay setTimeout holds, about 24.8 days. The hourly replan reaches anything later. */
 export const LONGEST_TIMER_MS = 2 ** 31 - 1

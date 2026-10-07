@@ -4,7 +4,7 @@ import { getQuickAddListShortcuts, getTrelloListId } from './settings'
 import { captureToTrello } from '@ego/core'
 import { trello } from './trello'
 import { getAppIconPath } from './icon'
-import type { QuickAddPayload, QuickAddResult } from '../shared/types'
+import type { QuickAddPayload, QuickAddResult } from '@ego/ui/platform/types'
 
 let quickAddWindow: BrowserWindow | null = null
 let previewExpanded = false

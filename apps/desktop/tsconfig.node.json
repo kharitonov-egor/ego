@@ -6,18 +6,21 @@
     "target": "ESNext",
     "lib": ["ESNext"],
     "outDir": "./out/types/node",
-    "rootDir": ".",
+    "rootDir": "../..",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "declaration": true
+    "declaration": true,
+    "paths": {
+      "@ego/ui/*": ["../../packages/ui/src/*"]
+    }
   },
   "include": [
     "src/main/**/*",
     "src/preload/**/*",
-    "src/shared/**/*",
+    "../../packages/ui/src/platform/**/*",
     "electron.vite.config.ts"
   ]
 }

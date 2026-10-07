@@ -29,8 +29,8 @@ import {
 import { trello } from './trello'
 import { showQuickAddWindow, setupQuickAddIpc } from './quickAdd'
 import { analyzeTransactionImage, isLivePreferences } from '@ego/core'
-import type { DesktopTransactionImageInput, LivePreferences, QuickAddListShortcut, TransactionImageSettingsInput } from '../shared/types'
-import type { NotifyInput } from '../shared/local'
+import type { DesktopTransactionImageInput, LivePreferences, QuickAddListShortcut, TransactionImageSettingsInput } from '@ego/ui/platform/types'
+import type { NotifyInput } from '@ego/ui/platform/local'
 import {
   connectorStatus,
   createLiveSession,

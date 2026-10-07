@@ -10,7 +10,7 @@ import {
 import { resultFrom, type DiaryMediaApi } from '@ego/local/api-client'
 import type { PendingUpload, UploadTransport } from '@ego/local/diary/uploads'
 import type { LocalDatabase } from '@ego/local/database/types'
-import type { MediaFileInput, MediaOpenInput, MediaPathInput, StagedMedia } from '../../shared/local'
+import type { MediaFileInput, MediaOpenInput, MediaPathInput, StagedMedia } from '@ego/ui/platform/local'
 
 export const MEDIA_SCHEME = 'ego-media'
 

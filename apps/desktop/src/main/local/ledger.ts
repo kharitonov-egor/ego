@@ -7,7 +7,7 @@ import {
   createSyncCoordinator, hasDownloaded, isBootstrapped, type SyncCoordinator, type SyncOutcome, type Touched
 } from '@ego/local/sync/coordinator'
 import { uploadPendingMedia } from '@ego/local/diary/uploads'
-import type { LedgerEvent, LedgerState, MediaProgress } from '../../shared/local'
+import type { LedgerEvent, LedgerState, MediaProgress } from '@ego/ui/platform/local'
 import { getAccount, getLedgerConfig, getLedgerToken } from '../settings'
 import { openLedgerDatabase, type LedgerDatabase } from './database'
 import { mediaUploadTransport } from './media'

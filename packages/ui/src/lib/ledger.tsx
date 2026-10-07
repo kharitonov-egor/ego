@@ -9,7 +9,7 @@ import { keepMine, useSavedVersion } from '@ego/local/sync/conflicts'
 import { deleteTransaction, newId } from '@ego/local/sync/commands'
 import type { SyncOutcome, Touched } from '@ego/local/sync/coordinator'
 import { allOperations, type OutboxEntry } from '@ego/local/sync/outbox'
-import type { LedgerState, RemoteApi, SignedInAccount } from '../../shared/local'
+import type { LedgerState, RemoteApi, SignedInAccount } from '../platform/local'
 import { remoteApi, remoteDatabase } from './remote'
 
 export type LocalWrite = (db: LocalDatabase, now: string) => Promise<void>

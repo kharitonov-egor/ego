@@ -1,6 +1,6 @@
 import type { MediaScope } from '@ego/api-contracts'
 import type { DiaryAttachment } from '@ego/core'
-import { mediaUrl } from '../../../shared/local'
+import { mediaUrl } from '../../platform/local'
 
 /**
  * A file this window just sent shows from memory until its upload is recorded; anything else

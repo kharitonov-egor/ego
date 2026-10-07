@@ -1,6 +1,9 @@
-/** @type {import('tailwindcss').Config} */
+/**
+ * The phone's look, shared by the desktop and web apps. Each app lists its own `content`.
+ * @type {import('tailwindcss').Config}
+ */
 module.exports = {
-  content: ['./src/renderer/**/*.{html,tsx,ts}'],
+  content: [],
   darkMode: 'class',
   theme: {
     extend: {

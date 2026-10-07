@@ -1,5 +1,5 @@
 import type { ApiResult, AssistantStreamEvent } from '@ego/api-contracts'
-import type { AssistantStreamKind, AssistantStreamRequests } from '../../shared/local'
+import type { AssistantStreamKind, AssistantStreamRequests } from '../platform/local'
 
 let streams = 0
 
