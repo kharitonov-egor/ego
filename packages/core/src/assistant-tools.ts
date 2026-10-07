@@ -34,8 +34,11 @@ export type AssistantToolName =
   | 'update_calendar_event'
   | 'delete_calendar_event'
   | 'answer_calendar_event'
+  | 'remember'
+  | 'forget'
 
-export type AssistantToolAccess = 'read' | 'write'
+/** `direct` tools change something small and run inside the turn, with no card: memory notes. */
+export type AssistantToolAccess = 'read' | 'write' | 'direct'
 
 /** How long a card waits for Undo before it saves. After that nothing can be taken back. */
 export const SAVE_DELAY_MS = 3000
@@ -393,6 +396,21 @@ export const ASSISTANT_TOOLS: Record<AssistantToolName, AssistantToolDefinition>
     description: 'Set the daily food targets: calories in kcal, protein, carbs, and fat in grams. Null keeps a target as it is; 0 removes it.',
     parameters: object({ calories: target, protein: target, carbs: target, fat: target }),
     access: 'write'
+  },
+  remember: {
+    name: 'remember',
+    description: 'Save a short note about the user that will matter in later chats: a lasting preference, a fact about their life, a person, or a plan. One fact per note, written in the third person, like "Prefers metric for body weight". replaces takes the id of an older note this one corrects. Never save passwords, card numbers, or anything from the diary.',
+    parameters: object({
+      text: { type: 'string', minLength: 3, maxLength: 300 },
+      replaces: { ...nullableId, description: 'The id of a note this one replaces, or null' }
+    }),
+    access: 'direct'
+  },
+  forget: {
+    name: 'forget',
+    description: 'Delete a note about the user that is wrong or no longer true, by its id from the notes list.',
+    parameters: object({ id }),
+    access: 'direct'
   }
 }
 

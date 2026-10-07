@@ -1,5 +1,5 @@
 import type {
-  AccountBalances, ApiError, ApiErrorCode, ApiResult, AppBuildStatus, AssistantChatList, AssistantConfirmRequest,
+  AccountBalances, AgentKeyCreated, AgentKeyList, AgentMemory, AgentMemoryList, ApiError, ApiErrorCode, ApiResult, AppBuildStatus, AssistantChatList, AssistantConfirmRequest,
   AssistantHistory, AssistantStreamEvent, AssistantTurnRequest, BootstrapData, CalendarConnectStart, CalendarCreateRequest,
   CalendarDeleteRequest, CalendarEventRef, CalendarListChange, CalendarRange, CalendarRestoreRequest, CalendarRsvpRequest, CalendarSeries,
   CalendarSnapshot, CalendarUpdateRequest, ChangePage, DeviceList, DiaryMediaInfo, DocketDetail, DocketKeyCreated, DocketKeyList,
@@ -125,7 +125,18 @@ export interface ReceiptImageRequest {
   categories: ImageAnalysisCategory[]
 }
 
-export interface EgoApi extends MoneyApi, StudyApi, HealthApi, CalendarApi, DiaryMediaApi, AssistantApi, FoodApi, DocketApi {
+/** Claude's MCP keys and the notes the chat and Claude keep about the user. */
+export interface AgentApi {
+  agentKeys: () => Promise<ApiResult<AgentKeyList>>
+  createAgentKey: (name: string | null) => Promise<ApiResult<AgentKeyCreated>>
+  revokeAgentKey: (keyId: string) => Promise<ApiResult<{ revoked: true }>>
+  agentMemories: () => Promise<ApiResult<AgentMemoryList>>
+  addAgentMemory: (text: string) => Promise<ApiResult<AgentMemory>>
+  updateAgentMemory: (id: string, text: string) => Promise<ApiResult<AgentMemory>>
+  deleteAgentMemory: (id: string) => Promise<ApiResult<{ deleted: true }>>
+}
+
+export interface EgoApi extends MoneyApi, StudyApi, HealthApi, CalendarApi, DiaryMediaApi, AssistantApi, FoodApi, DocketApi, AgentApi {
   session: () => Promise<ApiResult<SessionInfo>>
   signOut: () => Promise<ApiResult<{ signedOut: true }>>
   devices: () => Promise<ApiResult<DeviceList>>
@@ -433,6 +444,15 @@ export function moneyApiFor(config: ApiConfig, options: { streamFetch?: StreamFe
       body: JSON.stringify(update)
     }),
     deleteDocket: (id) => call<{ deleted: true }>(`/v1/dockets/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    agentKeys: () => call<AgentKeyList>('/v1/agent/keys'),
+    createAgentKey: (name) => call<AgentKeyCreated>('/v1/agent/keys', { method: 'POST', body: JSON.stringify(name ? { name } : {}) }),
+    revokeAgentKey: (keyId) => call<{ revoked: true }>(`/v1/agent/keys/${encodeURIComponent(keyId)}`, { method: 'DELETE' }),
+    agentMemories: () => call<AgentMemoryList>('/v1/agent/memories'),
+    addAgentMemory: (text) => call<AgentMemory>('/v1/agent/memories', { method: 'POST', body: JSON.stringify({ text }) }),
+    updateAgentMemory: (id, text) => call<AgentMemory>(`/v1/agent/memories/${encodeURIComponent(id)}`, {
+      method: 'PUT', body: JSON.stringify({ text })
+    }),
+    deleteAgentMemory: (id) => call<{ deleted: true }>(`/v1/agent/memories/${encodeURIComponent(id)}`, { method: 'DELETE' }),
     docketKeys: () => call<DocketKeyList>('/v1/docket-keys'),
     createDocketKey: (name) => call<DocketKeyCreated>('/v1/docket-keys', {
       method: 'POST',

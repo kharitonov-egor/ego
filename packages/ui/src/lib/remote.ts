@@ -50,5 +50,12 @@ export const remoteApi: RemoteApi = {
   deleteDocket: call('deleteDocket'),
   docketKeys: call('docketKeys'),
   createDocketKey: call('createDocketKey'),
-  revokeDocketKey: call('revokeDocketKey')
+  revokeDocketKey: call('revokeDocketKey'),
+  agentKeys: call('agentKeys'),
+  createAgentKey: call('createAgentKey'),
+  revokeAgentKey: call('revokeAgentKey'),
+  agentMemories: call('agentMemories'),
+  addAgentMemory: call('addAgentMemory'),
+  updateAgentMemory: call('updateAgentMemory'),
+  deleteAgentMemory: call('deleteAgentMemory')
 }
