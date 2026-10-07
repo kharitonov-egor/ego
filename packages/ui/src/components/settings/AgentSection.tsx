@@ -105,7 +105,7 @@ export function AgentSection(): React.ReactElement {
   }
 
   return <Section Icon={Plug} title="Connect Claude">
-    <SectionNote>Claude can read Ego's data and keep notes about you through this connector. It cannot change your data.</SectionNote>
+    <SectionNote>Claude can read Ego's data and keep notes about you through this connector. Changes it asks for wait for your Confirm in the Agent chat, unless you trust that kind of change.</SectionNote>
 
     {mcpUrl && <>
       <FieldLabel>Connector URL</FieldLabel>

@@ -1,18 +1,20 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  Image, Keyboard, Pressable, ScrollView, TextInput, View
+  AppState, Image, Keyboard, Pressable, ScrollView, TextInput, View
 } from 'react-native'
 import { useKeyboardVisible } from '../components/ui/keyboard'
-import { Stack, useRouter } from 'expo-router'
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import * as SecureStore from 'expo-secure-store'
-import { Brain, Camera, ClipboardPaste, Image as ImageIcon, LayoutGrid, MessagesSquare, Paperclip, Send, SquarePen, X } from 'lucide-react-native'
+import {
+  Brain, Camera, ClipboardPaste, Image as ImageIcon, LayoutGrid, MessagesSquare, Paperclip, Send, SquarePen, Target, X
+} from 'lucide-react-native'
 import type {
-  AssistantChat, AssistantMessage, AssistantPendingWrite, AssistantStreamEvent, AssistantUnits
+  AgentInbox, AgentProposal, ApiResult, AssistantChat, AssistantMessage, AssistantPendingWrite, AssistantStreamEvent, AssistantUnits
 } from '@ego/api-contracts'
 import { fromCamera, fromClipboard, fromLibrary, type Attachment, type AttachmentResult } from '../components/assistant/attachments'
 import {
-  AssistantBubble, ChatsSheet, ErrorBubble, Intro, PendingCard, StreamingBubble, UserBubble
+  AgentIntro, AssistantBubble, ChatsSheet, ErrorBubble, Intro, PendingCard, ProposalCard, StreamingBubble, UserBubble
 } from '../components/assistant/ui'
 import { HeaderIcon } from '../components/gym/ui'
 import { BottomSheet, ConfirmDialog } from '../components/money/Common'
@@ -37,6 +39,17 @@ function timeZone(): string | null {
   }
 }
 
+/** The Agent chat stays pinned first; the rest go newest first. */
+function withChat(chats: AssistantChat[], chat: AssistantChat): AssistantChat[] {
+  const rest = chats.filter((item) => item.id !== chat.id)
+  if (chat.kind === 'agent') return [chat, ...rest]
+  return [...rest.filter((item) => item.kind === 'agent'), chat, ...rest.filter((item) => item.kind !== 'agent')]
+}
+
+function firstRegular(chats: readonly AssistantChat[]): AssistantChat | null {
+  return chats.find((chat) => chat.kind !== 'agent') ?? null
+}
+
 function AttachOption({ Icon, label, onPress }: { Icon: typeof Camera; label: string; onPress: () => void }): React.ReactElement {
   return <Pressable accessibilityRole="button" onPress={onPress} className="mb-2 min-h-14 flex-row items-center gap-4 rounded-2xl bg-surface-900 px-4 active:bg-surface-800">
     <View className="h-10 w-10 items-center justify-center rounded-full bg-primary"><Icon color="#0a0a0a" size={20} /></View>
@@ -50,6 +63,7 @@ export default function AiScreen(): React.ReactElement {
 
 function Assistant(): React.ReactElement {
   const router = useRouter()
+  const params = useLocalSearchParams<{ chat?: string }>()
   const insets = useSafeAreaInsets()
   const ledger = useLedger()
   const { api } = ledger
@@ -58,6 +72,9 @@ function Assistant(): React.ReactElement {
   const [chatId, setChatId] = useState<string | null>(null)
   const [messages, setMessages] = useState<AssistantMessage[]>([])
   const [pending, setPending] = useState<AssistantPendingWrite | null>(null)
+  const [proposals, setProposals] = useState<AgentProposal[]>([])
+  const [answering, setAnswering] = useState<string | null>(null)
+  const [inbox, setInbox] = useState<AgentInbox | null>(null)
   const [streaming, setStreaming] = useState<Streaming | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -77,6 +94,24 @@ function Assistant(): React.ReactElement {
   unitsRef.current = units
   const syncRef = useRef(ledger.sync)
   syncRef.current = ledger.sync
+  const openChat = chats.find((chat) => chat.id === chatId) ?? null
+  const inAgent = openChat?.kind === 'agent'
+  const openChatRef = useRef(openChat)
+  openChatRef.current = openChat
+  const chatsRef = useRef(chats)
+  chatsRef.current = chats
+  const busyRef = useRef(busy)
+  busyRef.current = busy
+  const wantsAgent = useRef(params.chat === 'agent')
+  const inboxRequest = useRef(0)
+
+  /** Only the newest answer counts, so a slow inbox read cannot undo a later mark-as-read. */
+  const trackInbox = useCallback(async (request: Promise<ApiResult<AgentInbox>>): Promise<void> => {
+    inboxRequest.current += 1
+    const id = inboxRequest.current
+    const result = await request
+    if (result.ok && id === inboxRequest.current) setInbox(result.data)
+  }, [])
 
   /** A card left behind by switching chats or leaving the tile was never undone, so it saves. */
   const saveLeftCard = useCallback((): void => {
@@ -110,6 +145,7 @@ function Assistant(): React.ReactElement {
     saveLeftCard()
     setChatId(chat?.id ?? null)
     setPending(null)
+    setProposals([])
     setStreaming(null)
     setError(null)
     if (!chat) {
@@ -127,8 +163,10 @@ function Assistant(): React.ReactElement {
     }
     setMessages(result.data.messages)
     setPending(result.data.pending)
+    setProposals(result.data.proposals ?? [])
+    if (chat.kind === 'agent') void trackInbox(api.markAgentRead())
     scrollToEnd()
-  }, [api, saveLeftCard, scrollToEnd])
+  }, [api, saveLeftCard, scrollToEnd, trackInbox])
 
   useEffect(() => {
     if (!ledger.enabled) {
@@ -144,15 +182,55 @@ function Assistant(): React.ReactElement {
         return
       }
       setChats(result.data.chats)
-      void open(result.data.chats[0] ?? null)
+      const agent = result.data.chats.find((chat) => chat.kind === 'agent')
+      const first = wantsAgent.current && agent ? agent : firstRegular(result.data.chats)
+      wantsAgent.current = false
+      void open(first)
     })
     return () => { active = false }
   }, [api, ledger.enabled, open])
 
+  useEffect(() => {
+    if (params.chat !== 'agent') return
+    router.setParams({ chat: undefined })
+    const agent = chatsRef.current.find((chat) => chat.kind === 'agent')
+    if (agent) void open(agent)
+    else wantsAgent.current = true
+  }, [open, params.chat, router])
+
+  /** The agent posts while the screen is away, so coming back re-reads the Agent chat, or at least the badge. */
+  const refreshAgent = useCallback(async (): Promise<void> => {
+    const chat = openChatRef.current
+    if (chat?.kind !== 'agent') {
+      await trackInbox(api.agentInbox())
+      return
+    }
+    if (busyRef.current) return
+    const result = await api.assistantMessages(chat.id)
+    if (!result.ok || openChatRef.current?.id !== chat.id || busyRef.current) return
+    setMessages(result.data.messages)
+    setProposals(result.data.proposals ?? [])
+    await trackInbox(api.markAgentRead())
+  }, [api, trackInbox])
+  const refreshRef = useRef(refreshAgent)
+  refreshRef.current = refreshAgent
+
+  useFocusEffect(useCallback(() => {
+    if (ledger.enabled) void refreshAgent()
+  }, [ledger.enabled, refreshAgent]))
+
+  useEffect(() => {
+    if (!ledger.enabled) return
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void refreshRef.current()
+    })
+    return () => subscription.remove()
+  }, [ledger.enabled])
+
   const handleEvent = useCallback((event: AssistantStreamEvent): void => {
     if (event.type === 'chat') {
       setChatId(event.chat.id)
-      setChats((current) => [event.chat, ...current.filter((chat) => chat.id !== event.chat.id)])
+      setChats((items) => withChat(items, event.chat))
     } else if (event.type === 'message') {
       if (event.message.role === 'user' && pendingImage.current) {
         imageUris.current.set(event.message.id, pendingImage.current)
@@ -228,6 +306,25 @@ function Assistant(): React.ReactElement {
     if (!result.ok) setError(result.error.message)
   }
 
+  const answerProposal = async (proposal: AgentProposal, approved: boolean): Promise<void> => {
+    if (answering || busy) return
+    setAnswering(proposal.id)
+    setError(null)
+    const result = await api.answerAgentProposal(proposal.id, approved)
+    setAnswering(null)
+    if (!result.ok) {
+      setError(result.error.message)
+      if (result.error.code === 'CONFLICT') void refreshAgent()
+      return
+    }
+    const note = result.data.message
+    setProposals((items) => items.filter((item) => item.id !== proposal.id))
+    setMessages((items) => [...items.filter((item) => item.id !== note.id), note])
+    scrollToEnd()
+    void trackInbox(api.markAgentRead())
+    void ledger.sync()
+  }
+
   const attach = async (pick: () => Promise<AttachmentResult>): Promise<void> => {
     setAttaching(false)
     const result = await pick()
@@ -244,14 +341,22 @@ function Assistant(): React.ReactElement {
     }
     const remaining = chats.filter((item) => item.id !== chat.id)
     setChats(remaining)
-    if (chat.id === chatId) void open(remaining[0] ?? null)
+    if (chat.id === chatId) void open(firstRegular(remaining))
   }
+
+  const agentWaiting = inbox ? inbox.unread + inbox.proposals : 0
 
   const header = <Stack.Screen options={{
     headerLeft: () => <HeaderIcon label="All apps" onPress={() => router.dismissTo('/')}><LayoutGrid color="#fafafa" size={21} /></HeaderIcon>,
     headerRight: () => <View className="flex-row">
+      <HeaderIcon label="Goals" onPress={() => router.push('/goals')}><Target color="#fafafa" size={21} /></HeaderIcon>
       <HeaderIcon label="Memory" onPress={() => router.push('/memory')}><Brain color="#fafafa" size={21} /></HeaderIcon>
-      <HeaderIcon label="Chats" onPress={() => setChatsOpen(true)}><MessagesSquare color="#fafafa" size={21} /></HeaderIcon>
+      <HeaderIcon label={agentWaiting > 0 ? `Chats, ${agentWaiting} new in Agent` : 'Chats'} onPress={() => setChatsOpen(true)}>
+        <View>
+          <MessagesSquare color="#fafafa" size={21} />
+          {agentWaiting > 0 && <View className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-attention" />}
+        </View>
+      </HeaderIcon>
       <HeaderIcon label="New chat" onPress={() => void open(null)}><SquarePen color="#fafafa" size={21} /></HeaderIcon>
     </View>
   }} />
@@ -275,12 +380,22 @@ function Assistant(): React.ReactElement {
       keyboardShouldPersistTaps="handled"
       onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: true })}
     >
-      {!loading && messages.length === 0 && !streaming && <Intro onPick={setText} />}
+      {!loading && messages.length === 0 && !streaming && (inAgent
+        ? proposals.length === 0 && <AgentIntro onGoals={() => router.push('/goals')} />
+        : <Intro onPick={setText} />)}
       {messages.map((message) => message.role === 'user'
         ? <UserBubble key={message.id} message={message} imageUri={imageUris.current.get(message.id) ?? null} />
         : <AssistantBubble key={message.id} message={message} />)}
       {streaming && <StreamingBubble text={streaming.text} trail={streaming.trail} />}
       {pending && !busy && <PendingCard pending={pending} onSave={() => void answer(true)} onUndo={() => void answer(false)} />}
+      {inAgent && proposals.map((proposal) => <ProposalCard
+        key={proposal.id}
+        proposal={proposal}
+        busy={answering === proposal.id}
+        disabled={answering !== null || busy}
+        onConfirm={() => void answerProposal(proposal, true)}
+        onReject={() => void answerProposal(proposal, false)}
+      />)}
       {error && <ErrorBubble text={error} onDismiss={() => setError(null)} />}
     </ScrollView>
 
@@ -334,6 +449,7 @@ function Assistant(): React.ReactElement {
       visible={chatsOpen}
       chats={chats}
       currentId={chatId}
+      agentWaiting={agentWaiting}
       onClose={() => setChatsOpen(false)}
       onOpen={(chat) => { setChatsOpen(false); void open(chat) }}
       onNew={() => { setChatsOpen(false); void open(null) }}

@@ -40,6 +40,7 @@ import {
   startWisprConnector
 } from './live'
 import { setupToolPaletteIpc, showToolPalette } from './toolPalette'
+import { startAgentNotifications, stopAgentNotifications } from './agentNotifications'
 import { setupLocalIpc } from './local/ipc'
 import { ledgerApi, ledgerDatabase, onLedgerEvent, onMediaProgress, startLedger, stopLedger } from './local/ledger'
 import { handleMediaRequests, registerMediaScheme } from './local/media'
@@ -404,6 +405,7 @@ if (!gotSingleInstanceLock) {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('media-progress', progress)
     })
     startLedger()
+    startAgentNotifications(notify)
     const link = signInLinkIn(process.argv)
     if (link) void handleSignInLink(link)
   })
@@ -411,6 +413,7 @@ if (!gotSingleInstanceLock) {
   app.on('will-quit', () => {
     requestLiveSessionStop()
     unregisterAll()
+    stopAgentNotifications()
     void stopLedger()
   })
 

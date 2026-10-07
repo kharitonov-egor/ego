@@ -2,6 +2,7 @@ import { safeStorage } from 'electron'
 import Store from 'electron-store'
 import type { QuickAddListShortcut } from '@ego/ui/platform/types'
 import type { SignedInAccount } from '@ego/ui/platform/local'
+import type { AgentNotification } from '@ego/api-contracts'
 import {
   DEFAULT_LIVE_PREFERENCES,
   isLivePreferences,
@@ -24,6 +25,10 @@ interface AppSettings {
   account: SignedInAccount | null
   /** What the renderer would keep in SecureStore on the phone: small JSON values under `ego.*` keys. */
   preferences: Record<string, string>
+  /** The last agent notification seen, per Worker URL, so a restart does not show old ones again. */
+  agentNotificationCursors: Record<string, string>
+  /** Notifications held for a later minute, per Worker URL, so a restart before then still shows them. */
+  agentNotificationsWaiting: Record<string, AgentNotification[]>
   /** Left behind by the direct D1 client, which is gone. Deleted at startup. */
   moneyAccountId?: string
   moneyDatabaseId?: string
@@ -58,7 +63,9 @@ const store = new Store<AppSettings>({
     transactionImageModel: 'openai/gpt-5.6-terra',
     livePreferences: DEFAULT_LIVE_PREFERENCES,
     account: null,
-    preferences: {}
+    preferences: {},
+    agentNotificationCursors: {},
+    agentNotificationsWaiting: {}
   }
 })
 
@@ -120,6 +127,22 @@ export function setPreference(key: string, value: string | null): void {
   else if (value.length <= PREFERENCE_LIMIT) next[key] = value
   else return
   store.set('preferences', next)
+}
+
+export function getAgentNotificationCursor(apiUrl: string): string | null {
+  return store.get('agentNotificationCursors')[apiUrl] ?? null
+}
+
+export function setAgentNotificationCursor(apiUrl: string, cursor: string): void {
+  store.set('agentNotificationCursors', { ...store.get('agentNotificationCursors'), [apiUrl]: cursor })
+}
+
+export function getWaitingAgentNotifications(apiUrl: string): AgentNotification[] {
+  return store.get('agentNotificationsWaiting')[apiUrl] ?? []
+}
+
+export function setWaitingAgentNotifications(apiUrl: string, notifications: AgentNotification[]): void {
+  store.set('agentNotificationsWaiting', { ...store.get('agentNotificationsWaiting'), [apiUrl]: notifications })
 }
 
 export function getLivePreferences(): LivePreferences {

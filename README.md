@@ -77,8 +77,36 @@ sign in. The key reaches `/mcp` and nothing else, and Settings revokes it.
 
 Claude gets `ego_context` (today on your clock, the ids of accounts, categories, habits,
 exercises, and boards, and every note), each read tool the chat has, and `remember`, `forget`,
-and `recall`. It cannot change your data. Each chat turn sends the device's time zone and units,
+and `recall`. Its writes become proposals in the Agent chat, described below. Each chat turn sends the device's time zone and units,
 so Claude reads "today" on the same clock as the apps.
+
+### Standing goals
+
+A standing goal is a job the agent does by itself: a weekday brief at 7:00, a Sunday money review,
+a check of the day's email for bills. Goals, behind the target icon in the AI header, lists them
+with when each runs and what its last run found, and runs, pauses, mutes, edits, or deletes each
+one. The chat can add and manage them too, and `delegate_task` hands it a one-off job ("find me a
+cheap flight to New York next weekend") whose answer arrives later.
+
+The work runs in a Claude Code routine on the user's Claude subscription. The Worker's 15-minute
+cron queues every goal that is due, or 30 minutes early when it has a set time, and fires the
+routine's API trigger once with the run ids. The routine calls `start_runs` on the Ego connector,
+which hands back each goal's instructions and the rules it works by, then reports with
+`send_message` and closes each run with `finish_run`. An hourly schedule on the routine picks up
+anything a fire missed. Settings, Agent shows whether the routine is set up and when it last ran,
+lists the steps to create it, and wakes it on demand. The Worker needs `AGENT_ROUTINE_URL` and
+`AGENT_ROUTINE_TOKEN` from the routine's API trigger.
+
+### The Agent chat
+
+The agent posts into one chat pinned at the top of AI, each message labeled with its goal. A reply
+there goes to the chat model like any other message. When the agent wants to change Ego data, the
+change either applies at once, if it is a kind the user trusts (habits, task cards, and study marks
+by default), or waits in the Agent chat on a card with Confirm and Reject. Unanswered cards expire
+after seven days. Settings, Agent sets the trusted changes, the expiry, quiet hours (22:00 to 08:00),
+a daily limit on notifications (six), and which devices get them. Messages over the limit, or from a
+muted goal, still arrive in the chat without a notification. On the desktop, notifications show as
+Windows notifications from the tray.
 
 ## Money
 

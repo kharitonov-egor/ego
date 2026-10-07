@@ -1,9 +1,11 @@
 import React from 'react'
-import { MessageSquarePlus, Sparkles, Trash2, X } from 'lucide-react'
-import type { AssistantChat, AssistantMessage, AssistantPendingWrite } from '@ego/api-contracts'
+import { Bot, MessageSquarePlus, Sparkles, Target, Trash2, X } from 'lucide-react'
+import type { AgentProposal, AssistantChat, AssistantMessage, AssistantPendingWrite } from '@ego/api-contracts'
+import { momentInSentence } from '../../lib/agent'
 import { Blurred, useBlur } from '../../lib/blur'
 import { cn } from '../../lib/utils'
 import { Badge } from '../ui/badge'
+import { Button } from '../ui/button'
 import { Card } from '../ui/card'
 import { SAVE_DELAY_MS, SaveCountdown } from '../ui/countdown'
 import { Sheet } from '../ui/dialog'
@@ -43,8 +45,17 @@ export function UserBubble({ message, imageUri }: { message: AssistantMessage; i
   </div>
 }
 
+/** Which standing goal an Agent chat post or proposal came from. */
+export function GoalLabel({ title, className }: { title: string | null; className?: string }): React.ReactElement {
+  return <span className={cn('flex min-w-0 items-center gap-1.5 text-[13px] font-medium text-surface-400', className)}>
+    <Target size={13} className="shrink-0" />
+    {title ? <Blurred><span className="truncate">{title}</span></Blurred> : <span>Agent</span>}
+  </span>
+}
+
 export function AssistantBubble({ message }: { message: AssistantMessage }): React.ReactElement {
   return <div className="mb-3 flex flex-col items-start">
+    {message.agent && <GoalLabel title={message.agent.goalTitle} className="mb-1 ml-1 max-w-[86%]" />}
     {message.text.length > 0 && <div className="max-w-[86%] rounded-3xl rounded-bl-lg border border-border bg-card px-4 py-3">
       <Blurred><p className="select-text whitespace-pre-wrap break-words text-[16px] leading-6">{message.text}</p></Blurred>
     </div>}
@@ -105,6 +116,42 @@ export function PendingCard({ pending, onSave, onUndo }: {
   </Card>
 }
 
+/** A change the agent asked for while the user was away. It waits for Confirm or Reject until it expires. */
+export function ProposalCard({ proposal, busy, onAnswer }: {
+  proposal: AgentProposal
+  busy: boolean
+  onAnswer: (approved: boolean) => void
+}): React.ReactElement {
+  return <Card className="mb-4 overflow-hidden">
+    <div className="border-b border-surface-800 px-5 py-4">
+      <GoalLabel title={proposal.goalTitle} />
+      <Blurred><h2 className="mt-1 text-[17px] font-semibold">{proposal.title}</h2></Blurred>
+    </div>
+    <div className="flex flex-col gap-4 px-5 py-4">
+      {proposal.changes.map((change, index) => <div key={`${index}-${change.toolName}`}>
+        <Blurred><h3 className="text-[16px] font-semibold">{change.title}</h3></Blurred>
+        {change.lines.map((line, row) => <Blurred key={`${row}-${line}`}><p className="mt-1 text-[15px] leading-6 text-surface-200">{line}</p></Blurred>)}
+      </div>)}
+    </div>
+    <div className="flex flex-wrap items-center gap-3 border-t border-surface-800 px-5 py-4">
+      <span className="flex-1 text-[14px] text-muted-foreground">Expires {momentInSentence(proposal.expiresAt)}</span>
+      <Button variant="outline" size="sm" disabled={busy} onClick={() => onAnswer(false)}>Reject</Button>
+      <Button size="sm" disabled={busy} onClick={() => onAnswer(true)}>Confirm</Button>
+    </div>
+  </Card>
+}
+
+export function AgentIntro({ onGoals }: { onGoals: () => void }): React.ReactElement {
+  return <div className="mb-4 flex items-start">
+    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-surface-800"><Bot color="#fafafa" size={22} /></div>
+    <div className="ml-3 flex-1">
+      <h2 className="text-[18px] font-semibold">Nothing from the agent yet</h2>
+      <p className="text-[15px] leading-6 text-muted-foreground">Your goals post here when they run. Changes that need your OK wait here as cards.</p>
+      <Button variant="outline" size="sm" onClick={onGoals} className="mt-3"><Target size={15} />Goals</Button>
+    </div>
+  </div>
+}
+
 export function Intro({ onPick }: { onPick: (text: string) => void }): React.ReactElement {
   return <div className="mb-4">
     <div className="mb-5 flex items-center">
@@ -137,17 +184,53 @@ interface ChatRowsProps {
   onOpen: (chat: AssistantChat) => void
   onNew: () => void
   onDelete: (chat: AssistantChat) => void
+  /** Unread posts plus proposals waiting in the Agent chat. */
+  agentBadge: number
 }
 
-/** New chat, then every earlier chat, newest first. */
-function ChatRows({ chats, currentId, disabled, onOpen, onNew, onDelete }: ChatRowsProps): React.ReactElement {
+function AgentRow({ chat, current, disabled, badge, onOpen }: {
+  chat: AssistantChat
+  current: boolean
+  disabled: boolean
+  badge: number
+  onOpen: () => void
+}): React.ReactElement {
+  return <button
+    type="button"
+    aria-current={current ? 'true' : undefined}
+    disabled={disabled}
+    onClick={onOpen}
+    className={cn('mb-2 flex min-h-14 w-full items-center gap-3 rounded-2xl border px-4 py-2 text-left transition-colors disabled:cursor-default',
+      current ? 'border-surface-500 bg-surface-900' : 'border-surface-800 bg-surface-900/50 hover:bg-surface-900')}
+  >
+    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-800"><Bot color="#fafafa" size={20} /></span>
+    <span className="flex min-w-0 flex-1 flex-col">
+      <span className="truncate text-[16px] font-medium">{chat.title || 'Agent'}</span>
+      <span className="text-[13px] text-muted-foreground">{chatDate(chat.updatedAt)}</span>
+    </span>
+    {badge > 0 && <span
+      aria-label={badge === 1 ? '1 new' : `${badge} new`}
+      className="flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[13px] font-semibold tabular text-primary-foreground"
+    >{badge > 99 ? '99+' : badge}</span>}
+  </button>
+}
+
+/** New chat, the pinned Agent chat, then every earlier chat, newest first. */
+function ChatRows({ chats, currentId, disabled, onOpen, onNew, onDelete, agentBadge }: ChatRowsProps): React.ReactElement {
   return <>
     <button type="button" disabled={disabled} onClick={onNew} className="mb-2 flex min-h-14 w-full items-center gap-4 rounded-2xl bg-surface-900 px-4 text-left transition-colors hover:bg-surface-800 active:bg-surface-800 disabled:opacity-50">
       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary"><MessageSquarePlus color="#0a0a0a" size={20} /></span>
       <span className="text-[16px] font-semibold">New chat</span>
     </button>
     {chats.length === 0 && <p className="px-1 py-3 text-[15px] text-muted-foreground">No chats yet.</p>}
-    {chats.map((chat) => <div key={chat.id} className={cn('group mb-2 flex items-center rounded-2xl border pl-4 pr-1',
+    {chats.map((chat) => chat.kind === 'agent' ? <AgentRow
+      key={chat.id}
+      chat={chat}
+      current={chat.id === currentId}
+      disabled={disabled}
+      badge={agentBadge}
+      onOpen={() => onOpen(chat)}
+    /> : <div key={chat.id} className={cn('group mb-2 flex items-center rounded-2xl border pl-4 pr-1',
       chat.id === currentId ? 'border-surface-500 bg-surface-900' : 'border-surface-800 bg-surface-900/50 hover:bg-surface-900')}>
       <button
         type="button"

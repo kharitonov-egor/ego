@@ -52,6 +52,11 @@ export function isSignedIn(): boolean {
   return Boolean(url && token)
 }
 
+/** The signed-in Worker's address, normalized the way the client uses it. */
+export function ledgerApiUrl(): string {
+  return connection().url
+}
+
 /** The Worker client for the signed-in device. It runs here, so the token never leaves this process. */
 export function ledgerApi(): EgoApi {
   const { url, token } = connection()

@@ -44,6 +44,7 @@ function Screens(): React.ReactElement {
       <Stack.Screen name="auth" options={{ title: 'Sign in', headerShown: false }} />
       <Stack.Screen name="ai" options={{ title: 'AI', headerTitleAlign: 'center' }} />
       <Stack.Screen name="memory" options={{ title: 'Memory', headerTitleAlign: 'center' }} />
+      <Stack.Screen name="goals" options={{ title: 'Goals', headerTitleAlign: 'center' }} />
     </Stack>
   </KeyboardViewport>
 }
