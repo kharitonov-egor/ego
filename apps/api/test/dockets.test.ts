@@ -122,6 +122,12 @@ describe('docket keys', () => {
     const current = await call<DocketKeySummary>(env, '/v1/docket-keys/current', created.token)
     expect(current.body.data.id).toBe(created.key.id)
     expect(current.body.data.lastUsedAt).not.toBeNull()
+    const renamed = await call<DocketKeySummary>(env, '/v1/docket-keys/current', created.token, {
+      method: 'PATCH', body: JSON.stringify({ name: 'CLI · JARVIS' })
+    })
+    expect(renamed.body.data.name).toBe('CLI · JARVIS')
+    expect((await call(env, '/v1/docket-keys/current', created.token, { method: 'PATCH', body: '{"name":" "}' })).status).toBe(400)
+    expect((await call(env, '/v1/docket-keys/current', DEVICE_TOKEN, { method: 'PATCH', body: '{"name":"x"}' })).status).toBe(404)
 
     const revoked = await call<{ revoked: true }>(env, `/v1/docket-keys/${created.key.id}`, DEVICE_TOKEN, { method: 'DELETE' })
     expect(revoked.body.data.revoked).toBe(true)

@@ -88,6 +88,7 @@ function harness(answer: Answer, overrides: Partial<Io> = {}, env: Record<string
       written.set(path, data)
     },
     git: () => ({ repository: 'kharitonov-egor/ego', commit: 'abcdef1234567', ref: 'main' }),
+    hostname: () => 'JARVIS',
     ...overrides
   }
   return { io, requests, out: () => stdout, err: () => stderr, opened, written }
@@ -284,16 +285,25 @@ describe('errors', () => {
 })
 
 describe('auth', () => {
-  it('checks a key, saves it, reports it, and forgets it', async () => {
-    const current = { id: 'key-1', name: 'CLI · 2026-10-07', createdAt: '2026-10-07T00:00:00.000Z', lastUsedAt: null }
-    const h = harness(() => ok(current))
+  it('checks a key, names it after the computer, saves it, reports it, and forgets it', async () => {
+    let current = { id: 'key-1', name: 'CLI · 2026-10-07', createdAt: '2026-10-07T00:00:00.000Z', lastUsedAt: null }
+    const h = harness(async (request) => {
+      if (request.method === 'PATCH') current = { ...current, ...(await request.json() as { name: string }) }
+      return ok(current)
+    })
     expect(await run(['auth', 'login', '--key', KEY], h.io)).toBe(0)
-    expect(h.requests[0].url).toBe(`${API}/v1/docket-keys/current`)
+    expect(h.requests.map((request) => [request.method, request.url])).toEqual([
+      ['GET', `${API}/v1/docket-keys/current`], ['PATCH', `${API}/v1/docket-keys/current`]
+    ])
     expect(h.requests[0].headers.get('authorization')).toBe(`Bearer ${KEY}`)
-    expect(JSON.parse(await readFile(h.io.configPath, 'utf8'))).toEqual({ apiUrl: API, key: KEY, keyName: current.name })
+    expect(JSON.parse(await readFile(h.io.configPath, 'utf8'))).toEqual({ apiUrl: API, key: KEY, keyName: 'CLI · JARVIS' })
 
     expect(await run(['auth', 'status'], h.io)).toBe(0)
-    expect(h.out()).toContain(`Signed in with "CLI · 2026-10-07" from ${h.io.configPath}.`)
+    expect(h.out()).toContain(`Signed in with "CLI · JARVIS" from ${h.io.configPath}.`)
+
+    const named = harness(() => ok({ ...current, name: 'Work laptop' }))
+    expect(await run(['auth', 'login', '--key', KEY], named.io)).toBe(0)
+    expect(named.requests.map((request) => request.method)).toEqual(['GET'])
 
     expect(await run(['auth', 'logout'], h.io)).toBe(0)
     expect(await run(['auth', 'status'], h.io)).toBe(1)

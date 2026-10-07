@@ -480,9 +480,19 @@ async function currentKey(env: Env, keyId: string): Promise<Response> {
   return row ? ok(keyOf(row)) : failure('AUTH_REQUIRED', 'That key was revoked')
 }
 
+/** The CLI names its key after the computer it signed in on, so CLI setup shows which key is where. */
+async function renameCurrentKey(request: Request, env: Env, keyId: string): Promise<Response> {
+  const body = await readJson(request)
+  const name = typeof body === 'object' && body !== null && 'name' in body && typeof body.name === 'string' ? body.name.trim() : ''
+  if (!name || name.length > MAX_KEY_NAME) return failure('INVALID_REQUEST', `A key name needs 1 to ${MAX_KEY_NAME} characters`)
+  await env.DB.prepare('UPDATE docket_keys SET name = ? WHERE id = ?').bind(name, keyId).run()
+  return currentKey(env, keyId)
+}
+
 async function keyRoute(request: Request, env: Env, who: Caller, path: string, now: string): Promise<Response> {
-  if (path === '/v1/docket-keys/current' && request.method === 'GET') {
-    return who.kind === 'key' ? currentKey(env, who.keyId) : failure('NOT_FOUND', 'Only a CLI key has a current key')
+  if (path === '/v1/docket-keys/current' && (request.method === 'GET' || request.method === 'PATCH')) {
+    if (who.kind !== 'key') return failure('NOT_FOUND', 'Only a CLI key has a current key')
+    return request.method === 'GET' ? currentKey(env, who.keyId) : renameCurrentKey(request, env, who.keyId)
   }
   if (who.kind !== 'device') return failure('INVALID_REQUEST', 'A CLI key cannot manage keys. Use CLI setup in Ego.')
   const datasetId = datasetOf(who)

@@ -11,8 +11,20 @@ import { CopyButton, DocketGate, DocketHeader } from './shared'
 const HEAD = 'border-b border-surface-800 pb-2 text-left text-[13px] font-semibold uppercase tracking-wide text-surface-400'
 const CELL = 'border-b border-surface-800 py-3 text-[15px]'
 
+function installCommand(): string {
+  return `npm install -g ${window.location.origin}/cli/docket.tgz`
+}
+
 function Code({ children }: { children: React.ReactNode }): React.ReactElement {
   return <code className="rounded-md border border-surface-700 bg-surface-900 px-1.5 py-0.5 font-mono text-[0.9em] text-surface-100">{children}</code>
+}
+
+function Commands({ lines }: { lines: readonly string[] }): React.ReactElement {
+  const text = lines.join('\n')
+  return <div className="mt-3 flex items-start gap-3">
+    <pre className="min-w-0 flex-1 select-all overflow-x-auto whitespace-pre-wrap break-all rounded-xl bg-black px-3 py-2.5 font-mono text-[14px] leading-6 text-foreground">{text}</pre>
+    <CopyButton text={text} size="default" />
+  </div>
 }
 
 function NewKey({ created }: { created: DocketKeyCreated }): React.ReactElement {
@@ -26,6 +38,8 @@ function NewKey({ created }: { created: DocketKeyCreated }): React.ReactElement 
       <code className="min-w-0 flex-1 select-all break-all rounded-xl bg-black px-3 py-2.5 font-mono text-[14px] text-foreground">{created.token}</code>
       <CopyButton text={created.token} size="default" />
     </div>
+    <p className="mt-4 text-[14px] text-surface-400">On a computer without docket yet, paste these two lines into a terminal:</p>
+    <Commands lines={[installCommand(), `docket auth login --key ${created.token}`]} />
   </div>
 }
 
@@ -114,9 +128,11 @@ function DocketCliBody(): React.ReactElement {
 
     <h3 className="mt-10 text-[20px] font-bold">Install</h3>
     <p className="mt-2 text-[15px] leading-6 text-surface-400">
-      Once per computer, from a checkout of the Ego repo: <Code>npm install -g ./apps/docket</Code>. It needs Node 22.18 or newer.
-      Then <Code>docket --help</Code> lists every command.
+      On any computer with Node 18 or newer. Run it again to update. Then <Code>docket auth login</Code>, and{' '}
+      <Code>docket --help</Code> lists every command.
     </p>
+    <Commands lines={[installCommand()]} />
+    <p className="mt-3 text-[14px] text-surface-400">Each computer gets its own key, named after the computer when it signs in, so one can be revoked alone.</p>
 
     <ConfirmDialog
       visible={revoking !== null}

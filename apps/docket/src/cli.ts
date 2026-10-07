@@ -2,7 +2,7 @@ import { basename } from 'node:path'
 import { parseArgs } from 'node:util'
 import {
   DocketError, VERSION, createClient, readDetail, readKey, readList, readUploaded, uploadForm,
-  type Client, type DocketDetail, type DocketSummary, type DocketUpdate, type UploadMeta
+  type Client, type DocketDetail, type DocketSummary, type DocketUpdate, type KeySummary, type UploadMeta
 } from './api.ts'
 import {
   DEFAULT_API_URL, KEY_PREFIX, clearLogin, normalizeUrl, readLogin, resolveConnection, saveLogin, webUrl,
@@ -27,6 +27,7 @@ export interface Io {
   readFile: (path: string) => Promise<Uint8Array>
   writeFile: (path: string, data: Uint8Array) => Promise<void>
   git: (cwd: string) => GitInfo
+  hostname: () => string
 }
 
 export const HELP = `docket ${VERSION}: publish self-contained HTML pages to Ego, at https://ego.kharitonovegor.com/docket/<id>
@@ -59,6 +60,10 @@ Every command
   --json                 Print the result as JSON on stdout. Errors print {"ok":false,"error":{...}}.
   -h, --help             Show this help.
   -v, --version          Print the docket version (alone, with no command).
+
+Install on another computer (Node 18 or newer), and run it again to update:
+  npm install -g https://ego.kharitonovegor.com/cli/docket.tgz
+  docket auth login
 
 Notes
   One self-contained HTML file per upload, up to 10 MB. Put CSS, scripts, and images inline (data:
@@ -348,6 +353,23 @@ async function remove(context: Context): Promise<void> {
   print(context, { id: docket.id, deleted: true }, `Deleted "${docket.title}" and its ${plural(docket.versionCount, 'version')}.`)
 }
 
+const DEFAULT_KEY_NAME = /^CLI · \d{4}-\d{2}-\d{2}$/
+
+/** A key still under its default name takes this computer's, so CLI setup in Ego shows where each key lives. */
+async function nameAfterComputer(client: Client, current: KeySummary, hostname: string): Promise<KeySummary> {
+  const name = hostname.trim().slice(0, 70)
+  if (!DEFAULT_KEY_NAME.test(current.name) || !name) return current
+  try {
+    return await client.json('/v1/docket-keys/current', readKey, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: `CLI · ${name}` })
+    })
+  } catch {
+    return current
+  }
+}
+
 async function login(context: Context): Promise<void> {
   if (context.args.length > 0) throw new UsageError('Pass the key with --key, or paste it at the prompt')
   const { io, values } = context
@@ -362,7 +384,8 @@ async function login(context: Context): Promise<void> {
     key = await io.promptHidden('API key: ')
   }
   if (!key.startsWith(KEY_PREFIX)) throw new UsageError(`That is not a docket API key. Keys start with ${KEY_PREFIX}.`)
-  const current = await createClient({ apiUrl, key, source: 'config' }, io.fetch).json('/v1/docket-keys/current', readKey)
+  const client = createClient({ apiUrl, key, source: 'config' }, io.fetch)
+  const current = await nameAfterComputer(client, await client.json('/v1/docket-keys/current', readKey), io.hostname())
   await saveLogin(io.configPath, { apiUrl, key, keyName: current.name })
   print(context, { signedIn: true, key: current, apiUrl, config: io.configPath },
     `Signed in with "${current.name}". Saved to ${io.configPath}.`)

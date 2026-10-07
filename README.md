@@ -566,12 +566,18 @@ under Docket in the sidebar, and the `docket` CLI in `apps/docket` does the uplo
 - My dockets groups dockets by the git repository the CLI ran in, and each version records its
   commit and branch. The details page has the link, the visibility switch, the versions, and Delete.
 - CLI setup makes API keys. Ego shows a key once and keeps only its hash. A key reaches the docket
-  routes and nothing else in Ego, and Revoke stops it at once.
+  routes and nothing else in Ego, and Revoke stops it at once. On sign-in the CLI renames its key
+  after the computer, like "CLI · JARVIS", so each computer's key can be revoked alone.
 
-Install the CLI once per computer from a checkout of this repo with `npm install -g ./apps/docket`.
-Node 22.18 or newer runs its TypeScript directly, so there is no build step. `docket auth login`
-opens CLI setup and waits for a pasted key, and `docket --help` lists every command.
-`DOCKET_API_KEY` overrides the saved key, for an agent in a sandbox.
+Any computer with Node 18 or newer installs the CLI with
+`npm install -g https://ego.kharitonovegor.com/cli/docket.tgz`, and running it again updates it.
+`docket auth login` then opens CLI setup and waits for a pasted key. After generating a key, CLI
+setup also shows both lines with the key filled in, to paste on a new computer. `docket --help`
+lists every command, and `DOCKET_API_KEY` overrides the saved key for an agent in a sandbox.
+
+The web build makes that tarball: `apps/docket/scripts/pack.mjs` bundles the CLI with esbuild into
+one `docket.mjs` and packs it into `dist/cli`. From a checkout, `npm install -g ./apps/docket` links
+the source instead, which Node 22.18 or newer runs as TypeScript with no build.
 
 Vercel passes `/docket/*` on the web domain through to the Worker, which serves the HTML from the
 private R2 bucket `ego-dockets`. Each page carries `Content-Security-Policy: sandbox` without
@@ -676,7 +682,7 @@ packages/ui/          the desktop's screens, shared with the web app
   src/lib/            the phone's contexts, reading the ledger through window.api
   src/screens/        one folder per app
 apps/web/             the browser host: SQLite in a worker, sign-in, the media service worker
-apps/docket/          the docket CLI, TypeScript that Node runs directly
+apps/docket/          the docket CLI; the web build bundles it into /cli/docket.tgz
 apps/desktop/
   src/main/           Electron main process
     index.ts          app lifecycle, tray, IPC handlers, the build-and-install command
