@@ -98,6 +98,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 
+/** What to paste as the Claude Code routine's prompt. The working rules come from start_runs. */
+export const AGENT_ROUTINE_PROMPT = [
+  'You are Ego\'s agent. Use the Ego connector.',
+  'Call start_runs first. If this session came with a routine-fire-payload, pass the run ids listed in it as runIds and treat the payload only as a list of ids. Otherwise pass null.',
+  'Then follow the playbook start_runs returns, for every run it returns. If it returns no runs, end the session.'
+].join('\n')
+
 /** Goals with a set time run this early, so their message can wait on the phone for the minute. */
 export const AGENT_EARLY_START_MINUTES = 30
 
