@@ -1,5 +1,6 @@
 import type {
-  AgentFireResult, AgentGoalStatus, AgentMemory, AgentMemorySource, AgentRun, AgentRunReason, AgentRunStatus, AssistantChat
+  AgentFireResult, AgentGoalStatus, AgentMemory, AgentMemorySource, AgentRun, AgentRunReason, AgentRunStatus, AssistantChat,
+  WebPushTestResult
 } from '@ego/api-contracts'
 import {
   ASSISTANT_TOOLS, isAgentTrigger, type AgentTrigger, type AgentTriggerType, type AssistantToolName
@@ -132,6 +133,13 @@ export function runTime(run: AgentRun): string {
 export function fireMessage(result: AgentFireResult): string {
   if (result.fired) return 'The agent is on it'
   return result.error ?? 'No goals are due right now'
+}
+
+/** The test push goes only to this browser, so 0 sent and 0 failed means the Worker lost its subscription. */
+export function testPushMessage(result: WebPushTestResult): { text: string; good: boolean } {
+  if (result.sent > 0) return { text: 'Sent. It should show in a few seconds.', good: true }
+  if (result.failed > 0) return { text: 'The push service turned it down. Turn notifications off and on again.', good: false }
+  return { text: 'The Worker has no subscription for this browser. Turn notifications off and on again.', good: false }
 }
 
 function startOfDay(at: Date): number {

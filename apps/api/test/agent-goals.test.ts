@@ -243,11 +243,12 @@ describe('notifications', () => {
     const key = await mcpKey(env)
     const start = (await call<AgentNotificationPage>(env, '/v1/agent/notifications')).body.data
     expect(start.notifications).toEqual([])
+    expect(start.cursor).toBe('2026-10-08T03:30:00.000Z|')
     expect(start.devices).toEqual({ phone: true, desktop: true, web: true })
 
     await tool(env, key, 'send_message', { runId: null, text: 'Your card was charged twice', urgent: false })
     await tool(env, key, 'send_message', { runId: null, text: 'The server is down', urgent: true })
-    const first = await call<AgentNotificationPage>(env, '/v1/agent/notifications?after=0')
+    const first = await call<AgentNotificationPage>(env, `/v1/agent/notifications?after=${encodeURIComponent(start.cursor ?? '')}`)
     const page = first.body.data
     expect(page.notifications.map((item) => [item.body, item.deliverAt, item.silent]).sort()).toEqual([
       ['The server is down', '2026-10-08T03:30:00.000Z', false],

@@ -103,6 +103,11 @@ export function parseSettings(raw: string | null): EgoSettings {
   }
 }
 
+/** For code that runs outside React, such as a background task. */
+export async function readStoredSettings(): Promise<EgoSettings> {
+  return parseSettings(await SecureStore.getItemAsync(STORE_KEY).catch(() => null))
+}
+
 export function SettingsProvider({ children }: { children: React.ReactNode }): React.ReactElement {
   const [settings, setSettings] = useState<EgoSettings>(EMPTY)
   const [loading, setLoading] = useState(true)
@@ -110,8 +115,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }): R
 
   useEffect(() => {
     void (async () => {
-      const raw = await SecureStore.getItemAsync(STORE_KEY).catch(() => null)
-      latest.current = parseSettings(raw)
+      latest.current = await readStoredSettings()
       setSettings(latest.current)
       setLoading(false)
     })()

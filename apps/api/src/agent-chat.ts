@@ -134,7 +134,8 @@ export async function listNotifications(env: Env, datasetId: string, after: stri
   if (!after) {
     const latest = await query<NotificationRow>(env.DB, `SELECT * FROM agent_notifications WHERE dataset_id = ?
       ORDER BY created_at DESC, id DESC LIMIT 1`, [datasetId])
-    return { notifications: [], cursor: latest[0] ? cursorOf(latest[0]) : null, devices: settings.devices }
+    const start = latest[0] ? cursorOf(latest[0]) : `${new Date().toISOString()}|`
+    return { notifications: [], cursor: start, devices: settings.devices }
   }
   const [createdAt, id = ''] = after.split('|')
   const rows = await query<NotificationRow>(env.DB, `SELECT * FROM agent_notifications WHERE dataset_id = ?
