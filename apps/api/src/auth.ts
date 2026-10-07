@@ -40,6 +40,10 @@ export interface Env {
   DOCKETS?: R2Bucket
   /** Where docket links point, the web app's origin. Falls back to the first of WEB_ORIGINS. */
   DOCKET_BASE_URL?: string
+  /** The Claude Code routine's /fire URL. The Worker wakes it when standing goals are due. */
+  AGENT_ROUTINE_URL?: string
+  /** The routine's API trigger token, from claude.ai/code/routines. */
+  AGENT_ROUTINE_TOKEN?: string
 }
 
 interface DeviceRow {

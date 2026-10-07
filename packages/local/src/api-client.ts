@@ -1,5 +1,7 @@
 import type {
-  AccountBalances, AgentKeyCreated, AgentKeyList, AgentMemory, AgentMemoryList, ApiError, ApiErrorCode, ApiResult, AppBuildStatus, AssistantChatList, AssistantConfirmRequest,
+  AccountBalances, AgentFireResult, AgentGoal, AgentGoalInput, AgentGoalList, AgentGoalUpdate, AgentInbox, AgentKeyCreated,
+  AgentKeyList, AgentMemory, AgentMemoryList, AgentNotificationPage, AgentRunList, AgentSettings, AgentSettingsView, ApiError,
+  AssistantMessage, ApiErrorCode, ApiResult, AppBuildStatus, AssistantChatList, AssistantConfirmRequest,
   AssistantHistory, AssistantStreamEvent, AssistantTurnRequest, BootstrapData, CalendarConnectStart, CalendarCreateRequest,
   CalendarDeleteRequest, CalendarEventRef, CalendarListChange, CalendarRange, CalendarRestoreRequest, CalendarRsvpRequest, CalendarSeries,
   CalendarSnapshot, CalendarUpdateRequest, ChangePage, DeviceList, DiaryMediaInfo, DocketDetail, DocketKeyCreated, DocketKeyList,
@@ -134,6 +136,21 @@ export interface AgentApi {
   addAgentMemory: (text: string) => Promise<ApiResult<AgentMemory>>
   updateAgentMemory: (id: string, text: string) => Promise<ApiResult<AgentMemory>>
   deleteAgentMemory: (id: string) => Promise<ApiResult<{ deleted: true }>>
+  agentSettings: () => Promise<ApiResult<AgentSettingsView>>
+  saveAgentSettings: (settings: AgentSettings) => Promise<ApiResult<AgentSettingsView>>
+  agentGoals: () => Promise<ApiResult<AgentGoalList>>
+  createAgentGoal: (input: AgentGoalInput) => Promise<ApiResult<AgentGoal>>
+  updateAgentGoal: (id: string, update: AgentGoalUpdate) => Promise<ApiResult<AgentGoal>>
+  deleteAgentGoal: (id: string) => Promise<ApiResult<{ deleted: true }>>
+  /** Queues a run and wakes the routine. */
+  runAgentGoal: (id: string) => Promise<ApiResult<AgentFireResult>>
+  agentRuns: (goalId: string | null) => Promise<ApiResult<AgentRunList>>
+  answerAgentProposal: (id: string, approved: boolean) => Promise<ApiResult<{ message: AssistantMessage }>>
+  agentInbox: () => Promise<ApiResult<AgentInbox>>
+  markAgentRead: () => Promise<ApiResult<AgentInbox>>
+  /** Null `after` returns no notifications, only the cursor to start from. */
+  agentNotifications: (after: string | null) => Promise<ApiResult<AgentNotificationPage>>
+  fireAgentRoutine: () => Promise<ApiResult<AgentFireResult>>
 }
 
 export interface EgoApi extends MoneyApi, StudyApi, HealthApi, CalendarApi, DiaryMediaApi, AssistantApi, FoodApi, DocketApi, AgentApi {
@@ -453,6 +470,21 @@ export function moneyApiFor(config: ApiConfig, options: { streamFetch?: StreamFe
       method: 'PUT', body: JSON.stringify({ text })
     }),
     deleteAgentMemory: (id) => call<{ deleted: true }>(`/v1/agent/memories/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    agentSettings: () => call<AgentSettingsView>('/v1/agent/settings'),
+    saveAgentSettings: (settings) => call<AgentSettingsView>('/v1/agent/settings', { method: 'PUT', body: JSON.stringify(settings) }),
+    agentGoals: () => call<AgentGoalList>('/v1/agent/goals'),
+    createAgentGoal: (input) => call<AgentGoal>('/v1/agent/goals', { method: 'POST', body: JSON.stringify(input) }),
+    updateAgentGoal: (id, update) => call<AgentGoal>(`/v1/agent/goals/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(update) }),
+    deleteAgentGoal: (id) => call<{ deleted: true }>(`/v1/agent/goals/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    runAgentGoal: (id) => call<AgentFireResult>(`/v1/agent/goals/${encodeURIComponent(id)}/run`, { method: 'POST', body: '{}' }),
+    agentRuns: (goalId) => call<AgentRunList>(goalId ? `/v1/agent/runs?goal=${encodeURIComponent(goalId)}` : '/v1/agent/runs'),
+    answerAgentProposal: (id, approved) => call<{ message: AssistantMessage }>(`/v1/agent/proposals/${encodeURIComponent(id)}`, {
+      method: 'POST', body: JSON.stringify({ approved })
+    }),
+    agentInbox: () => call<AgentInbox>('/v1/agent/inbox'),
+    markAgentRead: () => call<AgentInbox>('/v1/agent/inbox/read', { method: 'POST', body: '{}' }),
+    agentNotifications: (after) => call<AgentNotificationPage>(after ? `/v1/agent/notifications?after=${encodeURIComponent(after)}` : '/v1/agent/notifications'),
+    fireAgentRoutine: () => call<AgentFireResult>('/v1/agent/routine/fire', { method: 'POST', body: '{}' }),
     docketKeys: () => call<DocketKeyList>('/v1/docket-keys'),
     createDocketKey: (name) => call<DocketKeyCreated>('/v1/docket-keys', {
       method: 'POST',

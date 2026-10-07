@@ -1,4 +1,5 @@
 import type { AssistantToolName } from '@ego/core'
+import type { AgentProposal } from './agent'
 import type { ApiError } from './errors'
 
 export interface AssistantChat {
@@ -7,6 +8,8 @@ export interface AssistantChat {
   title: string
   createdAt: string
   updatedAt: string
+  /** The Agent chat, where standing goals post, is pinned first. Workers before it leave this out. */
+  kind?: 'chat' | 'agent'
 }
 
 export interface AssistantChatList {
@@ -31,6 +34,8 @@ export interface AssistantMessage {
   hasImage: boolean
   /** Always empty. Writes can only be taken back before they save; builds before 0.6.0 still read this. */
   undo: AssistantUndo[]
+  /** Set on what the agent posted from a standing goal while the user was away. */
+  agent?: { goalId: string | null; goalTitle: string | null }
 }
 
 export interface AssistantPendingChange {
@@ -91,6 +96,8 @@ export interface AssistantHistory {
   chat: AssistantChat | null
   messages: AssistantMessage[]
   pending: AssistantPendingWrite | null
+  /** The Agent chat's changes waiting for Confirm, oldest first. */
+  proposals?: AgentProposal[]
 }
 
 /** One line of the NDJSON stream a turn answers with. */
