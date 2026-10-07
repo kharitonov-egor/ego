@@ -63,8 +63,8 @@ async function tool<T>(env: Env, key: string, name: string, args: unknown): Prom
   return { data: data as T, isError: reply.result.isError, text }
 }
 
-function routineFetch(): ReturnType<typeof vi.fn> {
-  return vi.fn(async (url: string) => {
+function routineFetch() {
+  return vi.fn(async (url: string, _init?: RequestInit): Promise<Response> => {
     if (url === ROUTINE) {
       return new Response(JSON.stringify({ type: 'routine_fire', claude_code_session_id: 'session_1', claude_code_session_url: 'https://claude.ai/code/session_1' }), {
         status: 200, headers: { 'content-type': 'application/json' }
