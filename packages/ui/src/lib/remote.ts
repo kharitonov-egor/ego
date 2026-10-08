@@ -48,6 +48,9 @@ export const remoteApi: RemoteApi = {
   docket: call('docket'),
   updateDocket: call('updateDocket'),
   deleteDocket: call('deleteDocket'),
+  contentKeys: call('contentKeys'),
+  createContentKey: call('createContentKey'),
+  revokeContentKey: call('revokeContentKey'),
   docketKeys: call('docketKeys'),
   createDocketKey: call('createDocketKey'),
   revokeDocketKey: call('revokeDocketKey')

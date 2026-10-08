@@ -1,5 +1,5 @@
 import {
-  BookOpen, CalendarDays, CircleCheckBig, Dumbbell, FileText, GraduationCap, HeartPulse, Sheet, Smile, Sparkles, SquareKanban,
+  Bookmark, BookOpen, CalendarDays, CircleCheckBig, Dumbbell, FileText, GraduationCap, HeartPulse, Sheet, Smile, Sparkles, SquareKanban,
   UtensilsCrossed, Wallet, type LucideIcon
 } from 'lucide-react'
 import { isWeb } from './lib/platform'
@@ -28,6 +28,7 @@ export const APPS: readonly AppEntry[] = [
   { label: 'Tasks', Icon: SquareKanban, path: '/tasks', prefix: '/tasks' },
   { label: 'Sheets', Icon: Sheet, path: '/sheets', prefix: '/sheets' },
   { label: 'Food', Icon: UtensilsCrossed, path: '/food', prefix: '/food' },
+  { label: 'Content', Icon: Bookmark, path: '/content', prefix: '/content' },
   { label: 'Calendar', Icon: CalendarDays, path: '/calendar', prefix: '/calendar' },
   { label: 'Docket', Icon: FileText, path: '/dockets', prefix: '/dockets', webOnly: true }
 ]

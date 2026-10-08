@@ -1,3 +1,4 @@
+import { contentRoute } from './content'
 import {
   API_VERSION, HTTP_STATUS, MAX_CHANGE_PAGE_SIZE, decodeCursor, invalid, isOperationRequest,
   parseTransactionFilters,
@@ -109,6 +110,7 @@ export async function handle(request: Request, env: Env, work?: Pick<ExecutionCo
     return completeWisprConnector(request, env)
   }
   if (request.method === 'POST' && path === '/v1/app/builds/webhook') return respond(await receiveBuildWebhook(request, env))
+  if (path.startsWith('/v1/content/')) return contentRoute(request, env, path)
   const docket = docketRoute(request, env, path, new Date().toISOString())
   if (docket) return docket
 

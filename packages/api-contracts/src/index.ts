@@ -15,3 +15,5 @@ export * from './app-builds'
 export * from './food'
 export * from './calendar'
 export * from './docket'
+
+export * from './content'

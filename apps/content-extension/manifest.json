@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Ego Content",
+  "version": "0.1.0",
+  "description": "Save the current page to your Ego library.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://ego-money.ega-khar.workers.dev/*"
+  ],
+  "action": {
+    "default_title": "Save to Ego",
+    "default_popup": "popup.html"
+  },
+  "icons": {
+    "128": "icon.png"
+  }
+}

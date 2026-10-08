@@ -30,6 +30,8 @@ export const TABLES: Record<SyncEntity, string> = {
   sheetRow: 'sheet_rows',
   foodEntry: 'food_entries',
   fridgeItem: 'fridge_items',
+  contentItem: 'content_items',
+  contentCollection: 'content_collections',
   foodGoal: 'food_goals'
 }
 
@@ -377,6 +379,16 @@ async function writeFoodGoal(tx: LocalDatabase, record: FoodGoalRecord): Promise
 export async function writeRecord(tx: LocalDatabase, payload: ChangePayload): Promise<void> {
   if (payload.record === null) return
   switch (payload.entity) {
+    case 'contentItem':
+    case 'contentCollection': {
+      const { id, createdAt, updatedAt, revision, ...data } = payload.record
+      const table = TABLES[payload.entity]
+      await tx.run(`INSERT INTO ${table} (id, data, created_at, updated_at, revision, deleted_at)
+        VALUES (?, ?, ?, ?, ?, NULL) ON CONFLICT(id) DO UPDATE SET data = excluded.data,
+        created_at = excluded.created_at, updated_at = excluded.updated_at, revision = excluded.revision, deleted_at = NULL
+        WHERE excluded.revision >= ${table}.revision`, [id, JSON.stringify(data), createdAt, updatedAt, revision])
+      return
+    }
     case 'account': return writeAccount(tx, payload.record)
     case 'category': return writeCategory(tx, payload.record)
     case 'transaction': return writeTransaction(tx, payload.record)

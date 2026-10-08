@@ -109,7 +109,7 @@ describe('habits on the phone', () => {
     const api = fakeApi({ changes: [{ ok: true, data: { changes: [pulled], cursor: 7, hasMore: false } }] })
     const outcome = await createSyncCoordinator({ db, api, now: () => NOW }).sync()
     expect(outcome).toMatchObject({ state: 'synced', delivered: 3 })
-    expect(outcome.touched).toEqual({ money: false, gym: false, health: false, habits: true, diary: false, tasks: false, sheets: false, food: false })
+    expect(outcome.touched).toEqual({ money: false, gym: false, health: false, habits: true, diary: false, tasks: false, sheets: false, food: false, content: false })
     expect(await allOperations(db)).toHaveLength(0)
     expect((await localHabitEntries(db)).map((entry) => [entry.id, entry.kind])).toEqual([['he-slip', 'slipped'], ['he-1', 'done']])
   })
