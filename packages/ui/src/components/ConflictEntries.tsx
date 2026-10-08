@@ -6,6 +6,7 @@ import { Button } from './ui/button'
 import { Sheet } from './ui/dialog'
 
 const ENTITY_LABELS: Record<SyncEntity, string> = {
+  contentItem: 'Bookmark', contentCollection: 'Collection',
   account: 'Account',
   category: 'Category',
   transaction: 'Transaction',

@@ -1,3 +1,4 @@
+import { cleanContentItem } from '@ego/core'
 import type { SyncOperation } from '@ego/api-contracts'
 import type { LocalDatabase } from '../database/types'
 import { TABLES, writeRecord, writeTombstone } from '../database/writes'
@@ -223,6 +224,18 @@ export async function applyCommandLocally(
     } else {
       await writeRecord(tx, { entity: 'foodGoal', record: foodGoalRecordFrom(command.payload, createdAt, now, nextRevision) })
     }
+    return
+  }
+
+  if (command.entity === 'contentItem' || command.entity === 'contentCollection') {
+    if (command.type === 'delete') {
+      await writeTombstone(tx, command.entity, entityId, revision, now)
+      return
+    }
+    const current = await existing(tx, TABLES[command.entity], 'id', entityId)
+    const meta = { id: entityId, createdAt: current?.created_at ?? now, updatedAt: now, revision: command.type === 'create' ? 1 : revision }
+    if (command.entity === 'contentItem') await writeRecord(tx, { entity: 'contentItem', record: { ...cleanContentItem(command.payload), ...meta } })
+    else await writeRecord(tx, { entity: 'contentCollection', record: { name: command.payload.name.trim(), ...meta } })
     return
   }
 

@@ -1,4 +1,5 @@
 import {
+  isContentItemInput, isContentCollectionInput, type ContentItemInput, type ContentCollectionInput,
   FOOD_GOAL_ID, isAccountInput, isBudgetInput, isCategoryInput, isDateString, isDiaryMessageInput, isFoodEntryInput,
   isFoodGoalInput, isFridgeItemInput, isGymCategoryInput, isGymExerciseInput, isGymPlanInput, isGymSetInput,
   isGymWorkoutInput, isHabitEntryInput, isHabitInput, isMonthString, isMoodInput, isPurchaseInput, isSheetInput,
@@ -14,6 +15,10 @@ import type { ApiError } from './errors'
 import type { SyncEntity } from './records'
 
 export type SyncCommand =
+  | { entity: 'contentItem'; type: 'create' | 'update'; payload: ContentItemInput }
+  | { entity: 'contentItem'; type: 'delete' }
+  | { entity: 'contentCollection'; type: 'create' | 'update'; payload: ContentCollectionInput }
+  | { entity: 'contentCollection'; type: 'delete' }
   | { entity: 'account'; type: 'create'; payload: AccountInput }
   | { entity: 'account'; type: 'update'; payload: AccountInput }
   | { entity: 'account'; type: 'archive'; payload: ArchiveInput }
@@ -132,6 +137,12 @@ function isCommand(value: unknown): value is SyncCommand {
   if (!isRecord(value) || typeof value.entity !== 'string' || typeof value.type !== 'string') return false
   const payload = value.payload
   switch (`${value.entity}.${value.type}`) {
+    case 'contentItem.create':
+    case 'contentItem.update': return isContentItemInput(payload)
+    case 'contentCollection.create':
+    case 'contentCollection.update': return isContentCollectionInput(payload)
+    case 'contentItem.delete':
+    case 'contentCollection.delete': return true
     case 'account.create':
     case 'account.update':
       return isAccountInput(payload)

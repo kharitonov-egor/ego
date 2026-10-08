@@ -6,6 +6,7 @@ import { TOUCH } from './money/tokens'
 import { Text } from './ui/text'
 
 const ENTITY_LABELS: Record<SyncEntity, string> = {
+  contentItem: 'Bookmark', contentCollection: 'Collection',
   account: 'Account',
   category: 'Category',
   transaction: 'Transaction',

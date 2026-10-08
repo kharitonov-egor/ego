@@ -24,7 +24,7 @@ export function Sidebar(): React.ReactElement {
   const { pathname } = useLocation()
   const { blurred, setBlurred } = useBlur()
   const BlurIcon = blurred ? EyeOff : Eye
-  return <aside className="flex w-56 shrink-0 select-none flex-col border-r border-border px-3 pb-3 pt-3">
+  return <aside className={cn("w-56 shrink-0 select-none flex-col border-r border-border px-3 pb-3 pt-3", pathname.startsWith('/content') ? 'hidden sm:flex' : 'flex')}>
     <nav aria-label="Apps" className="-mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1">
       <Row to="/" label="Home" Icon={House} active={pathname === '/'} />
       <div className="my-2 border-t border-border" />

@@ -46,6 +46,7 @@ export const REMOTE_API_METHODS = [
   'docket',
   'updateDocket',
   'deleteDocket',
+  'contentKeys', 'createContentKey', 'revokeContentKey',
   'docketKeys',
   'createDocketKey',
   'revokeDocketKey'

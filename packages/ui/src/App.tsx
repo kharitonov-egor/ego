@@ -1,4 +1,5 @@
 import React from 'react'
+import Content from './screens/content/Content'
 import { Navigate, Route, Routes, useNavigate } from 'react-router'
 import TalkToAIView from './components/TalkToAIView'
 import { Sidebar } from './components/Sidebar'
@@ -92,6 +93,7 @@ export default function App({ titleBar, overlay }: AppProps): React.ReactElement
         <Sidebar />
         <main className="min-w-0 flex-1 overflow-hidden">
           <Routes>
+            <Route path="/content" element={<Content />} />
             <Route path="/" element={<Home />} />
             <Route path="/ai" element={<Assistant />} />
             <Route path="/ai/voice" element={<TalkToAI />} />

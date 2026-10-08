@@ -1,8 +1,11 @@
 import type {
-  DiaryMessage, FoodEntry, FoodGoal, FridgeItem, GymCategory, GymExercise, GymPlan, GymSet, GymWorkout, Habit, HabitEntry,
+  ContentItem, ContentCollection, DiaryMessage, FoodEntry, FoodGoal, FridgeItem, GymCategory, GymExercise, GymPlan, GymSet, GymWorkout, Habit, HabitEntry,
   MoneyAccount, MoneyCategory, MoneyPurchase, MoneyTransaction, MonthlyBudget, MoodEntry, Sheet, SheetRow, TaskBoard,
   TaskCard, TaskGoal, TaskLabel, TaskList, TransactionKind
 } from '@ego/core'
+
+export type ContentItemRecord = ContentItem & { revision: number }
+export type ContentCollectionRecord = ContentCollection & { revision: number }
 
 export const API_VERSION = 1
 export const DEFAULT_PAGE_SIZE = 50
@@ -90,6 +93,8 @@ export interface BootstrapData {
   foodEntries?: FoodEntryRecord[]
   fridgeItems?: FridgeItemRecord[]
   foodGoals?: FoodGoalRecord[]
+  contentItems?: ContentItemRecord[]
+  contentCollections?: ContentCollectionRecord[]
 }
 
 export interface TransactionDetail {
@@ -132,7 +137,7 @@ export type TaskEntity = 'taskBoard' | 'taskList' | 'taskLabel' | 'taskCard' | '
 export type SheetEntity = 'sheet' | 'sheetRow'
 export type FoodEntity = 'foodEntry' | 'fridgeItem' | 'foodGoal'
 export type SyncEntity =
-  | MoneyEntity | GymEntity | HealthEntity | HabitEntity | DiaryEntity | TaskEntity | SheetEntity | FoodEntity
+  | MoneyEntity | GymEntity | HealthEntity | HabitEntity | DiaryEntity | TaskEntity | SheetEntity | FoodEntity | 'contentItem' | 'contentCollection'
 
 export const TASK_ENTITIES: readonly TaskEntity[] = ['taskBoard', 'taskList', 'taskLabel', 'taskCard', 'taskGoal']
 
@@ -176,6 +181,8 @@ interface ChangeBase {
 
 /** A delete carries a null record, so an offline device learns about tombstones. */
 export type ChangePayload =
+  | { entity: 'contentItem'; record: ContentItemRecord | null }
+  | { entity: 'contentCollection'; record: ContentCollectionRecord | null }
   | { entity: 'account'; record: AccountRecord | null }
   | { entity: 'category'; record: CategoryRecord | null }
   | { entity: 'transaction'; record: TransactionRecord | null }

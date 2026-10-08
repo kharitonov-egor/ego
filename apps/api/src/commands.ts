@@ -1,3 +1,5 @@
+import { cleanContentItem } from '@ego/core'
+import { contentItemRecord, contentCollectionRecord, type ContentRow } from './content-records'
 import {
   conflict, invalid, notFound,
   type ApiResult, type ChangePayload, type OperationOutcome, type OperationResponse,
@@ -66,6 +68,8 @@ const TABLES: Record<SyncEntity, string> = {
   sheetRow: 'sheet_rows',
   foodEntry: 'food_entries',
   fridgeItem: 'fridge_items',
+  contentItem: 'content_items',
+  contentCollection: 'content_collections',
   foodGoal: 'food_goals'
 }
 
@@ -94,6 +98,8 @@ const KEYS: Record<SyncEntity, string> = {
   sheetRow: 'id',
   foodEntry: 'id',
   fridgeItem: 'id',
+  contentItem: 'id',
+  contentCollection: 'id',
   foodGoal: 'id'
 }
 
@@ -1691,8 +1697,36 @@ async function planFoodGoal(
   }
 }
 
+async function planContent(
+  db: D1Database, operation: SyncOperation,
+  command: Extract<SyncCommand, { entity: 'contentItem' | 'contentCollection' }>, now: string
+): Promise<ApiResult<Plan>> {
+  const entity = command.entity
+  const id = operation.entityId
+  const table = TABLES[entity]
+  const current = command.type === 'create' ? null : await liveRow<ContentRow>(db, entity, id)
+  if (command.type !== 'create' && !current) return notFound('This content no longer exists')
+  const expected = operation.expectedRevision ?? 0
+  const guard = command.type === 'create' ? null : guardFor(entity, id, expected)
+  if (command.type === 'delete') return { ok: true, data: deletePlan(entity, id, expected, now, guard!, { entity, record: null }) }
+  const input = command.entity === 'contentItem' ? cleanContentItem(command.payload) : { name: command.payload.name.trim() }
+  const data = JSON.stringify(input)
+  const revision = command.type === 'create' ? 1 : expected + 1
+  const row: ContentRow = { id, data, created_at: current?.created_at ?? now, updated_at: now, revision }
+  const payload: ChangePayload = entity === 'contentItem' ? { entity, record: contentItemRecord(row) } : { entity, record: contentCollectionRecord(row) }
+  const primary = command.type === 'create' ? {
+    sql: `INSERT INTO ${table} (id, data, created_at, updated_at, revision) SELECT ?, ?, ?, ?, 1`, params: [id, data, now, now]
+  } : {
+    sql: `UPDATE ${table} SET data = ?, updated_at = ?, revision = revision + 1 WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+    params: [data, now, id, expected]
+  }
+  return { ok: true, data: upsertPlan(entity, id, revision, payload, primary, guard) }
+}
+
 function planFor(db: D1Database, operation: SyncOperation, now: string): Promise<ApiResult<Plan>> {
   switch (operation.command.entity) {
+    case 'contentItem':
+    case 'contentCollection': return planContent(db, operation, operation.command, now)
     case 'account': return planAccount(db, operation, operation.command, now)
     case 'category': return planCategory(db, operation, operation.command, now)
     case 'transaction': return planTransaction(db, operation, operation.command, now)

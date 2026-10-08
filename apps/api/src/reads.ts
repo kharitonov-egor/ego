@@ -1,3 +1,5 @@
+import type { ContentItemRecord, ContentCollectionRecord } from '@ego/api-contracts'
+import { readContent } from './content-records'
 import {
   DEFAULT_PAGE_SIZE, MAX_CHANGE_PAGE_SIZE, MAX_PAGE_SIZE, NO_TRANSACTION_FILTERS, encodeCursor,
   BALANCES_SQL, FEED_COLUMNS, FEED_FROM, budgetTotalsSql, feedCountSql, feedPageSql, notFound,
@@ -165,6 +167,8 @@ function parsePayload(raw: string | null): unknown {
 /** The Worker wrote this payload itself when it committed the change. */
 function toChangePayload(entity: ChangeRow['entity'], record: unknown): ChangePayload {
   switch (entity) {
+    case 'contentItem': return { entity, record: record as ContentItemRecord | null }
+    case 'contentCollection': return { entity, record: record as ContentCollectionRecord | null }
     case 'account': return { entity, record: record as AccountRecord | null }
     case 'category': return { entity, record: record as CategoryRecord | null }
     case 'transaction': return { entity, record: record as TransactionRecord | null }
@@ -333,7 +337,7 @@ export async function readBootstrap(db: D1Database): Promise<BootstrapData> {
   const sequence = await serverSequence(db)
   const [
     records, gymCategories, gymExercises, gymSets, gymWorkouts, gymPlans, moods, habits, habitEntries, diaryMessages, tasks,
-    sheets, food
+    sheets, food, content
   ] = await Promise.all([
     readLiveRecords(db),
     query<GymCategoryRow>(db, 'SELECT * FROM gym_categories WHERE deleted_at IS NULL ORDER BY name COLLATE NOCASE'),
@@ -347,9 +351,11 @@ export async function readBootstrap(db: D1Database): Promise<BootstrapData> {
     query<DiaryMessageRow>(db, 'SELECT * FROM diary_messages WHERE deleted_at IS NULL ORDER BY sent_at, id'),
     readTaskRows(db),
     readSheetRows(db),
-    readFoodRows(db)
+    readFoodRows(db),
+    readContent(db)
   ])
   return {
+    ...content,
     serverSequence: sequence,
     accounts: records.accounts.map(toAccountRecord),
     categories: records.categories.map(toCategoryRecord),

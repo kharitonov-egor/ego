@@ -39,6 +39,7 @@ export interface Touched {
   diary: boolean
   tasks: boolean
   sheets: boolean
+  content: boolean
   food: boolean
 }
 
@@ -54,7 +55,7 @@ export interface SyncOutcome {
 }
 
 const NOTHING_TOUCHED: Touched = {
-  money: false, gym: false, health: false, habits: false, diary: false, tasks: false, sheets: false, food: false
+  money: false, gym: false, health: false, habits: false, diary: false, tasks: false, sheets: false, food: false, content: false
 }
 
 function touch(touched: Touched, entity: SyncEntity): void {
@@ -65,6 +66,7 @@ function touch(touched: Touched, entity: SyncEntity): void {
   else if (isTaskEntity(entity)) touched.tasks = true
   else if (isSheetEntity(entity)) touched.sheets = true
   else if (isFoodEntity(entity)) touched.food = true
+  else if (entity === 'contentItem' || entity === 'contentCollection') touched.content = true
   else touched.money = true
 }
 
@@ -79,9 +81,9 @@ interface SyncStateRow {
  * bootstrapped then has no budgets and no receipt items. Version 2 downloads every money record.
  * Version 3 adds the gym log. Version 4 adds the diary: a build without it pulled diary changes
  * it could not store and moved past them, so it has to download everything again. Version 5 does
- * the same for Tasks, version 6 for Sheets, version 7 for Goals, and version 8 for Food.
+ * the same for Tasks, version 6 for Sheets, version 7 for Goals, and version 8 for Food, and version 9 for Content.
  */
-export const BOOTSTRAP_VERSION = 8
+export const BOOTSTRAP_VERSION = 9
 
 async function syncStateRow(db: LocalDatabase): Promise<SyncStateRow> {
   const rows = await db.all<SyncStateRow>(
@@ -140,7 +142,11 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
   const foodEntries = data.foodEntries ?? []
   const fridgeItems = data.fridgeItems ?? []
   const foodGoals = data.foodGoals ?? []
+  const contentItems = data.contentItems ?? []
+  const contentCollections = data.contentCollections ?? []
   const live: Record<SyncEntity, Set<string>> = {
+    contentItem: new Set(contentItems.map(record => record.id)),
+    contentCollection: new Set(contentCollections.map(record => record.id)),
     account: new Set(data.accounts.map((record) => record.id)),
     category: new Set(data.categories.map((record) => record.id)),
     transaction: new Set(data.transactions.map((record) => record.id)),
@@ -192,6 +198,8 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
     for (const record of foodEntries) if (!skip('foodEntry', record.id)) await writeRecord(cached, { entity: 'foodEntry', record })
     for (const record of fridgeItems) if (!skip('fridgeItem', record.id)) await writeRecord(cached, { entity: 'fridgeItem', record })
     for (const record of foodGoals) if (!skip('foodGoal', record.id)) await writeRecord(cached, { entity: 'foodGoal', record })
+    for (const record of contentItems) if (!skip('contentItem', record.id)) await writeRecord(cached, { entity: 'contentItem', record })
+    for (const record of contentCollections) if (!skip('contentCollection', record.id)) await writeRecord(cached, { entity: 'contentCollection', record })
     for (const entity of Object.keys(TABLES) as SyncEntity[]) {
       const key = keyColumn(entity)
       const local = await tx.all<{ key: string }>(`SELECT ${key} AS key FROM ${TABLES[entity]} WHERE deleted_at IS NULL`)
@@ -339,6 +347,7 @@ export function createSyncCoordinator(deps: SyncDeps): SyncCoordinator {
       touched.tasks = true
       touched.sheets = true
       touched.food = true
+      touched.content = true
     }
     const delivery = await deliver(deps, touched)
     if (delivery.paused) return outcomeFor(db, delivery.error, true, delivery.delivered, 0, touched)
@@ -378,6 +387,7 @@ export function createSyncCoordinator(deps: SyncDeps): SyncCoordinator {
           touched.tasks ||= outcome.touched.tasks
           touched.sheets ||= outcome.touched.sheets
           touched.food ||= outcome.touched.food
+          touched.content ||= outcome.touched.content
         } while (again)
         return { ...outcome, touched }
       })().finally(() => {

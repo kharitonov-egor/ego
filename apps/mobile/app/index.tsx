@@ -4,7 +4,7 @@ import { KeyboardScrollView } from '../components/ui/keyboard'
 import { useRouter, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
-  BookOpen, CalendarDays, CircleCheckBig, Dumbbell, GraduationCap, HeartPulse, Settings, Sheet, Smile, Sparkles, SquareKanban,
+  Bookmark, BookOpen, CalendarDays, CircleCheckBig, Dumbbell, GraduationCap, HeartPulse, Settings, Sheet, Smile, Sparkles, SquareKanban,
   UtensilsCrossed, Wallet,
   type LucideIcon
 } from 'lucide-react-native'
@@ -35,6 +35,7 @@ const APPS: readonly App[] = [
   { label: 'Tasks', Icon: SquareKanban, href: '/tasks' },
   { label: 'Sheets', Icon: Sheet, href: '/sheets' },
   { label: 'Food', Icon: UtensilsCrossed, href: '/food' },
+  { label: 'Content', Icon: Bookmark, href: '/content' },
   { label: 'Calendar', Icon: CalendarDays, href: '/calendar' }
 ]
 
