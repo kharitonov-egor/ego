@@ -16,7 +16,7 @@ const cleanup: Array<() => void | Promise<void>> = []
 afterEach(async () => { for (const close of cleanup.splice(0)) await close() })
 async function setup(): Promise<Env> {
   const server = await seedLedger(); cleanup.push(server.close)
-  await exec(server.db, `INSERT INTO devices (id, name, token_hash, dataset_id, created_at) VALUES ('content-device', 'Test', ?, 'ego-money', ?)`, [await hashToken(TOKEN), new Date().toISOString()])
+  await exec(server.db, `INSERT INTO devices (id, name, token_hash, dataset_id, created_at) VALUES ('content-device', 'Test', ?, 'ego', ?)`, [await hashToken(TOKEN), new Date().toISOString()])
   return { DB: server.db }
 }
 async function request(env: Env, path: string, token = TOKEN, method = 'GET', body?: unknown): Promise<Response> {

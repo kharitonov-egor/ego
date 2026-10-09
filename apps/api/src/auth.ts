@@ -42,6 +42,8 @@ export interface Env {
   DOCKET_BASE_URL?: string
 }
 
+export const currentDataset = (env: Pick<Env, 'DATASET_ID'>): string => env.DATASET_ID ?? 'ego'
+
 interface DeviceRow {
   id: string
   name: string

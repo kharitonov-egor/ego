@@ -1,6 +1,6 @@
 import { HTTP_STATUS, type ApiErrorCode } from '@ego/api-contracts'
 import { isContentItemInput, cleanContentItem } from '@ego/core'
-import { authorize, bearer, hashToken, touchDevice, type Env } from './auth'
+import { authorize, bearer, currentDataset, hashToken, touchDevice, type Env } from './auth'
 import { applyOperation } from './commands'
 import { readContent } from './content-records'
 
@@ -18,7 +18,7 @@ export async function contentRoute(request: Request, env: Env, path: string): Pr
   if (isKey) {
     const key = await env.DB.prepare('SELECT * FROM content_keys WHERE token_hash = ? AND revoked_at IS NULL')
       .bind(await hashToken(token!)).first<KeyRow>()
-    if (!key || key.dataset_id !== (env.DATASET_ID ?? 'ego-money')) return fail('AUTH_REQUIRED', 'Reconnect the extension from Content settings')
+    if (!key || key.dataset_id !== currentDataset(env)) return fail('AUTH_REQUIRED', 'Reconnect the extension from Content settings')
     datasetId = key.dataset_id
   } else {
     const auth = await authorize(request, env.DB)

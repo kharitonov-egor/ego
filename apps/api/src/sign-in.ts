@@ -5,7 +5,7 @@ import {
   type SignInResult,
   type SignInStartResult
 } from '@ego/api-contracts'
-import { hashToken, type Env } from './auth'
+import { currentDataset, hashToken, type Env } from './auth'
 import { fromBase64, randomUrlToken, sha256 } from './connector-crypto'
 import { connectorStatus, googleCallbackUrl } from './connectors'
 import { healthConnected } from './health'
@@ -16,7 +16,6 @@ const GOOGLE_TOKEN = 'https://oauth2.googleapis.com/token'
 const GOOGLE_ISSUERS = new Set(['accounts.google.com', 'https://accounts.google.com'])
 const SIGN_IN_TTL_MS = 10 * 60_000
 const MAX_SIGN_IN_STARTS_PER_MINUTE = 10
-const DEFAULT_DATASET = 'ego'
 
 type SignInError = 'cancelled' | 'expired' | 'not_allowed' | 'failed'
 
@@ -226,7 +225,7 @@ export async function exchangeSignIn(request: Request, env: Env, now = new Date(
   const webOrigin = row.return_url ? new URL(row.return_url).origin : null
   await env.DB.prepare(`INSERT INTO devices (id, name, token_hash, dataset_id, created_at, account_email, web_origin, idle_days)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind(deviceId, row.device_name, await hashToken(token), env.DATASET_ID ?? DEFAULT_DATASET, nowIso, row.account_email,
+    .bind(deviceId, row.device_name, await hashToken(token), currentDataset(env), nowIso, row.account_email,
       webOrigin, row.idle_days)
     .run()
   const data: SignInResult = { token, deviceId, deviceName: row.device_name, email: row.account_email }
