@@ -1,16 +1,106 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Ego Content</title><link rel="stylesheet" href="popup.css"></head>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ego Content</title>
+<link rel="stylesheet" href="popup.css">
+</head>
 <body>
-<header><span class="brand">E</span><h1 id="heading">New bookmark</h1><button id="settings" class="quiet" aria-label="Connection settings">Settings</button></header>
-<section id="connect" hidden><h2>Connect to Ego</h2><p>Open Content in Ego, choose Chrome extension, and generate a key.</p><label>Extension key<input id="key" type="password" placeholder="egoct_..." autocomplete="off"></label><button id="connect-button" class="primary">Connect</button><button id="back" class="quiet" hidden>Back to bookmark</button><a href="https://ego.kharitonovegor.com/content" target="_blank" rel="noreferrer">Open Ego Content</a></section>
-<form id="capture">
-<div class="preview"><div id="cover-fallback">&#8599;</div><img id="cover" alt="" hidden><div><label class="sr-only" for="title">Title</label><input id="title" required maxlength="500" placeholder="Page title"><label class="sr-only" for="description">Description</label><textarea id="description" maxlength="4000" rows="2" placeholder="Description"></textarea></div></div>
-<label class="field"><span>Note</span><textarea id="notes" rows="4" maxlength="20000" placeholder="What do you want to remember?"></textarea></label>
-<label class="field"><span>Collection</span><select id="collection"><option value="">Unsorted</option></select></label>
-<label class="field"><span>Tags</span><input id="tags" placeholder="Add tags, separated by commas" list="tag-options"><datalist id="tag-options"></datalist></label>
-<label class="field"><span>URL</span><input id="url" required type="url" maxlength="4096"></label>
-<div class="favorite-row"><button id="favorite" type="button" aria-pressed="false" aria-label="Favorite">&#9825;</button><span>Favorite</span><span id="kind">Link</span></div>
-<footer><a href="https://ego.kharitonovegor.com/content" target="_blank" rel="noreferrer">Open library &#8599;</a><button id="save" class="primary" type="submit" disabled>Save</button></footer>
+<svg hidden>
+  <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M17 3a2 2 0 0 1 2 2v15a1 1 0 0 1-1.496.868l-4.512-2.578a2 2 0 0 0-1.984 0l-4.512 2.578A1 1 0 0 1 5 20V5a2 2 0 0 1 2-2z"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24"><path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></symbol>
+</svg>
+
+<header class="bar">
+  <svg class="icon brand" aria-hidden="true"><use href="#i-bookmark"/></svg>
+  <h1>Content</h1>
+  <a class="icon-button" href="https://ego.kharitonovegor.com/content" target="_blank" rel="noreferrer" title="Open Content in Ego" aria-label="Open Content in Ego"><svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></a>
+  <button id="settings" class="icon-button" type="button" title="Connection" aria-label="Connection"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg></button>
+</header>
+
+<form id="capture" class="view" hidden>
+  <article class="card">
+    <div class="card-row">
+      <div class="cover">
+        <img id="cover" alt="" hidden>
+        <div id="cover-fallback" class="cover-fallback"><svg class="icon" aria-hidden="true"><use id="cover-icon" href="#i-link"/></svg></div>
+        <span id="video" class="video-badge" hidden><svg class="icon" aria-hidden="true"><use href="#i-play"/></svg></span>
+      </div>
+      <div class="card-text">
+        <textarea id="title" class="card-title" rows="2" required maxlength="500" placeholder="Page title" aria-label="Title"></textarea>
+        <input id="url" class="card-url" required type="url" maxlength="4096" aria-label="URL" spellcheck="false">
+      </div>
+    </div>
+    <textarea id="description" class="card-description" rows="2" maxlength="4000" placeholder="Add a description" aria-label="Description"></textarea>
+  </article>
+
+  <label class="field">Note<textarea id="notes" rows="2" maxlength="20000" placeholder="What do you want to remember?"></textarea></label>
+  <div class="pair">
+    <label class="field">Collection<select id="collection"><option value="">Unsorted</option></select></label>
+    <label class="field">Type<select id="kind">
+      <option value="link">Link</option><option value="article">Article</option><option value="video">Video</option><option value="image">Image</option><option value="document">Document</option>
+    </select></label>
+  </div>
+  <label class="field">Tags<input id="tags" placeholder="Separate tags with commas" autocomplete="off" spellcheck="false"></label>
+  <div id="tag-options" class="tag-options" hidden></div>
+
+  <p id="status" class="status" role="status" aria-live="polite"></p>
+
+  <footer class="actions">
+    <button id="favorite" class="favorite" type="button" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-heart"/></svg>Favorite</button>
+    <button id="save" class="button primary" type="submit" disabled>Save bookmark</button>
+  </footer>
 </form>
-<p id="status" role="status" aria-live="polite"></p>
-<script src="popup.js"></script></body></html>
+
+<section id="done" class="view done" hidden>
+  <span class="done-mark"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></span>
+  <h2>Saved to Content</h2>
+  <p id="done-title" class="done-title"></p>
+  <p id="done-detail" class="muted"></p>
+  <div class="stack">
+    <button id="done-close" class="button primary" type="button">Done</button>
+    <a class="button outline" href="https://ego.kharitonovegor.com/content" target="_blank" rel="noreferrer">Open library</a>
+  </div>
+</section>
+
+<section id="blocked" class="view done" hidden>
+  <span class="done-mark quiet"><svg class="icon" aria-hidden="true"><use href="#i-bookmark"/></svg></span>
+  <h2>Open a web page to save it</h2>
+  <p class="muted">Content saves http and https pages. Switch to a tab with a website, then press the Ego button again.</p>
+  <div class="stack">
+    <a class="button outline" href="https://ego.kharitonovegor.com/content" target="_blank" rel="noreferrer">Open library</a>
+  </div>
+</section>
+
+<section id="connect" class="view" hidden>
+  <button id="back" class="back" type="button" hidden><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg>Back to bookmark</button>
+  <h2>Connect to Ego</h2>
+  <ol class="steps">
+    <li>Open Content in Ego.</li>
+    <li>Choose <strong>Chrome extension</strong> at the bottom of the sidebar.</li>
+    <li>Generate a key and paste it here.</li>
+  </ol>
+  <div id="connected" class="connected" hidden>
+    <span><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg>This browser is connected.</span>
+    <button id="disconnect" class="text-button" type="button">Disconnect</button>
+  </div>
+  <label class="field">Extension key<input id="key" type="password" placeholder="egoct_..." autocomplete="off" spellcheck="false"></label>
+  <p id="connect-status" class="status" role="status" aria-live="polite"></p>
+  <div class="stack">
+    <button id="connect-button" class="button primary" type="button">Connect</button>
+    <a class="button outline" href="https://ego.kharitonovegor.com/content" target="_blank" rel="noreferrer">Open Ego Content</a>
+  </div>
+</section>
+
+<script src="popup.js"></script>
+</body>
+</html>
