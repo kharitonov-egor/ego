@@ -3,6 +3,7 @@ import { isContentItemInput, cleanContentItem } from '@ego/core'
 import { authorize, bearer, currentDataset, hashToken, touchDevice, type Env } from './auth'
 import { applyOperation } from './commands'
 import { readContent } from './content-records'
+import { previewBase, renderContentPreviews } from './content-previews'
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } })
@@ -10,7 +11,7 @@ function json(data: unknown, status = 200): Response {
 function fail(code: ApiErrorCode, message: string): Response { return json({ ok: false, error: { code, message } }, HTTP_STATUS[code]) }
 const ok = (data: unknown) => json({ ok: true, data })
 interface KeyRow { id: string; name: string; created_at: string; dataset_id: string }
-export async function contentRoute(request: Request, env: Env, path: string): Promise<Response> {
+export async function contentRoute(request: Request, env: Env, path: string, work?: Pick<ExecutionContext, 'waitUntil'>): Promise<Response> {
   const token = bearer(request)
   const now = new Date().toISOString()
   const isKey = token?.startsWith('egoct_') ?? false
@@ -39,6 +40,7 @@ export async function contentRoute(request: Request, env: Env, path: string): Pr
       operationId: `capture-${body.id}`, entityId: body.id, expectedRevision: null, createdAt: now,
       command: { entity: 'contentItem', type: 'create', payload: item }
     }, now)
+    if (result.ok && !item.coverUrl) work?.waitUntil(renderContentPreviews(env, previewBase(env, request), 1).catch(() => undefined))
     return result.ok ? ok({ id: body.id }) : json(result, HTTP_STATUS[result.error.code])
   }
   if (isKey) return fail('AUTH_REQUIRED', 'This key only reads Content and saves bookmarks')
@@ -53,6 +55,7 @@ export async function contentRoute(request: Request, env: Env, path: string): Pr
       .bind(id, await hashToken(token), 'Chrome extension', datasetId, now).run()
     return ok({ key: { id, name: 'Chrome extension', createdAt: now }, token })
   }
+  if (path === '/v1/content/previews' && request.method === 'POST') return ok(await renderContentPreviews(env, previewBase(env, request), 4))
   const match = /^\/v1\/content\/keys\/([a-zA-Z0-9-]+)$/.exec(path)
   if (match && request.method === 'DELETE') {
     await env.DB.prepare('UPDATE content_keys SET revoked_at = ? WHERE id = ? AND dataset_id = ?').bind(now, match[1], datasetId).run()

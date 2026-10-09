@@ -1,6 +1,11 @@
 name = "ego-money"
 main = "src/index.ts"
 compatibility_date = "2026-09-01"
+# Cloudflare's Puppeteer needs Node's Buffer and events.
+compatibility_flags = ["nodejs_compat"]
+
+# Screenshots bookmarks that have no cover image.
+browser = { binding = "BROWSER" }
 
 # Pulls Google Health and Google Calendar into D1 so devices find fresh data without waiting on Google.
 [triggers]
@@ -30,6 +35,11 @@ bucket_name = "ego-diary"
 [[r2_buckets]]
 binding = "DOCKETS"
 bucket_name = "ego-dockets"
+
+# Content covers: screenshots of bookmarked pages. Public, under unguessable names.
+[[r2_buckets]]
+binding = "CONTENT_PREVIEWS"
+bucket_name = "ego-content-previews"
 
 # Daily D1 dumps. No lifecycle rule, so they are kept forever.
 [[r2_buckets]]

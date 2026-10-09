@@ -1,4 +1,5 @@
 import { contentRoute } from './content'
+import { PREVIEW_PATH, previewBase, renderContentPreviews, servePreview } from './content-previews'
 import {
   API_VERSION, HTTP_STATUS, MAX_CHANGE_PAGE_SIZE, decodeCursor, invalid, isOperationRequest,
   parseTransactionFilters,
@@ -110,7 +111,8 @@ export async function handle(request: Request, env: Env, work?: Pick<ExecutionCo
     return completeWisprConnector(request, env)
   }
   if (request.method === 'POST' && path === '/v1/app/builds/webhook') return respond(await receiveBuildWebhook(request, env))
-  if (path.startsWith('/v1/content/')) return contentRoute(request, env, path)
+  if (request.method === 'GET' && path.startsWith(PREVIEW_PATH)) return servePreview(env, path)
+  if (path.startsWith('/v1/content/')) return contentRoute(request, env, path, work)
   const docket = docketRoute(request, env, path, new Date().toISOString())
   if (docket) return docket
 
@@ -208,7 +210,9 @@ export async function handle(request: Request, env: Env, work?: Pick<ExecutionCo
     if (path === '/v1/legacy/revisions') return ok(await readLegacyRevisions(env.DB))
   }
   if (request.method === 'POST' && path === '/v1/operations') {
-    return operationsRequest(env.DB, request, now)
+    const response = await operationsRequest(env.DB, request, now)
+    work?.waitUntil(renderContentPreviews(env, previewBase(env, request), 1).catch(() => undefined))
+    return response
   }
   return failure({ code: 'NOT_FOUND', message: 'That endpoint does not exist' })
 }

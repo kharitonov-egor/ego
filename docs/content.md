@@ -29,6 +29,26 @@ npm run deploy --workspace @ego/api
 Release web, desktop, and mobile through their usual workflows. Local databases
 migrate on open. Bootstrap version 9 downloads Content for existing devices.
 
+## Page screenshots
+
+A bookmark saved without a cover image gets a screenshot of its page as the cover,
+as in Raindrop. The Worker opens the page in Cloudflare Browser Rendering at
+1024 by 576, saves a 640 by 360 JPEG to the `ego-content-previews` R2 bucket, and
+sets the bookmark's cover URL to `/v1/content/previews/<random name>.jpg`. The
+change syncs like any other edit, so no client release is needed.
+
+The Worker renders one page right after an extension capture or a sync push, and
+up to six more on each 15-minute cron run. A signed-in device can render four at
+once with `POST /v1/content/previews`. A page that fails, for example by
+answering 403 to the headless browser, is retried after six hours, at most three
+times. Changing a bookmark's URL renders it again. Trashed bookmarks are skipped.
+
+Screenshot URLs need no sign-in, so anyone with a link can see that image. The
+48-character random names cannot be guessed or listed. Migration
+`0027_content_previews.sql` adds `content_previews`, which records each attempt.
+The Worker needs the `BROWSER` binding, the `CONTENT_PREVIEWS` bucket, and the
+`nodejs_compat` flag from `wrangler.toml`.
+
 ## Install the Chrome extension
 
 1. Open `chrome://extensions` and enable Developer mode.
@@ -73,8 +93,9 @@ Migration 0026 and the initial CSV backfill were applied to the live database on
 ## Limits
 
 The first version saves links and metadata, not offline copies of entire pages.
-Cover images load from their original URLs and can disappear if a publisher
-removes them. Pasted links can be entered manually on every client; automatic
+Cover images from Open Graph tags load from their original URLs and can
+disappear if a publisher removes them. A screenshot only replaces a missing cover,
+not a broken one. Pasted links can be entered manually on every client; automatic
 metadata capture currently belongs to the Chrome extension.
 
 The extension is loaded locally, not published in the Chrome Web Store. Native
