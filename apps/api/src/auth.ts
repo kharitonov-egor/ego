@@ -1,3 +1,4 @@
+import type { BrowserWorker } from '@cloudflare/puppeteer'
 import type { ApiResult, DeviceIdentity } from '@ego/api-contracts'
 
 export interface Env {
@@ -40,6 +41,10 @@ export interface Env {
   DOCKETS?: R2Bucket
   /** Where docket links point, the web app's origin. Falls back to the first of WEB_ORIGINS. */
   DOCKET_BASE_URL?: string
+  /** Cloudflare Browser Rendering. It screenshots bookmarks that have no cover image. */
+  BROWSER?: BrowserWorker
+  /** Those screenshots, served publicly under unguessable names. */
+  CONTENT_PREVIEWS?: R2Bucket
 }
 
 export const currentDataset = (env: Pick<Env, 'DATASET_ID'>): string => env.DATASET_ID ?? 'ego'
