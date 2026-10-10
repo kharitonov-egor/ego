@@ -10,8 +10,8 @@ Phase 2 of `docs/mobile-transactions-overhaul.md`, with the device side in
 
 ## Endpoints
 
-All routes except `/v1/health`, the two sign-in routes, and the two OAuth callbacks need
-`Authorization: Bearer <device token>`. The docket routes also take a docket CLI key (`egodk_...`),
+All routes except `/v1/health`, the two sign-in routes, the two OAuth callbacks, and the Telegram
+webhook need `Authorization: Bearer <device token>`. The docket routes also take a docket CLI key (`egodk_...`),
 and the docket pages under `/docket/` check a cookie instead.
 
 | Route | Returns |
@@ -32,6 +32,7 @@ and the docket pages under `/docket/` check a cookie instead.
 | `GET /v1/trello/boards/:id/lists` | Lists on one board |
 | `POST /v1/trello/cards` | Creates a card |
 | `POST /v1/trello/cards/:id/attachments` | Forwards one file up to 10 MB to a card |
+| `POST /v1/telegram/webhook` | Turns a message to the Telegram bot into an Inbox card. Telegram calls it with the webhook secret |
 | `POST /v1/tasks/work/sync` | Syncs the Work list with the work Trello board and says whether anything changed in Ego |
 | `GET /v1/health/data` | Google Health rows in D1 that changed after `since`, plus the connection state |
 | `POST /v1/health/sync` | Pulls from Google Health unless a pull just ran, then answers like `/v1/health/data` |
@@ -101,7 +102,8 @@ one-time code. The code redeems once, with the matching secret, within ten minut
 device row with the account email.
 
 API keys for outside services are Worker secrets: `OPENROUTER_API_KEY` (and optional
-`ASSISTANT_MODEL`), `TRELLO_API_KEY`, `TRELLO_TOKEN`, and `OPENAI_API_KEY`. `GET /v1/session`
+`ASSISTANT_MODEL`), `TRELLO_API_KEY`, `TRELLO_TOKEN`, `OPENAI_API_KEY`, and the three Telegram
+secrets under [Telegram inbox](#telegram-inbox). `GET /v1/session`
 reports which exist so the phone can say what is set up. A new service follows the same shape: a
 secret, a route that calls the service, and a flag in `ServiceStatus`.
 
@@ -248,6 +250,38 @@ A sync runs when a board holding the Work list opens, after a device's write tou
 twice. A request that finds the lock taken asks the running sync to go once more. Trello's due
 times are read on the time zone the last device sent. Migration `0029_trello_work.sql` adds both
 tables and lets `task_lists.kind` hold `work`.
+
+## Telegram inbox
+
+Messages sent to the Telegram bot become cards at the bottom of the first Inbox list, the GTD
+board's. Telegram posts each one to `/v1/telegram/webhook` with the `X-Telegram-Bot-Api-Secret-Token`
+header. The Worker drops anything from a chat other than `TELEGRAM_OWNER_ID`'s private chat.
+
+- The first line is the title and the rest the description. A forward adds "From" and the source.
+- A photo, video, or file goes to R2 under `tasks/` and onto the card, with its caption as the
+  title. Telegram lets a bot download 20 MB at most, so a bigger file stays in Telegram and the bot
+  says so. An album becomes one card.
+- A voice note is transcribed by OpenAI (`TRANSCRIBE_MODEL`, default `gpt-4o-mini-transcribe`)
+  into the title, and the recording is attached.
+- The bot reacts with a thumbs-up when the card is in, and replies only when something went wrong.
+
+Card IDs come from the chat and message IDs (`tg-<chat>-<message>`, or `tg-<chat>-album-<id>`), so
+a delivery Telegram retries changes nothing. The webhook takes one delivery at a time, which keeps
+an album's photos in order on the same card.
+
+Setup, with the bot token from BotFather:
+
+```sh
+npx wrangler secret put TELEGRAM_BOT_TOKEN
+npx wrangler secret put TELEGRAM_WEBHOOK_SECRET   # 16+ random letters and digits
+node scripts/telegram-webhook.mjs owner           # message the bot once; prints your ID
+npx wrangler secret put TELEGRAM_OWNER_ID
+node scripts/telegram-webhook.mjs set
+```
+
+The script reads the token and secret from the environment or `apps/api/.env.local`.
+`node scripts/telegram-webhook.mjs info` shows the last delivery error. A bot has one webhook, so
+pointing it here takes it away from anything else that was listening, such as n8n.
 
 ## AI assistant
 

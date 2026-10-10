@@ -9,7 +9,7 @@ import {
   type AssistantPendingChange, type AssistantPendingWrite, type AssistantStreamEvent, type AssistantUnits, type DeviceIdentity
 } from '@ego/api-contracts'
 import type { Env } from './auth'
-import { deleteFoodPhoto, storeFoodPhoto } from './diary'
+import { deleteFoodPhoto, storeMedia } from './diary'
 import { query } from './reads'
 import {
   assistantSystemPrompt, describeWrite, executeAssistantRead, executeAssistantWrite, type ToolContext, type WriteCard
@@ -398,7 +398,7 @@ async function photoFor(env: Env, image: AssistantImage | null, pending: readonl
     write.args.entries.some((entry) => isRecord(entry) && entry.usePhoto === true))
   if (!wanted) return null
   const mediaId = crypto.randomUUID()
-  const stored = await storeFoodPhoto(env, mediaId, decodeBase64(image.base64), image.mimeType, now)
+  const stored = await storeMedia(env, 'food', mediaId, decodeBase64(image.base64), image.mimeType, now)
   return stored ? { mediaId, previewId: null, width: null, height: null } : null
 }
 

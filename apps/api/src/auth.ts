@@ -25,8 +25,14 @@ export interface Env {
   RECEIPT_MODEL?: string
   /** A FoodData Central key. Barcode lookups use Open Food Facts alone without it. */
   USDA_API_KEY?: string
-  /** The bearer token n8n sends to POST /v1/tasks/inbox. */
-  TASKS_INBOX_TOKEN?: string
+  /** The bot whose messages become Inbox cards, from BotFather. */
+  TELEGRAM_BOT_TOKEN?: string
+  /** Telegram sends this back in a header on every webhook call. `scripts/telegram-webhook.mjs` registers it. */
+  TELEGRAM_WEBHOOK_SECRET?: string
+  /** The one Telegram user whose messages count. */
+  TELEGRAM_OWNER_ID?: string
+  /** The OpenAI model that transcribes voice notes sent to the bot. Defaults to gpt-4o-mini-transcribe. */
+  TRANSCRIBE_MODEL?: string
   TRELLO_API_KEY?: string
   TRELLO_TOKEN?: string
   /** The work Trello account, which the Work list mirrors. The token needs read and write. */

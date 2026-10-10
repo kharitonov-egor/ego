@@ -65,9 +65,12 @@ async function storedMedia(db: D1Database, store: MediaStore, id: string): Promi
   return row ? { id: row.id, contentType: row.content_type, size: row.size } : null
 }
 
-export async function storeFoodPhoto(env: Env, id: string, bytes: Uint8Array, contentType: string, now: string): Promise<boolean> {
+/** Stores a file the Worker already holds, such as a food photo or a file sent to the Telegram bot. */
+export async function storeMedia(
+  env: Env, scope: MediaScope, id: string, bytes: Uint8Array | ArrayBuffer, contentType: string, now: string
+): Promise<boolean> {
   const bucket = bucketFor(env)
-  const store = STORES.find((candidate) => candidate.scope === 'food')
+  const store = STORES.find((candidate) => candidate.scope === scope)
   if (!bucket || !store || !isDiaryMediaId(id)) return false
   const object = await bucket.put(mediaKey(store, id), bytes, { httpMetadata: { contentType } })
   await recordMedia(env.DB, store, { id, contentType, size: object.size }, now)

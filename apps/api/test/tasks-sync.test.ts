@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ApiError, ApiResult, BootstrapData, DiaryMediaInfo, OperationResponse } from '@ego/api-contracts'
 import type { TaskAttachment, TaskCardInput, TaskGoalInput } from '@ego/core'
 import { filterQuery, type MoneyApi } from '../../../packages/local/src/api-client'
@@ -14,6 +14,7 @@ import { allOperations } from '../../../packages/local/src/sync/outbox'
 import { openTestLedger } from '../../../packages/local/test/local-db'
 import { hashToken, type Env } from '../src/auth'
 import { handle } from '../src/router'
+import { cardText } from '../src/telegram'
 import { NOW, exec, operation, seedLedger, type Ledger } from './helpers'
 import { createTestBucket } from './r2'
 
@@ -262,16 +263,54 @@ describe('the Worker checks a card before saving it', () => {
   })
 })
 
-describe('list kinds and the inbox endpoint', () => {
-  const INBOX_TOKEN = 'inbox-token-for-n8n-0123456789abcdef'
+describe('list kinds and the Telegram inbox', () => {
+  const SECRET = 'webhook-secret-0123456789abcdef'
+  const BOT = { TELEGRAM_BOT_TOKEN: '123:bot-token', TELEGRAM_WEBHOOK_SECRET: SECRET, TELEGRAM_OWNER_ID: '42' }
 
-  async function inbox(env: Env, body: unknown, token = INBOX_TOKEN): Promise<{ status: number; payload: Envelope }> {
-    const response = await handle(new Request('https://ego.example/v1/tasks/inbox', {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  function textUpdate(text: string, overrides: Record<string, unknown> = {}): unknown {
+    return {
+      update_id: 1,
+      message: { message_id: 7, date: 1760000000, chat: { id: 42, type: 'private' }, from: { id: 42, first_name: 'Egor' }, text, ...overrides }
+    }
+  }
+
+  async function telegram(env: Env, update: unknown, secret = SECRET): Promise<{ status: number }> {
+    const response = await handle(new Request('https://ego.example/v1/telegram/webhook', {
       method: 'POST',
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-      body: JSON.stringify(body)
+      headers: { 'x-telegram-bot-api-secret-token': secret, 'content-type': 'application/json' },
+      body: JSON.stringify(update)
     }), env)
-    return { status: response.status, payload: await response.json() as Envelope }
+    return { status: response.status }
+  }
+
+  /** Answers like the Bot API and OpenAI, and records each call as its method name. */
+  function fakeTelegram(transcript: string | null = null): { calls: string[] } {
+    const calls: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = String(input)
+      if (url.startsWith('https://api.openai.com/')) {
+        calls.push('transcribe')
+        return transcript ? Response.json({ text: transcript }) : Response.json({ error: { message: 'Bad audio' } }, { status: 400 })
+      }
+      const file = /\/file\/bot[^/]+\/(.+)$/.exec(url)
+      if (file) {
+        calls.push(`download ${file[1]}`)
+        return new Response(new TextEncoder().encode(`bytes of ${file[1]}`))
+      }
+      const method = url.split('/').at(-1) ?? ''
+      const body = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as Record<string, unknown>
+      if (method === 'getFile') {
+        calls.push('getFile')
+        return Response.json({ ok: true, result: { file_path: `files/${String(body.file_id)}` } })
+      }
+      calls.push(method === 'sendMessage' ? `sendMessage ${String(body.text)}` : method)
+      return Response.json({ ok: true, result: true })
+    }))
+    return { calls }
   }
 
   async function seedInbox(env: Env): Promise<{ db: LocalDatabase; sync: () => Promise<unknown> }> {
@@ -302,50 +341,127 @@ describe('list kinds and the inbox endpoint', () => {
     expect((await localTasks(second.db)).lists.find((list) => list.id === 'l-inbox')).toMatchObject({ name: 'In', kind: 'inbox' })
   })
 
-  it('needs the inbox token', async () => {
+  it('needs the bot settings and the webhook secret', async () => {
     const env = await setup()
-    expect((await inbox(env, { title: 'Hi' })).status).toBe(503)
-    const configured = { ...env, TASKS_INBOX_TOKEN: INBOX_TOKEN }
-    expect((await inbox(configured, { title: 'Hi' }, 'wrong-token')).status).toBe(401)
-    expect((await inbox(configured, { title: 'Hi' }, TOKEN)).status).toBe(401)
+    expect((await telegram(env, textUpdate('Hi'))).status).toBe(503)
+    expect((await telegram({ ...env, ...BOT }, textUpdate('Hi'), 'wrong-secret')).status).toBe(401)
   })
 
-  it('adds a card to the bottom of the Inbox from Trello-style fields, once per id', async () => {
-    const env = { ...await setup(), TASKS_INBOX_TOKEN: INBOX_TOKEN }
+  it('adds a message to the bottom of the Inbox once and reacts to it', async () => {
+    const env = { ...await setup(), ...BOT }
     const first = await seedInbox(env)
-    const sent = await inbox(env, {
-      name: 'Renew passport', desc: 'Photos first', due: '2026-10-20T21:30:00.000Z', labels: 'home, Nope', id: 'n8n-42'
-    })
-    expect(sent.status).toBe(201)
-    expect(sent.payload.data).toMatchObject({ id: 'inbox-n8n-42', duplicate: false, list: 'Inbox', unknownLabels: ['Nope'] })
-    const again = await inbox(env, { title: 'Renew passport', id: 'n8n-42' })
-    expect(again.status).toBe(200)
-    expect(again.payload.data).toMatchObject({ id: 'inbox-n8n-42', duplicate: true })
+    const bot = fakeTelegram()
+    expect((await telegram(env, textUpdate('Renew passport\nPhotos first\nthen the form'))).status).toBe(200)
+    expect((await telegram(env, textUpdate('Renew passport\nPhotos first\nthen the form'))).status).toBe(200)
+    expect(bot.calls).toEqual(['setMessageReaction', 'setMessageReaction'])
 
     await first.sync()
-    const added = (await localTasks(first.db)).cards.find((item) => item.id === 'inbox-n8n-42')
-    expect(added).toMatchObject({
-      listId: 'l-inbox', boardId: 'b-1', title: 'Renew passport', description: 'Photos first', position: 3072,
-      labelIds: ['x-1'], dueDate: '2026-10-20', dueTime: '17:30', reminderMinutes: 60
+    const cards = (await localTasks(first.db)).cards.filter((item) => item.id.startsWith('tg-'))
+    expect(cards).toHaveLength(1)
+    expect(cards[0]).toMatchObject({
+      id: 'tg-42-7', listId: 'l-inbox', boardId: 'b-1', title: 'Renew passport', description: 'Photos first\nthen the form',
+      position: 3072, labelIds: [], dueDate: null, attachments: []
     })
-    expect(added?.activity.map((entry) => entry.text)).toEqual(['Added this card to "Inbox"'])
+    expect(cards[0].activity.map((entry) => entry.text)).toEqual(['Added this card to "Inbox"'])
   })
 
-  it('reads a local due date and refuses a bad one', async () => {
-    const env = { ...await setup(), TASKS_INBOX_TOKEN: INBOX_TOKEN }
-    await seedInbox(env)
-    expect((await inbox(env, { title: 'Dentist', due: '2026-11-02' })).status).toBe(201)
-    expect((await inbox(env, { title: 'Dentist', due: 'next friday' })).payload.error?.message)
-      .toBe('Send due as 2026-10-12, 2026-10-12T17:00, or a full ISO time')
-    expect((await inbox(env, { description: 'No title' })).payload.error?.message).toBe('Send a title')
+  it('ignores everyone but the owner', async () => {
+    const env = { ...await setup(), ...BOT }
+    const first = await seedInbox(env)
+    const bot = fakeTelegram()
+    await telegram(env, textUpdate('Spam', { from: { id: 99 } }))
+    await telegram(env, textUpdate('Group chatter', { chat: { id: -100, type: 'group' } }))
+    expect(bot.calls).toEqual([])
+    await first.sync()
+    expect((await localTasks(first.db)).cards.some((item) => item.id.startsWith('tg-'))).toBe(false)
   })
 
-  it('says so when no board has an Inbox', async () => {
-    const env = { ...await setup(), TASKS_INBOX_TOKEN: INBOX_TOKEN }
+  it('notes where a forward came from', async () => {
+    const env = { ...await setup(), ...BOT }
+    const first = await seedInbox(env)
+    fakeTelegram()
+    await telegram(env, textUpdate('Free tickets [today]', {
+      forward_origin: { type: 'channel', chat: { id: -1001, type: 'channel', title: 'Tampa [Events]', username: 'tampaevents' }, message_id: 5 }
+    }))
+    await first.sync()
+    expect((await localTasks(first.db)).cards.find((item) => item.id === 'tg-42-7')).toMatchObject({
+      title: 'Free tickets [today]', description: 'From [Tampa Events](https://t.me/tampaevents/5)'
+    })
+  })
+
+  it('puts an album on one card with a preview for each photo', async () => {
+    const env = { ...await setup(), ...BOT }
+    const first = await seedInbox(env)
+    const bot = fakeTelegram()
+    const photo = (id: string) => [
+      { file_id: `${id}-s`, width: 90, height: 67 }, { file_id: `${id}-x`, width: 800, height: 600 },
+      { file_id: `${id}-w`, width: 2560, height: 1920, file_size: 300000 }
+    ]
+    await telegram(env, textUpdate('', { message_id: 8, media_group_id: '1357', caption: 'Whiteboard from class', photo: photo('a') }))
+    await telegram(env, textUpdate('', { message_id: 9, media_group_id: '1357', photo: photo('b') }))
+    expect(bot.calls.filter((call) => call.startsWith('download'))).toEqual([
+      'download files/a-w', 'download files/a-x', 'download files/b-w', 'download files/b-x'
+    ])
+
+    await first.sync()
+    const album = (await localTasks(first.db)).cards.find((item) => item.id === 'tg-42-album-1357')
+    expect(album?.title).toBe('Whiteboard from class')
+    expect(album?.attachments.map((file) => [file.mediaId, file.kind, file.previewId, file.width])).toEqual([
+      ['tg-42-8', 'photo', 'tg-42-8-p', 2560], ['tg-42-9', 'photo', 'tg-42-9-p', 2560]
+    ])
+    expect(album?.activity.map((entry) => entry.text)).toEqual(['Added this card to "Inbox"', 'Attached "a photo"'])
+  })
+
+  it('turns a voice note into the title and keeps the recording', async () => {
+    const env = { ...await setup(), ...BOT, OPENAI_API_KEY: 'sk-test' }
+    const first = await seedInbox(env)
+    const bot = fakeTelegram('Call the dentist about Friday')
+    await telegram(env, textUpdate('', { voice: { file_id: 'v-1', duration: 4, mime_type: 'audio/ogg', file_size: 9000 } }))
+    expect(bot.calls).toEqual(['getFile', 'download files/v-1', 'transcribe', 'setMessageReaction'])
+
+    await first.sync()
+    const card = (await localTasks(first.db)).cards.find((item) => item.id === 'tg-42-7')
+    expect(card?.title).toBe('Call the dentist about Friday')
+    expect(card?.attachments).toMatchObject([{ mediaId: 'tg-42-7', kind: 'file', mimeType: 'audio/ogg', fileName: 'Voice note.ogg', durationSeconds: 4 }])
+  })
+
+  it('still adds a voice note it could not transcribe, and says why', async () => {
+    const env = { ...await setup(), ...BOT, OPENAI_API_KEY: 'sk-test' }
+    const first = await seedInbox(env)
+    const bot = fakeTelegram(null)
+    await telegram(env, textUpdate('', { voice: { file_id: 'v-1', duration: 4 } }))
+    expect(bot.calls.at(-1)).toBe('sendMessage Added, but I could not transcribe it: Bad audio.')
+    await first.sync()
+    expect((await localTasks(first.db)).cards.find((item) => item.id === 'tg-42-7')?.title).toBe('Voice note')
+  })
+
+  it('skips a file over the bot download limit but keeps the card', async () => {
+    const env = { ...await setup(), ...BOT }
+    const first = await seedInbox(env)
+    const bot = fakeTelegram()
+    await telegram(env, textUpdate('', { document: { file_id: 'd-1', file_name: 'lecture.mp4', mime_type: 'video/mp4', file_size: 40_000_000 } }))
+    expect(bot.calls).toEqual(['setMessageReaction', 'sendMessage Added, but the video stayed in Telegram: it is over the 20 MB a bot may download.'])
+    await first.sync()
+    expect((await localTasks(first.db)).cards.find((item) => item.id === 'tg-42-7')).toMatchObject({ title: 'lecture.mp4', attachments: [] })
+  })
+
+  it('answers when no board has an Inbox', async () => {
+    const env = { ...await setup(), ...BOT }
     const first = await phone(env)
     await seedBoard(first.db)
     await first.sync()
-    expect((await inbox(env, { title: 'Lost' })).status).toBe(404)
+    const bot = fakeTelegram()
+    await telegram(env, textUpdate('Lost'))
+    expect(bot.calls).toEqual(['sendMessage Not added: No board has an Inbox list. Send it again.'])
+  })
+
+  it('splits a title from the description and moves an overlong first line into it', () => {
+    expect(cardText('  Buy milk  \n\n2%  ')).toEqual({ title: 'Buy milk', description: '2%' })
+    const long = `${'word '.repeat(120)}end`
+    const split = cardText(long)
+    expect(split.title.length).toBeLessThanOrEqual(500)
+    expect(split.title.endsWith('word…')).toBe(true)
+    expect(split.description).toBe(long)
   })
 })
 

@@ -46,8 +46,8 @@ export interface ServiceStatus {
   google: boolean
   canvas: boolean
   googleHealth: boolean
-  /** TASKS_INBOX_TOKEN is set, so n8n can add cards to the Inbox. Older servers leave it out. */
-  tasksInbox?: boolean
+  /** The Telegram bot's token, webhook secret, and owner are set, so messages to it become Inbox cards. Older servers leave it out. */
+  telegram?: boolean
 }
 
 export interface SessionInfo {

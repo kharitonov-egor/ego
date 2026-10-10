@@ -250,7 +250,7 @@ export async function readSession(env: Env, device: DeviceIdentity): Promise<Ses
       google: google.connected,
       canvas: Boolean(env.CANVAS_CALENDAR_URL?.trim()),
       googleHealth,
-      tasksInbox: Boolean(env.TASKS_INBOX_TOKEN?.trim())
+      telegram: Boolean(env.TELEGRAM_BOT_TOKEN?.trim() && env.TELEGRAM_WEBHOOK_SECRET?.trim() && env.TELEGRAM_OWNER_ID?.trim())
     }
   }
 }
