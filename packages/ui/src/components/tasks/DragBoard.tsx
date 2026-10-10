@@ -48,6 +48,8 @@ export interface DragBoardProps {
   now: Date
   uploads: ReadonlyMap<string, 'sending' | 'failed'>
   onOpenCard: (cardId: string) => void
+  /** A right click on a card, with where the card sits on screen. */
+  onCardMenu: (cardId: string, rect: DOMRect) => void
   onToggleDone: (cardId: string) => void
   onMoveCard: (cardId: string, listId: string, index: number, siblingIds: string[]) => void
   onMoveList: (listId: string, index: number) => void
@@ -292,6 +294,10 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
               if (event.key !== 'Enter' && event.key !== ' ') return
               event.preventDefault()
               props.onOpenCard(item.id)
+            }}
+            onContextMenu={(event) => {
+              event.preventDefault()
+              if (!dragRef.current) props.onCardMenu(item.id, event.currentTarget.getBoundingClientRect())
             }}
             className="shrink-0 cursor-pointer select-none rounded-xl transition-[filter] hover:brightness-125"
           >

@@ -111,9 +111,12 @@ describe('placing a moved card', () => {
 })
 
 describe('due dates on a card', () => {
-  it('names nearby days and flags overdue and soon', () => {
-    expect(dueBadge(card({ dueDate: '2026-09-30', dueTime: '07:00' }), NOW)).toEqual({ label: 'Today at 7:00 AM', state: 'overdue' })
-    expect(dueBadge(card({ dueDate: '2026-09-30', dueTime: null }), NOW)).toEqual({ label: 'Today', state: 'soon' })
+  it('names nearby days and flags overdue, today, and soon', () => {
+    expect(dueBadge(card({ dueDate: '2026-09-30', dueTime: '07:00' }), NOW)).toEqual({ label: '7:00 AM', state: 'overdue' })
+    expect(dueBadge(card({ dueDate: '2026-09-30', dueTime: null }), NOW)).toEqual({ label: 'EOD', state: 'today' })
+    expect(dueBadge(card({ dueDate: '2026-09-30', dueTime: '23:59' }), NOW)).toEqual({ label: 'EOD', state: 'today' })
+    expect(dueBadge(card({ dueDate: '2026-09-30', dueTime: '17:00' }), NOW)).toEqual({ label: '5:00 PM', state: 'today' })
+    expect(dueBadge(card({ dueDate: '2026-10-01', dueTime: '07:00' }), NOW)).toEqual({ label: 'Tomorrow at 7:00 AM', state: 'soon' })
     expect(dueBadge(card({ dueDate: '2026-10-01', dueTime: '17:00' }), NOW)).toEqual({ label: 'Tomorrow at 5:00 PM', state: 'later' })
     expect(dueBadge(card({ dueDate: '2026-10-09' }), NOW)).toEqual({ label: 'Oct 9', state: 'later' })
     expect(dueBadge(card({ dueDate: '2026-09-20', doneAt: STAMP }), NOW)?.state).toBe('done')
@@ -154,7 +157,7 @@ describe('task notifications', () => {
       card({ id: 'k-4', dueDate: '2026-10-01', dueTime: null, reminderMinutes: null })
     ]), NOW, { digest: false })
     expect(plan).toEqual([{
-      identifier: 'ego-task-k-1', at: new Date(2026, 8, 30, 16, 30), title: 'Pay rent', body: 'Due today at 5:30 PM · Life / To Do'
+      identifier: 'ego-task-k-1', at: new Date(2026, 8, 30, 16, 30), title: 'Pay rent', body: 'Due at 5:30 PM · Life / To Do'
     }])
     expect(cardIdFromNotification(plan[0].identifier)).toBe('k-1')
   })

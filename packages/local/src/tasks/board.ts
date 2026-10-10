@@ -117,14 +117,23 @@ export function matchesFilter(card: TaskCardRecord, filter: CardFilter, now: Dat
   return true
 }
 
-export type DueState = 'done' | 'overdue' | 'soon' | 'later'
+export type DueState = 'done' | 'overdue' | 'today' | 'soon' | 'later'
 
 export interface DueBadge {
   label: string
   state: DueState
 }
 
-/** "Today at 5:30 PM", "Tomorrow", "Oct 3". Soon means within the next day. */
+export const EOD = 'EOD'
+
+function todayLabel(dueTime: string | null): string {
+  return dueTime === null || dueTime === '23:59' ? EOD : taskTimeLabel(dueTime)
+}
+
+/**
+ * "EOD" for a card due by 11:59 PM today, "5:30 PM" for one due earlier today, then "Tomorrow at
+ * 5:30 PM" or "Oct 3". Soon means within the next day.
+ */
 export function dueBadge(card: Pick<TaskCardRecord, 'dueDate' | 'dueTime' | 'doneAt'>, now: Date): DueBadge | null {
   if (card.dueDate === null) return null
   const today = localDay(now)
@@ -132,7 +141,7 @@ export function dueBadge(card: Pick<TaskCardRecord, 'dueDate' | 'dueTime' | 'don
   const yesterday = localDay(addDays(now, -1))
   const time = card.dueTime ? ` at ${taskTimeLabel(card.dueTime)}` : ''
   const label = card.dueDate === today
-    ? `Today${time}`
+    ? todayLabel(card.dueTime)
     : card.dueDate === tomorrow
       ? `Tomorrow${time}`
       : card.dueDate === yesterday
@@ -141,6 +150,7 @@ export function dueBadge(card: Pick<TaskCardRecord, 'dueDate' | 'dueTime' | 'don
   if (card.doneAt !== null) return { label, state: 'done' }
   const due = taskDueAt(card.dueDate, card.dueTime).getTime()
   if (due < now.getTime()) return { label, state: 'overdue' }
+  if (card.dueDate === today) return { label, state: 'today' }
   if (due - now.getTime() <= 24 * 60 * 60 * 1000) return { label, state: 'soon' }
   return { label, state: 'later' }
 }
@@ -217,7 +227,7 @@ export function carryLabels(labelIds: readonly string[], from: readonly TaskLabe
 export type UpcomingGroup = 'overdue' | 'today' | 'tomorrow' | 'week' | 'later'
 
 export const UPCOMING_TITLES: Record<UpcomingGroup, string> = {
-  overdue: 'Overdue', today: 'Today', tomorrow: 'Tomorrow', week: 'This week', later: 'Later'
+  overdue: 'Overdue', today: EOD, tomorrow: 'Tomorrow', week: 'This week', later: 'Later'
 }
 
 export interface UpcomingSection {
@@ -260,7 +270,7 @@ export function boardSummary(data: TaskData, boardId: string, now: Date): BoardS
     summary.open += 1
     const badge = dueBadge(card, now)
     if (badge?.state === 'overdue') summary.overdue += 1
-    if (badge?.state === 'soon') summary.dueSoon += 1
+    if (badge?.state === 'today' || badge?.state === 'soon') summary.dueSoon += 1
   }
   return summary
 }
