@@ -12,7 +12,8 @@ import {
   deleteTaskLabel, deleteTaskList, newId, saveTaskCard, updateTaskBoard, updateTaskGoal, updateTaskLabel, updateTaskList
 } from '@ego/local/sync/commands'
 import {
-  boardLabels, boardLists, cardInput, carryLabels, endPosition, inboxCardInput, listCards, liveBoards, placeAt, startPosition
+  boardLabels, boardLists, cardInput, carryLabels, endPosition, inboxCardInput, listCards, liveBoards, placeAt, startPosition,
+  withDoneMove
 } from '@ego/local/tasks/board'
 import { localTaskRevision, localTasks, type TaskData, type TaskTable } from '@ego/local/tasks/repository'
 import { useLedger, type LocalWrite } from '../ledger'
@@ -88,7 +89,10 @@ export function namesFor(data: TaskData): TaskNames {
 }
 
 function boardInput(board: TaskBoardRecord): TaskBoardInput {
-  return { name: board.name, icon: board.icon, position: board.position, hideDone: board.hideDone, archivedAt: board.archivedAt }
+  return {
+    name: board.name, icon: board.icon, position: board.position, hideDone: board.hideDone, moveDone: board.moveDone,
+    archivedAt: board.archivedAt
+  }
 }
 
 function listInput(list: TaskListRecord): TaskListInput {
@@ -182,7 +186,9 @@ export function TasksProvider({ children }: { children: React.ReactNode }): Reac
     if (!current) return null
     const at = new Date().toISOString()
     const id = newId()
-    const board: TaskBoardInput = { name: name.trim(), icon: icon.trim(), position: endPosition(liveBoards(current)), hideDone: false, archivedAt: null }
+    const board = {
+      name: name.trim(), icon: icon.trim(), position: endPosition(liveBoards(current)), hideDone: false, moveDone: false, archivedAt: null
+    } satisfies TaskBoardInput
     if (!isTaskBoardInput(board)) {
       setError('Give the board a name')
       return null
@@ -339,7 +345,10 @@ export function TasksProvider({ children }: { children: React.ReactNode }): Reac
     async (database, time) => { await deleteTaskLabel(database, labelId, await revisionOf(database, 'task_labels', labelId), time) },
     'This computer could not delete that label'), [commit])
 
-  /** Writes one card's new state, logged against what it was. `held` waits for files queued with it. */
+  /**
+   * Writes one card's new state, logged against what it was. `held` waits for files queued with it.
+   * A card marked done here may also move to its board's Done list.
+   */
   const saveCard = useCallback((
     card: TaskCardRecord, next: TaskCardInput, failure: string,
     extra?: (tx: LocalDatabase, time: string) => Promise<void>, held = false
@@ -347,7 +356,8 @@ export function TasksProvider({ children }: { children: React.ReactNode }): Reac
     const current = dataRef.current
     if (!current) return Promise.resolve(false)
     const at = new Date().toISOString()
-    const logged = withTaskActivity(cardInput(card), next, namesFor(current), at)
+    const before = cardInput(card)
+    const logged = withTaskActivity(before, withDoneMove(current, before, next), namesFor(current), at)
     const titled = logged.title.trim() !== ''
     if (!isTaskCardInput(logged)) {
       setError(titled ? 'That card is too long to save' : 'Give the card a title')

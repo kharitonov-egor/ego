@@ -17,6 +17,7 @@ import { Screen, ScreenHeader } from '../screen'
 import { Button } from '../ui/button'
 import { Sheet } from '../ui/dialog'
 import { Spinner } from '../ui/spinner'
+import { SwitchTrack } from '../ui/switch'
 
 /** Muted enough to sit on black without turning the board into a rainbow. */
 export const LABEL_COLORS: Record<TaskLabelColor, string> = {
@@ -300,6 +301,8 @@ export interface MenuItem {
   Icon?: LucideIcon
   destructive?: boolean
   disabled?: boolean
+  /** Makes the row a switch, which flips in place and leaves the sheet open. */
+  checked?: boolean
   onPress: () => void
 }
 
@@ -314,15 +317,18 @@ export function MenuSheet({ visible, title, items, onClose }: {
     {items.map((item) => <button
       key={item.label}
       type="button"
+      role={item.checked === undefined ? undefined : 'switch'}
+      aria-checked={item.checked}
       disabled={item.disabled}
       onClick={() => {
-        onClose()
+        if (item.checked === undefined) onClose()
         item.onPress()
       }}
       className="flex min-h-14 w-full items-center rounded-lg border-b border-surface-900 px-1 text-left transition-colors hover:bg-surface-900 active:bg-surface-900 disabled:opacity-40 disabled:hover:bg-transparent"
     >
       {item.Icon && <item.Icon color={item.destructive ? color.destructive : color.textSecondary} size={20} />}
-      <span className={cn('ml-3 text-[17px]', item.destructive && 'text-destructive')}>{item.label}</span>
+      <span className={cn('ml-3 flex-1 text-[17px]', item.destructive && 'text-destructive')}>{item.label}</span>
+      {item.checked !== undefined && <SwitchTrack checked={item.checked} />}
     </button>)}
   </Sheet>
 }

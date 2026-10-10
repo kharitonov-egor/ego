@@ -530,7 +530,8 @@ export const LOCAL_MIGRATIONS: readonly string[][] = [
   id TEXT PRIMARY KEY, data TEXT NOT NULL, created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1, deleted_at TEXT
 )`],
-  ["ALTER TABLE task_lists ADD COLUMN kind TEXT NOT NULL DEFAULT 'cards'"]
+  ["ALTER TABLE task_lists ADD COLUMN kind TEXT NOT NULL DEFAULT 'cards'"],
+  ['ALTER TABLE task_boards ADD COLUMN move_done INTEGER NOT NULL DEFAULT 0']
 ]
 
 export async function migrate(db: LocalDatabase): Promise<number> {

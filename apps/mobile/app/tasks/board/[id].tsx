@@ -2,8 +2,8 @@ import React, { useLayoutEffect, useMemo, useState } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router'
 import {
-  Activity, Archive, ArchiveRestore, Briefcase, Ellipsis, Eye, EyeOff, GraduationCap, Inbox, ListFilter, Pencil, Plus,
-  SquareKanban, Tag, Trash2, X
+  Activity, Archive, ArchiveRestore, Briefcase, Ellipsis, Eye, EyeOff, GraduationCap, Inbox, ListChecks, ListFilter, Pencil,
+  Plus, SquareKanban, Tag, Trash2, X
 } from 'lucide-react-native'
 import type { TaskListRecord } from '@ego/api-contracts'
 import { HeaderButton } from '../../../components/HeaderButton'
@@ -16,7 +16,7 @@ import { TasksError, TasksGate, TasksHeaderRight, TasksMessage } from '../../../
 import { NO_USF_FILTER, UsfAssignments, UsfControls, UsfRefresh, inCourse, type UsfFilter } from '../../../components/tasks/UsfColumn'
 import { WorkProblem, WorkRefresh } from '../../../components/tasks/WorkColumn'
 import {
-  boardLabels, boardLists, homeBoardId, isFiltering, listCards, matchesFilter, NO_FILTER, type CardFilter
+  boardLabels, boardLists, doneList, homeBoardId, isFiltering, listCards, matchesFilter, NO_FILTER, type CardFilter
 } from '@ego/local/tasks/board'
 import { StudyProvider } from '../../../lib/study/context'
 import { useTasks } from '../../../lib/tasks/context'
@@ -104,6 +104,13 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
   ]
   const matching = useMemo(() => [...cards.values()].reduce((total, list) => total + list.length, 0), [cards])
 
+  const toggleMoveDone = (): void => {
+    if (!data || !board) return
+    const on = !board.moveDone
+    void tasks.updateBoard(board.id, { moveDone: on })
+    if (on && !doneList(data, board.id)) void tasks.createList(board.id, 'Done')
+  }
+
   if (!data || !board) {
     return <TasksMessage title="This board is gone" detail="It was deleted, maybe on another device." action="Back to boards" onAction={() => router.replace('/tasks')} />
   }
@@ -152,6 +159,7 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
           Icon: board.hideDone ? Eye : EyeOff,
           onPress: () => void tasks.updateBoard(board.id, { hideDone: !board.hideDone })
         },
+        { label: 'Move done cards to Done', Icon: ListChecks, checked: board.moveDone, onPress: toggleMoveDone },
         { label: 'Activity', Icon: Activity, onPress: () => router.push({ pathname: '/tasks/activity/[id]', params: { id: board.id } }) },
         { label: 'Archived items', Icon: ArchiveRestore, onPress: () => router.push({ pathname: '/tasks/archive/[id]', params: { id: board.id } }) },
         board.archivedAt === null

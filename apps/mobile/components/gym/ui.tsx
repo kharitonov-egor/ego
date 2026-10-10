@@ -1,5 +1,5 @@
 import React from 'react'
-import { ActivityIndicator, Pressable, View } from 'react-native'
+import { ActivityIndicator, Pressable, Switch, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Dumbbell, MessageSquare, Trophy, X, type LucideIcon } from 'lucide-react-native'
 import type { ExerciseType, GymSetLike, WeightUnit } from '@ego/core'
@@ -72,6 +72,8 @@ export interface MenuItem {
   Icon?: LucideIcon
   destructive?: boolean
   disabled?: boolean
+  /** Makes the row a switch, which flips in place and leaves the sheet open. */
+  checked?: boolean
   onPress: () => void
 }
 
@@ -84,17 +86,25 @@ export function MenuSheet({ visible, title, items, onClose }: {
   return <BottomSheet visible={visible} title={title} onClose={onClose} dismissOnBackdrop>
     {items.map((item) => <Pressable
       key={item.label}
-      accessibilityRole="button"
-      accessibilityState={{ disabled: Boolean(item.disabled) }}
+      accessibilityRole={item.checked === undefined ? 'button' : 'switch'}
+      accessibilityState={{ disabled: Boolean(item.disabled), checked: item.checked }}
       disabled={item.disabled}
       onPress={() => {
-        onClose()
+        if (item.checked === undefined) onClose()
         item.onPress()
       }}
       className={`min-h-14 flex-row items-center border-b border-surface-900 active:bg-surface-900 ${item.disabled ? 'opacity-40' : ''}`}
     >
       {item.Icon && <item.Icon color={item.destructive ? color.destructive : color.textSecondary} size={20} />}
-      <Text className={`ml-3 text-[17px] ${item.destructive ? 'text-destructive' : ''}`}>{item.label}</Text>
+      <Text className={`ml-3 flex-1 text-[17px] ${item.destructive ? 'text-destructive' : ''}`}>{item.label}</Text>
+      {item.checked !== undefined && <View pointerEvents="none" importantForAccessibility="no-hide-descendants">
+        <Switch
+          value={item.checked}
+          trackColor={{ false: '#404040', true: '#fafafa' }}
+          thumbColor={item.checked ? '#0a0a0a' : '#d4d4d4'}
+          ios_backgroundColor="#404040"
+        />
+      </View>}
     </Pressable>)}
   </BottomSheet>
 }

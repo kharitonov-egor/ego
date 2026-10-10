@@ -103,6 +103,21 @@ describe('Tasks in the AI chat', () => {
     expect((outcome.data as { changes: string[] }).changes).toEqual(['Moved this card from "To Do" to "Done"', 'Marked this card as done'])
   })
 
+  it('moves a card it marks done to the bottom of Done when the board says so', async () => {
+    const ctx = await context()
+    await exec(ctx.env.DB, `INSERT INTO task_cards (id, board_id, list_id, title, description, position, done_at, created_at, updated_at, revision)
+      VALUES ('k-old', 'b-life', 'l-done', 'Old', '', 4096, ?, ?, ?, 1)`, [NOW, NOW, NOW])
+    const args = {
+      cardId: 'k-rent', done: true, listId: null, title: null, dueDate: null, dueTime: null, clearDue: null, priority: null, archived: null
+    }
+    await executeAssistantWrite(ctx, { name: 'update_task_card', args, callId: 'call-6' })
+    expect(await card(ctx, 'k-rent')).toMatchObject({ listId: 'l-todo', doneAt: NOW })
+    await exec(ctx.env.DB, "UPDATE task_boards SET move_done = 1 WHERE id = 'b-life'")
+    await executeAssistantWrite(ctx, { name: 'update_task_card', args: { ...args, done: false }, callId: 'call-7' })
+    await executeAssistantWrite(ctx, { name: 'update_task_card', args, callId: 'call-8' })
+    expect(await card(ctx, 'k-rent')).toMatchObject({ listId: 'l-done', position: 5120, doneAt: NOW })
+  })
+
   it('refuses a list on another board and reports a change that changes nothing', async () => {
     const ctx = await context()
     await exec(ctx.env.DB, `INSERT INTO task_boards (id, name, icon, position, hide_done, created_at, updated_at, revision)

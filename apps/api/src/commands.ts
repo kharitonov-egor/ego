@@ -1182,10 +1182,12 @@ async function planDiaryMessage(
   }
 }
 
-function taskBoardRowFrom(id: string, input: TaskBoardInput, createdAt: string, updatedAt: string, revision: number): TaskBoardRow {
+function taskBoardRowFrom(
+  id: string, input: TaskBoardInput, moveDone: boolean, createdAt: string, updatedAt: string, revision: number
+): TaskBoardRow {
   return {
     id, name: input.name.trim(), icon: input.icon.trim(), position: input.position, hide_done: input.hideDone ? 1 : 0,
-    archived_at: input.archivedAt, created_at: createdAt, updated_at: updatedAt, revision
+    move_done: moveDone ? 1 : 0, archived_at: input.archivedAt, created_at: createdAt, updated_at: updatedAt, revision
   }
 }
 
@@ -1194,13 +1196,13 @@ async function planTaskBoard(
 ): Promise<ApiResult<Plan>> {
   const id = operation.entityId
   if (command.type === 'create') {
-    const row = taskBoardRowFrom(id, command.payload, now, now, 1)
+    const row = taskBoardRowFrom(id, command.payload, command.payload.moveDone ?? false, now, now, 1)
     return {
       ok: true,
       data: upsertPlan('taskBoard', id, 1, { entity: 'taskBoard', record: toTaskBoardRecord(row) }, {
-        sql: `INSERT INTO task_boards (id, name, icon, position, hide_done, archived_at, created_at, updated_at, revision)
-          SELECT ?, ?, ?, ?, ?, ?, ?, ?, 1`,
-        params: [id, row.name, row.icon, row.position, row.hide_done, row.archived_at, now, now]
+        sql: `INSERT INTO task_boards (id, name, icon, position, hide_done, move_done, archived_at, created_at, updated_at, revision)
+          SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, 1`,
+        params: [id, row.name, row.icon, row.position, row.hide_done, row.move_done, row.archived_at, now, now]
       }, null)
     }
   }
@@ -1212,13 +1214,14 @@ async function planTaskBoard(
     return { ok: true, data: deletePlan('taskBoard', id, expected, now, guard, { entity: 'taskBoard', record: null }) }
   }
   const revision = expected + 1
-  const row = taskBoardRowFrom(id, command.payload, current.created_at, now, revision)
+  const moveDone = command.payload.moveDone ?? current.move_done === 1
+  const row = taskBoardRowFrom(id, command.payload, moveDone, current.created_at, now, revision)
   return {
     ok: true,
     data: upsertPlan('taskBoard', id, revision, { entity: 'taskBoard', record: toTaskBoardRecord(row) }, {
-      sql: `UPDATE task_boards SET name = ?, icon = ?, position = ?, hide_done = ?, archived_at = ?, updated_at = ?,
-        revision = revision + 1 WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
-      params: [row.name, row.icon, row.position, row.hide_done, row.archived_at, now, id, expected]
+      sql: `UPDATE task_boards SET name = ?, icon = ?, position = ?, hide_done = ?, move_done = ?, archived_at = ?,
+        updated_at = ?, revision = revision + 1 WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+      params: [row.name, row.icon, row.position, row.hide_done, row.move_done, row.archived_at, now, id, expected]
     }, guard)
   }
 }
