@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import React, { useCallback, useMemo, useState } from 'react'
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import {
   Activity, Archive, ArchiveRestore, Briefcase, Ellipsis, Eye, EyeOff, GraduationCap, Inbox, LayoutGrid, ListFilter, Pencil,
   Plus, Tag, Trash2, X
@@ -10,6 +10,7 @@ import {
 } from '@ego/local/tasks/board'
 import { Screen, ScreenHeader } from '../../components/screen'
 import { DragBoard, type ListExtras } from '../../components/tasks/DragBoard'
+import { QuickEdit, type QuickEditTarget } from '../../components/tasks/QuickEdit'
 import { BoardSheet, FilterSheet, LabelSheet, TextSheet } from '../../components/tasks/sheets'
 import { MenuSheet, TasksError, TasksGate, TasksMessage, type MenuItem } from '../../components/tasks/ui'
 import { NO_USF_FILTER, UsfAssignments, UsfControls, UsfRefresh, inCourse, type UsfFilter } from '../../components/tasks/UsfColumn'
@@ -20,7 +21,12 @@ import { StudyProvider } from '../../lib/study/context'
 import { useTasks } from '../../lib/tasks/context'
 import { useTrelloWork } from '../../lib/tasks/trello-work'
 import { color } from '../../lib/tokens'
-import { BOARDS_PATH, activityPath, archivePath, useOpenCard } from './nav'
+import { CardPanel } from './Card'
+import { BOARDS_PATH, activityPath, archivePath } from './nav'
+
+function openedHere(state: unknown): boolean {
+  return typeof state === 'object' && state !== null && 'panel' in state && state.panel === true
+}
 
 /** Canvas is read only for a board that shows it. */
 function MaybeStudy({ active, children }: { active: boolean; children: React.ReactNode }): React.ReactElement {
@@ -30,7 +36,9 @@ function MaybeStudy({ active, children }: { active: boolean; children: React.Rea
 function Board({ boardId }: { boardId: string }): React.ReactElement {
   const tasks = useTasks()
   const navigate = useNavigate()
-  const openCard = useOpenCard()
+  const location = useLocation()
+  const [params, setParams] = useSearchParams()
+  const [quick, setQuick] = useState<QuickEditTarget | null>(null)
   const [filter, setFilter] = useState<CardFilter>(NO_FILTER)
   const [filtering, setFiltering] = useState(false)
   const [menu, setMenu] = useState(false)
@@ -88,6 +96,15 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
   ]
   const matching = useMemo(() => [...cards.values()].reduce((total, list) => total + list.length, 0), [cards])
 
+  const panelCardId = params.get('card')
+  const openCard = useCallback((cardId: string): void => setParams({ card: cardId }, { state: { panel: true } }), [setParams])
+  const switchCard = (cardId: string): void => setParams({ card: cardId }, { replace: true, state: location.state })
+  const closePanel = (): void => {
+    if (openedHere(location.state)) void navigate(-1)
+    else setParams({}, { replace: true })
+  }
+  const closeQuick = useCallback(() => setQuick(null), [])
+
   if (!data || !board) {
     return <Screen>
       <ScreenHeader title="" back={BOARDS_PATH} />
@@ -130,7 +147,8 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
       labels={labels}
       now={tasks.now}
       uploads={data.uploads}
-      onOpenCard={(id) => openCard(id)}
+      onOpenCard={openCard}
+      onCardMenu={(cardId, rect) => setQuick({ cardId, rect: { top: rect.top, left: rect.left, width: rect.width } })}
       onToggleDone={(id) => void tasks.updateCard(id, (input) => ({ ...input, doneAt: input.doneAt ? null : new Date().toISOString() }))}
       onMoveCard={(cardId, listId, index, siblingIds) => void tasks.moveCard(cardId, { listId, index, siblingIds })}
       onMoveList={(listId, index) => void tasks.moveList(listId, index)}
@@ -139,6 +157,8 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
       onAddList={async (name) => (await tasks.createList(boardId, name)) !== null}
       listExtras={listExtras}
     /></MaybeStudy>
+    {quick && <QuickEdit target={quick} onOpen={openCard} onClose={closeQuick} />}
+    {panelCardId && <CardPanel cardId={panelCardId} onClose={closePanel} onOpenCard={switchCard} />}
     <MenuSheet
       visible={menu}
       title={board.name}

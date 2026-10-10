@@ -140,7 +140,7 @@ describe('createReminderScheduler', () => {
       vi.advanceTimersByTime(49 * 60 * 1000)
       expect(notify).not.toHaveBeenCalled()
       vi.advanceTimersByTime(60 * 1000)
-      expect(notify).toHaveBeenCalledWith({ title: 'Card due', body: 'Due today at 9:00 AM · Home / To Do', route: '/tasks/card/due' })
+      expect(notify).toHaveBeenCalledWith({ title: 'Card due', body: 'Due at 9:00 AM · Home / To Do', route: '/tasks/card/due' })
     })
 
     it('catches up after sleep with a plan made from the last plan time', () => {

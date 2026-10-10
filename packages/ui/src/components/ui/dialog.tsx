@@ -10,6 +10,11 @@ const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select
 /** Open layers, newest last. Only the top one answers Escape and Tab, so a confirm over a sheet closes first. */
 const layers: symbol[] = []
 
+/** Whether any dialog is open, for a page that answers Escape itself only when none is. */
+export function hasOpenLayer(): boolean {
+  return layers.length > 0
+}
+
 /**
  * The last element focused outside any dialog. A field with `autoFocus` takes focus before the
  * dialog's effect runs, so the effect cannot ask the document what was focused before it opened.
@@ -26,7 +31,7 @@ if (typeof document !== 'undefined') {
  * cannot leave it. A click on the backdrop closes it only when asked, so a half-filled form
  * survives a stray click.
  */
-export function Modal({ visible, onClose, onEscape, dismissOnBackdrop = false, labelledBy, className, children }: {
+export function Modal({ visible, onClose, onEscape, dismissOnBackdrop = false, labelledBy, className, backdropClassName, children }: {
   visible: boolean
   onClose: () => void
   /** What Escape does when it should differ from closing, like dropping a draft the close button would keep. */
@@ -34,6 +39,7 @@ export function Modal({ visible, onClose, onEscape, dismissOnBackdrop = false, l
   dismissOnBackdrop?: boolean
   labelledBy?: string
   className?: string
+  backdropClassName?: string
   children: React.ReactNode
 }): React.ReactElement | null {
   const panel = useRef<HTMLDivElement>(null)
@@ -95,7 +101,7 @@ export function Modal({ visible, onClose, onEscape, dismissOnBackdrop = false, l
 
   if (!visible) return null
   return createPortal(<div
-    className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-6"
+    className={cn('fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-6', backdropClassName)}
     onMouseDown={(event) => {
       if (dismissOnBackdrop && event.target === event.currentTarget) onClose()
     }}

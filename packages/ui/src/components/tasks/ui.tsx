@@ -68,16 +68,21 @@ export function PriorityIcon({ priority, size = 14 }: { priority: TaskPriority; 
   </span>
 }
 
+/** Dark enough for white text to stay readable at 12px. */
+const DUE_RED = '#c43c3c'
+
 export function DueChip({ due, large = false }: { due: DueBadge; large?: boolean }): React.ReactElement {
-  const tone = due.state === 'overdue'
-    ? { background: 'rgba(248, 113, 113, 0.16)', text: color.expense }
+  const pill = due.state === 'overdue' || due.state === 'today'
+  const tone = pill
+    ? { background: DUE_RED, text: '#ffffff' }
     : due.state === 'soon'
       ? { background: 'rgba(250, 250, 250, 0.14)', text: color.text }
       : due.state === 'done'
         ? { background: 'transparent', text: color.textFaint }
         : { background: 'transparent', text: color.textMuted }
   const Icon = due.state === 'done' ? CircleCheck : Clock
-  return <span style={{ backgroundColor: tone.background, color: tone.text }} className={cn('inline-flex shrink-0 items-center rounded-md', large ? 'px-2.5 py-1.5' : 'px-1.5 py-0.5')}>
+  const padding = large ? (pill ? 'px-3 py-1.5' : 'px-2.5 py-1.5') : (pill ? 'px-2 py-0.5' : 'px-1.5 py-0.5')
+  return <span style={{ backgroundColor: tone.background, color: tone.text }} className={cn('inline-flex shrink-0 items-center', pill ? 'rounded-full' : 'rounded-md', padding)}>
     <Icon color={tone.text} size={large ? 16 : 13} />
     <span className={cn('ml-1 font-semibold', large ? 'text-[15px]' : 'text-[12px]')}>{due.label}</span>
   </span>
@@ -126,14 +131,18 @@ export function TaskImage({ mediaId, version, className, style }: {
   />
 }
 
-/** A card as a column shows it. `onToggleDone` draws the round done button before the title. */
-export const CardFace = memo(function CardFace({ card, labels, now, upload, onToggleDone, lifted = false }: {
+/**
+ * A card as a column shows it. `onToggleDone` draws the round done button before the title, and
+ * `title` replaces the title, as the quick editor's text box does.
+ */
+export const CardFace = memo(function CardFace({ card, labels, now, upload, onToggleDone, lifted = false, title }: {
   card: TaskCardRecord
   labels: readonly TaskLabelRecord[]
   now: Date
   upload?: 'sending' | 'failed'
   onToggleDone?: () => void
   lifted?: boolean
+  title?: React.ReactNode
 }): React.ReactElement {
   const { blurred } = useBlur()
   const badges = cardBadges(card, now)
@@ -161,9 +170,9 @@ export const CardFace = memo(function CardFace({ card, labels, now, upload, onTo
           }}
           className="-ml-1 mr-1 mt-[-2px] flex h-6 w-6 shrink-0 items-center justify-center rounded-full hover:bg-surface-800"
         >{done ? <CircleCheck color="#0a0a0a" fill="#fafafa" size={18} /> : <Circle color="#525252" size={18} />}</button>}
-        <Blurred>
+        {title ?? <Blurred>
           <span className={cn('min-w-0 flex-1 break-words text-[15px] leading-5', done ? 'text-surface-500' : 'text-surface-100')}>{card.title}</span>
-        </Blurred>
+        </Blurred>}
       </div>
       {(card.priority !== 'none' || badges.due || badges.description || badges.checklist || badges.attachments > 0 || upload) &&
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
