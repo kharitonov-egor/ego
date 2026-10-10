@@ -2,8 +2,8 @@ import React, { useLayoutEffect, useMemo, useState } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router'
 import {
-  Activity, Archive, ArchiveRestore, Ellipsis, Eye, EyeOff, GraduationCap, Inbox, ListFilter, Pencil, Plus, SquareKanban, Tag,
-  Trash2, X
+  Activity, Archive, ArchiveRestore, Briefcase, Ellipsis, Eye, EyeOff, GraduationCap, Inbox, ListFilter, Pencil, Plus,
+  SquareKanban, Tag, Trash2, X
 } from 'lucide-react-native'
 import type { TaskListRecord } from '@ego/api-contracts'
 import { HeaderButton } from '../../../components/HeaderButton'
@@ -14,11 +14,13 @@ import { DragBoard, type ListExtras } from '../../../components/tasks/DragBoard'
 import { BoardSheet, FilterSheet, LabelSheet, TextSheet } from '../../../components/tasks/sheets'
 import { TasksError, TasksGate, TasksHeaderRight, TasksMessage } from '../../../components/tasks/ui'
 import { NO_USF_FILTER, UsfAssignments, UsfControls, UsfRefresh, inCourse, type UsfFilter } from '../../../components/tasks/UsfColumn'
+import { WorkProblem, WorkRefresh } from '../../../components/tasks/WorkColumn'
 import {
   boardLabels, boardLists, homeBoardId, isFiltering, listCards, matchesFilter, NO_FILTER, type CardFilter
 } from '@ego/local/tasks/board'
 import { StudyProvider } from '../../../lib/study/context'
 import { useTasks } from '../../../lib/tasks/context'
+import { useTrelloWork } from '../../../lib/tasks/trello-work'
 
 /** Canvas is read only for a board that shows it. */
 function MaybeStudy({ active, children }: { active: boolean; children: React.ReactNode }): React.ReactElement {
@@ -65,6 +67,7 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
   const lists = useMemo(() => data ? boardLists(data, boardId) : [], [boardId, data])
   const labels = useMemo(() => data ? boardLabels(data, boardId) : [], [boardId, data])
   const hasUsf = lists.some((list) => list.kind === 'usf')
+  const trelloWork = useTrelloWork(lists.some((list) => list.kind === 'work'))
   const cards = useMemo(() => {
     const shown = new Map<string, ReturnType<typeof listCards>>()
     if (!data || !board) return shown
@@ -77,18 +80,27 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
     }
     return shown
   }, [board, data, filter, labels, lists, tasks.now, usfFilter.course])
-  const listExtras = (list: TaskListRecord): ListExtras | null => list.kind === 'usf'
-    ? {
-      action: <UsfRefresh />,
-      top: <UsfControls filter={usfFilter} onChange={setUsfFilter} now={tasks.now} />,
-      bottom: <UsfAssignments filter={usfFilter} now={tasks.now} />
+  const listExtras = (list: TaskListRecord): ListExtras | null => {
+    if (list.kind === 'usf') {
+      return {
+        action: <UsfRefresh />,
+        top: <UsfControls filter={usfFilter} onChange={setUsfFilter} now={tasks.now} />,
+        bottom: <UsfAssignments filter={usfFilter} now={tasks.now} />
+      }
     }
-    : null
+    if (list.kind === 'work') {
+      return { action: <WorkRefresh work={trelloWork} />, top: trelloWork.problem ? <WorkProblem text={trelloWork.problem} /> : undefined }
+    }
+    return null
+  }
   const kindItems = (list: TaskListRecord): MenuItem[] => [
     ...(list.kind === 'inbox' ? [] : [{ label: 'Make this the Inbox', Icon: Inbox, onPress: () => void tasks.setListKind(list.id, 'inbox') }]),
     list.kind === 'usf'
       ? { label: 'Stop showing Canvas assignments', Icon: GraduationCap, onPress: () => void tasks.setListKind(list.id, 'cards') }
-      : { label: 'Show Canvas assignments here', Icon: GraduationCap, onPress: () => void tasks.setListKind(list.id, 'usf') }
+      : { label: 'Show Canvas assignments here', Icon: GraduationCap, onPress: () => void tasks.setListKind(list.id, 'usf') },
+    list.kind === 'work'
+      ? { label: 'Stop syncing with work Trello', Icon: Briefcase, onPress: () => void tasks.setListKind(list.id, 'cards') }
+      : { label: 'Sync with work Trello', Icon: Briefcase, onPress: () => void tasks.setListKind(list.id, 'work') }
   ]
   const matching = useMemo(() => [...cards.values()].reduce((total, list) => total + list.length, 0), [cards])
 

@@ -4,6 +4,7 @@ import { runScheduledCalendarSync } from './calendar'
 import { previewBase, renderContentPreviews } from './content-previews'
 import { runScheduledHealthSync } from './health'
 import { handle } from './router'
+import { syncTrelloWork } from './trello-work'
 import { preflight, withCors } from './web'
 
 export default {
@@ -25,7 +26,8 @@ export default {
     if (controller.cron === BACKUP_CRON) ctx.waitUntil(runScheduledBackup(env, now))
     else ctx.waitUntil(Promise.all([
       runScheduledHealthSync(env, now), runScheduledCalendarSync(env, now),
-      renderContentPreviews(env, previewBase(env), 6).catch(() => undefined)
+      renderContentPreviews(env, previewBase(env), 6).catch(() => undefined),
+      env.TRELLO_WORK_TOKEN ? syncTrelloWork(env).catch(() => undefined) : undefined
     ]))
   }
 }
