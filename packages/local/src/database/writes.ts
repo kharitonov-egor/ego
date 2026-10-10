@@ -245,15 +245,15 @@ async function writeDiaryMessage(tx: LocalDatabase, record: DiaryMessageRecord):
 }
 
 async function writeTaskBoard(tx: LocalDatabase, record: TaskBoardRecord): Promise<void> {
-  await tx.run(`INSERT INTO task_boards (id, name, icon, position, hide_done, archived_at, created_at, updated_at,
-    revision, deleted_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+  await tx.run(`INSERT INTO task_boards (id, name, icon, position, hide_done, move_done, archived_at, created_at,
+    updated_at, revision, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
     ON CONFLICT(id) DO UPDATE SET name = excluded.name, icon = excluded.icon, position = excluded.position,
-      hide_done = excluded.hide_done, archived_at = excluded.archived_at, created_at = excluded.created_at,
-      updated_at = excluded.updated_at, revision = excluded.revision, deleted_at = NULL
+      hide_done = excluded.hide_done, move_done = excluded.move_done, archived_at = excluded.archived_at,
+      created_at = excluded.created_at, updated_at = excluded.updated_at, revision = excluded.revision, deleted_at = NULL
     WHERE excluded.revision >= task_boards.revision`,
-  [record.id, record.name, record.icon, record.position, record.hideDone ? 1 : 0, record.archivedAt,
-    record.createdAt, record.updatedAt, record.revision])
+  [record.id, record.name, record.icon, record.position, record.hideDone ? 1 : 0, record.moveDone ? 1 : 0,
+    record.archivedAt, record.createdAt, record.updatedAt, record.revision])
 }
 
 async function writeTaskList(tx: LocalDatabase, record: TaskListRecord): Promise<void> {

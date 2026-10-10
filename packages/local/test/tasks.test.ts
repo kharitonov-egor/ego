@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { TaskBoardRecord, TaskCardRecord, TaskListRecord } from '@ego/api-contracts'
 import {
-  NO_FILTER, carryLabels, dueBadge, homeBoardId, inboxCardInput, inboxList, matchesFilter, placeAt, upcomingSections
+  NO_FILTER, cardInput, carryLabels, doneList, dueBadge, homeBoardId, inboxCardInput, inboxList, matchesFilter, placeAt,
+  upcomingSections, withDoneMove
 } from '../src/tasks/board'
 import { parseInline, parseMarkdown, prefixLines, toggleTaskLine, wrapSelection } from '../src/tasks/markdown'
 import { cardIdFromNotification, taskNotificationPlan } from '../src/tasks/reminders'
@@ -10,7 +11,7 @@ import type { TaskData } from '../src/tasks/repository'
 const STAMP = '2026-09-01T00:00:00.000Z'
 
 const board = (overrides: Partial<TaskBoardRecord> = {}): TaskBoardRecord => ({
-  id: 'b-1', name: 'Life', icon: '', position: 1024, hideDone: false, archivedAt: null,
+  id: 'b-1', name: 'Life', icon: '', position: 1024, hideDone: false, moveDone: false, archivedAt: null,
   createdAt: STAMP, updatedAt: STAMP, revision: 1, ...overrides
 })
 
@@ -198,5 +199,38 @@ describe('inbox', () => {
     const input = inboxCardInput(tasks, { title: '  Call mom ', description: 'About Sunday', attachments: [] }, STAMP)
     expect(input).toMatchObject({ boardId: 'b-1', listId: 'l-inbox', title: 'Call mom', description: 'About Sunday', position: 5120 })
     expect(input?.activity).toEqual([{ at: STAMP, kind: 'create', text: 'Added this card to "Inbox"' }])
+  })
+})
+
+describe('moving done cards to Done', () => {
+  const lists = [
+    list(),
+    list({ id: 'l-old', name: 'Done', position: 1536, archivedAt: STAMP }),
+    list({ id: 'l-done', name: 'Done!', position: 2048 }),
+    list({ id: 'l-work', name: 'Work', kind: 'work', position: 3072 })
+  ]
+  const cards = [card(), card({ id: 'k-2', listId: 'l-done', position: 4096, doneAt: STAMP }), card({ id: 'k-3', listId: 'l-work' })]
+  const tasks = (moveDone: boolean): TaskData => data(cards, { boards: [board({ moveDone })], lists })
+  const markDone = (from: TaskCardRecord, on: boolean) => withDoneMove(tasks(on), cardInput(from), { ...cardInput(from), doneAt: STAMP })
+
+  it('finds the first live list named Done', () => {
+    expect(doneList(tasks(true), 'b-1')?.id).toBe('l-done')
+    expect(doneList(data([]), 'b-1')).toBeNull()
+  })
+
+  it('sends a card just marked done to the bottom of Done when the board says so', () => {
+    expect(markDone(cards[0], true)).toMatchObject({ listId: 'l-done', position: 5120, doneAt: STAMP })
+  })
+
+  it('leaves the card where it is when the setting is off', () => {
+    expect(markDone(cards[0], false)).toMatchObject({ listId: 'l-1', position: 1024, doneAt: STAMP })
+  })
+
+  it('leaves Work cards, reopened cards, and other edits alone', () => {
+    expect(markDone(cards[2], true).listId).toBe('l-work')
+    const done = cardInput(cards[1])
+    expect(withDoneMove(tasks(true), { ...done, listId: 'l-1', doneAt: STAMP }, { ...done, listId: 'l-1', doneAt: null }).listId).toBe('l-1')
+    const renamed = cardInput(card({ doneAt: STAMP }))
+    expect(withDoneMove(tasks(true), renamed, { ...renamed, title: 'Pay the rent' }).listId).toBe('l-1')
   })
 })

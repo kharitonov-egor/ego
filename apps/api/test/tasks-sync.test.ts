@@ -348,3 +348,26 @@ describe('list kinds and the inbox endpoint', () => {
     expect((await inbox(env, { title: 'Lost' })).status).toBe(404)
   })
 })
+
+describe('the move-done setting', () => {
+  it('keeps the setting when a build without it saves the board', async () => {
+    const env = await setup()
+    const first = await phone(env)
+    await createTaskBoard(first.db, { name: 'GTD', icon: '', position: 1024, hideDone: false, moveDone: true, archivedAt: null }, NOW, 'b-gtd')
+    await first.sync()
+    const saved = (await localTasks(first.db)).boards.find((board) => board.id === 'b-gtd')
+    expect(saved?.moveDone).toBe(true)
+    const result = await over<OperationResponse>(env, '/v1/operations', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ operations: [operation({
+        operationId: 'op-hide', entityId: 'b-gtd', expectedRevision: saved?.revision ?? 1,
+        command: { entity: 'taskBoard', type: 'update', payload: { name: 'GTD', icon: '', position: 1024, hideDone: true, archivedAt: null } }
+      })] })
+    })
+    expect(result.ok && result.data.failed).toBeNull()
+    const second = await phone(env)
+    await second.sync()
+    expect((await localTasks(second.db)).boards.find((board) => board.id === 'b-gtd')).toMatchObject({ hideDone: true, moveDone: true })
+  })
+})

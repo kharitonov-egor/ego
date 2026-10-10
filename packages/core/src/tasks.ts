@@ -46,10 +46,16 @@ export interface TaskBoardInput {
   icon: string
   position: number
   hideDone: boolean
+  /**
+   * A card marked done goes to the top of the board's Done list. Builds from before this setting
+   * leave it out, and the server then keeps the value it has.
+   */
+  moveDone?: boolean
   archivedAt: string | null
 }
 
 export interface TaskBoard extends TaskBoardInput {
+  moveDone: boolean
   id: string
   createdAt: string
   updatedAt: string
@@ -220,7 +226,13 @@ export function isTaskBoardInput(value: unknown): value is TaskBoardInput {
     typeof value.icon === 'string' && value.icon.length <= TASK_ICON_LIMIT &&
     isTaskPosition(value.position) &&
     typeof value.hideDone === 'boolean' &&
+    (value.moveDone === undefined || typeof value.moveDone === 'boolean') &&
     isOptionalTimestamp(value.archivedAt)
+}
+
+/** A regular list named "Done" in any case, also with trailing marks like Trello's "Done!". */
+export function isTaskDoneList(list: { name: string; kind: string }): boolean {
+  return list.kind === 'cards' && /^done\W*$/i.test(list.name.trim())
 }
 
 export function isTaskListInput(value: unknown): value is TaskListInput {

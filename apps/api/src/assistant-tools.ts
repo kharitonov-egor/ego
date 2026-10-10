@@ -2,7 +2,7 @@ import {
   EXERCISE_TYPE_FIELDS, FOOD_GOAL_ID, NO_FOOD_GOAL, appendTaskActivity, checklistProgress, defaultTaskReminder,
   displayWeightUnit, exerciseRecords, foodDays, formatCalories, formatGrams, isFoodEntryInput, isFoodGoalInput, isFoodPhoto,
   isFridgeItemInput, isGymSetInput, isGymWorkoutInput, isHabitEntryInput, isMoodInput, isPurchaseInput, isTaskCardInput,
-  isTaskPriority, isTransactionInput, sumMacros, taskActivityFor, taskCardInput, taskDueLabel, taskTimeLabel,
+  isTaskDoneList, isTaskPriority, isTransactionInput, sumMacros, taskActivityFor, taskCardInput, taskDueLabel, taskTimeLabel,
   type AssistantCall, type AssistantToolName, type DistanceUnit, type ExerciseType, type FoodEntryInput, type FoodGoalInput,
   type FoodMacros, type FridgeItemInput, type GymSetInput, type GymWorkoutInput, type HabitEntryInput, type MoodInput,
   type PurchaseInput, type TaskCardInput, type TaskNames, type TransactionInput, type WeightUnit
@@ -160,6 +160,15 @@ function endOfList(tasks: TaskRows, listId: string, skip: string | null = null):
   return positions.length === 0 ? TASK_POSITION_STEP : Math.max(...positions) + TASK_POSITION_STEP
 }
 
+/** Where a card just marked done goes when its board's move-done setting is on, the way the apps do it. */
+function doneListFor(tasks: TaskRows, card: TaskCardInput): string | null {
+  const board = tasks.boards.find((item) => item.id === card.boardId)
+  const from = tasks.lists.find((item) => item.id === card.listId)
+  if (board?.move_done !== 1 || from?.kind === 'work') return null
+  const list = tasks.lists.find((item) => item.board_id === card.boardId && item.archived_at === null && isTaskDoneList(item))
+  return list && list.id !== card.listId ? list.id : null
+}
+
 async function readTasks(ctx: ToolContext, args: Record<string, unknown>): Promise<ReadOutcome> {
   const tasks = await readTaskRows(ctx.env.DB)
   const { boards, lists } = openTaskRows(tasks)
@@ -258,6 +267,11 @@ async function updateTaskCard(ctx: ToolContext, args: Record<string, unknown>, c
     if (list.board_id !== before.boardId) throw new Error('A card can only move to a list on its own board')
     next.listId = list.id
     next.position = endOfList(tasks, list.id, row.id)
+  }
+  const doneList = before.doneAt === null && next.doneAt !== null && next.listId === before.listId ? doneListFor(tasks, next) : null
+  if (doneList) {
+    next.listId = doneList
+    next.position = endOfList(tasks, doneList, row.id)
   }
   if (typeof args.title === 'string' && args.title.trim() !== '') next.title = args.title.trim()
   if (args.clearDue === true) {

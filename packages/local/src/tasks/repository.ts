@@ -22,6 +22,7 @@ interface BoardRow {
   icon: string
   position: number
   hide_done: number
+  move_done: number
   archived_at: string | null
   created_at: string
   updated_at: string
@@ -160,7 +161,8 @@ export async function localTasks(db: LocalDatabase): Promise<TaskData> {
   return {
     boards: boards.map((row) => ({
       id: row.id, name: row.name, icon: row.icon, position: row.position, hideDone: row.hide_done === 1,
-      archivedAt: row.archived_at, createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
+      moveDone: row.move_done === 1, archivedAt: row.archived_at, createdAt: row.created_at, updatedAt: row.updated_at,
+      revision: row.revision
     })),
     lists: lists.map((row) => ({
       id: row.id, boardId: row.board_id, name: row.name, position: row.position, archivedAt: row.archived_at,

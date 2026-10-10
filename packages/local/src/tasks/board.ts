@@ -1,6 +1,6 @@
 import type { TaskBoardRecord, TaskCardRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
 import {
-  checklistProgress, positionBetween, positionsTooClose, taskDueAt, taskDueLabel, taskTimeLabel, withTaskActivity,
+  checklistProgress, isTaskDoneList, positionBetween, positionsTooClose, taskDueAt, taskDueLabel, taskTimeLabel, withTaskActivity,
   type TaskAttachment, type TaskCardInput, type TaskNames, type TaskPriority
 } from '@ego/core'
 import { isoFromParts } from '../dates'
@@ -27,6 +27,24 @@ export function inboxList(data: TaskData): TaskListRecord | null {
     if (list) return list
   }
   return null
+}
+
+/** Where the board's move-done setting sends cards: its first live list named "Done". */
+export function doneList(data: TaskData, boardId: string): TaskListRecord | null {
+  return boardLists(data, boardId).find(isTaskDoneList) ?? null
+}
+
+/**
+ * With the board's move-done setting on, a card just marked done goes to the bottom of the Done
+ * list. Work cards stay put, because the work Trello sync archives them once Trello has them in Done!.
+ */
+export function withDoneMove(data: TaskData, before: TaskCardInput, next: TaskCardInput): TaskCardInput {
+  if (before.doneAt !== null || next.doneAt === null || next.listId !== before.listId) return next
+  if (!data.boards.find((board) => board.id === next.boardId)?.moveDone) return next
+  if (data.lists.find((list) => list.id === next.listId)?.kind === 'work') return next
+  const target = doneList(data, next.boardId)
+  if (!target || target.id === next.listId) return next
+  return { ...next, listId: target.id, position: endPosition(listCards(data, target.id)) }
 }
 
 /** The board Tasks opens on: the one holding the Inbox. */

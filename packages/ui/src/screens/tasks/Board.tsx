@@ -1,12 +1,12 @@
 import React, { useCallback, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import {
-  Activity, Archive, ArchiveRestore, Briefcase, Ellipsis, Eye, EyeOff, GraduationCap, Inbox, LayoutGrid, ListFilter, Pencil,
-  Plus, Tag, Trash2, X
+  Activity, Archive, ArchiveRestore, Briefcase, Ellipsis, Eye, EyeOff, GraduationCap, Inbox, LayoutGrid, ListChecks, ListFilter,
+  Pencil, Plus, Tag, Trash2, X
 } from 'lucide-react'
 import type { TaskListRecord } from '@ego/api-contracts'
 import {
-  boardLabels, boardLists, homeBoardId, isFiltering, listCards, matchesFilter, NO_FILTER, type CardFilter
+  boardLabels, boardLists, doneList, homeBoardId, isFiltering, listCards, matchesFilter, NO_FILTER, type CardFilter
 } from '@ego/local/tasks/board'
 import { Screen, ScreenHeader } from '../../components/screen'
 import { DragBoard, type ListExtras } from '../../components/tasks/DragBoard'
@@ -104,6 +104,12 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
     else setParams({}, { replace: true })
   }
   const closeQuick = useCallback(() => setQuick(null), [])
+  const toggleMoveDone = (): void => {
+    if (!data || !board) return
+    const on = !board.moveDone
+    void tasks.updateBoard(board.id, { moveDone: on })
+    if (on && !doneList(data, board.id)) void tasks.createList(board.id, 'Done')
+  }
 
   if (!data || !board) {
     return <Screen>
@@ -171,6 +177,7 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
           Icon: board.hideDone ? Eye : EyeOff,
           onPress: () => void tasks.updateBoard(board.id, { hideDone: !board.hideDone })
         },
+        { label: 'Move done cards to Done', Icon: ListChecks, checked: board.moveDone, onPress: toggleMoveDone },
         { label: 'Activity', Icon: Activity, onPress: () => navigate(activityPath(board.id)) },
         { label: 'Archived items', Icon: ArchiveRestore, onPress: () => navigate(archivePath(board.id)) },
         board.archivedAt === null

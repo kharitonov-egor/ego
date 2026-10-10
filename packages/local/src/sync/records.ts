@@ -275,7 +275,10 @@ export function diaryMessageRecordFrom(
 export function taskBoardRecordFrom(
   id: string, input: TaskBoardInput, createdAt: string, updatedAt: string, revision: number
 ): TaskBoardRecord {
-  return { id, ...input, name: input.name.trim(), icon: input.icon.trim(), createdAt, updatedAt, revision }
+  return {
+    id, ...input, name: input.name.trim(), icon: input.icon.trim(), moveDone: input.moveDone ?? false, createdAt, updatedAt,
+    revision
+  }
 }
 
 export function taskListRecordFrom(
