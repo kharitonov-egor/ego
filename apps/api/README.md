@@ -32,6 +32,7 @@ and the docket pages under `/docket/` check a cookie instead.
 | `GET /v1/trello/boards/:id/lists` | Lists on one board |
 | `POST /v1/trello/cards` | Creates a card |
 | `POST /v1/trello/cards/:id/attachments` | Forwards one file up to 10 MB to a card |
+| `POST /v1/tasks/work/sync` | Syncs the Work list with the work Trello board and says whether anything changed in Ego |
 | `GET /v1/health/data` | Google Health rows in D1 that changed after `since`, plus the connection state |
 | `POST /v1/health/sync` | Pulls from Google Health unless a pull just ran, then answers like `/v1/health/data` |
 | `POST /v1/health/connect` | Starts Google OAuth with the read-only Google Health scopes |
@@ -224,6 +225,29 @@ Google comes back as `CONFLICT` after the Worker reloads the event.
 The AI chat's `read_calendar`, `add_calendar_event`, `update_calendar_event`,
 `delete_calendar_event`, and `answer_calendar_event` tools call the same functions. Migration
 `0019_calendar.sql` adds the four tables.
+
+## Work Trello
+
+A list of kind `work` mirrors "Selected for Development" and "In Progress: execute" on the VCS
+board of the work Trello account, through `TRELLO_WORK_API_KEY` and a read-and-write
+`TRELLO_WORK_TOKEN`. The list IDs are in `src/trello-work.ts`. Only one list can be the Work list.
+Each card carries a "Selected" or "In progress" label, which the sync creates on the board if it
+is missing.
+
+`trello_work_cards` pairs each Trello card with its Ego card and keeps the fields both last agreed
+on: title and name, description, due, and list. A sync compares each side with that copy, so it
+can tell which side changed a field. The changed side wins, and Trello wins when both changed.
+Changing the label moves the Trello card between the two lists, and marking the card done moves it
+to "Done!". A card that leaves the two lists is archived in Ego and comes back when it returns. A
+card added to the Work list in Ego becomes a Trello card in "Selected for Development", or in
+"In Progress: execute" if it has that label. Checklists, attachments, priority, and reminders stay
+in Ego.
+
+A sync runs when a board holding the Work list opens, after a device's write touches it, and on the
+15-minute cron. A lock in `trello_work_sync` keeps two syncs from creating the same Trello card
+twice. A request that finds the lock taken asks the running sync to go once more. Trello's due
+times are read on the time zone the last device sent. Migration `0029_trello_work.sql` adds both
+tables and lets `task_lists.kind` hold `work`.
 
 ## AI assistant
 

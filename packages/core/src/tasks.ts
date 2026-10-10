@@ -11,9 +11,10 @@ export type TaskLabelColor = typeof TASK_LABEL_COLORS[number]
 
 /**
  * A regular list holds cards. The Inbox is where quick add and the inbox endpoint drop new cards,
- * and its board is the one Tasks opens on. A USF list also shows the Canvas assignments.
+ * and its board is the one Tasks opens on. A USF list also shows the Canvas assignments. A Work list
+ * mirrors the active lists of the work Trello board, both ways.
  */
-export const TASK_LIST_KINDS = ['cards', 'inbox', 'usf'] as const
+export const TASK_LIST_KINDS = ['cards', 'inbox', 'usf', 'work'] as const
 export type TaskListKind = typeof TASK_LIST_KINDS[number]
 
 export const TASK_PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'] as const

@@ -290,7 +290,9 @@ export function TasksProvider({ children }: { children: React.ReactNode }): Reac
     if (!current || !list) return false
     const changed = [
       { list, kind },
-      ...(kind === 'inbox' ? current.lists.filter((item) => item.kind === 'inbox' && item.id !== listId).map((item) => ({ list: item, kind: 'cards' as const })) : [])
+      ...(kind === 'inbox' || kind === 'work'
+        ? current.lists.filter((item) => item.kind === kind && item.id !== listId).map((item) => ({ list: item, kind: 'cards' as const }))
+        : [])
     ]
     return commit(
       (data) => ({ ...data, lists: data.lists.map((item) => ({ ...item, kind: changed.find((entry) => entry.list.id === item.id)?.kind ?? item.kind })) }),
