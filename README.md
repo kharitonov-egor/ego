@@ -425,6 +425,10 @@ shortcuts work on the card in the middle, and a card marked done or archived han
 the next one. Cards in the Work list that came from the work Trello board show a small Trello mark.
 A card made in the Work list or dragged into it stays in Ego and never goes to Trello.
 
+A message to the Telegram bot becomes a card at the bottom of the Inbox: the first line is the
+title, a photo or file is attached, and a voice note is transcribed into the title. The Worker
+handles it directly, with no n8n in between. Setup is under "Telegram inbox" in `apps/api/README.md`.
+
 ## Sheets
 
 The Sheets tile holds small spreadsheets in black and white, built for the phone first. The empty

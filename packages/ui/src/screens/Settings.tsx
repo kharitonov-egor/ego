@@ -32,7 +32,7 @@ const SERVICES: Array<{ key: keyof ServiceStatus; label: string; secret: string 
   { key: 'google', label: 'Gmail and Drive', secret: 'Connect under Talk to AI below' },
   { key: 'canvas', label: 'Canvas calendar', secret: 'CANVAS_CALENDAR_URL' },
   { key: 'googleHealth', label: 'Google Health', secret: 'Connect from the Health app' },
-  { key: 'tasksInbox', label: 'n8n inbox', secret: 'TASKS_INBOX_TOKEN' }
+  { key: 'telegram', label: 'Telegram inbox', secret: 'TELEGRAM_BOT_TOKEN' }
 ]
 
 function useSession(): { session: SessionInfo | null; error: string | null } {
