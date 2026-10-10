@@ -371,3 +371,45 @@ describe('the move-done setting', () => {
     expect((await localTasks(second.db)).boards.find((board) => board.id === 'b-gtd')).toMatchObject({ hideDone: true, moveDone: true })
   })
 })
+
+describe('a column style', () => {
+  it('syncs a color, emoji, and outline, and keeps them when a build without them saves the list', async () => {
+    const env = await setup()
+    const first = await phone(env)
+    await createTaskBoard(first.db, { name: 'GTD', icon: '', position: 1024, hideDone: false, archivedAt: null }, NOW, 'b-gtd')
+    await createTaskList(first.db, {
+      boardId: 'b-gtd', name: 'USF', position: 1024, archivedAt: null, kind: 'usf', color: '#006747', icon: '🎓', border: true
+    }, NOW, 'l-usf')
+    await createTaskList(first.db, { boardId: 'b-gtd', name: 'Later', position: 2048, archivedAt: null, color: 'sky' }, NOW, 'l-later')
+    await first.sync()
+    const saved = (await localTasks(first.db)).lists.find((list) => list.id === 'l-usf')
+    expect(saved).toMatchObject({ color: '#006747', icon: '🎓', border: true })
+    const result = await over<OperationResponse>(env, '/v1/operations', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ operations: [operation({
+        operationId: 'op-rename', entityId: 'l-usf', expectedRevision: saved?.revision ?? 1,
+        command: { entity: 'taskList', type: 'update', payload: { boardId: 'b-gtd', name: 'School', position: 1024, archivedAt: null } }
+      })] })
+    })
+    expect(result.ok && result.data.failed).toBeNull()
+    const second = await phone(env)
+    await second.sync()
+    const lists = (await localTasks(second.db)).lists
+    expect(lists.find((list) => list.id === 'l-usf')).toMatchObject({ name: 'School', kind: 'usf', color: '#006747', icon: '🎓', border: true })
+    expect(lists.find((list) => list.id === 'l-later')).toMatchObject({ color: 'sky', icon: '', border: false })
+  })
+
+  it('refuses a color that is neither a label color nor a hex code', async () => {
+    const env = await setup()
+    const result = await over<OperationResponse>(env, '/v1/operations', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ operations: [operation({
+        operationId: 'op-bad', entityId: 'l-bad', expectedRevision: null,
+        command: { entity: 'taskList', type: 'create', payload: { boardId: 'b-gtd', name: 'Bad', position: 1024, archivedAt: null } }
+      })] }).replace('"archivedAt":null', '"archivedAt":null,"color":"teal"')
+    })
+    expect(result.ok ? null : result.error.code).toBe('INVALID_REQUEST')
+  })
+})

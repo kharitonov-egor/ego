@@ -12,6 +12,7 @@ import { Chips, MoneyIcon, money } from '../components/common'
 import { Screen, ScreenBody, ScreenHeader } from '../components/screen'
 import { FieldLabel, Section, SectionNote } from '../components/Section'
 import { DevicesSection } from '../components/settings/DevicesSection'
+import { HotkeysSection } from '../components/settings/HotkeysSection'
 import { QuickAddSettings } from '../components/settings/QuickAddSettings'
 import { SignInPanel, useGoogleSignIn } from '../components/SignInPanel'
 import { Button } from '../components/ui/button'
@@ -296,6 +297,7 @@ export default function Settings(): React.ReactElement {
       {ledger.enabled && <SyncSection />}
       {ledger.enabled && <DevicesSection />}
       {ledger.enabled && session && <ServerKeysSection session={session} />}
+      <HotkeysSection />
       <QuickAddSettings />
       {!web && <QuickToolsSection />}
       {!web && <StartupSection />}

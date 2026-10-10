@@ -5,7 +5,8 @@ import { useBlur } from '../../lib/blur'
 import { useTasks } from '../../lib/tasks/context'
 import { color } from '../../lib/tokens'
 import { Modal } from '../ui/dialog'
-import { DueSheet, LabelSheet, MoveSheet, PrioritySheet } from './sheets'
+import { LabelPicker, anchorOf, type PickerAnchor } from './LabelPicker'
+import { DueSheet, MoveSheet, PrioritySheet } from './sheets'
 import { CardFace } from './ui'
 
 export interface QuickEditTarget {
@@ -31,7 +32,8 @@ export function QuickEdit({ target, onOpen, onClose }: {
   const { blurred } = useBlur()
   const card = tasks.data?.cards.find((item) => item.id === target.cardId)
   const [title, setTitle] = useState(card?.title ?? '')
-  const [sheet, setSheet] = useState<'labels' | 'due' | 'priority' | 'move' | 'copy' | null>(null)
+  const [sheet, setSheet] = useState<'due' | 'priority' | 'move' | 'copy' | null>(null)
+  const [labelsAt, setLabelsAt] = useState<PickerAnchor | null>(null)
   const [top, setTop] = useState(target.rect.top)
   const box = useRef<HTMLDivElement>(null)
   const field = useRef<HTMLTextAreaElement>(null)
@@ -68,9 +70,9 @@ export function QuickEdit({ target, onOpen, onClose }: {
     requestAnimationFrame(() => field.current?.focus())
   }
 
-  const actions: Array<{ label: string; Icon: LucideIcon; onPress: () => void }> = [
+  const actions: Array<{ label: string; Icon: LucideIcon; onPress: (button: HTMLElement) => void }> = [
     { label: 'Open card', Icon: PanelTop, onPress: () => { finish(); onOpen(card.id) } },
-    { label: 'Edit labels', Icon: Tag, onPress: () => setSheet('labels') },
+    { label: 'Edit labels', Icon: Tag, onPress: (button) => setLabelsAt(anchorOf(button)) },
     { label: 'Edit dates', Icon: Clock, onPress: () => setSheet('due') },
     { label: 'Priority', Icon: Flag, onPress: () => setSheet('priority') },
     { label: 'Move', Icon: ArrowRight, onPress: () => setSheet('move') },
@@ -118,7 +120,7 @@ export function QuickEdit({ target, onOpen, onClose }: {
         {actions.map((action) => <button
           key={action.label}
           type="button"
-          onClick={action.onPress}
+          onClick={(event) => action.onPress(event.currentTarget)}
           className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-surface-800 px-3 text-[14px] font-semibold text-surface-100 shadow-[0_2px_8px_rgba(0,0,0,0.5)] transition-colors hover:bg-surface-700"
         >
           <action.Icon color={color.textSecondary} size={16} />
@@ -127,16 +129,11 @@ export function QuickEdit({ target, onOpen, onClose }: {
       </div>
     </div>
 
-    <LabelSheet
-      visible={sheet === 'labels'}
-      boardId={card.boardId}
-      selected={card.labelIds}
-      onToggle={(labelId) => void update((input) => ({
-        ...input,
-        labelIds: input.labelIds.includes(labelId) ? input.labelIds.filter((id) => id !== labelId) : [...input.labelIds, labelId]
-      }))}
-      onClose={closeSheet}
-    />
+    {labelsAt && <LabelPicker cardId={card.id} anchor={labelsAt} onClose={(outside) => {
+      setLabelsAt(null)
+      if (outside) finish()
+      else requestAnimationFrame(() => field.current?.focus())
+    }} />}
     <DueSheet visible={sheet === 'due'} card={card} onSave={(value) => void update((input) => ({ ...input, ...value }))} onClose={closeSheet} />
     <PrioritySheet visible={sheet === 'priority'} value={card.priority} onChange={(priority) => void update((input) => ({ ...input, priority }))} onClose={closeSheet} />
     <MoveSheet visible={sheet === 'move'} mode="move" card={card} onDone={finish} onClose={closeSheet} />

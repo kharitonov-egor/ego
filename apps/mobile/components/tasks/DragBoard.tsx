@@ -5,10 +5,10 @@ import {
 } from 'react-native'
 import { Briefcase, Ellipsis, GraduationCap, Inbox, Plus, X } from 'lucide-react-native'
 import type { TaskCardRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
+import { columnHex, hexWithAlpha } from '@ego/local/tasks/board'
 import { Blurred } from '../../lib/blur'
 import { color } from '../money/tokens'
-import { CardFace } from './ui'
-import { USF_GREEN } from './UsfColumn'
+import { CardFace, LABEL_COLORS } from './ui'
 
 const PAD = 12
 const GAP = 10
@@ -316,13 +316,16 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
     const extras = props.listExtras?.(list) ?? null
     if (extras?.top === undefined) extraTops.current.delete(list.id)
     const usf = list.kind === 'usf'
+    const hex = columnHex(list.color, LABEL_COLORS)
+    const outlined = hex !== null && list.border
+    const iconColor = hex ? '#e5e5e5' : color.textSecondary
     return <View
       key={list.id}
       ref={(view) => {
         if (view) columnViews.current.set(list.id, view)
         else columnViews.current.delete(list.id)
       }}
-      style={{ width: columnWidth, maxHeight: columnHeight }}
+      style={{ width: columnWidth, maxHeight: columnHeight, ...(outlined ? { borderWidth: 2, borderColor: hex } : null) }}
       className="rounded-2xl bg-surface-900"
     >
       <Pressable
@@ -332,16 +335,25 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
         onLongPress={(event) => liftList(list, event)}
         onPressOut={releasedInPlace}
         delayLongPress={300}
-        style={{ height: HEADER, backgroundColor: usf ? USF_GREEN : undefined }}
+        style={{
+          height: HEADER,
+          backgroundColor: hex ? hexWithAlpha(hex, 0.24) : undefined,
+          ...(hex && !outlined ? { borderTopWidth: 3, borderTopColor: hex } : null),
+          ...(outlined ? { borderTopLeftRadius: 14, borderTopRightRadius: 14 } : null)
+        }}
         className="flex-row items-center rounded-t-2xl pl-4 pr-1"
       >
-        {list.kind === 'inbox' && <Inbox color={color.textSecondary} size={17} style={{ marginRight: 8 }} />}
-        {usf && <GraduationCap color="#ffffff" size={18} style={{ marginRight: 8 }} />}
-        {list.kind === 'work' && <Briefcase color={color.textSecondary} size={17} style={{ marginRight: 8 }} />}
-        <Blurred tint="#fafafa"><Text numberOfLines={1} className={`flex-1 text-[16px] font-bold ${usf ? 'text-white' : 'text-surface-100'}`}>{list.name}</Text></Blurred>
-        <Text className={`ml-2 text-[14px] font-semibold ${usf ? 'text-white/70' : 'text-surface-500'}`}>{all.length}</Text>
+        {list.icon
+          ? <Text style={{ fontSize: 17, marginRight: 8 }}>{list.icon}</Text>
+          : <>
+            {list.kind === 'inbox' && <Inbox color={iconColor} size={17} style={{ marginRight: 8 }} />}
+            {usf && <GraduationCap color={iconColor} size={18} style={{ marginRight: 8 }} />}
+            {list.kind === 'work' && <Briefcase color={iconColor} size={17} style={{ marginRight: 8 }} />}
+          </>}
+        <Blurred tint="#fafafa"><Text numberOfLines={1} className="flex-1 text-[16px] font-bold text-surface-100">{list.name}</Text></Blurred>
+        <Text className={`ml-2 text-[14px] font-semibold ${hex ? 'text-surface-300' : 'text-surface-500'}`}>{all.length}</Text>
         {extras?.action}
-        <View className="h-11 w-11 items-center justify-center"><Ellipsis color={usf ? '#ffffff' : color.textMuted} size={20} /></View>
+        <View className="h-11 w-11 items-center justify-center"><Ellipsis color={color.textMuted} size={20} /></View>
       </Pressable>
       {extras?.top !== undefined && <View onLayout={(event) => extraTops.current.set(list.id, event.nativeEvent.layout.height)}>
         {extras.top}

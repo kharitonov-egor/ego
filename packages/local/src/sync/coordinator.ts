@@ -83,9 +83,9 @@ interface SyncStateRow {
  * it could not store and moved past them, so it has to download everything again. Version 5 does
  * the same for Tasks, version 6 for Sheets, version 7 for Goals, and version 8 for Food, and version 9 for Content.
  * Version 10 brings each list's kind, which earlier builds dropped. Version 11 does the same for
- * each board's move-done setting.
+ * each board's move-done setting, and version 12 for each list's color, emoji, and outline.
  */
-export const BOOTSTRAP_VERSION = 11
+export const BOOTSTRAP_VERSION = 12
 
 async function syncStateRow(db: LocalDatabase): Promise<SyncStateRow> {
   const rows = await db.all<SyncStateRow>(

@@ -100,7 +100,10 @@ function boardInput(board: TaskBoardRecord): TaskBoardInput {
 }
 
 function listInput(list: TaskListRecord): TaskListInput {
-  return { boardId: list.boardId, name: list.name, position: list.position, archivedAt: list.archivedAt, kind: list.kind }
+  return {
+    boardId: list.boardId, name: list.name, position: list.position, archivedAt: list.archivedAt, kind: list.kind,
+    color: list.color, icon: list.icon, border: list.border
+  }
 }
 
 function labelInput(label: TaskLabelRecord): TaskLabelInput {
@@ -211,7 +214,8 @@ export function TasksProvider({ children }: { children: React.ReactNode }): Reac
       return null
     }
     const lists = DEFAULT_LISTS.map((listName, index): TaskListRecord => ({
-      id: newId(), boardId: id, name: listName, position: (index + 1) * 1024, archivedAt: null, kind: 'cards', ...stamp(at)
+      id: newId(), boardId: id, name: listName, position: (index + 1) * 1024, archivedAt: null, kind: 'cards', color: null, icon: '',
+      border: false, ...stamp(at)
     }))
     const saved = await commit(
       (data) => ({ ...data, boards: [...data.boards, { id, ...board, ...stamp(at) }], lists: [...data.lists, ...lists] }),
@@ -270,7 +274,7 @@ export function TasksProvider({ children }: { children: React.ReactNode }): Reac
       return null
     }
     const saved = await commit(
-      (data) => ({ ...data, lists: [...data.lists, { id, ...input, kind: 'cards', ...stamp(at) }] }),
+      (data) => ({ ...data, lists: [...data.lists, { id, ...input, kind: 'cards', color: null, icon: '', border: false, ...stamp(at) }] }),
       async (database, time) => { await createTaskList(database, input, time, id) },
       'This phone could not add that list')
     return saved ? id : null

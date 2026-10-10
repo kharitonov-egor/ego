@@ -414,6 +414,17 @@ timed by the window, which keeps running in the tray, and clicking one opens its
 two to a row, and a goal's page keeps its linked work beside its checkpoints. The Alt+N quick add
 still sends cards to Trello.
 
+Keyboard shortcuts act on the card under the mouse: C archives it, L opens its labels beside it,
+Space marks it done, and Enter opens it. Settings > Keyboard shortcuts changes any of them, and
+also offers "Toggle label 1" to 9 with no key until you give them one. The shortcuts sit in D1 under
+`/v1/settings/hotkeys`, so the desktop and every browser share them, with a copy on each device for
+offline use. A list's menu sets its color (a label color or any hex), an emoji, and an outline in
+that color; the phone draws them too. Focus, next to the board's name, shows one list's cards one
+at a time, starting with the Inbox: the arrow keys or the wheel move through them, the same
+shortcuts work on the card in the middle, and a card marked done or archived hands the middle to
+the next one. Cards in the Work list that came from the work Trello board show a small Trello mark.
+A card made in the Work list or dragged into it stays in Ego and never goes to Trello.
+
 ## Sheets
 
 The Sheets tile holds small spreadsheets in black and white, built for the phone first. The empty

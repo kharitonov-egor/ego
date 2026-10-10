@@ -8,7 +8,8 @@ import type {
   MediaScope,
   HealthConnectStart, HealthSnapshot, OperationResponse, ReceiptDetail, ReferenceData,
   SessionInfo, SignInResult, SignInStartInput, SignInStartResult, StudyAssignmentList, StudyMark, SyncOperation,
-  TransactionFilters, TransactionPage, TrelloCardRequest, TrelloCardResponse, TrelloWorkSyncResult
+  TransactionFilters, TransactionPage, TrelloCardRequest, TrelloCardResponse, TrelloWorkSyncResult,
+  SharedSetting, SharedSettingKey
 } from '@ego/api-contracts'
 import { encodeCursor } from '@ego/api-contracts'
 import type { AnalyzedTransactionDraft, ImageAnalysisCategory, TrelloBoardSummary, TrelloListSummary } from '@ego/core'
@@ -143,6 +144,10 @@ export interface EgoApi extends ContentApi, MoneyApi, StudyApi, HealthApi, Calen
   trelloAttachment: (cardId: string, file: AttachmentFile) => Promise<ApiResult<{ attached: true }>>
   /** Syncs the Work list with the work Trello board. `timeZone` reads Trello's due times on this device's clock. */
   trelloWorkSync: (timeZone: string | null) => Promise<ApiResult<TrelloWorkSyncResult>>
+  /** A setting every device shares, or null before any device saved it. */
+  sharedSetting: (key: SharedSettingKey) => Promise<ApiResult<SharedSetting | null>>
+  /** Answers with what the server keeps, which is a newer save when another device made one. */
+  saveSharedSetting: (key: SharedSettingKey, setting: SharedSetting) => Promise<ApiResult<SharedSetting | null>>
   appBuilds: () => Promise<ApiResult<AppBuildStatus>>
 }
 
@@ -468,6 +473,11 @@ export function moneyApiFor(config: ApiConfig, options: { streamFetch?: StreamFe
       method: 'POST',
       body: JSON.stringify({ timeZone }),
       timeoutMs: SLOW_REQUEST_TIMEOUT_MS
+    }),
+    sharedSetting: (key) => call<SharedSetting | null>(`/v1/settings/${encodeURIComponent(key)}`),
+    saveSharedSetting: (key, setting) => call<SharedSetting | null>(`/v1/settings/${encodeURIComponent(key)}`, {
+      method: 'PUT',
+      body: JSON.stringify(setting)
     })
   }
 }

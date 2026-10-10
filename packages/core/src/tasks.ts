@@ -17,6 +17,9 @@ export type TaskLabelColor = typeof TASK_LABEL_COLORS[number]
 export const TASK_LIST_KINDS = ['cards', 'inbox', 'usf', 'work'] as const
 export type TaskListKind = typeof TASK_LIST_KINDS[number]
 
+/** A column's color is one of the label colors or any `#rrggbb`. */
+export type TaskListColor = TaskLabelColor | `#${string}`
+
 export const TASK_PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'] as const
 export type TaskPriority = typeof TASK_PRIORITIES[number]
 
@@ -68,10 +71,19 @@ export interface TaskListInput {
   archivedAt: string | null
   /** Builds from before list kinds leave this out, and the server then keeps the kind it has. */
   kind?: TaskListKind
+  /** Builds from before column styles leave these three out, and the server keeps what it has. */
+  color?: TaskListColor | null
+  /** An emoji before the name. Empty shows the kind's own icon, if it has one. */
+  icon?: string
+  /** Outlines the whole column in its color. */
+  border?: boolean
 }
 
 export interface TaskList extends TaskListInput {
   kind: TaskListKind
+  color: TaskListColor | null
+  icon: string
+  border: boolean
   id: string
   createdAt: string
   updatedAt: string
@@ -212,6 +224,10 @@ export function isTaskListKind(value: unknown): value is TaskListKind {
   return (TASK_LIST_KINDS as readonly unknown[]).includes(value)
 }
 
+export function isTaskListColor(value: unknown): value is TaskListColor {
+  return isTaskLabelColor(value) || (typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value))
+}
+
 export function isTaskPriority(value: unknown): value is TaskPriority {
   return (TASK_PRIORITIES as readonly unknown[]).includes(value)
 }
@@ -241,7 +257,10 @@ export function isTaskListInput(value: unknown): value is TaskListInput {
     isText(value.name, 1, TASK_NAME_LIMIT) &&
     isTaskPosition(value.position) &&
     isOptionalTimestamp(value.archivedAt) &&
-    (value.kind === undefined || isTaskListKind(value.kind))
+    (value.kind === undefined || isTaskListKind(value.kind)) &&
+    (value.color === undefined || value.color === null || isTaskListColor(value.color)) &&
+    (value.icon === undefined || (typeof value.icon === 'string' && value.icon.length <= TASK_ICON_LIMIT)) &&
+    (value.border === undefined || typeof value.border === 'boolean')
 }
 
 export function isTaskLabelInput(value: unknown): value is TaskLabelInput {

@@ -13,8 +13,10 @@ export function Screen({ children, className }: { children: React.ReactNode; cla
  * The phone's navigation bar, along the top of the page: a back arrow where the phone has one,
  * the title, the app's tabs, and its header buttons on the right.
  */
-export function ScreenHeader({ title, back, tabs, right }: {
+export function ScreenHeader({ title, titleAction, back, tabs, right }: {
   title: React.ReactNode
+  /** Sits right after the title, like a mode switch for the screen. */
+  titleAction?: React.ReactNode
   /** Where the back arrow goes. */
   back?: string
   tabs?: React.ReactNode
@@ -26,6 +28,7 @@ export function ScreenHeader({ title, back, tabs, right }: {
       <ArrowLeft size={20} />
     </IconButton>}
     <h1 className={cn('truncate text-[17px] font-bold', tabs ? 'shrink-0' : 'min-w-0')}>{title}</h1>
+    {titleAction}
     {tabs && <div className="ml-3 flex min-w-0 items-center overflow-x-auto">{tabs}</div>}
     <div className="ml-auto flex shrink-0 items-center gap-1">{right}</div>
   </header>

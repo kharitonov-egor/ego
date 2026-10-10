@@ -14,8 +14,6 @@ import { Button } from '../ui/button'
 import { Sheet } from '../ui/dialog'
 import { Spinner } from '../ui/spinner'
 
-export const USF_GREEN = '#006747'
-
 export interface UsfFilter {
   course: string | null
   view: StudyView

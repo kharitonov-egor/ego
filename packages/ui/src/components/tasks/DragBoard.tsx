@@ -1,17 +1,17 @@
 import React, { useLayoutEffect, useRef, useState } from 'react'
-import { Briefcase, Ellipsis, GraduationCap, Inbox, Plus, X } from 'lucide-react'
+import { Ellipsis, Plus, X } from 'lucide-react'
 import type { TaskCardRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
 import { Blurred } from '../../lib/blur'
 import { columnAt, dropIndex, edgeScroll, usePointerDrag } from '../../lib/tasks/drag'
 import { color } from '../../lib/tokens'
+import { COLUMN_HEADER, ColumnHeader, columnFrame, listHex } from './ColumnHeader'
 import { CardFace, DraggingCursor } from './ui'
-import { USF_GREEN } from './UsfColumn'
 
 const COLUMN = 300
 const GAP = 10
 const PAD = 12
 const STEP = COLUMN + GAP
-const HEADER = 52
+const HEADER = COLUMN_HEADER
 const CARD_GAP = 8
 const CONTENT_TOP = 2
 const INSET = 8
@@ -57,6 +57,10 @@ export interface DragBoardProps {
   onListMenu: (list: TaskListRecord) => void
   onAddList: (name: string) => Promise<boolean>
   listExtras?: (list: TaskListRecord) => ListExtras | null
+  /** The card under the mouse, for the keyboard shortcuts. Null when the mouse leaves it or a drag starts. */
+  onHoverCard?: (cardId: string | null, element: HTMLElement | null) => void
+  /** Cards that sync with the work Trello board, which get a small Trello mark. */
+  linked?: ReadonlySet<string>
 }
 
 function Placeholder({ height, width }: { height: number; width?: number }): React.ReactElement {
@@ -146,6 +150,7 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
       const start: Hover = next.kind === 'card' ? { listId: next.fromListId, index: next.fromIndex } : { listId: next.list.id, index: next.fromIndex }
       dragRef.current = next
       hoverRef.current = start
+      latest.current.onHoverCard?.(null, null)
       pointer.current = { x, y }
       setDrag(next)
       setHover(start)
@@ -245,31 +250,33 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
     const items: Array<TaskCardRecord | 'placeholder'> = [...shown]
     if (drag?.kind === 'card' && hover?.listId === list.id) items.splice(Math.min(hover.index, items.length), 0, 'placeholder')
     const extras = props.listExtras?.(list) ?? null
-    const usf = list.kind === 'usf'
-    return <section key={list.id} data-column aria-label={list.name} className="flex max-h-full shrink-0 flex-col rounded-2xl bg-surface-900" style={{ width: COLUMN }}>
-      <div
+    const kindName = list.kind === 'inbox' ? ', the Inbox' : list.kind === 'usf' ? ', with Canvas assignments' : list.kind === 'work' ? ', synced with work Trello' : ''
+    return <section
+      key={list.id}
+      data-column
+      aria-label={list.name}
+      className="flex max-h-full shrink-0 flex-col rounded-2xl bg-surface-900"
+      style={{ width: COLUMN, ...columnFrame(list.color, list.border) }}
+    >
+      <ColumnHeader
+        list={list}
+        count={all.length}
         role="button"
         tabIndex={0}
-        aria-label={`${list.name}${list.kind === 'inbox' ? ', the Inbox' : usf ? ', with Canvas assignments' : list.kind === 'work' ? ', synced with work Trello' : ''}, ${all.length} cards. Drag to move the list.`}
+        aria-label={`${list.name}${kindName}, ${all.length} cards. Drag to move the list.`}
         onPointerDown={(event) => press(event, { kind: 'list', list })}
         onKeyDown={(event) => {
           if (event.key !== 'Enter' && event.key !== ' ') return
           event.preventDefault()
           props.onListMenu(list)
         }}
-        style={{ height: HEADER, backgroundColor: usf ? USF_GREEN : undefined }}
-        className={usf
-          ? 'flex shrink-0 cursor-pointer select-none items-center rounded-t-2xl pl-4 pr-1 transition-[filter] hover:brightness-110'
-          : 'flex shrink-0 cursor-pointer select-none items-center rounded-t-2xl pl-4 pr-1 transition-colors hover:bg-surface-800/60'}
+        className={listHex(list)
+          ? 'cursor-pointer transition-[filter] hover:brightness-125'
+          : 'cursor-pointer transition-colors hover:bg-surface-800/60'}
       >
-        {list.kind === 'inbox' && <Inbox color={color.textSecondary} size={17} className="mr-2 shrink-0" />}
-        {usf && <GraduationCap color="#ffffff" size={18} className="mr-2 shrink-0" />}
-        {list.kind === 'work' && <Briefcase color={color.textSecondary} size={17} className="mr-2 shrink-0" />}
-        <Blurred><span className={usf ? 'min-w-0 flex-1 truncate text-[16px] font-bold text-white' : 'min-w-0 flex-1 truncate text-[16px] font-bold text-surface-100'}>{list.name}</span></Blurred>
-        <span className={usf ? 'tabular ml-2 text-[14px] font-semibold text-white/70' : 'tabular ml-2 text-[14px] font-semibold text-surface-500'}>{all.length}</span>
         {extras?.action}
-        <span className="flex h-11 w-11 items-center justify-center"><Ellipsis color={usf ? '#ffffff' : color.textMuted} size={20} /></span>
-      </div>
+        <span className="flex h-11 w-11 items-center justify-center"><Ellipsis color={color.textMuted} size={20} /></span>
+      </ColumnHeader>
       {extras?.top}
       <div
         ref={(view) => {
@@ -291,6 +298,8 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
             role="button"
             tabIndex={0}
             onPointerDown={(event) => press(event, { kind: 'card', card: item, listId: list.id })}
+            onPointerEnter={(event) => { if (!dragRef.current) props.onHoverCard?.(item.id, event.currentTarget) }}
+            onPointerLeave={() => props.onHoverCard?.(null, null)}
             onKeyDown={(event) => {
               if (event.key !== 'Enter' && event.key !== ' ') return
               event.preventDefault()
@@ -302,7 +311,14 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
             }}
             className="shrink-0 cursor-pointer select-none rounded-xl transition-[filter] hover:brightness-125"
           >
-            <CardFace card={item} labels={labels} now={now} upload={uploads.get(item.id)} onToggleDone={() => props.onToggleDone(item.id)} />
+            <CardFace
+              card={item}
+              labels={labels}
+              now={now}
+              upload={uploads.get(item.id)}
+              synced={props.linked?.has(item.id)}
+              onToggleDone={() => props.onToggleDone(item.id)}
+            />
           </div>)}
         {extras?.bottom}
       </div>

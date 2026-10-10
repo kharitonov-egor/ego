@@ -5,7 +5,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TaskCardInput } from '@ego/core'
-import type { TaskBoardRecord, TaskCardRecord, TaskListRecord } from '@ego/api-contracts'
+import type { TaskBoardRecord, TaskCardRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
 import { cardInput } from '@ego/local/tasks/board'
 import type { TaskData } from '@ego/local/tasks/repository'
 import { QuickEdit } from '../../components/tasks/QuickEdit'
@@ -15,14 +15,26 @@ import CardScreen, { CardPanel } from './Card'
 const STAMP = '2026-10-01T09:00:00.000Z'
 
 const board: TaskBoardRecord = { id: 'b-1', name: 'Life', icon: '', position: 1024, hideDone: false, moveDone: false, archivedAt: null, createdAt: STAMP, updatedAt: STAMP, revision: 1 }
-const list: TaskListRecord = { id: 'l-1', boardId: 'b-1', name: 'Backlog', kind: 'cards', position: 1024, archivedAt: null, createdAt: STAMP, updatedAt: STAMP, revision: 1 }
+const list: TaskListRecord = { id: 'l-1', boardId: 'b-1', name: 'Backlog', kind: 'cards', color: null, icon: '', border: false, position: 1024, archivedAt: null, createdAt: STAMP, updatedAt: STAMP, revision: 1 }
 const card: TaskCardRecord = {
   id: 'k-1', boardId: 'b-1', listId: 'l-1', title: 'Pay rent', description: '', position: 1024, labelIds: [],
   priority: 'none', dueDate: null, dueTime: null, reminderMinutes: null, doneAt: null, archivedAt: null, checklists: [],
   attachments: [], activity: [], createdAt: STAMP, updatedAt: STAMP, revision: 1
 }
 
+const label = (id: string, name: string, position: number): TaskLabelRecord => ({
+  id, boardId: 'b-1', name, color: 'green', position, createdAt: STAMP, updatedAt: STAMP, revision: 1
+})
+const labels = [label('t-1', 'COT3100', 1024), label('t-2', 'Home', 2048)]
+
 type Change = (input: TaskCardInput) => TaskCardInput
+
+/** The see-through layer behind the topmost dialog, which a click outside lands on. */
+function backdropOf(inside: Element): Element {
+  const dialog = inside.closest('[role="dialog"]')
+  if (!dialog?.parentElement) throw new Error('Not inside a dialog')
+  return dialog.parentElement
+}
 
 const mocks = vi.hoisted(() => ({
   updateCard: vi.fn<(cardId: string, change: (input: TaskCardInput) => TaskCardInput) => Promise<boolean>>(),
@@ -62,7 +74,7 @@ function renderPanel(): ReturnType<typeof vi.fn> {
 }
 
 beforeEach(() => {
-  mocks.data = { boards: [board], lists: [list], labels: [], cards: [card], uploads: new Map() }
+  mocks.data = { boards: [board], lists: [list], labels, cards: [card], uploads: new Map() }
   mocks.updateCard.mockReset()
   mocks.updateCard.mockResolvedValue(true)
   Object.defineProperty(window, 'api', {
@@ -101,6 +113,14 @@ describe('the card panel over the board', () => {
     expect(onClose).not.toHaveBeenCalled()
     escape()
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('closes the Labels sheet on a click outside it and stays open itself', () => {
+    const onClose = renderPanel()
+    fireEvent.click(screen.getByRole('button', { name: 'Labels' }))
+    fireEvent.mouseDown(backdropOf(screen.getByRole('heading', { name: 'Labels' })))
+    expect(screen.queryByRole('heading', { name: 'Labels' })).not.toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('keeps the activity folded until its heading is clicked', () => {
@@ -150,6 +170,35 @@ describe('the quick editor', () => {
     escape(title)
     expect(mocks.updateCard).not.toHaveBeenCalled()
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('puts a label on from the picker beside Edit labels, and Escape closes only the picker', () => {
+    const { onClose } = renderQuick()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit labels' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Home' }))
+    expect(lastChange()(cardInput(card)).labelIds).toEqual(['t-2'])
+    escape(screen.getByLabelText('Search labels'))
+    expect(screen.queryByLabelText('Search labels')).not.toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('closes the picker and the editor together on a click outside, keeping the typed title', () => {
+    const { onClose } = renderQuick()
+    fireEvent.change(screen.getByLabelText('Card title'), { target: { value: 'Pay rent soon' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Edit labels' }))
+    fireEvent.mouseDown(backdropOf(screen.getByLabelText('Search labels')))
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(lastChange()(cardInput(card)).title).toBe('Pay rent soon')
+  })
+
+  it('narrows the picker by search and toggles the first match on Enter', () => {
+    renderQuick()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit labels' }))
+    const search = screen.getByLabelText('Search labels')
+    fireEvent.change(search, { target: { value: 'cot' } })
+    expect(screen.queryByRole('checkbox', { name: 'Home' })).not.toBeInTheDocument()
+    fireEvent.keyDown(search, { key: 'Enter' })
+    expect(lastChange()(cardInput(card)).labelIds).toEqual(['t-1'])
   })
 
   it('opens labels and dates beside the card', () => {

@@ -35,6 +35,7 @@ import { foodRoute } from './food'
 import { readAppBuilds, receiveBuildWebhook } from './app-builds'
 import { calendarRoute, completeCalendarConnect } from './calendar'
 import { docketRoute } from './dockets'
+import { settingsRoute } from './settings'
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -149,6 +150,9 @@ export async function handle(request: Request, env: Env, work?: Pick<ExecutionCo
     return trelloAddAttachment(request, env, decodeURIComponent(path.slice('/v1/trello/cards/'.length, -'/attachments'.length)))
   }
   if (request.method === 'POST' && path === '/v1/tasks/work/sync') return trelloWorkRoute(request, env)
+  if (path.startsWith('/v1/settings/')) {
+    return respond(await settingsRoute(request, env.DB, decodeURIComponent(path.slice('/v1/settings/'.length))))
+  }
   if (request.method === 'GET' && path === '/v1/study/assignments') return readStudyAssignments(env, device.data, now)
   if (request.method === 'GET' && path === '/v1/app/builds/latest') return ok(await readAppBuilds(env, now))
   if (request.method === 'PUT' && path.startsWith('/v1/study/assignments/')) {

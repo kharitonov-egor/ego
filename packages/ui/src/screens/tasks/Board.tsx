@@ -1,22 +1,27 @@
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import {
-  Activity, Archive, ArchiveRestore, Briefcase, Ellipsis, Eye, EyeOff, GraduationCap, Inbox, LayoutGrid, ListChecks, ListFilter,
-  Pencil, Plus, Tag, Trash2, X
+  Activity, Archive, ArchiveRestore, Briefcase, Ellipsis, Eye, EyeOff, Focus, GraduationCap, Inbox, LayoutGrid, ListChecks, ListFilter,
+  Palette, Pencil, Plus, Tag, Trash2, X
 } from 'lucide-react'
 import type { TaskListRecord } from '@ego/api-contracts'
+import type { HotkeyActionId } from '@ego/core'
 import {
-  boardLabels, boardLists, doneList, homeBoardId, isFiltering, listCards, matchesFilter, NO_FILTER, type CardFilter
+  boardLabels, boardLists, doneList, focusListOf, homeBoardId, isFiltering, listCards, matchesFilter, NO_FILTER, type CardFilter
 } from '@ego/local/tasks/board'
+import { isTyping } from '../../components/money/PeriodSwipe'
 import { Screen, ScreenHeader } from '../../components/screen'
 import { DragBoard, type ListExtras } from '../../components/tasks/DragBoard'
+import { FocusView } from '../../components/tasks/FocusView'
+import { LabelPicker, anchorOf, toggledLabel, type PickerAnchor } from '../../components/tasks/LabelPicker'
 import { QuickEdit, type QuickEditTarget } from '../../components/tasks/QuickEdit'
-import { BoardSheet, FilterSheet, LabelSheet, TextSheet } from '../../components/tasks/sheets'
+import { BoardSheet, FilterSheet, LabelSheet, ListStyleSheet, TextSheet } from '../../components/tasks/sheets'
 import { MenuSheet, TasksError, TasksGate, TasksMessage, type MenuItem } from '../../components/tasks/ui'
 import { NO_USF_FILTER, UsfAssignments, UsfControls, UsfRefresh, inCourse, type UsfFilter } from '../../components/tasks/UsfColumn'
 import { WorkProblem, WorkRefresh } from '../../components/tasks/WorkColumn'
 import { Button, IconButton } from '../../components/ui/button'
-import { ConfirmDialog } from '../../components/ui/dialog'
+import { ConfirmDialog, hasOpenLayer } from '../../components/ui/dialog'
+import { useHotkeys } from '../../lib/hotkeys'
 import { StudyProvider } from '../../lib/study/context'
 import { useTasks } from '../../lib/tasks/context'
 import { useTrelloWork } from '../../lib/tasks/trello-work'
@@ -26,6 +31,13 @@ import { BOARDS_PATH, activityPath, archivePath } from './nav'
 
 function openedHere(state: unknown): boolean {
   return typeof state === 'object' && state !== null && 'panel' in state && state.panel === true
+}
+
+const LABEL_SLOT = /^card\.label(\d)$/
+
+interface PointedCard {
+  id: string
+  element: HTMLElement | null
 }
 
 /** Canvas is read only for a board that shows it. */
@@ -50,6 +62,11 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
   const [deletingList, setDeletingList] = useState<TaskListRecord | null>(null)
   const [archiving, setArchiving] = useState(false)
   const [usfFilter, setUsfFilter] = useState<UsfFilter>(NO_USF_FILTER)
+  const [styling, setStyling] = useState<TaskListRecord | null>(null)
+  const [labelsFor, setLabelsFor] = useState<{ cardId: string; anchor: PickerAnchor } | null>(null)
+  const hotkeys = useHotkeys()
+  const hovered = useRef<PointedCard | null>(null)
+  const centered = useRef<PointedCard | null>(null)
 
   const data = tasks.data
   const board = data?.boards.find((item) => item.id === boardId)
@@ -97,12 +114,66 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
   const matching = useMemo(() => [...cards.values()].reduce((total, list) => total + list.length, 0), [cards])
 
   const panelCardId = params.get('card')
-  const openCard = useCallback((cardId: string): void => setParams({ card: cardId }, { state: { panel: true } }), [setParams])
-  const switchCard = (cardId: string): void => setParams({ card: cardId }, { replace: true, state: location.state })
+  const focusParam = params.get('focus')
+  const focusing = focusParam !== null
+  const focusList = focusing ? focusListOf(lists, focusParam) : null
+  /** Changes some of the URL's parameters and keeps the rest, so the card panel and focus mode stay apart. */
+  const withParams = useCallback((change: Record<string, string | null>): URLSearchParams => {
+    const next = new URLSearchParams(params)
+    for (const [key, value] of Object.entries(change)) {
+      if (value === null) next.delete(key)
+      else next.set(key, value)
+    }
+    return next
+  }, [params])
+  const openCard = useCallback((cardId: string): void => setParams(withParams({ card: cardId }), { state: { panel: true } }), [setParams, withParams])
+  const switchCard = (cardId: string): void => setParams(withParams({ card: cardId }), { replace: true, state: location.state })
   const closePanel = (): void => {
     if (openedHere(location.state)) void navigate(-1)
-    else setParams({}, { replace: true })
+    else setParams(withParams({ card: null }), { replace: true })
   }
+  const setFocus = (listId: string | null): void => {
+    centered.current = null
+    setParams(withParams({ focus: listId }), { replace: true, state: location.state })
+  }
+  const toggleDone = useCallback((cardId: string): void => {
+    void tasks.updateCard(cardId, (input) => ({ ...input, doneAt: input.doneAt ? null : new Date().toISOString() }))
+  }, [tasks])
+  const onCurrent = useCallback((cardId: string | null, element: HTMLElement | null): void => {
+    centered.current = cardId ? { id: cardId, element } : null
+  }, [])
+
+  const runAction = (action: HotkeyActionId, card: PointedCard): void => {
+    if (action === 'card.archive') {
+      if (hovered.current?.id === card.id) hovered.current = null
+      void tasks.updateCard(card.id, (input) => ({ ...input, archivedAt: new Date().toISOString() }))
+    } else if (action === 'card.labels') {
+      if (card.element) setLabelsFor({ cardId: card.id, anchor: anchorOf(card.element) })
+    } else if (action === 'card.done') {
+      toggleDone(card.id)
+    } else if (action === 'card.open') {
+      openCard(card.id)
+    } else {
+      const slot = LABEL_SLOT.exec(action)
+      const label = slot ? labels[Number(slot[1]) - 1] : undefined
+      if (label) void tasks.updateCard(card.id, (input) => ({ ...input, labelIds: toggledLabel(input.labelIds, label.id) }))
+    }
+  }
+  const keys = useRef({ runAction, focusing, actionFor: hotkeys.actionFor })
+  keys.current = { runAction, focusing, actionFor: hotkeys.actionFor }
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.defaultPrevented || event.repeat || hasOpenLayer() || isTyping(event.target)) return
+      const current = keys.current
+      const action = current.actionFor(event)
+      const card = current.focusing ? centered.current : hovered.current
+      if (!action || !card || (card.element && !card.element.isConnected)) return
+      event.preventDefault()
+      current.runAction(action, card)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   const closeQuick = useCallback(() => setQuick(null), [])
   const toggleMoveDone = (): void => {
     if (!data || !board) return
@@ -121,7 +192,17 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
   }
 
   return <Screen>
-    <ScreenHeader title={`${board.icon ? `${board.icon} ` : ''}${board.name}`} back={isHome ? undefined : BOARDS_PATH} right={<>
+    <ScreenHeader title={`${board.icon ? `${board.icon} ` : ''}${board.name}`} back={isHome ? undefined : BOARDS_PATH} titleAction={
+      <Button
+        variant={focusing ? 'secondary' : 'ghost'}
+        size="sm"
+        aria-pressed={focusing}
+        title={focusing ? 'Back to the board' : 'Focus on one card at a time'}
+        onClick={() => setFocus(focusing ? null : focusListOf(lists, null)?.id ?? null)}
+        disabled={!focusing && lists.length === 0}
+        className={focusing ? 'text-foreground' : 'text-surface-300'}
+      ><Focus size={16} />Focus</Button>
+    } right={<>
       {isHome && <Button variant="ghost" size="sm" onClick={() => navigate(BOARDS_PATH)} className="text-surface-300">
         <LayoutGrid size={16} />All boards
       </Button>}
@@ -147,7 +228,22 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
         </button>
       </div>}
     </div>}
-    <MaybeStudy active={hasUsf}><DragBoard
+    <MaybeStudy active={hasUsf}>{focusList ? <FocusView
+      key={focusList.id}
+      list={focusList}
+      lists={lists}
+      cards={cards.get(focusList.id) ?? []}
+      labels={labels}
+      now={tasks.now}
+      uploads={data.uploads}
+      linked={trelloWork.linked}
+      onPickList={(listId) => setFocus(listId)}
+      onExit={() => setFocus(null)}
+      onOpenCard={openCard}
+      onCardMenu={(cardId, rect) => setQuick({ cardId, rect: { top: rect.top, left: rect.left, width: rect.width } })}
+      onToggleDone={toggleDone}
+      onCurrent={onCurrent}
+    /> : <DragBoard
       lists={lists}
       cards={cards}
       labels={labels}
@@ -155,15 +251,18 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
       uploads={data.uploads}
       onOpenCard={openCard}
       onCardMenu={(cardId, rect) => setQuick({ cardId, rect: { top: rect.top, left: rect.left, width: rect.width } })}
-      onToggleDone={(id) => void tasks.updateCard(id, (input) => ({ ...input, doneAt: input.doneAt ? null : new Date().toISOString() }))}
+      onToggleDone={toggleDone}
       onMoveCard={(cardId, listId, index, siblingIds) => void tasks.moveCard(cardId, { listId, index, siblingIds })}
       onMoveList={(listId, index) => void tasks.moveList(listId, index)}
       onAddCard={async (listId, title) => (await tasks.createCard(listId, title)) !== null}
       onListMenu={setListMenu}
       onAddList={async (name) => (await tasks.createList(boardId, name)) !== null}
       listExtras={listExtras}
-    /></MaybeStudy>
+      linked={trelloWork.linked}
+      onHoverCard={(cardId, element) => { hovered.current = cardId ? { id: cardId, element } : null }}
+    />}</MaybeStudy>
     {quick && <QuickEdit target={quick} onOpen={openCard} onClose={closeQuick} />}
+    {labelsFor && <LabelPicker cardId={labelsFor.cardId} anchor={labelsFor.anchor} onClose={() => setLabelsFor(null)} />}
     {panelCardId && <CardPanel cardId={panelCardId} onClose={closePanel} onOpenCard={switchCard} />}
     <MenuSheet
       visible={menu}
@@ -191,6 +290,7 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
       onClose={() => setListMenu(null)}
       items={listMenu ? [
         { label: 'Rename list', Icon: Pencil, onPress: () => setRenaming(listMenu) },
+        { label: 'Color and emoji', Icon: Palette, onPress: () => setStyling(listMenu) },
         { label: 'Add a card to the top', Icon: Plus, onPress: () => setAddingTop(listMenu) },
         ...kindItems(listMenu),
         { label: 'Archive all cards in this list', Icon: Archive, onPress: () => void tasks.archiveListCards(listMenu.id) },
@@ -208,6 +308,15 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
       onSave={(text) => {
         if (renaming) void tasks.updateList(renaming.id, { name: text })
         setRenaming(null)
+      }}
+    />
+    <ListStyleSheet
+      visible={styling !== null}
+      list={styling}
+      onClose={() => setStyling(null)}
+      onSave={(style) => {
+        if (styling) void tasks.updateList(styling.id, style)
+        setStyling(null)
       }}
     />
     <TextSheet
