@@ -1,8 +1,9 @@
-import React, { useCallback, useState, useSyncExternalStore } from 'react'
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Dumbbell, MessageSquare, Trophy, X } from 'lucide-react'
 import type { ExerciseType, GymSetLike, WeightUnit } from '@ego/core'
 import { setParts } from '@ego/local/gym/format'
+import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { useGym } from '../../lib/gym/context'
 import { useLedger } from '../../lib/ledger'
 import { color } from '../../lib/tokens'
@@ -126,15 +127,6 @@ export function useDragReorder(ids: readonly string[], onMove: (from: number, to
 export function DropLine({ edge }: { edge: 'top' | 'bottom' }): React.ReactElement {
   return <span aria-hidden className={cn('pointer-events-none absolute inset-x-3 h-0.5 rounded-full bg-foreground',
     edge === 'top' ? 'top-0 -translate-y-px' : 'bottom-0 translate-y-px')} />
-}
-
-export function useMediaQuery(query: string): boolean {
-  const subscribe = useCallback((notify: () => void) => {
-    const list = window.matchMedia(query)
-    list.addEventListener('change', notify)
-    return () => list.removeEventListener('change', notify)
-  }, [query])
-  return useSyncExternalStore(subscribe, () => window.matchMedia(query).matches)
 }
 
 export function useReducedMotion(): boolean {

@@ -2,14 +2,16 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { CloudAlert, CloudCheck, CloudOff, CloudUpload } from 'lucide-react'
 import { syncLabel, useLedger } from '../lib/ledger'
+import { cn } from '../lib/utils'
 import { ConflictsSheet } from './ConflictEntries'
 import { Spinner } from './ui/spinner'
 
 /**
- * The whole sync story in one row. A click syncs, or opens what is blocking the sync: the
- * changes that need a decision, or Settings when the computer has to sign in again.
+ * The whole sync story in one icon, with the details in its tooltip. A click syncs, or opens what
+ * is blocking the sync: the changes that need a decision, or Settings when the computer has to sign
+ * in again.
  */
-export function SyncStatus(): React.ReactElement | null {
+export function SyncStatus({ className }: { className?: string }): React.ReactElement | null {
   const ledger = useLedger()
   const navigate = useNavigate()
   const [reviewing, setReviewing] = useState(false)
@@ -28,17 +30,23 @@ export function SyncStatus(): React.ReactElement | null {
       : state === 'offline' ? <CloudOff color="#737373" size={18} />
         : (ledger.status?.pendingCount ?? 0) > 0 ? <CloudUpload color="#d4d4d4" size={18} />
           : <CloudCheck color="#d4d4d4" size={18} />
+  const label = ledger.syncing ? 'Syncing...' : syncLabel(ledger.status)
+  const hint = attention ? 'Click to review what needs a decision.'
+    : paused ? 'Click to open Settings.'
+      : 'Click to sync.'
   return <>
     <button
       type="button"
-      title={attention ? 'Opens the changes that need a decision' : paused ? 'Opens Settings to sign in' : 'Syncs with the server'}
+      aria-label={label}
+      title={ledger.syncing ? label : `${label}. ${hint}`}
       disabled={ledger.syncing}
       onClick={onClick}
-      className="flex min-h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-[14px] text-surface-400 transition-colors hover:bg-surface-900 hover:text-surface-200 disabled:hover:bg-transparent"
+      className={cn('disabled:hover:bg-transparent', className)}
     >
-      {icon}
-      <span className="min-w-0 flex-1 truncate">{ledger.syncing ? 'Syncing...' : syncLabel(ledger.status)}</span>
-      {conflicts > 0 && <span className="rounded-full bg-attention px-1.5 text-[11px] font-bold text-background">{conflicts}</span>}
+      <span className="relative flex">
+        {icon}
+        {conflicts > 0 && <span aria-hidden className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-attention ring-2 ring-background" />}
+      </span>
     </button>
     <ConflictsSheet visible={reviewing} onClose={() => setReviewing(false)} />
   </>

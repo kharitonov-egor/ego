@@ -513,8 +513,9 @@ which asks USDA only when `USDA_API_KEY` is set.
 
 ## Desktop
 
-The desktop app opens on Home, which is the phone's start screen. Every app is also in the sidebar,
-with the sync state, Blur, and Settings at the bottom.
+The desktop app opens on Home, which is the phone's start screen. Every app is also in the sidebar.
+At its bottom, a row of three icons holds sync, Blur, and collapse, with Settings under them. The
+web app has the same sidebar.
 
 - Sign in once with Google from Home. Ego opens the browser, Google sends it back to an
   `ego://auth` link, and Windows hands that link to the running app. A device token from
@@ -525,6 +526,9 @@ with the sync state, Blur, and Settings at the bottom.
   every ten minutes while Ego sits in the tray.
 - Blur personal data works as it does on the phone. `Ctrl+Shift+B` turns it on or off from any
   screen, for a screen share that starts suddenly.
+- The collapse icon, or `Ctrl+B` outside a text field, shrinks the sidebar to its icons, and hovering
+  an icon shows its name. Each computer and browser remembers the choice. A window under 768px wide
+  collapses it on its own, and opening it there lasts until the window crosses that width again.
 - Diary, task, and food files load through `ego-media://` links. The main process answers them from
   the copy it sent, from its cache, or from the Worker, so the device token never reaches the page.
 
