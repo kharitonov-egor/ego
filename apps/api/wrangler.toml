@@ -7,7 +7,7 @@ compatibility_flags = ["nodejs_compat"]
 # Screenshots bookmarks that have no cover image.
 browser = { binding = "BROWSER" }
 
-# Pulls Google Health and Google Calendar into D1 so devices find fresh data without waiting on Google.
+# Pulls Google Health, Google Calendar, and the work Trello board into D1 so devices find fresh data without waiting on them.
 [triggers]
 # The second one backs D1 up to R2 at 07:00 UTC. It must match BACKUP_CRON in src/backup.ts.
 crons = ["*/15 * * * *", "0 7 * * *"]

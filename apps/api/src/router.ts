@@ -1,5 +1,6 @@
 import { contentRoute } from './content'
 import { inboxRoute } from './tasks-inbox'
+import { syncTrelloWorkAfterWrites, trelloWorkRoute } from './trello-work'
 import { PREVIEW_PATH, previewBase, renderContentPreviews, servePreview } from './content-previews'
 import {
   API_VERSION, HTTP_STATUS, MAX_CHANGE_PAGE_SIZE, decodeCursor, invalid, isOperationRequest,
@@ -147,6 +148,7 @@ export async function handle(request: Request, env: Env, work?: Pick<ExecutionCo
   if (request.method === 'POST' && path.startsWith('/v1/trello/cards/') && path.endsWith('/attachments')) {
     return trelloAddAttachment(request, env, decodeURIComponent(path.slice('/v1/trello/cards/'.length, -'/attachments'.length)))
   }
+  if (request.method === 'POST' && path === '/v1/tasks/work/sync') return trelloWorkRoute(request, env)
   if (request.method === 'GET' && path === '/v1/study/assignments') return readStudyAssignments(env, device.data, now)
   if (request.method === 'GET' && path === '/v1/app/builds/latest') return ok(await readAppBuilds(env, now))
   if (request.method === 'PUT' && path.startsWith('/v1/study/assignments/')) {
@@ -214,6 +216,7 @@ export async function handle(request: Request, env: Env, work?: Pick<ExecutionCo
   if (request.method === 'POST' && path === '/v1/operations') {
     const response = await operationsRequest(env.DB, request, now)
     work?.waitUntil(renderContentPreviews(env, previewBase(env, request), 1).catch(() => undefined))
+    work?.waitUntil(syncTrelloWorkAfterWrites(env, now).catch(() => undefined))
     return response
   }
   return failure({ code: 'NOT_FOUND', message: 'That endpoint does not exist' })

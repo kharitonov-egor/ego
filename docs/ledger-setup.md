@@ -59,6 +59,8 @@ npx wrangler secret put ALLOWED_EMAILS        # your Google address; comma-separ
 npx wrangler secret put OPENROUTER_API_KEY    # the AI chat
 npx wrangler secret put TRELLO_API_KEY        # Trello capture
 npx wrangler secret put TRELLO_TOKEN
+npx wrangler secret put TRELLO_WORK_API_KEY   # the Work list: the work Trello account
+npx wrangler secret put TRELLO_WORK_TOKEN     # authorized with scope=read,write
 npx wrangler secret put CANVAS_CALENDAR_URL   # Study: Canvas > Calendar > Calendar Feed link
 ```
 

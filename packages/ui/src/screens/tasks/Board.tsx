@@ -1,8 +1,8 @@
 import React, { useCallback, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import {
-  Activity, Archive, ArchiveRestore, Ellipsis, Eye, EyeOff, GraduationCap, Inbox, LayoutGrid, ListFilter, Pencil, Plus, Tag,
-  Trash2, X
+  Activity, Archive, ArchiveRestore, Briefcase, Ellipsis, Eye, EyeOff, GraduationCap, Inbox, LayoutGrid, ListFilter, Pencil,
+  Plus, Tag, Trash2, X
 } from 'lucide-react'
 import type { TaskListRecord } from '@ego/api-contracts'
 import {
@@ -14,10 +14,12 @@ import { QuickEdit, type QuickEditTarget } from '../../components/tasks/QuickEdi
 import { BoardSheet, FilterSheet, LabelSheet, TextSheet } from '../../components/tasks/sheets'
 import { MenuSheet, TasksError, TasksGate, TasksMessage, type MenuItem } from '../../components/tasks/ui'
 import { NO_USF_FILTER, UsfAssignments, UsfControls, UsfRefresh, inCourse, type UsfFilter } from '../../components/tasks/UsfColumn'
+import { WorkProblem, WorkRefresh } from '../../components/tasks/WorkColumn'
 import { Button, IconButton } from '../../components/ui/button'
 import { ConfirmDialog } from '../../components/ui/dialog'
 import { StudyProvider } from '../../lib/study/context'
 import { useTasks } from '../../lib/tasks/context'
+import { useTrelloWork } from '../../lib/tasks/trello-work'
 import { color } from '../../lib/tokens'
 import { CardPanel } from './Card'
 import { BOARDS_PATH, activityPath, archivePath } from './nav'
@@ -57,6 +59,7 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
   const lists = useMemo(() => data ? boardLists(data, boardId) : [], [boardId, data])
   const labels = useMemo(() => data ? boardLabels(data, boardId) : [], [boardId, data])
   const hasUsf = lists.some((list) => list.kind === 'usf')
+  const trelloWork = useTrelloWork(lists.some((list) => list.kind === 'work'))
   const cards = useMemo(() => {
     const shown = new Map<string, ReturnType<typeof listCards>>()
     if (!data || !board) return shown
@@ -69,18 +72,27 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
     }
     return shown
   }, [board, data, filter, labels, lists, tasks.now, usfFilter.course])
-  const listExtras = (list: TaskListRecord): ListExtras | null => list.kind === 'usf'
-    ? {
-      action: <UsfRefresh />,
-      top: <UsfControls filter={usfFilter} onChange={setUsfFilter} now={tasks.now} />,
-      bottom: <UsfAssignments filter={usfFilter} now={tasks.now} />
+  const listExtras = (list: TaskListRecord): ListExtras | null => {
+    if (list.kind === 'usf') {
+      return {
+        action: <UsfRefresh />,
+        top: <UsfControls filter={usfFilter} onChange={setUsfFilter} now={tasks.now} />,
+        bottom: <UsfAssignments filter={usfFilter} now={tasks.now} />
+      }
     }
-    : null
+    if (list.kind === 'work') {
+      return { action: <WorkRefresh work={trelloWork} />, top: trelloWork.problem ? <WorkProblem text={trelloWork.problem} /> : undefined }
+    }
+    return null
+  }
   const kindItems = (list: TaskListRecord): MenuItem[] => [
     ...(list.kind === 'inbox' ? [] : [{ label: 'Make this the Inbox', Icon: Inbox, onPress: () => void tasks.setListKind(list.id, 'inbox') }]),
     list.kind === 'usf'
       ? { label: 'Stop showing Canvas assignments', Icon: GraduationCap, onPress: () => void tasks.setListKind(list.id, 'cards') }
-      : { label: 'Show Canvas assignments here', Icon: GraduationCap, onPress: () => void tasks.setListKind(list.id, 'usf') }
+      : { label: 'Show Canvas assignments here', Icon: GraduationCap, onPress: () => void tasks.setListKind(list.id, 'usf') },
+    list.kind === 'work'
+      ? { label: 'Stop syncing with work Trello', Icon: Briefcase, onPress: () => void tasks.setListKind(list.id, 'cards') }
+      : { label: 'Sync with work Trello', Icon: Briefcase, onPress: () => void tasks.setListKind(list.id, 'work') }
   ]
   const matching = useMemo(() => [...cards.values()].reduce((total, list) => total + list.length, 0), [cards])
 

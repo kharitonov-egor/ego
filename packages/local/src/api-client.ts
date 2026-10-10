@@ -8,7 +8,7 @@ import type {
   MediaScope,
   HealthConnectStart, HealthSnapshot, OperationResponse, ReceiptDetail, ReferenceData,
   SessionInfo, SignInResult, SignInStartInput, SignInStartResult, StudyAssignmentList, StudyMark, SyncOperation,
-  TransactionFilters, TransactionPage, TrelloCardRequest, TrelloCardResponse
+  TransactionFilters, TransactionPage, TrelloCardRequest, TrelloCardResponse, TrelloWorkSyncResult
 } from '@ego/api-contracts'
 import { encodeCursor } from '@ego/api-contracts'
 import type { AnalyzedTransactionDraft, ImageAnalysisCategory, TrelloBoardSummary, TrelloListSummary } from '@ego/core'
@@ -141,6 +141,8 @@ export interface EgoApi extends ContentApi, MoneyApi, StudyApi, HealthApi, Calen
   trelloLists: (boardId: string) => Promise<ApiResult<TrelloListSummary[]>>
   trelloCard: (card: TrelloCardRequest) => Promise<ApiResult<TrelloCardResponse>>
   trelloAttachment: (cardId: string, file: AttachmentFile) => Promise<ApiResult<{ attached: true }>>
+  /** Syncs the Work list with the work Trello board. `timeZone` reads Trello's due times on this device's clock. */
+  trelloWorkSync: (timeZone: string | null) => Promise<ApiResult<TrelloWorkSyncResult>>
   appBuilds: () => Promise<ApiResult<AppBuildStatus>>
 }
 
@@ -461,7 +463,12 @@ export function moneyApiFor(config: ApiConfig, options: { streamFetch?: StreamFe
         body: form,
         timeoutMs: SLOW_REQUEST_TIMEOUT_MS
       })
-    }
+    },
+    trelloWorkSync: (timeZone) => call<TrelloWorkSyncResult>('/v1/tasks/work/sync', {
+      method: 'POST',
+      body: JSON.stringify({ timeZone }),
+      timeoutMs: SLOW_REQUEST_TIMEOUT_MS
+    })
   }
 }
 

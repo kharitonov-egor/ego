@@ -42,6 +42,7 @@ export const REMOTE_API_METHODS = [
   'trelloBoards',
   'trelloLists',
   'trelloCard',
+  'trelloWorkSync',
   'dockets',
   'docket',
   'updateDocket',
