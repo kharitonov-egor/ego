@@ -5,14 +5,16 @@ import ArchiveScreen from './Archive'
 import BoardScreen from './Board'
 import BoardsScreen from './Boards'
 import CardScreen from './Card'
+import TasksHomeScreen from './Home'
 import GoalScreen from './Goal'
 import GoalsScreen from './Goals'
 import UpcomingScreen from './Upcoming'
 
-/** Everything under /tasks: the tabs, then a board, a card, a goal, and a board's activity and archive. */
+/** Everything under /tasks: the home board, the tabs, then a board, a card, a goal, and a board's activity and archive. */
 export default function TasksRoutes(): React.ReactElement {
   return <Routes>
-    <Route index element={<BoardsScreen />} />
+    <Route index element={<TasksHomeScreen />} />
+    <Route path="boards" element={<BoardsScreen />} />
     <Route path="goals" element={<GoalsScreen />} />
     <Route path="upcoming" element={<UpcomingScreen />} />
     <Route path="board/:id" element={<BoardScreen />} />

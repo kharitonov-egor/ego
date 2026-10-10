@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { TaskBoardRecord, TaskCardRecord, TaskListRecord } from '@ego/api-contracts'
 import {
-  NO_FILTER, carryLabels, dueBadge, matchesFilter, placeAt, upcomingSections
+  NO_FILTER, carryLabels, dueBadge, homeBoardId, inboxCardInput, inboxList, matchesFilter, placeAt, upcomingSections
 } from '../src/tasks/board'
 import { parseInline, parseMarkdown, prefixLines, toggleTaskLine, wrapSelection } from '../src/tasks/markdown'
 import { cardIdFromNotification, taskNotificationPlan } from '../src/tasks/reminders'
@@ -15,7 +15,7 @@ const board = (overrides: Partial<TaskBoardRecord> = {}): TaskBoardRecord => ({
 })
 
 const list = (overrides: Partial<TaskListRecord> = {}): TaskListRecord => ({
-  id: 'l-1', boardId: 'b-1', name: 'To Do', position: 1024, archivedAt: null,
+  id: 'l-1', boardId: 'b-1', name: 'To Do', position: 1024, archivedAt: null, kind: 'cards',
   createdAt: STAMP, updatedAt: STAMP, revision: 1, ...overrides
 })
 
@@ -168,5 +168,32 @@ describe('task notifications', () => {
     expect(plan.map((item) => item.identifier)).toEqual(['ego-task-digest-2026-10-01', 'ego-task-k-2'])
     expect(plan[0]).toMatchObject({ title: '2 cards due today', body: 'Call mom (6:00 PM), Pay rent', at: new Date(2026, 9, 1, 9) })
     expect(cardIdFromNotification(plan[0].identifier)).toBeNull()
+  })
+})
+
+describe('inbox', () => {
+  const lists = [
+    list(),
+    list({ id: 'l-inbox', name: 'Inbox', kind: 'inbox', position: 512 }),
+    list({ id: 'l-old', boardId: 'b-old', name: 'Inbox', kind: 'inbox' })
+  ]
+  const boards = [board({ id: 'b-old', position: 0, archivedAt: STAMP }), board()]
+
+  it('finds the Inbox on a live board and opens that board', () => {
+    const tasks = data([], { boards, lists })
+    expect(inboxList(tasks)?.id).toBe('l-inbox')
+    expect(homeBoardId(tasks)).toBe('b-1')
+  })
+
+  it('has no home without an Inbox', () => {
+    expect(homeBoardId(data([]))).toBeNull()
+    expect(inboxCardInput(data([]), { title: 'Call mom', description: '', attachments: [] }, STAMP)).toBeNull()
+  })
+
+  it('adds a logged card to the bottom of the Inbox', () => {
+    const tasks = data([card({ id: 'k-1', listId: 'l-inbox', position: 4096 })], { boards, lists })
+    const input = inboxCardInput(tasks, { title: '  Call mom ', description: 'About Sunday', attachments: [] }, STAMP)
+    expect(input).toMatchObject({ boardId: 'b-1', listId: 'l-inbox', title: 'Call mom', description: 'About Sunday', position: 5120 })
+    expect(input?.activity).toEqual([{ at: STAMP, kind: 'create', text: 'Added this card to "Inbox"' }])
   })
 })

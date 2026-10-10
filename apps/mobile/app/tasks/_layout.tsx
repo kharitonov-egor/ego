@@ -11,6 +11,7 @@ export default function TasksLayout(): React.ReactElement {
     contentStyle: { backgroundColor: color.screen }
   }}>
     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+    <Stack.Screen name="home" options={{ title: '', animation: 'none' }} />
     <Stack.Screen name="board/[id]" options={{ title: '' }} />
     <Stack.Screen name="card/[id]" options={{ title: '' }} />
     <Stack.Screen name="goal/[id]" options={{ title: '' }} />

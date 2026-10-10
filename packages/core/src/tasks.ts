@@ -9,6 +9,13 @@ import { isDateString } from './money'
 export const TASK_LABEL_COLORS = ['green', 'yellow', 'orange', 'red', 'purple', 'blue', 'sky', 'pink'] as const
 export type TaskLabelColor = typeof TASK_LABEL_COLORS[number]
 
+/**
+ * A regular list holds cards. The Inbox is where quick add and the inbox endpoint drop new cards,
+ * and its board is the one Tasks opens on. A USF list also shows the Canvas assignments.
+ */
+export const TASK_LIST_KINDS = ['cards', 'inbox', 'usf'] as const
+export type TaskListKind = typeof TASK_LIST_KINDS[number]
+
 export const TASK_PRIORITIES = ['none', 'low', 'medium', 'high', 'urgent'] as const
 export type TaskPriority = typeof TASK_PRIORITIES[number]
 
@@ -52,9 +59,12 @@ export interface TaskListInput {
   name: string
   position: number
   archivedAt: string | null
+  /** Builds from before list kinds leave this out, and the server then keeps the kind it has. */
+  kind?: TaskListKind
 }
 
 export interface TaskList extends TaskListInput {
+  kind: TaskListKind
   id: string
   createdAt: string
   updatedAt: string
@@ -191,6 +201,10 @@ export function isTaskLabelColor(value: unknown): value is TaskLabelColor {
   return (TASK_LABEL_COLORS as readonly unknown[]).includes(value)
 }
 
+export function isTaskListKind(value: unknown): value is TaskListKind {
+  return (TASK_LIST_KINDS as readonly unknown[]).includes(value)
+}
+
 export function isTaskPriority(value: unknown): value is TaskPriority {
   return (TASK_PRIORITIES as readonly unknown[]).includes(value)
 }
@@ -213,7 +227,8 @@ export function isTaskListInput(value: unknown): value is TaskListInput {
     isTaskId(value.boardId) &&
     isText(value.name, 1, TASK_NAME_LIMIT) &&
     isTaskPosition(value.position) &&
-    isOptionalTimestamp(value.archivedAt)
+    isOptionalTimestamp(value.archivedAt) &&
+    (value.kind === undefined || isTaskListKind(value.kind))
 }
 
 export function isTaskLabelInput(value: unknown): value is TaskLabelInput {

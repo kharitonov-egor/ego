@@ -4,7 +4,7 @@ import { KeyboardScrollView } from '../components/ui/keyboard'
 import { useRouter, type Href } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import {
-  Bookmark, BookOpen, CalendarDays, CircleCheckBig, Dumbbell, GraduationCap, HeartPulse, Settings, Sheet, Smile, Sparkles, SquareKanban,
+  Bookmark, BookOpen, CalendarDays, CircleCheckBig, Dumbbell, HeartPulse, Settings, Sheet, Smile, Sparkles, SquareKanban,
   UtensilsCrossed, Wallet,
   type LucideIcon
 } from 'lucide-react-native'
@@ -30,9 +30,8 @@ const APPS: readonly App[] = [
   { label: 'Health', Icon: HeartPulse, href: '/health' },
   { label: 'Mood', Icon: Smile, href: '/mood' },
   { label: 'Diary', Icon: BookOpen, href: '/diary' },
-  { label: 'Study', Icon: GraduationCap, href: '/(study)/assignments' },
   { label: 'Habits', Icon: CircleCheckBig, href: '/(habits)/home' },
-  { label: 'Tasks', Icon: SquareKanban, href: '/tasks' },
+  { label: 'Tasks', Icon: SquareKanban, href: '/tasks/home' },
   { label: 'Sheets', Icon: Sheet, href: '/sheets' },
   { label: 'Food', Icon: UtensilsCrossed, href: '/food' },
   { label: 'Content', Icon: Bookmark, href: '/content' },

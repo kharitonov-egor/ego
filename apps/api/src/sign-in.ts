@@ -249,7 +249,8 @@ export async function readSession(env: Env, device: DeviceIdentity): Promise<Ses
       voice: Boolean(env.OPENAI_API_KEY),
       google: google.connected,
       canvas: Boolean(env.CANVAS_CALENDAR_URL?.trim()),
-      googleHealth
+      googleHealth,
+      tasksInbox: Boolean(env.TASKS_INBOX_TOKEN?.trim())
     }
   }
 }

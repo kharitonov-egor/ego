@@ -1,6 +1,7 @@
 import type { TaskBoardRecord, TaskCardRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
 import {
-  checklistProgress, positionBetween, positionsTooClose, taskDueAt, taskDueLabel, taskTimeLabel, type TaskPriority
+  checklistProgress, positionBetween, positionsTooClose, taskDueAt, taskDueLabel, taskTimeLabel, withTaskActivity,
+  type TaskAttachment, type TaskCardInput, type TaskNames, type TaskPriority
 } from '@ego/core'
 import { isoFromParts } from '../dates'
 import type { TaskData } from './repository'
@@ -17,6 +18,45 @@ export function liveBoards(data: TaskData): TaskBoardRecord[] {
 
 export function boardLists(data: TaskData, boardId: string): TaskListRecord[] {
   return data.lists.filter((list) => list.boardId === boardId && list.archivedAt === null).sort(byPosition)
+}
+
+/** The first live Inbox list under a live board. Quick add and the inbox endpoint write there. */
+export function inboxList(data: TaskData): TaskListRecord | null {
+  for (const board of liveBoards(data)) {
+    const list = boardLists(data, board.id).find((item) => item.kind === 'inbox')
+    if (list) return list
+  }
+  return null
+}
+
+/** The board Tasks opens on: the one holding the Inbox. */
+export function homeBoardId(data: TaskData): string | null {
+  return inboxList(data)?.boardId ?? null
+}
+
+export function taskNamesFor(data: TaskData): TaskNames {
+  return {
+    list: (id) => data.lists.find((list) => list.id === id)?.name ?? null,
+    label: (id) => data.labels.find((label) => label.id === id)?.name || null,
+    board: (id) => data.boards.find((board) => board.id === id)?.name ?? null
+  }
+}
+
+export interface InboxCardFields {
+  title: string
+  description: string
+  attachments: TaskAttachment[]
+}
+
+/** A new card at the bottom of the Inbox, logged the way a card added on the board is. Null without an Inbox. */
+export function inboxCardInput(data: TaskData, fields: InboxCardFields, at: string): TaskCardInput | null {
+  const list = inboxList(data)
+  if (!list) return null
+  return withTaskActivity(null, {
+    boardId: list.boardId, listId: list.id, title: fields.title.trim(), description: fields.description.trim(),
+    position: endPosition(listCards(data, list.id)), labelIds: [], priority: 'none', dueDate: null, dueTime: null,
+    reminderMinutes: null, doneAt: null, archivedAt: null, checklists: [], attachments: fields.attachments, activity: []
+  }, taskNamesFor(data), at)
 }
 
 export function boardLabels(data: TaskData, boardId: string): TaskLabelRecord[] {

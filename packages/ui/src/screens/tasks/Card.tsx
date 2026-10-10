@@ -24,7 +24,7 @@ import { Blurred, useBlur } from '../../lib/blur'
 import { useTasks } from '../../lib/tasks/context'
 import { transferredFiles } from '../../lib/tasks/files'
 import { color } from '../../lib/tokens'
-import { boardPath, useBack, useOpenCard } from './nav'
+import { BOARDS_PATH, boardPath, useBack, useOpenCard } from './nav'
 
 const ACTIVITY_PAGE = 5
 
@@ -59,7 +59,7 @@ function CardDetail({ cardId }: { cardId: string }): React.ReactElement {
   const card = tasks.data?.cards.find((item) => item.id === cardId)
   const board = tasks.data?.boards.find((item) => item.id === card?.boardId)
   const list = tasks.data?.lists.find((item) => item.id === card?.listId)
-  const back = useBack(card ? boardPath(card.boardId) : '/tasks')
+  const back = useBack(card ? boardPath(card.boardId) : BOARDS_PATH)
   const [title, setTitle] = useState(card?.title ?? '')
   const [describing, setDescribing] = useState<string | null>(null)
   const [sheet, setSheet] = useState<'labels' | 'due' | 'priority' | 'move' | 'copy' | 'checklist' | 'menu' | null>(null)

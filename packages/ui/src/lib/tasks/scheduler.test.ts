@@ -130,7 +130,7 @@ describe('createReminderScheduler', () => {
 
   describe('with the plan the phone uses', () => {
     const board: TaskBoardRecord = { id: 'board', name: 'Home', icon: '', position: 1024, hideDone: false, archivedAt: null, createdAt: STAMP, updatedAt: STAMP, revision: 1 }
-    const list: TaskListRecord = { id: 'list', boardId: 'board', name: 'To Do', position: 1024, archivedAt: null, createdAt: STAMP, updatedAt: STAMP, revision: 1 }
+    const list: TaskListRecord = { id: 'list', boardId: 'board', name: 'To Do', position: 1024, archivedAt: null, kind: 'cards', createdAt: STAMP, updatedAt: STAMP, revision: 1 }
     const open = card('due', '2026-10-02', '09:00', 10)
     const data: TaskData = { boards: [board], lists: [list], labels: [], cards: [open], uploads: new Map() }
 

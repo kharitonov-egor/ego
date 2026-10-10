@@ -1,6 +1,6 @@
 import type { TaskBoardRecord, TaskCardRecord, TaskGoalRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
 import {
-  isTaskAttachment, isTaskReminder,
+  isTaskAttachment, isTaskListKind, isTaskReminder,
   type TaskActivity, type TaskAttachment, type TaskChecklist, type TaskGoalMilestone, type TaskGoalHorizon, type TaskGoalStatus,
   type TaskLabelColor, type TaskPriority
 } from '@ego/core'
@@ -34,6 +34,7 @@ interface ListRow {
   name: string
   position: number
   archived_at: string | null
+  kind: string
   created_at: string
   updated_at: string
   revision: number
@@ -163,6 +164,7 @@ export async function localTasks(db: LocalDatabase): Promise<TaskData> {
     })),
     lists: lists.map((row) => ({
       id: row.id, boardId: row.board_id, name: row.name, position: row.position, archivedAt: row.archived_at,
+      kind: isTaskListKind(row.kind) ? row.kind : 'cards',
       createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
     })),
     labels: labels.map((row) => ({

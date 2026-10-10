@@ -33,7 +33,6 @@ export function enabledFunctionTools(preferences: LivePreferences, googleConnect
     names.push('ego_get_summary', 'ego_list_accounts', 'ego_get_budget', 'ego_search_transactions', 'ego_get_transaction')
   }
   if (settings.recordEgoTransactions) names.push('ego_record_transaction')
-  if (settings.createTrelloCards) names.push('trello_create_card')
   if (settings.readGmail && googleConnected) names.push('gmail_search', 'gmail_read')
   return names
 }

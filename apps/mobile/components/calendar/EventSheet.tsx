@@ -177,7 +177,7 @@ export function EventSheet({ event, calendar, calendars, today, multipleAccounts
     </View>
     {permissions.reason && !source && <Text className="mt-2 rounded-2xl bg-surface-900 px-4 py-3 text-[14px] leading-5 text-surface-300">{permissions.reason}</Text>}
     {source && <Button variant="secondary" className="mt-3" onPress={() => onOpenSource(event)}>
-      <UiText>Open in {source === 'tasks' ? 'Tasks' : source === 'study' ? 'Study' : 'Gym'}</UiText>
+      <UiText>Open in {source === 'tasks' ? 'Tasks' : source === 'study' ? 'Tasks' : 'Gym'}</UiText>
     </Button>}
     {event.colorId && <Text className="mt-3 text-[12px] text-surface-500">Color: {EVENT_COLORS[event.colorId]?.name ?? 'Custom'}</Text>}
   </BottomSheet>

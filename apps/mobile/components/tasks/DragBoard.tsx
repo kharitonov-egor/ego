@@ -3,11 +3,12 @@ import {
   Animated, PanResponder, Pressable, ScrollView, Text, TextInput, Vibration, View, useWindowDimensions,
   type GestureResponderEvent, type LayoutChangeEvent
 } from 'react-native'
-import { Ellipsis, Plus, X } from 'lucide-react-native'
+import { Ellipsis, GraduationCap, Inbox, Plus, X } from 'lucide-react-native'
 import type { TaskCardRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
 import { Blurred } from '../../lib/blur'
 import { color } from '../money/tokens'
 import { CardFace } from './ui'
+import { USF_GREEN } from './UsfColumn'
 
 const PAD = 12
 const GAP = 10
@@ -30,6 +31,13 @@ interface Hover {
   index: number
 }
 
+/** What a special list adds around its cards: a header button, controls on top, and items after the cards. */
+export interface ListExtras {
+  action?: React.ReactNode
+  top?: React.ReactNode
+  bottom?: React.ReactNode
+}
+
 export interface DragBoardProps {
   lists: readonly TaskListRecord[]
   /** The cards each list shows, in order, after the board's filters. */
@@ -44,6 +52,7 @@ export interface DragBoardProps {
   onAddCard: (listId: string, title: string) => Promise<boolean>
   onListMenu: (list: TaskListRecord) => void
   onAddList: (name: string) => Promise<boolean>
+  listExtras?: (list: TaskListRecord) => ListExtras | null
 }
 
 function Placeholder({ height, width }: { height: number; width?: number }): React.ReactElement {
@@ -80,6 +89,8 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
   const root = useRef({ x: 0, y: 0, width: 0, height: 0 })
   const rootView = useRef<View>(null)
   const listTop = useRef(0)
+  /** How far a list's controls push its cards below the header. */
+  const extraTops = useRef(new Map<string, number>())
   const scrollX = useRef(0)
   const horizontal = useRef<ScrollView>(null)
   const verticals = useRef(new Map<string, ScrollView>())
@@ -91,6 +102,8 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
   const pageTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const scrollTimer = useRef<ReturnType<typeof setInterval> | null>(null)
   const ghost = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current
+
+  const cardsTop = useCallback((listId: string): number => listTop.current + (extraTops.current.get(listId) ?? 0), [])
 
   const measureRoot = useCallback((): void => {
     rootView.current?.measureInWindow((x, y, width, height) => { root.current = { x, y, width, height } })
@@ -123,7 +136,7 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
       next = { listId: current.list.id, index: columnAt(x) }
     } else {
       const list = order[columnAt(x)]
-      const contentY = y - listTop.current + (scrollY.current.get(list.id) ?? 0)
+      const contentY = y - cardsTop(list.id) + (scrollY.current.get(list.id) ?? 0)
       const shown = displayed(list.id).filter((card) => card.id !== current.card.id)
       let top = CONTENT_TOP
       let index = shown.length
@@ -176,7 +189,7 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
     const listId = hoverRef.current?.listId
     const viewport = listId ? viewportHeight.current.get(listId) ?? 0 : 0
     const vertical = !listId || viewport === 0 ? 0
-      : y > listTop.current + viewport - EDGE_Y ? 1 : y < listTop.current + EDGE_Y ? -1 : 0
+      : y > cardsTop(listId) + viewport - EDGE_Y ? 1 : y < cardsTop(listId) + EDGE_Y ? -1 : 0
     if (vertical === 0 && scrollTimer.current) {
       clearInterval(scrollTimer.current)
       scrollTimer.current = null
@@ -256,7 +269,7 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
     const fromIndex = displayed(listId).findIndex((item) => item.id === card.id)
     if (listIndex < 0 || fromIndex < 0) return
     const left = columnLeft(listIndex) + INSET
-    const top = listTop.current + cardTop(listId, fromIndex, null) - (scrollY.current.get(listId) ?? 0)
+    const top = cardsTop(listId) + cardTop(listId, fromIndex, null) - (scrollY.current.get(listId) ?? 0)
     lift({ kind: 'card', card, fromListId: listId, fromIndex, offsetX: 0, offsetY: 0 }, event.nativeEvent.pageX, event.nativeEvent.pageY, left, top)
   }
 
@@ -300,6 +313,9 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
       items.splice(Math.min(hover.index, items.length), 0, 'placeholder')
     }
     const placeholderHeight = drag?.kind === 'card' ? heights.current.get(drag.card.id) ?? DEFAULT_CARD_HEIGHT : 0
+    const extras = props.listExtras?.(list) ?? null
+    if (extras?.top === undefined) extraTops.current.delete(list.id)
+    const usf = list.kind === 'usf'
     return <View
       key={list.id}
       ref={(view) => {
@@ -311,18 +327,24 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
     >
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${list.name}, ${all.length} cards. Hold to move the list.`}
+        accessibilityLabel={`${list.name}${list.kind === 'inbox' ? ', the Inbox' : usf ? ', with Canvas assignments' : ''}, ${all.length} cards. Hold to move the list.`}
         onPress={() => props.onListMenu(list)}
         onLongPress={(event) => liftList(list, event)}
         onPressOut={releasedInPlace}
         delayLongPress={300}
-        style={{ height: HEADER }}
-        className="flex-row items-center pl-4 pr-1"
+        style={{ height: HEADER, backgroundColor: usf ? USF_GREEN : undefined }}
+        className="flex-row items-center rounded-t-2xl pl-4 pr-1"
       >
-        <Blurred tint="#fafafa"><Text numberOfLines={1} className="flex-1 text-[16px] font-bold text-surface-100">{list.name}</Text></Blurred>
-        <Text className="ml-2 text-[14px] font-semibold text-surface-500">{all.length}</Text>
-        <View className="h-11 w-11 items-center justify-center"><Ellipsis color={color.textMuted} size={20} /></View>
+        {list.kind === 'inbox' && <Inbox color={color.textSecondary} size={17} style={{ marginRight: 8 }} />}
+        {usf && <GraduationCap color="#ffffff" size={18} style={{ marginRight: 8 }} />}
+        <Blurred tint="#fafafa"><Text numberOfLines={1} className={`flex-1 text-[16px] font-bold ${usf ? 'text-white' : 'text-surface-100'}`}>{list.name}</Text></Blurred>
+        <Text className={`ml-2 text-[14px] font-semibold ${usf ? 'text-white/70' : 'text-surface-500'}`}>{all.length}</Text>
+        {extras?.action}
+        <View className="h-11 w-11 items-center justify-center"><Ellipsis color={usf ? '#ffffff' : color.textMuted} size={20} /></View>
       </Pressable>
+      {extras?.top !== undefined && <View onLayout={(event) => extraTops.current.set(list.id, event.nativeEvent.layout.height)}>
+        {extras.top}
+      </View>}
       <ScrollView
         ref={(view) => {
           if (view) verticals.current.set(list.id, view)
@@ -357,6 +379,7 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
           >
             <CardFace card={item} labels={labels} now={now} upload={uploads.get(item.id)} onToggleDone={() => props.onToggleDone(item.id)} />
           </Pressable>)}
+        {extras?.bottom}
       </ScrollView>
       {adding === list.id
         ? <View className="px-2 pb-2">

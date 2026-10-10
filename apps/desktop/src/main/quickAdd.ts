@@ -1,9 +1,13 @@
-import { BrowserWindow, ipcMain, screen } from 'electron'
+import { BrowserWindow, ipcMain, nativeImage, screen } from 'electron'
 import { join } from 'path'
-import { getQuickAddListShortcuts, getTrelloListId } from './settings'
-import { captureToTrello } from '@ego/core'
-import { trello } from './trello'
+import { isTaskCardInput, type TaskAttachment } from '@ego/core'
+import { queueUploads, type QueuedUpload } from '@ego/local/diary/uploads'
+import { newId, saveTaskCard } from '@ego/local/sync/commands'
+import { inboxCardInput } from '@ego/local/tasks/board'
+import { localTasks } from '@ego/local/tasks/repository'
 import { getAppIconPath } from './icon'
+import { announceLocalWrite, ledgerDatabase } from './local/ledger'
+import { deleteStagedMedia, stageMedia } from './local/media'
 import type { QuickAddPayload, QuickAddResult } from '@ego/ui/platform/types'
 
 let quickAddWindow: BrowserWindow | null = null
@@ -73,7 +77,7 @@ export function showQuickAddWindow(): void {
 
   quickAddWindow!.show()
   quickAddWindow!.focus()
-  quickAddWindow!.webContents.send('quick-add-focus', getQuickAddListShortcuts())
+  quickAddWindow!.webContents.send('quick-add-focus', [])
 }
 
 export function hideQuickAddWindow(): void {
@@ -186,18 +190,44 @@ export function showNotification(tone: NotificationTone, message: string): void 
   }, holdMs)
 }
 
-async function sendToTrello(payload: QuickAddPayload): Promise<QuickAddResult> {
-  return captureToTrello(trello, {
-    title: payload.title,
-    description: payload.description,
-    listId: payload.listId || getTrelloListId(),
-    attachments: payload.images.map((image) => ({
-      kind: 'bytes',
-      name: image.name,
-      mimeType: image.mimeType,
-      data: image.data
-    }))
-  })
+/**
+ * Saves the card on this computer the way the board would, at the bottom of the Inbox, with pasted
+ * images staged for upload. The sync that follows sends it, so it works offline too.
+ */
+async function addToInbox(payload: QuickAddPayload): Promise<QuickAddResult> {
+  const database = await ledgerDatabase()
+  if (!database) return { ok: false, detail: 'Sign in to Ego first' }
+  const db = database.local
+  const now = new Date().toISOString()
+  const id = newId()
+  const staged: string[] = []
+  try {
+    const attachments: TaskAttachment[] = []
+    const uploads: QueuedUpload[] = []
+    for (const image of payload.images) {
+      const mediaId = newId()
+      const copy = await stageMedia({ mediaId, fileName: image.name, mimeType: image.mimeType, data: image.data })
+      staged.push(copy.localUri)
+      const { width, height } = nativeImage.createFromBuffer(Buffer.from(image.data)).getSize()
+      attachments.push({
+        id: newId(), mediaId, kind: 'photo', mimeType: image.mimeType, fileName: image.name, size: copy.size,
+        width: width || null, height: height || null, durationSeconds: null, previewId: null, addedAt: now
+      })
+      uploads.push({ mediaId, messageId: id, localUri: copy.localUri, contentType: image.mimeType, size: copy.size, scope: 'tasks' })
+    }
+    const input = inboxCardInput(await localTasks(db), { title: payload.title, description: payload.description, attachments }, now)
+    if (!input) throw new Error('No board has an Inbox list')
+    if (!isTaskCardInput(input)) throw new Error('That card is too long to save')
+    await db.transaction(async (tx) => {
+      await saveTaskCard(tx, id, null, input, now, uploads.length > 0)
+      if (uploads.length > 0) await queueUploads(tx, uploads, now)
+    })
+    announceLocalWrite('tasks')
+    return { ok: true }
+  } catch (failure: unknown) {
+    await deleteStagedMedia(staged).catch(() => undefined)
+    return { ok: false, detail: failure instanceof Error ? failure.message : 'Ego could not add that card' }
+  }
 }
 
 export function setupQuickAddIpc(): void {
@@ -207,14 +237,13 @@ export function setupQuickAddIpc(): void {
     const normalized: QuickAddPayload = {
       title: (payload?.title ?? '').trim() || '(empty)',
       description: (payload?.description ?? '').trim(),
-      images: Array.isArray(payload?.images) ? payload.images : [],
-      listId: payload?.listId || undefined
+      images: Array.isArray(payload?.images) ? payload.images : []
     }
 
-    const result = await sendToTrello(normalized)
+    const result = await addToInbox(normalized)
     if (result.ok) {
       hideQuickAddWindow()
-      showNotification('success', 'Card added to Trello')
+      showNotification('success', 'Card added to Inbox')
     } else {
       showNotification('error', result.detail ? `Failed: ${result.detail}` : 'Failed to send')
     }
