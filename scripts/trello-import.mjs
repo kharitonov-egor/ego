@@ -262,15 +262,27 @@ const operations = [
     .map((op) => ({ operationId: op.entityId, entityId: op.entityId, expectedRevision: null, createdAt: now, command: op.command }))
 ]
 
+/**
+ * D1 now and then refuses a batch that goes through on the next try. Resending is safe: the
+ * operations that landed come back as duplicates.
+ */
+async function sendBatch(batch) {
+  for (let attempt = 1; ; attempt += 1) {
+    const result = await call('/v1/operations', { method: 'POST', body: JSON.stringify({ operations: batch }) })
+    if (!result.failed || result.failed.error.code !== 'CONFLICT' || attempt >= ATTEMPTS) return result
+    await new Promise((resolve) => setTimeout(resolve, 2000 * attempt))
+  }
+}
+
 let sent = 0
 for (let start = 0; start < operations.length; start += BATCH) {
   const batch = operations.slice(start, start + BATCH)
-  const result = await call('/v1/operations', { method: 'POST', body: JSON.stringify({ operations: batch }) })
-  sent += result.results.length
+  const result = await sendBatch(batch)
   if (result.failed) {
-    console.error(`\nStopped at ${result.failed.operationId}: ${result.failed.error.message}. ${sent} sent. Run it again to continue.`)
+    console.error(`\nStopped at ${result.failed.operationId}: ${result.failed.error.message}. ${sent + result.results.length} sent. Run it again to continue.`)
     process.exit(1)
   }
+  sent += batch.length
   process.stdout.write(`\r${sent} of ${operations.length} sent`)
 }
 console.log(`\nDone. ${sent} operations applied.`)
