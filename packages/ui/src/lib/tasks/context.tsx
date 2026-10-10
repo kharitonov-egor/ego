@@ -12,8 +12,8 @@ import {
   deleteTaskLabel, deleteTaskList, newId, saveTaskCard, updateTaskBoard, updateTaskGoal, updateTaskLabel, updateTaskList
 } from '@ego/local/sync/commands'
 import {
-  boardLabels, boardLists, cardInput, carryLabels, endPosition, inboxCardInput, listCards, liveBoards, placeAt, startPosition,
-  withDoneMove
+  DONE_MOVE_DELAY_MS, boardLabels, boardLists, cardInput, carryLabels, doneMove, endPosition, inboxCardInput, listCards, liveBoards,
+  marksDone, placeAt, startPosition
 } from '@ego/local/tasks/board'
 import { localTaskRevision, localTasks, type TaskData, type TaskTable } from '@ego/local/tasks/repository'
 import { useLedger, type LocalWrite } from '../ledger'
@@ -349,9 +349,24 @@ export function TasksProvider({ children }: { children: React.ReactNode }): Reac
     async (database, time) => { await deleteTaskLabel(database, labelId, await revisionOf(database, 'task_labels', labelId), time) },
     'This computer could not delete that label'), [commit])
 
+  /** Skips a card that was reopened, moved, or deleted while it sat checked in `listId`. */
+  const moveToDone = useCallback((cardId: string, listId: string): void => {
+    const current = dataRef.current
+    const card = current?.cards.find((item) => item.id === cardId)
+    if (!current || !card || card.listId !== listId) return
+    const moved = doneMove(current, cardInput(card))
+    if (!moved) return
+    const at = new Date().toISOString()
+    const logged = withTaskActivity(cardInput(card), moved, namesFor(current), at)
+    void commit(
+      (data) => ({ ...data, cards: replaceById(data.cards, cardId, (item) => ({ ...item, ...logged, updatedAt: at })) }),
+      async (database, time) => { await saveTaskCard(database, cardId, await revisionOf(database, 'task_cards', cardId), logged, time) },
+      'This computer could not move that card')
+  }, [commit])
+
   /**
    * Writes one card's new state, logged against what it was. `held` waits for files queued with it.
-   * A card marked done here may also move to its board's Done list.
+   * A card marked done here may also move to its board's Done list a moment later.
    */
   const saveCard = useCallback((
     card: TaskCardRecord, next: TaskCardInput, failure: string,
@@ -361,12 +376,13 @@ export function TasksProvider({ children }: { children: React.ReactNode }): Reac
     if (!current) return Promise.resolve(false)
     const at = new Date().toISOString()
     const before = cardInput(card)
-    const logged = withTaskActivity(before, withDoneMove(current, before, next), namesFor(current), at)
+    const logged = withTaskActivity(before, next, namesFor(current), at)
     const titled = logged.title.trim() !== ''
     if (!isTaskCardInput(logged)) {
       setError(titled ? 'That card is too long to save' : 'Give the card a title')
       return Promise.resolve(false)
     }
+    if (marksDone(before, next) && doneMove(current, next)) setTimeout(() => moveToDone(card.id, next.listId), DONE_MOVE_DELAY_MS)
     return commit(
       (data) => ({ ...data, cards: replaceById(data.cards, card.id, (item) => ({ ...item, ...logged, updatedAt: at })) }),
       (database, time) => database.transaction(async (tx) => {
@@ -374,7 +390,7 @@ export function TasksProvider({ children }: { children: React.ReactNode }): Reac
         if (extra) await extra(tx, time)
       }),
       failure)
-  }, [commit])
+  }, [commit, moveToDone])
 
   const createCard = useCallback(async (listId: string, title: string, place: 'top' | 'bottom' = 'bottom'): Promise<string | null> => {
     const current = dataRef.current
