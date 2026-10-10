@@ -127,7 +127,7 @@ export default function CalendarScreen(): React.ReactElement {
     const source = overlaySourceOf(event)
     setSelectedKey(null)
     if (source === 'tasks') router.push({ pathname: '/tasks/card/[id]', params: { id: event.id } })
-    else if (source === 'study') router.push('/(study)/assignments')
+    else if (source === 'study') router.push('/tasks/home')
     else if (source === 'gym') router.push('/gym')
   }
 

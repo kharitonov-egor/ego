@@ -38,12 +38,11 @@
         display: flex;
         align-items: center;
       }
-      .header .icon svg { width: 16px; height: 16px; }
+      .header .icon svg { width: 18px; height: 18px; }
       .header .label {
-        font-size: 11px;
-        letter-spacing: 0.14em;
-        text-transform: uppercase;
-        color: #8a8a8a;
+        font-size: 13px;
+        font-weight: 600;
+        color: #a3a3a3;
       }
       .fields {
         display: flex;
@@ -132,41 +131,6 @@
         cursor: pointer;
       }
       .thumb:hover .del { display: flex; }
-      .list-bar {
-        display: flex;
-        align-items: center;
-        gap: 5px;
-        padding: 6px 16px;
-        border-top: 1px solid #1f1f1f;
-        flex-wrap: wrap;
-      }
-      .list-bar:empty { display: none; }
-      .list-chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 3px 10px;
-        border-radius: 999px;
-        border: 1px solid #333333;
-        background: #171717;
-        color: #a3a3a3;
-        font-size: 12px;
-        cursor: pointer;
-        transition: background 0.1s, color 0.1s, border-color 0.1s;
-        white-space: nowrap;
-      }
-      .list-chip .chip-key {
-        font-size: 10px;
-        opacity: 0.6;
-        font-weight: 600;
-        letter-spacing: 0.05em;
-      }
-      .list-chip.active {
-        background: #fafafa;
-        border-color: #fafafa;
-        color: #0a0a0a;
-        font-weight: 600;
-      }
       .footer {
         display: flex;
         align-items: center;
@@ -217,20 +181,18 @@
       <div class="card">
         <div class="header">
           <span class="icon">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <rect x="1" y="1" width="22" height="22" rx="3" ry="3" fill="none" stroke="currentColor" stroke-width="1.5"/>
-              <rect x="4.5" y="4.5" width="6" height="13" rx="1.5" fill="currentColor"/>
-              <rect x="13.5" y="4.5" width="6" height="8.5" rx="1.5" fill="currentColor"/>
+            <svg viewBox="0 0 24 24" role="img" aria-label="Ego">
+              <circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="2.2"/>
+              <circle cx="12" cy="12" r="2.6" fill="currentColor"/>
             </svg>
           </span>
-          <span class="label">New Trello card</span>
+          <span class="label">New card in Inbox</span>
         </div>
         <div class="fields">
           <input id="title" class="title" type="text" placeholder="Card title…" autofocus />
           <textarea id="desc" class="desc" placeholder="Description (optional). Paste screenshots with Ctrl+V."></textarea>
         </div>
         <div id="images" class="images"></div>
-        <div id="list-bar" class="list-bar"></div>
         <div class="footer">
           <span id="status" class="status"></span>
           <span>
@@ -250,7 +212,6 @@
       const titleEl = document.getElementById('title')
       const descEl = document.getElementById('desc')
       const imagesEl = document.getElementById('images')
-      const listBarEl = document.getElementById('list-bar')
       const statusEl = document.getElementById('status')
       const overlayEl = document.getElementById('overlay')
       const overlayImg = document.getElementById('overlayImg')
@@ -259,39 +220,6 @@
       let images = []
       let nextId = 1
       let sending = false
-
-      /** @type {{ listId: string; listName: string }[]} */
-      let listShortcuts = []
-      let activeShortcutIndex = -1
-
-      function renderListBar() {
-        listBarEl.innerHTML = ''
-        if (listShortcuts.length === 0) return
-        listShortcuts.forEach((s, i) => {
-          const chip = document.createElement('div')
-          chip.className = 'list-chip' + (i === activeShortcutIndex ? ' active' : '')
-          const key = document.createElement('span')
-          key.className = 'chip-key'
-          key.textContent = `Ctrl+${i + 1}`
-          const name = document.createElement('span')
-          name.textContent = s.listName
-          chip.appendChild(key)
-          chip.appendChild(name)
-          chip.addEventListener('click', () => selectShortcut(i))
-          listBarEl.appendChild(chip)
-        })
-      }
-
-      function selectShortcut(index) {
-        activeShortcutIndex = index >= 0 && index < listShortcuts.length ? index : -1
-        renderListBar()
-      }
-
-      function setShortcuts(shortcuts) {
-        listShortcuts = shortcuts || []
-        activeShortcutIndex = listShortcuts.length > 0 ? 0 : -1
-        renderListBar()
-      }
 
       function setStatus(text, isError) {
         statusEl.textContent = text || ''
@@ -413,11 +341,6 @@
         sending = true
         setStatus('Sending…')
 
-        const selectedListId =
-          activeShortcutIndex >= 0 && listShortcuts[activeShortcutIndex]
-            ? listShortcuts[activeShortcutIndex].listId
-            : undefined
-
         const payload = {
           title,
           description: descEl.value,
@@ -425,8 +348,7 @@
             name: img.name,
             mimeType: img.mimeType,
             data: img.data
-          })),
-          ...(selectedListId ? { listId: selectedListId } : {})
+          }))
         }
 
         try {
@@ -483,15 +405,6 @@
           cycleFocus()
           return
         }
-        if (e.ctrlKey && !e.altKey && !e.shiftKey && listShortcuts.length > 0) {
-          const digit = parseInt(e.key, 10)
-          if (!isNaN(digit) && digit >= 1 && digit <= listShortcuts.length) {
-            e.preventDefault()
-            e.stopPropagation()
-            selectShortcut(digit - 1)
-            return
-          }
-        }
         if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
           e.preventDefault()
           e.stopPropagation()
@@ -528,8 +441,7 @@
       document.addEventListener('keyup', handleKeyUp, true)
 
       if (window.api && window.api.onQuickAddFocus) {
-        window.api.onQuickAddFocus((shortcuts) => {
-          setShortcuts(shortcuts)
+        window.api.onQuickAddFocus(() => {
           clearAll()
           closeOverlay()
           titleEl.focus()

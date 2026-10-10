@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { ActivityIndicator, Linking, Pressable, Switch, View } from 'react-native'
 import { KeyboardScrollView } from '../components/ui/keyboard'
 import {
@@ -9,7 +9,7 @@ import { formatSetDuration } from '@ego/core'
 import Constants from 'expo-constants'
 import { useRouter } from 'expo-router'
 import type { ServiceStatus, SessionInfo } from '@ego/api-contracts'
-import type { ListShortcut, TrelloBoardSummary, TrelloListSummary } from '@ego/core'
+import { inboxList } from '@ego/local/tasks/board'
 import { isSignedIn, useSettings, type RetiredCredentials } from '../lib/settings'
 import type { EgoApi } from '@ego/local/api-client'
 import {
@@ -18,6 +18,7 @@ import {
 import { dateTimeLabel } from '@ego/local/diary/format'
 import { Blurred, useBlur } from '../lib/blur'
 import { syncLabel, useLedger } from '../lib/ledger-context'
+import { useTasks } from '../lib/tasks/context'
 import { clearLegacySnapshot } from '../lib/retired'
 import { REST_PRESETS, useRestTimer } from '../lib/rest-timer'
 import { SignInPanel, useGoogleSignIn } from '../components/SignInPanel'
@@ -31,11 +32,11 @@ import { Text } from '../components/ui/text'
 
 const SERVICES: Array<{ key: keyof ServiceStatus; label: string; secret: string }> = [
   { key: 'assistant', label: 'AI', secret: 'OPENROUTER_API_KEY' },
-  { key: 'trello', label: 'Trello', secret: 'TRELLO_API_KEY and TRELLO_TOKEN' },
   { key: 'voice', label: 'Talk to AI voice', secret: 'OPENAI_API_KEY' },
   { key: 'google', label: 'Gmail and Drive', secret: 'Connect from the desktop app' },
   { key: 'canvas', label: 'Canvas calendar', secret: 'CANVAS_CALENDAR_URL' },
-  { key: 'googleHealth', label: 'Google Health', secret: 'Connect from the Health app' }
+  { key: 'googleHealth', label: 'Google Health', secret: 'Connect from the Health app' },
+  { key: 'tasksInbox', label: 'n8n inbox', secret: 'TASKS_INBOX_TOKEN' }
 ]
 
 const HOUR_VALUES = REMINDER_HOURS.map(String)
@@ -70,18 +71,6 @@ function Section({ Icon, title, tone = '#fafafa', right, children }: {
 
 function FieldLabel({ children }: { children: string }): React.ReactElement {
   return <Text className="mb-2 mt-4 text-[15px] font-medium text-surface-200">{children}</Text>
-}
-
-function Choice({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }): React.ReactElement {
-  return <Pressable
-    accessibilityRole="button"
-    accessibilityState={{ selected: active }}
-    onPress={onPress}
-    className={`min-h-12 flex-1 flex-row items-center justify-between rounded-xl border px-4 ${active ? 'border-primary bg-primary' : 'border-input bg-surface-900 active:bg-surface-800'}`}
-  >
-    <Text numberOfLines={1} className={`flex-1 text-[16px] ${active ? 'font-semibold text-primary-foreground' : 'text-foreground'}`}>{label}</Text>
-    {active && <Check color="#0a0a0a" size={18} />}
-  </Pressable>
 }
 
 function NewBuild({ api }: { api: EgoApi }): React.ReactElement | null {
@@ -126,15 +115,13 @@ export default function Settings(): React.ReactElement {
   const [session, setSession] = useState<SessionInfo | null>(null)
   const [sessionError, setSessionError] = useState<string | null>(null)
   const [confirmingSignOut, setConfirmingSignOut] = useState(false)
-  const [boards, setBoards] = useState<TrelloBoardSummary[]>([])
-  const [lists, setLists] = useState<TrelloListSummary[]>([])
-  const [loadingTrello, setLoadingTrello] = useState(false)
-  const [trelloError, setTrelloError] = useState<string | null>(null)
   const commitHash = typeof Constants.expoConfig?.extra?.commitHash === 'string'
     ? Constants.expoConfig.extra.commitHash.slice(0, 8)
     : 'unknown'
   const { api } = ledger
-  const trelloAvailable = session?.services.trello === true
+  const tasks = useTasks()
+  const inbox = tasks.data ? inboxList(tasks.data) : null
+  const inboxBoard = inbox ? tasks.data?.boards.find((board) => board.id === inbox.boardId) : undefined
   const pendingCount = (ledger.status?.pendingCount ?? 0) + (ledger.status?.conflictCount ?? 0)
   const retired = settings.retired ? retiredLabels(settings.retired) : []
 
@@ -158,39 +145,6 @@ export default function Settings(): React.ReactElement {
     return () => { cancelled = true }
   }, [api, signedIn])
 
-  useEffect(() => {
-    if (!trelloAvailable) return
-    let cancelled = false
-    setLoadingTrello(true)
-    void api.trelloBoards().then((result) => {
-      if (cancelled) return
-      setLoadingTrello(false)
-      if (result.ok) {
-        setBoards(result.data)
-        setTrelloError(null)
-      } else setTrelloError(result.error.message)
-    })
-    return () => { cancelled = true }
-  }, [api, trelloAvailable])
-
-  useEffect(() => {
-    if (!trelloAvailable || !settings.trelloBoardId) {
-      setLists([])
-      return
-    }
-    let cancelled = false
-    void api.trelloLists(settings.trelloBoardId).then((result) => {
-      if (cancelled) return
-      if (result.ok) {
-        setLists(result.data)
-        setTrelloError(null)
-      } else setTrelloError(result.error.message)
-    })
-    return () => { cancelled = true }
-  }, [api, settings.trelloBoardId, trelloAvailable])
-
-  const pinned = useMemo(() => new Set(settings.listShortcuts.map((item) => item.listId)), [settings.listShortcuts])
-
   const signOut = async (): Promise<void> => {
     setConfirmingSignOut(false)
     await api.signOut()
@@ -202,13 +156,6 @@ export default function Settings(): React.ReactElement {
   const removeRetired = async (): Promise<void> => {
     if (settings.retired) await clearLegacySnapshot(settings.retired)
     await update({ retired: null })
-  }
-
-  const toggleShortcut = (list: TrelloListSummary): void => {
-    const next: ListShortcut[] = pinned.has(list.id)
-      ? settings.listShortcuts.filter((item) => item.listId !== list.id)
-      : [...settings.listShortcuts, { listId: list.id, listName: list.name }]
-    void update({ listShortcuts: next })
   }
 
   const email = session?.email ?? settings.account?.email ?? null
@@ -332,36 +279,15 @@ export default function Settings(): React.ReactElement {
         })}</View>
       </Section>}
 
-      {signedIn && trelloAvailable && <Section Icon={ListPlus} title="Trello" right={loadingTrello ? <ActivityIndicator size="small" color="#fafafa" /> : undefined}>
-        <FieldLabel>Board</FieldLabel>
-        <View className="gap-2">
-          {boards.map((board) => <Choice
-            key={board.id}
-            label={board.name}
-            active={board.id === settings.trelloBoardId}
-            onPress={() => void update({ trelloBoardId: board.id, trelloListId: '', listShortcuts: [] })}
-          />)}
-          {!loadingTrello && boards.length === 0 && <Text className="text-[15px] text-muted-foreground">No boards found for this Trello account.</Text>}
-        </View>
-        {settings.trelloBoardId !== '' && <>
-          <FieldLabel>Default list</FieldLabel>
-          <View className="gap-2">
-            {lists.map((list) => <View key={list.id} className="flex-row items-center gap-2">
-              <Choice label={list.name} active={list.id === settings.trelloListId} onPress={() => void update({ trelloListId: list.id })} />
-              <Pressable
-                accessibilityRole="button"
-                accessibilityState={{ selected: pinned.has(list.id) }}
-                accessibilityLabel={`Pin ${list.name} to the capture screen`}
-                onPress={() => toggleShortcut(list)}
-                className={`min-h-12 min-w-16 items-center justify-center rounded-xl border px-3 ${pinned.has(list.id) ? 'border-primary bg-primary' : 'border-input bg-surface-900 active:bg-surface-800'}`}
-              ><Text className={`text-[15px] font-medium ${pinned.has(list.id) ? 'text-primary-foreground' : 'text-muted-foreground'}`}>Pin</Text></Pressable>
-            </View>)}
-          </View>
-          <Text className="mt-3 text-[15px] leading-5 text-muted-foreground">Pinned lists show as buttons on the capture screen.</Text>
-        </>}
-        {trelloError && <Text className="mt-3 text-[15px] leading-5 text-destructive">{trelloError}</Text>}
-        <Button size="lg" disabled={!settings.trelloListId} onPress={() => router.push('/capture')} className="mt-4">
-          <Text>{settings.trelloListId ? 'Add Trello card' : 'Choose a default list first'}</Text>
+      {signedIn && <Section Icon={ListPlus} title="Quick add">
+        <Text className="mt-3 text-[15px] leading-6 text-muted-foreground">
+          Capture adds a card, with photos if you pick some, to the bottom of {inbox ? `${inboxBoard?.name ?? 'your board'}'s ${inbox.name}` : 'the Inbox'}.
+        </Text>
+        {tasks.data && !inbox && <Text className="mt-2 text-[14px] leading-5 text-attention">
+          No board has an Inbox yet. In Tasks, open a list's menu and choose Make this the Inbox.
+        </Text>}
+        <Button size="lg" disabled={!inbox} onPress={() => router.push('/capture')} className="mt-4">
+          <Text>Add a card</Text>
         </Button>
       </Section>}
 

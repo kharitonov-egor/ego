@@ -46,6 +46,8 @@ export interface ServiceStatus {
   google: boolean
   canvas: boolean
   googleHealth: boolean
+  /** TASKS_INBOX_TOKEN is set, so n8n can add cards to the Inbox. Older servers leave it out. */
+  tasksInbox?: boolean
 }
 
 export interface SessionInfo {

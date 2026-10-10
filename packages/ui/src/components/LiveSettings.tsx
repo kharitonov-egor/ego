@@ -142,7 +142,6 @@ export default function LiveSettings(): React.ReactElement {
       <ToolSwitch label="Read Wispr meetings and notes" checked={tools.readWispr} disabled={!wispr?.connected} onChange={(value) => updateTool('readWispr', value)} />
       <ToolSwitch label="Read Ego Money" checked={tools.readEgoMoney} onChange={(value) => updateTool('readEgoMoney', value)} />
       <ToolSwitch label="Record Ego transactions" checked={tools.recordEgoTransactions} detail="Every transaction still needs a button press." onChange={(value) => updateTool('recordEgoTransactions', value)} />
-      <ToolSwitch label="Create Trello cards" checked={tools.createTrelloCards} detail="Every card still needs a button press." onChange={(value) => updateTool('createTrelloCards', value)} />
     </div>
 
     <div className="mt-5 grid grid-cols-1 gap-4 border-t border-surface-800 pt-4 md:grid-cols-2">
@@ -189,7 +188,7 @@ export default function LiveSettings(): React.ReactElement {
     </div>
 
     <div className="mt-4 flex items-center justify-between gap-4 border-t border-surface-800 pt-4">
-      <p className="max-w-md text-[14px] leading-5 text-muted-foreground">Read tools run when enabled. Ego and Trello writes always stop for on-screen confirmation.</p>
+      <p className="max-w-md text-[14px] leading-5 text-muted-foreground">Read tools run when enabled. Ego writes always stop for on-screen confirmation. Ask for a card and it goes to the Inbox through the AI.</p>
       <div className="flex shrink-0 items-center gap-3">
         {saved && <span role="status" className="text-[14px] text-positive">Saved for the next call</span>}
         <Button disabled={!loaded} onClick={() => void save()}>

@@ -529,7 +529,8 @@ export const LOCAL_MIGRATIONS: readonly string[][] = [
 )`,`CREATE TABLE IF NOT EXISTS content_collections (
   id TEXT PRIMARY KEY, data TEXT NOT NULL, created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1, deleted_at TEXT
-)`]
+)`],
+  ["ALTER TABLE task_lists ADD COLUMN kind TEXT NOT NULL DEFAULT 'cards'"]
 ]
 
 export async function migrate(db: LocalDatabase): Promise<number> {

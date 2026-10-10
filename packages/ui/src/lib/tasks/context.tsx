@@ -3,7 +3,7 @@ import type { TaskBoardRecord, TaskCardRecord, TaskLabelRecord, TaskListRecord }
 import {
   isTaskBoardInput, isTaskCardInput, isTaskGoalInput, isTaskListInput, taskGoalInput, withTaskActivity,
   type TaskAttachment, type TaskBoardInput, type TaskCardInput, type TaskGoalInput, type TaskLabelColor, type TaskLabelInput,
-  type TaskListInput, type TaskNames
+  type TaskListInput, type TaskListKind, type TaskNames
 } from '@ego/core'
 import type { LocalDatabase } from '@ego/local/database/types'
 import { dropUnusedUploads, queueUploads, retryRecordUploads, type QueuedUpload } from '@ego/local/diary/uploads'
@@ -12,7 +12,7 @@ import {
   deleteTaskLabel, deleteTaskList, newId, saveTaskCard, updateTaskBoard, updateTaskGoal, updateTaskLabel, updateTaskList
 } from '@ego/local/sync/commands'
 import {
-  boardLabels, boardLists, cardInput, carryLabels, endPosition, listCards, liveBoards, placeAt, startPosition
+  boardLabels, boardLists, cardInput, carryLabels, endPosition, inboxCardInput, listCards, liveBoards, placeAt, startPosition
 } from '@ego/local/tasks/board'
 import { localTaskRevision, localTasks, type TaskData, type TaskTable } from '@ego/local/tasks/repository'
 import { useLedger, type LocalWrite } from '../ledger'
@@ -28,6 +28,8 @@ export interface CardTarget {
   /** The cards the index counts through, in order, without the moving card. Defaults to the whole list. */
   siblingIds?: string[]
 }
+
+export type InboxResult = { ok: true; id: string } | { ok: false; message: string }
 
 export interface CopyOptions {
   title: string
@@ -53,12 +55,16 @@ interface TasksContextValue {
   deleteBoard: (boardId: string) => Promise<boolean>
   createList: (boardId: string, name: string) => Promise<string | null>
   updateList: (listId: string, changes: Partial<TaskListInput>) => Promise<boolean>
+  /** Making a list the Inbox turns the old Inbox back into a regular list. */
+  setListKind: (listId: string, kind: TaskListKind) => Promise<boolean>
   moveList: (listId: string, index: number) => Promise<boolean>
   deleteList: (listId: string) => Promise<boolean>
   archiveListCards: (listId: string) => Promise<boolean>
   saveLabel: (boardId: string, labelId: string | null, name: string, color: TaskLabelColor) => Promise<string | null>
   deleteLabel: (labelId: string) => Promise<boolean>
   createCard: (listId: string, title: string, place?: 'top' | 'bottom') => Promise<string | null>
+  /** Quick add: a card at the bottom of the Inbox, with pasted images attached. */
+  addInboxCard: (title: string, description: string, files: readonly File[]) => Promise<InboxResult>
   updateCard: (cardId: string, change: (input: TaskCardInput) => TaskCardInput) => Promise<boolean>
   moveCard: (cardId: string, target: CardTarget) => Promise<boolean>
   copyCard: (cardId: string, options: CopyOptions) => Promise<string | null>
@@ -86,7 +92,7 @@ function boardInput(board: TaskBoardRecord): TaskBoardInput {
 }
 
 function listInput(list: TaskListRecord): TaskListInput {
-  return { boardId: list.boardId, name: list.name, position: list.position, archivedAt: list.archivedAt }
+  return { boardId: list.boardId, name: list.name, position: list.position, archivedAt: list.archivedAt, kind: list.kind }
 }
 
 function labelInput(label: TaskLabelRecord): TaskLabelInput {
@@ -182,7 +188,7 @@ export function TasksProvider({ children }: { children: React.ReactNode }): Reac
       return null
     }
     const lists = DEFAULT_LISTS.map((listName, index): TaskListRecord => ({
-      id: newId(), boardId: id, name: listName, position: (index + 1) * 1024, archivedAt: null, ...stamp(at)
+      id: newId(), boardId: id, name: listName, position: (index + 1) * 1024, archivedAt: null, kind: 'cards', ...stamp(at)
     }))
     const saved = await commit(
       (data) => ({ ...data, boards: [...data.boards, { id, ...board, ...stamp(at) }], lists: [...data.lists, ...lists] }),
@@ -235,13 +241,13 @@ export function TasksProvider({ children }: { children: React.ReactNode }): Reac
     if (!current) return null
     const id = newId()
     const at = new Date().toISOString()
-    const input: TaskListInput = { boardId, name: name.trim(), position: endPosition(boardLists(current, boardId)), archivedAt: null }
+    const input: TaskListInput = { boardId, name: name.trim(), position: endPosition(boardLists(current, boardId)), archivedAt: null, kind: 'cards' }
     if (!isTaskListInput(input)) {
       setError('Give the list a name')
       return null
     }
     const saved = await commit(
-      (data) => ({ ...data, lists: [...data.lists, { id, ...input, ...stamp(at) }] }),
+      (data) => ({ ...data, lists: [...data.lists, { id, ...input, kind: 'cards', ...stamp(at) }] }),
       async (database, time) => { await createTaskList(database, input, time, id) },
       'This computer could not add that list')
     return saved ? id : null
@@ -259,6 +265,24 @@ export function TasksProvider({ children }: { children: React.ReactNode }): Reac
       (data) => ({ ...data, lists: replaceById(data.lists, listId, (item) => ({ ...item, ...input })) }),
       async (database, time) => { await updateTaskList(database, listId, await revisionOf(database, 'task_lists', listId), input, time) },
       'This computer could not save that list')
+  }, [commit])
+
+  const setListKind = useCallback(async (listId: string, kind: TaskListKind): Promise<boolean> => {
+    const current = dataRef.current
+    const list = current?.lists.find((item) => item.id === listId)
+    if (!current || !list) return false
+    const changed = [
+      { list, kind },
+      ...(kind === 'inbox' ? current.lists.filter((item) => item.kind === 'inbox' && item.id !== listId).map((item) => ({ list: item, kind: 'cards' as const })) : [])
+    ]
+    return commit(
+      (data) => ({ ...data, lists: data.lists.map((item) => ({ ...item, kind: changed.find((entry) => entry.list.id === item.id)?.kind ?? item.kind })) }),
+      (database, time) => database.transaction(async (tx) => {
+        for (const entry of changed) {
+          await updateTaskList(tx, entry.list.id, await revisionOf(tx, 'task_lists', entry.list.id), { ...listInput(entry.list), kind: entry.kind }, time)
+        }
+      }),
+      'This computer could not change that list')
   }, [commit])
 
   const moveList = useCallback(async (listId: string, index: number): Promise<boolean> => {
@@ -358,6 +382,31 @@ export function TasksProvider({ children }: { children: React.ReactNode }): Reac
       async (database, time) => { await saveTaskCard(database, id, null, input, time) },
       'This computer could not add that card')
     return saved ? id : null
+  }, [commit])
+
+  const addInboxCard = useCallback(async (title: string, description: string, files: readonly File[]): Promise<InboxResult> => {
+    if (!dataRef.current) return { ok: false, message: 'Tasks has not loaded yet' }
+    const persisted = files.length > 0 ? await persistFiles(files) : []
+    if (!persisted) return { ok: false, message: 'This computer could not read one of those images' }
+    const at = new Date().toISOString()
+    const id = newId()
+    const uploads: QueuedUpload[] = persisted.flatMap((item) => item.uploads.map((upload) => ({ ...upload, messageId: id, scope: 'tasks' as const })))
+    const current = dataRef.current
+    const input = current ? inboxCardInput(current, { title, description, attachments: persisted.map((item) => attachmentFrom(item, at)) }, at) : null
+    const failed = (message: string): InboxResult => {
+      deleteStagedFiles(uploads.map((upload) => upload.localUri))
+      return { ok: false, message }
+    }
+    if (!input) return failed('No board has an Inbox list')
+    if (!isTaskCardInput(input)) return failed(title.trim() ? 'That card is too long to save' : 'Give the card a title')
+    const saved = await commit(
+      (data) => ({ ...data, cards: [...data.cards, { id, ...input, ...stamp(at) }] }),
+      (database, time) => database.transaction(async (tx) => {
+        await saveTaskCard(tx, id, null, input, time, uploads.length > 0)
+        if (uploads.length > 0) await queueUploads(tx, uploads, time)
+      }),
+      'This computer could not add that card')
+    return saved ? { ok: true, id } : failed('This computer could not add that card')
   }, [commit])
 
   const updateCard = useCallback((cardId: string, change: (input: TaskCardInput) => TaskCardInput): Promise<boolean> => {
@@ -539,13 +588,13 @@ export function TasksProvider({ children }: { children: React.ReactNode }): Reac
   const value = useMemo<TasksContextValue>(() => ({
     enabled, data, now, error, dismissError,
     createBoard, updateBoard, moveBoard, deleteBoard,
-    createList, updateList, moveList, deleteList, archiveListCards,
+    createList, updateList, setListKind, moveList, deleteList, archiveListCards,
     saveLabel, deleteLabel,
-    createCard, updateCard, moveCard, copyCard, addFiles, removeFile, deleteCard, retryUploads,
+    createCard, addInboxCard, updateCard, moveCard, copyCard, addFiles, removeFile, deleteCard, retryUploads,
     createGoal, updateGoal, deleteGoal
-  }), [addFiles, archiveListCards, copyCard, createBoard, createCard, createList, data, deleteBoard, deleteCard, deleteLabel,
+  }), [addFiles, addInboxCard, archiveListCards, copyCard, createBoard, createCard, createList, data, deleteBoard, deleteCard, deleteLabel,
     deleteList, dismissError, enabled, error, moveBoard, moveCard, moveList, now, removeFile, retryUploads, saveLabel,
-    updateBoard, updateCard, updateList, createGoal, updateGoal, deleteGoal])
+    setListKind, updateBoard, updateCard, updateList, createGoal, updateGoal, deleteGoal])
 
   return <TasksContext.Provider value={value}>{children}</TasksContext.Provider>
 }

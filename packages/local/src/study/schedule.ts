@@ -88,6 +88,11 @@ export function studySections(items: StudyItem[], view: StudyView, now: Date, fi
   return overdue.length > 0 ? [{ key: 'overdue', day: null, data: overdue }, ...ahead] : ahead
 }
 
+/** Course codes compared without spaces or case, so a label "cop 4530" matches Canvas's "COP4530". */
+export function courseKey(value: string): string {
+  return value.replace(/\s+/g, '').toUpperCase()
+}
+
 export function courseList(items: StudyItem[]): string[] {
   return [...new Set(items.map((item) => item.course).filter((course): course is string => course !== null))]
     .sort((a, b) => a.localeCompare(b))

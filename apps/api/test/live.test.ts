@@ -119,7 +119,7 @@ describe('POST /v1/live/sessions', () => {
     expect(JSON.stringify(JSON.parse(String(init?.body)))).toContain('cannot read Ego data')
   })
 
-  it('adds enabled Ego and Trello functions with strict schemas', async () => {
+  it('adds enabled Ego functions with strict schemas and leaves Trello cards to the Inbox', async () => {
     const env = await environment()
     const preferences: LivePreferences = {
       ...DEFAULT_LIVE_PREFERENCES,
@@ -143,23 +143,26 @@ describe('POST /v1/live/sessions', () => {
     }), env)
     expect(response.status).toBe(201)
     const [, init] = fetchMock.mock.calls[0]!
-    const sent = JSON.parse(String(init?.body))
-    const functions = sent.session.delegation.responses.tools.filter((tool: any) => tool.type === 'function')
-    expect(functions.map((tool: any) => tool.name)).toEqual([
+    interface SentTool {
+      type: string
+      name: string
+      strict: boolean
+      parameters: { additionalProperties: boolean; required: string[]; properties: Record<string, unknown> }
+    }
+    const sent = JSON.parse(String(init?.body)) as { session: { delegation: { responses: { tools: SentTool[] } } } }
+    const functions = sent.session.delegation.responses.tools.filter((tool) => tool.type === 'function')
+    expect(functions.map((tool) => tool.name)).toEqual([
       'ego_get_summary', 'ego_list_accounts', 'ego_get_budget', 'ego_search_transactions',
-      'ego_get_transaction', 'ego_record_transaction', 'trello_create_card'
+      'ego_get_transaction', 'ego_record_transaction'
     ])
     for (const tool of functions) {
       expect(tool.strict).toBe(true)
       expect(tool.parameters.additionalProperties).toBe(false)
       expect(new Set(tool.parameters.required)).toEqual(new Set(Object.keys(tool.parameters.properties)))
     }
-    expect(functions.at(-1).parameters.properties).toMatchObject({
-      boardId: { const: 'board123' }, listId: { const: 'list123' }
-    })
     const stored = await env.DB.prepare(`SELECT enabled_tools FROM live_tool_sessions
       WHERE openai_session_id = 'live_tools'`).first<{ enabled_tools: string }>()
-    expect(JSON.parse(stored?.enabled_tools ?? '[]')).toContain('trello_create_card')
+    expect(JSON.parse(stored?.enabled_tools ?? '[]')).not.toContain('trello_create_card')
   })
 
   it('maps rate limits without returning the upstream body', async () => {

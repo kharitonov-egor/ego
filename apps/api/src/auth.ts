@@ -25,6 +25,8 @@ export interface Env {
   RECEIPT_MODEL?: string
   /** A FoodData Central key. Barcode lookups use Open Food Facts alone without it. */
   USDA_API_KEY?: string
+  /** The bearer token n8n sends to POST /v1/tasks/inbox. */
+  TASKS_INBOX_TOKEN?: string
   TRELLO_API_KEY?: string
   TRELLO_TOKEN?: string
   /** The Canvas calendar feed link. Anyone holding it can read the calendar. */

@@ -281,7 +281,7 @@ export function taskBoardRecordFrom(
 export function taskListRecordFrom(
   id: string, input: TaskListInput, createdAt: string, updatedAt: string, revision: number
 ): TaskListRecord {
-  return { id, ...input, name: input.name.trim(), createdAt, updatedAt, revision }
+  return { id, ...input, name: input.name.trim(), kind: input.kind ?? 'cards', createdAt, updatedAt, revision }
 }
 
 export function taskLabelRecordFrom(

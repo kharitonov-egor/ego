@@ -1,4 +1,5 @@
 import { contentRoute } from './content'
+import { inboxRoute } from './tasks-inbox'
 import { PREVIEW_PATH, previewBase, renderContentPreviews, servePreview } from './content-previews'
 import {
   API_VERSION, HTTP_STATUS, MAX_CHANGE_PAGE_SIZE, decodeCursor, invalid, isOperationRequest,
@@ -113,6 +114,7 @@ export async function handle(request: Request, env: Env, work?: Pick<ExecutionCo
   if (request.method === 'POST' && path === '/v1/app/builds/webhook') return respond(await receiveBuildWebhook(request, env))
   if (request.method === 'GET' && path.startsWith(PREVIEW_PATH)) return servePreview(env, path)
   if (path.startsWith('/v1/content/')) return contentRoute(request, env, path, work)
+  if (request.method === 'POST' && path === '/v1/tasks/inbox') return inboxRoute(request, env, new Date().toISOString())
   const docket = docketRoute(request, env, path, new Date().toISOString())
   if (docket) return docket
 

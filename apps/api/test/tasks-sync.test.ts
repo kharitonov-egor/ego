@@ -261,3 +261,90 @@ describe('the Worker checks a card before saving it', () => {
     expect((await send(env, card(), 'k-3')).failed).toBeNull()
   })
 })
+
+describe('list kinds and the inbox endpoint', () => {
+  const INBOX_TOKEN = 'inbox-token-for-n8n-0123456789abcdef'
+
+  async function inbox(env: Env, body: unknown, token = INBOX_TOKEN): Promise<{ status: number; payload: Envelope }> {
+    const response = await handle(new Request('https://ego.example/v1/tasks/inbox', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      body: JSON.stringify(body)
+    }), env)
+    return { status: response.status, payload: await response.json() as Envelope }
+  }
+
+  async function seedInbox(env: Env): Promise<{ db: LocalDatabase; sync: () => Promise<unknown> }> {
+    const first = await phone(env)
+    await seedBoard(first.db)
+    await createTaskList(first.db, { boardId: 'b-1', name: 'Inbox', position: 512, archivedAt: null, kind: 'inbox' }, NOW, 'l-inbox')
+    await saveTaskCard(first.db, 'k-1', null, card({ listId: 'l-inbox', position: 2048 }), NOW)
+    await first.sync()
+    return first
+  }
+
+  it('keeps a list\'s kind when a build without kinds saves the list', async () => {
+    const env = await setup()
+    const first = await seedInbox(env)
+    const saved = (await localTasks(first.db)).lists.find((list) => list.id === 'l-inbox')
+    expect(saved?.kind).toBe('inbox')
+    const result = await over<OperationResponse>(env, '/v1/operations', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ operations: [operation({
+        operationId: 'op-rename', entityId: 'l-inbox', expectedRevision: saved?.revision ?? 1,
+        command: { entity: 'taskList', type: 'update', payload: { boardId: 'b-1', name: 'In', position: 512, archivedAt: null } }
+      })] })
+    })
+    expect(result.ok && result.data.failed).toBeNull()
+    const second = await phone(env)
+    await second.sync()
+    expect((await localTasks(second.db)).lists.find((list) => list.id === 'l-inbox')).toMatchObject({ name: 'In', kind: 'inbox' })
+  })
+
+  it('needs the inbox token', async () => {
+    const env = await setup()
+    expect((await inbox(env, { title: 'Hi' })).status).toBe(503)
+    const configured = { ...env, TASKS_INBOX_TOKEN: INBOX_TOKEN }
+    expect((await inbox(configured, { title: 'Hi' }, 'wrong-token')).status).toBe(401)
+    expect((await inbox(configured, { title: 'Hi' }, TOKEN)).status).toBe(401)
+  })
+
+  it('adds a card to the bottom of the Inbox from Trello-style fields, once per id', async () => {
+    const env = { ...await setup(), TASKS_INBOX_TOKEN: INBOX_TOKEN }
+    const first = await seedInbox(env)
+    const sent = await inbox(env, {
+      name: 'Renew passport', desc: 'Photos first', due: '2026-10-20T21:30:00.000Z', labels: 'home, Nope', id: 'n8n-42'
+    })
+    expect(sent.status).toBe(201)
+    expect(sent.payload.data).toMatchObject({ id: 'inbox-n8n-42', duplicate: false, list: 'Inbox', unknownLabels: ['Nope'] })
+    const again = await inbox(env, { title: 'Renew passport', id: 'n8n-42' })
+    expect(again.status).toBe(200)
+    expect(again.payload.data).toMatchObject({ id: 'inbox-n8n-42', duplicate: true })
+
+    await first.sync()
+    const added = (await localTasks(first.db)).cards.find((item) => item.id === 'inbox-n8n-42')
+    expect(added).toMatchObject({
+      listId: 'l-inbox', boardId: 'b-1', title: 'Renew passport', description: 'Photos first', position: 3072,
+      labelIds: ['x-1'], dueDate: '2026-10-20', dueTime: '17:30', reminderMinutes: 60
+    })
+    expect(added?.activity.map((entry) => entry.text)).toEqual(['Added this card to "Inbox"'])
+  })
+
+  it('reads a local due date and refuses a bad one', async () => {
+    const env = { ...await setup(), TASKS_INBOX_TOKEN: INBOX_TOKEN }
+    await seedInbox(env)
+    expect((await inbox(env, { title: 'Dentist', due: '2026-11-02' })).status).toBe(201)
+    expect((await inbox(env, { title: 'Dentist', due: 'next friday' })).payload.error?.message)
+      .toBe('Send due as 2026-10-12, 2026-10-12T17:00, or a full ISO time')
+    expect((await inbox(env, { description: 'No title' })).payload.error?.message).toBe('Send a title')
+  })
+
+  it('says so when no board has an Inbox', async () => {
+    const env = { ...await setup(), TASKS_INBOX_TOKEN: INBOX_TOKEN }
+    const first = await phone(env)
+    await seedBoard(first.db)
+    await first.sync()
+    expect((await inbox(env, { title: 'Lost' })).status).toBe(404)
+  })
+})

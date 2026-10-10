@@ -161,7 +161,7 @@ export function EventPanel({ event, calendar, calendars, today, multipleAccounts
         </Row>}
         {permissions.reason && !source && <p className="mt-2 rounded-2xl bg-surface-900 px-4 py-3 text-[14px] text-surface-300">{permissions.reason}</p>}
         {source === 'tasks' && <Button className="mt-3" variant="secondary" onClick={() => navigate(cardPath(event.id), { state: { back: '/calendar' } })}>Open in Tasks</Button>}
-        {source === 'study' && <Button className="mt-3" variant="secondary" onClick={() => navigate('/study/assignments')}>Open in Study</Button>}
+        {source === 'study' && <Button className="mt-3" variant="secondary" onClick={() => navigate('/tasks')}>Open the USF column</Button>}
         {source === 'gym' && <Button className="mt-3" variant="secondary" onClick={() => navigate('/gym')}>Open in Gym</Button>}
       </div>
     </div>

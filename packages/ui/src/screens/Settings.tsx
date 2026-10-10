@@ -27,11 +27,11 @@ import { cn } from '../lib/utils'
 
 const SERVICES: Array<{ key: keyof ServiceStatus; label: string; secret: string }> = [
   { key: 'assistant', label: 'AI', secret: 'OPENROUTER_API_KEY' },
-  { key: 'trello', label: 'Trello', secret: 'TRELLO_API_KEY and TRELLO_TOKEN' },
   { key: 'voice', label: 'Talk to AI voice', secret: 'OPENAI_API_KEY' },
   { key: 'google', label: 'Gmail and Drive', secret: 'Connect under Talk to AI below' },
   { key: 'canvas', label: 'Canvas calendar', secret: 'CANVAS_CALENDAR_URL' },
-  { key: 'googleHealth', label: 'Google Health', secret: 'Connect from the Health app' }
+  { key: 'googleHealth', label: 'Google Health', secret: 'Connect from the Health app' },
+  { key: 'tasksInbox', label: 'n8n inbox', secret: 'TASKS_INBOX_TOKEN' }
 ]
 
 function useSession(): { session: SessionInfo | null; error: string | null } {

@@ -136,7 +136,7 @@ function boardsForPrompt(tasks: TaskRows): unknown[] {
   return boards.slice(0, MAX_PROMPT_BOARDS).map((board) => ({
     id: board.id,
     name: board.name,
-    lists: lists.filter((list) => list.board_id === board.id).map(({ id, name }) => ({ id, name })),
+    lists: lists.filter((list) => list.board_id === board.id).map(({ id, name, kind }) => ({ id, name, ...(kind === 'cards' ? {} : { kind }) })),
     labels: tasks.labels.filter((label) => label.board_id === board.id).map(({ id, name, color }) => ({ id, name: name || null, color }))
   }))
 }
@@ -313,7 +313,7 @@ export async function assistantSystemPrompt(ctx: ToolContext): Promise<string> {
     `Money is USD. Tools take and return integer cents; write amounts in cents and say them in dollars. Accounts: ${JSON.stringify(accounts)}. The first account is the default when the user names none. Categories: ${JSON.stringify(categories)}. Pick the category by meaning and match its kind to the transaction.`,
     `Habits: ${JSON.stringify(habitList)}. A habit to build is checked off; a habit to break logs slips. target is check-offs per day, or days per week when period is week.`,
     `Exercises: ${JSON.stringify(exerciseList)}.${exercises.length > MAX_PROMPT_EXERCISES ? ' The list is cut short; ask the user for the exact name if theirs is missing.' : ''} Weights default to each exercise's unit. "3x8 at 185" means three sets of eight reps at 185. Log each set separately.`,
-    `Task boards, with their lists and labels: ${JSON.stringify(boardsForPrompt(tasks))}. Cards live in lists; read_tasks lists them. When the user names no list for a new card, use the first list of the board they mean, or ask when the board is unclear. Due times are the user's local clock.`,
+    `Task boards, with their lists and labels: ${JSON.stringify(boardsForPrompt(tasks))}. Cards live in lists; read_tasks lists them. When the user names no board or list for a new card, use the list with kind inbox. When they name a board but no list, use that board's first list. The list with kind usf is the USF school column: Canvas assignments in it come from the study tools, not from task cards. Due times are the user's local clock.`,
     calendar,
     `Health numbers come from a Fitbit through Google Health. The user reads ${imperial ? 'miles and pounds' : 'kilometers and kilograms'}; tool results carry both. Mood is 1 to 5: 1 Awful, 2 Bad, 3 Okay, 4 Good, 5 Great.`,
     `Food: log_food estimates calories and protein, carbs, and fat for what the user ate. With a meal photo attached, read the plate and set usePhoto on that entry; use a visible nutrition label's numbers exactly. Log a meal photo in the reply to the message that carries it, with your best estimate, rather than asking first: a photo cannot be attached later, and amounts are easy to fix in Food. A receipt photo is money: record it, and for groceries fill fridgeItems with every food and drink on it under plain names. A photo of groceries or a fridge goes to add_fridge_items. Daily targets, null where none is set: ${JSON.stringify(goalOf(goal))}.`,

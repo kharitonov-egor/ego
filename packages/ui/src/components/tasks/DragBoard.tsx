@@ -1,10 +1,11 @@
 import React, { useLayoutEffect, useRef, useState } from 'react'
-import { Ellipsis, Plus, X } from 'lucide-react'
+import { Ellipsis, GraduationCap, Inbox, Plus, X } from 'lucide-react'
 import type { TaskCardRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
 import { Blurred } from '../../lib/blur'
 import { columnAt, dropIndex, edgeScroll, usePointerDrag } from '../../lib/tasks/drag'
 import { color } from '../../lib/tokens'
 import { CardFace, DraggingCursor } from './ui'
+import { USF_GREEN } from './UsfColumn'
 
 const COLUMN = 300
 const GAP = 10
@@ -32,6 +33,13 @@ interface Hover {
   index: number
 }
 
+/** What a special list adds around its cards: a header button, controls on top, and items after the cards. */
+export interface ListExtras {
+  action?: React.ReactNode
+  top?: React.ReactNode
+  bottom?: React.ReactNode
+}
+
 export interface DragBoardProps {
   lists: readonly TaskListRecord[]
   /** The cards each list shows, in order, after the board's filters. */
@@ -46,6 +54,7 @@ export interface DragBoardProps {
   onAddCard: (listId: string, title: string) => Promise<boolean>
   onListMenu: (list: TaskListRecord) => void
   onAddList: (name: string) => Promise<boolean>
+  listExtras?: (list: TaskListRecord) => ListExtras | null
 }
 
 function Placeholder({ height, width }: { height: number; width?: number }): React.ReactElement {
@@ -233,24 +242,32 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
     const shown = drag?.kind === 'card' ? all.filter((card) => card.id !== drag.card.id) : all
     const items: Array<TaskCardRecord | 'placeholder'> = [...shown]
     if (drag?.kind === 'card' && hover?.listId === list.id) items.splice(Math.min(hover.index, items.length), 0, 'placeholder')
+    const extras = props.listExtras?.(list) ?? null
+    const usf = list.kind === 'usf'
     return <section key={list.id} data-column aria-label={list.name} className="flex max-h-full shrink-0 flex-col rounded-2xl bg-surface-900" style={{ width: COLUMN }}>
       <div
         role="button"
         tabIndex={0}
-        aria-label={`${list.name}, ${all.length} cards. Drag to move the list.`}
+        aria-label={`${list.name}${list.kind === 'inbox' ? ', the Inbox' : usf ? ', with Canvas assignments' : ''}, ${all.length} cards. Drag to move the list.`}
         onPointerDown={(event) => press(event, { kind: 'list', list })}
         onKeyDown={(event) => {
           if (event.key !== 'Enter' && event.key !== ' ') return
           event.preventDefault()
           props.onListMenu(list)
         }}
-        style={{ height: HEADER }}
-        className="flex shrink-0 cursor-pointer select-none items-center rounded-t-2xl pl-4 pr-1 transition-colors hover:bg-surface-800/60"
+        style={{ height: HEADER, backgroundColor: usf ? USF_GREEN : undefined }}
+        className={usf
+          ? 'flex shrink-0 cursor-pointer select-none items-center rounded-t-2xl pl-4 pr-1 transition-[filter] hover:brightness-110'
+          : 'flex shrink-0 cursor-pointer select-none items-center rounded-t-2xl pl-4 pr-1 transition-colors hover:bg-surface-800/60'}
       >
-        <Blurred><span className="min-w-0 flex-1 truncate text-[16px] font-bold text-surface-100">{list.name}</span></Blurred>
-        <span className="tabular ml-2 text-[14px] font-semibold text-surface-500">{all.length}</span>
-        <span className="flex h-11 w-11 items-center justify-center"><Ellipsis color={color.textMuted} size={20} /></span>
+        {list.kind === 'inbox' && <Inbox color={color.textSecondary} size={17} className="mr-2 shrink-0" />}
+        {usf && <GraduationCap color="#ffffff" size={18} className="mr-2 shrink-0" />}
+        <Blurred><span className={usf ? 'min-w-0 flex-1 truncate text-[16px] font-bold text-white' : 'min-w-0 flex-1 truncate text-[16px] font-bold text-surface-100'}>{list.name}</span></Blurred>
+        <span className={usf ? 'tabular ml-2 text-[14px] font-semibold text-white/70' : 'tabular ml-2 text-[14px] font-semibold text-surface-500'}>{all.length}</span>
+        {extras?.action}
+        <span className="flex h-11 w-11 items-center justify-center"><Ellipsis color={usf ? '#ffffff' : color.textMuted} size={20} /></span>
       </div>
+      {extras?.top}
       <div
         ref={(view) => {
           if (view) scrollers.current.set(list.id, view)
@@ -280,6 +297,7 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
           >
             <CardFace card={item} labels={labels} now={now} upload={uploads.get(item.id)} onToggleDone={() => props.onToggleDone(item.id)} />
           </div>)}
+        {extras?.bottom}
       </div>
       {adding === list.id
         ? <div className="shrink-0 px-2 pb-2">

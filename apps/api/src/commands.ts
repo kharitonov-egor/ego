@@ -6,11 +6,11 @@ import {
   type SyncCommand, type SyncEntity, type SyncOperation
 } from '@ego/api-contracts'
 import {
-  FOOD_GOAL_ID, HABIT_TARGET_LIMIT, diaryMediaIds, entryKindFits, foodMediaIds, taskMediaIds,
+  FOOD_GOAL_ID, HABIT_TARGET_LIMIT, diaryMediaIds, entryKindFits, foodMediaIds, isTaskListKind, taskMediaIds,
   type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type DiaryMessageInput,
   type FoodEntryInput, type FoodGoalInput, type FridgeItemInput, type GymPlanInput, type GymSetInput, type HabitInput,
   type MoodInput, type PurchaseInput, type SheetInput, type SheetRowInput, type TaskBoardInput, type TaskCardInput,
-  type TaskGoalInput, type TaskLabelInput, type TaskListInput, type TransactionInput
+  type TaskGoalInput, type TaskLabelInput, type TaskListInput, type TaskListKind, type TransactionInput
 } from '@ego/core'
 import { query, readLatestChange, serverSequence } from './reads'
 import {
@@ -1223,10 +1223,12 @@ async function planTaskBoard(
   }
 }
 
-function taskListRowFrom(id: string, input: TaskListInput, createdAt: string, updatedAt: string, revision: number): TaskListRow {
+function taskListRowFrom(
+  id: string, input: TaskListInput, kind: TaskListKind, createdAt: string, updatedAt: string, revision: number
+): TaskListRow {
   return {
     id, board_id: input.boardId, name: input.name.trim(), position: input.position, archived_at: input.archivedAt,
-    created_at: createdAt, updated_at: updatedAt, revision
+    kind, created_at: createdAt, updated_at: updatedAt, revision
   }
 }
 
@@ -1238,13 +1240,13 @@ async function planTaskList(
     const input = command.payload
     if (!await liveRow<TaskBoardRow>(db, 'taskBoard', input.boardId)) return conflict('That board was deleted on another device')
     const parent = liveGuard('taskBoard', input.boardId)
-    const row = taskListRowFrom(id, input, now, now, 1)
+    const row = taskListRowFrom(id, input, input.kind ?? 'cards', now, now, 1)
     return {
       ok: true,
       data: upsertPlan('taskList', id, 1, { entity: 'taskList', record: toTaskListRecord(row) }, guarded({
-        sql: `INSERT INTO task_lists (id, board_id, name, position, archived_at, created_at, updated_at, revision)
-          SELECT ?, ?, ?, ?, ?, ?, ?, 1`,
-        params: [id, row.board_id, row.name, row.position, row.archived_at, now, now]
+        sql: `INSERT INTO task_lists (id, board_id, name, position, archived_at, kind, created_at, updated_at, revision)
+          SELECT ?, ?, ?, ?, ?, ?, ?, ?, 1`,
+        params: [id, row.board_id, row.name, row.position, row.archived_at, row.kind, now, now]
       }, parent), parent)
     }
   }
@@ -1257,13 +1259,14 @@ async function planTaskList(
   }
   if (command.payload.boardId !== current.board_id) return invalid('A list cannot move to another board')
   const revision = expected + 1
-  const row = taskListRowFrom(id, command.payload, current.created_at, now, revision)
+  const kind = command.payload.kind ?? (isTaskListKind(current.kind) ? current.kind : 'cards')
+  const row = taskListRowFrom(id, command.payload, kind, current.created_at, now, revision)
   return {
     ok: true,
     data: upsertPlan('taskList', id, revision, { entity: 'taskList', record: toTaskListRecord(row) }, {
-      sql: `UPDATE task_lists SET name = ?, position = ?, archived_at = ?, updated_at = ?, revision = revision + 1
+      sql: `UPDATE task_lists SET name = ?, position = ?, archived_at = ?, kind = ?, updated_at = ?, revision = revision + 1
         WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
-      params: [row.name, row.position, row.archived_at, now, id, expected]
+      params: [row.name, row.position, row.archived_at, row.kind, now, id, expected]
     }, guard)
   }
 }

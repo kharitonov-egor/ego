@@ -3,9 +3,12 @@ import { useLocation, useNavigate } from 'react-router'
 import { CalendarClock, SquareKanban, Target } from 'lucide-react'
 import type { TabLinkItem } from '../../components/screen'
 
+/** `/tasks` itself opens the home board, so the board list has its own path. */
+export const BOARDS_PATH = '/tasks/boards'
+
 /** The phone's Tasks tabs, drawn in the header. */
 export const TASKS_TABS: readonly TabLinkItem[] = [
-  { to: '/tasks', label: 'Boards', Icon: SquareKanban, end: true },
+  { to: BOARDS_PATH, label: 'Boards', Icon: SquareKanban },
   { to: '/tasks/goals', label: 'Goals', Icon: Target },
   { to: '/tasks/upcoming', label: 'Upcoming', Icon: CalendarClock }
 ]

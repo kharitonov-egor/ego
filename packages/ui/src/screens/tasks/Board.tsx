@@ -1,19 +1,29 @@
 import React, { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import {
-  Activity, Archive, ArchiveRestore, Ellipsis, Eye, EyeOff, ListFilter, Pencil, Plus, Tag, Trash2, X
+  Activity, Archive, ArchiveRestore, Ellipsis, Eye, EyeOff, GraduationCap, Inbox, LayoutGrid, ListFilter, Pencil, Plus, Tag,
+  Trash2, X
 } from 'lucide-react'
 import type { TaskListRecord } from '@ego/api-contracts'
-import { boardLabels, boardLists, isFiltering, listCards, matchesFilter, NO_FILTER, type CardFilter } from '@ego/local/tasks/board'
+import {
+  boardLabels, boardLists, homeBoardId, isFiltering, listCards, matchesFilter, NO_FILTER, type CardFilter
+} from '@ego/local/tasks/board'
 import { Screen, ScreenHeader } from '../../components/screen'
-import { DragBoard } from '../../components/tasks/DragBoard'
+import { DragBoard, type ListExtras } from '../../components/tasks/DragBoard'
 import { BoardSheet, FilterSheet, LabelSheet, TextSheet } from '../../components/tasks/sheets'
-import { MenuSheet, TasksError, TasksGate, TasksMessage } from '../../components/tasks/ui'
-import { IconButton } from '../../components/ui/button'
+import { MenuSheet, TasksError, TasksGate, TasksMessage, type MenuItem } from '../../components/tasks/ui'
+import { NO_USF_FILTER, UsfAssignments, UsfControls, UsfRefresh, inCourse, type UsfFilter } from '../../components/tasks/UsfColumn'
+import { Button, IconButton } from '../../components/ui/button'
 import { ConfirmDialog } from '../../components/ui/dialog'
+import { StudyProvider } from '../../lib/study/context'
 import { useTasks } from '../../lib/tasks/context'
 import { color } from '../../lib/tokens'
-import { activityPath, archivePath, useOpenCard } from './nav'
+import { BOARDS_PATH, activityPath, archivePath, useOpenCard } from './nav'
+
+/** Canvas is read only for a board that shows it. */
+function MaybeStudy({ active, children }: { active: boolean; children: React.ReactNode }): React.ReactElement {
+  return active ? <StudyProvider>{children}</StudyProvider> : <>{children}</>
+}
 
 function Board({ boardId }: { boardId: string }): React.ReactElement {
   const tasks = useTasks()
@@ -29,35 +39,57 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
   const [addingTop, setAddingTop] = useState<TaskListRecord | null>(null)
   const [deletingList, setDeletingList] = useState<TaskListRecord | null>(null)
   const [archiving, setArchiving] = useState(false)
+  const [usfFilter, setUsfFilter] = useState<UsfFilter>(NO_USF_FILTER)
 
   const data = tasks.data
   const board = data?.boards.find((item) => item.id === boardId)
   const active = isFiltering(filter)
+  const isHome = data ? homeBoardId(data) === boardId : false
 
   const lists = useMemo(() => data ? boardLists(data, boardId) : [], [boardId, data])
   const labels = useMemo(() => data ? boardLabels(data, boardId) : [], [boardId, data])
+  const hasUsf = lists.some((list) => list.kind === 'usf')
   const cards = useMemo(() => {
     const shown = new Map<string, ReturnType<typeof listCards>>()
     if (!data || !board) return shown
+    const labelName = new Map(labels.map((label) => [label.id, label.name]))
     for (const list of lists) {
+      const course = list.kind === 'usf' ? usfFilter.course : null
       shown.set(list.id, listCards(data, list.id).filter((card) =>
-        !(board.hideDone && card.doneAt !== null) && matchesFilter(card, filter, tasks.now)))
+        !(board.hideDone && card.doneAt !== null) && matchesFilter(card, filter, tasks.now) &&
+        (course === null || inCourse(card.labelIds.map((id) => labelName.get(id) ?? ''), course))))
     }
     return shown
-  }, [board, data, filter, lists, tasks.now])
+  }, [board, data, filter, labels, lists, tasks.now, usfFilter.course])
+  const listExtras = (list: TaskListRecord): ListExtras | null => list.kind === 'usf'
+    ? {
+      action: <UsfRefresh />,
+      top: <UsfControls filter={usfFilter} onChange={setUsfFilter} now={tasks.now} />,
+      bottom: <UsfAssignments filter={usfFilter} now={tasks.now} />
+    }
+    : null
+  const kindItems = (list: TaskListRecord): MenuItem[] => [
+    ...(list.kind === 'inbox' ? [] : [{ label: 'Make this the Inbox', Icon: Inbox, onPress: () => void tasks.setListKind(list.id, 'inbox') }]),
+    list.kind === 'usf'
+      ? { label: 'Stop showing Canvas assignments', Icon: GraduationCap, onPress: () => void tasks.setListKind(list.id, 'cards') }
+      : { label: 'Show Canvas assignments here', Icon: GraduationCap, onPress: () => void tasks.setListKind(list.id, 'usf') }
+  ]
   const matching = useMemo(() => [...cards.values()].reduce((total, list) => total + list.length, 0), [cards])
 
   if (!data || !board) {
     return <Screen>
-      <ScreenHeader title="" back="/tasks" />
+      <ScreenHeader title="" back={BOARDS_PATH} />
       <div className="min-h-0 flex-1">
-        <TasksMessage title="This board is gone" detail="It was deleted, maybe on another device." action="Back to boards" onAction={() => navigate('/tasks')} />
+        <TasksMessage title="This board is gone" detail="It was deleted, maybe on another device." action="Back to boards" onAction={() => navigate(BOARDS_PATH)} />
       </div>
     </Screen>
   }
 
   return <Screen>
-    <ScreenHeader title={`${board.icon ? `${board.icon} ` : ''}${board.name}`} back="/tasks" right={<>
+    <ScreenHeader title={`${board.icon ? `${board.icon} ` : ''}${board.name}`} back={isHome ? undefined : BOARDS_PATH} right={<>
+      {isHome && <Button variant="ghost" size="sm" onClick={() => navigate(BOARDS_PATH)} className="text-surface-300">
+        <LayoutGrid size={16} />All boards
+      </Button>}
       <IconButton label="Filter cards" onClick={() => setFiltering(true)} className="relative">
         <ListFilter size={20} />
         {active && <span className="absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full bg-white" />}
@@ -80,7 +112,7 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
         </button>
       </div>}
     </div>}
-    <DragBoard
+    <MaybeStudy active={hasUsf}><DragBoard
       lists={lists}
       cards={cards}
       labels={labels}
@@ -93,7 +125,8 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
       onAddCard={async (listId, title) => (await tasks.createCard(listId, title)) !== null}
       onListMenu={setListMenu}
       onAddList={async (name) => (await tasks.createList(boardId, name)) !== null}
-    />
+      listExtras={listExtras}
+    /></MaybeStudy>
     <MenuSheet
       visible={menu}
       title={board.name}
@@ -120,6 +153,7 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
       items={listMenu ? [
         { label: 'Rename list', Icon: Pencil, onPress: () => setRenaming(listMenu) },
         { label: 'Add a card to the top', Icon: Plus, onPress: () => setAddingTop(listMenu) },
+        ...kindItems(listMenu),
         { label: 'Archive all cards in this list', Icon: Archive, onPress: () => void tasks.archiveListCards(listMenu.id) },
         { label: 'Archive this list', Icon: Archive, onPress: () => void tasks.updateList(listMenu.id, { archivedAt: new Date().toISOString() }) },
         { label: 'Delete this list', Icon: Trash2, destructive: true, onPress: () => setDeletingList(listMenu) }
@@ -183,7 +217,7 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
       onCancel={() => setArchiving(false)}
       onConfirm={() => {
         setArchiving(false)
-        void tasks.updateBoard(board.id, { archivedAt: new Date().toISOString() }).then((saved) => { if (saved) navigate('/tasks') })
+        void tasks.updateBoard(board.id, { archivedAt: new Date().toISOString() }).then((saved) => { if (saved) navigate(BOARDS_PATH) })
       }}
     />
   </Screen>
@@ -191,5 +225,5 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
 
 export default function BoardScreen(): React.ReactElement {
   const { id = '' } = useParams()
-  return <TasksGate title="" back="/tasks"><Board key={id} boardId={id} /></TasksGate>
+  return <TasksGate title="" back={BOARDS_PATH}><Board key={id} boardId={id} /></TasksGate>
 }

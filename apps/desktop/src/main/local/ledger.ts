@@ -19,6 +19,10 @@ const EVERYTHING: Touched = {
   money: true, gym: true, health: true, habits: true, diary: true, tasks: true, sheets: true, food: true, content: true
 }
 
+const NOTHING: Touched = {
+  money: false, gym: false, health: false, habits: false, diary: false, tasks: false, sheets: false, food: false, content: false
+}
+
 interface Session {
   datasetId: string
   database: LedgerDatabase
@@ -213,6 +217,12 @@ export function syncLedger(): Promise<LedgerState> {
     inFlight = null
   })
   return inFlight
+}
+
+/** A write this process made itself, like a quick-add card: the window rereads that app, then it goes out. */
+export function announceLocalWrite(app: keyof Touched): void {
+  emit({ ...NOTHING, [app]: true })
+  void syncLedger()
 }
 
 /** After sign-in, sign-out, or a new server: close the old copy, open the right one, and sync it. */
