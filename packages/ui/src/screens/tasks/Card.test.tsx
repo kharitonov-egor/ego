@@ -15,7 +15,7 @@ import CardScreen, { CardPanel } from './Card'
 const STAMP = '2026-10-01T09:00:00.000Z'
 
 const board: TaskBoardRecord = { id: 'b-1', name: 'Life', icon: '', position: 1024, hideDone: false, archivedAt: null, createdAt: STAMP, updatedAt: STAMP, revision: 1 }
-const list: TaskListRecord = { id: 'l-1', boardId: 'b-1', name: 'Backlog', position: 1024, archivedAt: null, createdAt: STAMP, updatedAt: STAMP, revision: 1 }
+const list: TaskListRecord = { id: 'l-1', boardId: 'b-1', name: 'Backlog', kind: 'cards', position: 1024, archivedAt: null, createdAt: STAMP, updatedAt: STAMP, revision: 1 }
 const card: TaskCardRecord = {
   id: 'k-1', boardId: 'b-1', listId: 'l-1', title: 'Pay rent', description: '', position: 1024, labelIds: [],
   priority: 'none', dueDate: null, dueTime: null, reminderMinutes: null, doneAt: null, archivedAt: null, checklists: [],
