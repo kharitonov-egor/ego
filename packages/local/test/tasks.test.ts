@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { TaskBoardRecord, TaskCardRecord, TaskListRecord } from '@ego/api-contracts'
 import {
-  NO_FILTER, cardInput, carryLabels, columnHex, doneList, dueBadge, focusListOf, hexWithAlpha, homeBoardId, inboxCardInput, inboxList,
-  matchesFilter, placeAt, upcomingSections, withDoneMove
+  NO_FILTER, cardInput, carryLabels, columnHex, doneList, doneMove, dueBadge, focusListOf, hexWithAlpha, homeBoardId, inboxCardInput,
+  inboxList, marksDone, matchesFilter, placeAt, upcomingSections
 } from '../src/tasks/board'
 import { parseInline, parseMarkdown, prefixLines, toggleTaskLine, wrapSelection } from '../src/tasks/markdown'
 import { cardIdFromNotification, taskNotificationPlan } from '../src/tasks/reminders'
@@ -211,27 +211,33 @@ describe('moving done cards to Done', () => {
   ]
   const cards = [card(), card({ id: 'k-2', listId: 'l-done', position: 4096, doneAt: STAMP }), card({ id: 'k-3', listId: 'l-work' })]
   const tasks = (moveDone: boolean): TaskData => data(cards, { boards: [board({ moveDone })], lists })
-  const markDone = (from: TaskCardRecord, on: boolean) => withDoneMove(tasks(on), cardInput(from), { ...cardInput(from), doneAt: STAMP })
+  const checked = (from: TaskCardRecord) => ({ ...cardInput(from), doneAt: STAMP })
 
   it('finds the first live list named Done', () => {
     expect(doneList(tasks(true), 'b-1')?.id).toBe('l-done')
     expect(doneList(data([]), 'b-1')).toBeNull()
   })
 
-  it('sends a card just marked done to the bottom of Done when the board says so', () => {
-    expect(markDone(cards[0], true)).toMatchObject({ listId: 'l-done', position: 5120, doneAt: STAMP })
+  it('sends a done card to the bottom of Done when the board says so', () => {
+    expect(doneMove(tasks(true), checked(cards[0]))).toMatchObject({ listId: 'l-done', position: 5120, doneAt: STAMP })
   })
 
   it('leaves the card where it is when the setting is off', () => {
-    expect(markDone(cards[0], false)).toMatchObject({ listId: 'l-1', position: 1024, doneAt: STAMP })
+    expect(doneMove(tasks(false), checked(cards[0]))).toBeNull()
   })
 
-  it('leaves Work cards, reopened cards, and other edits alone', () => {
-    expect(markDone(cards[2], true).listId).toBe('l-work')
-    const done = cardInput(cards[1])
-    expect(withDoneMove(tasks(true), { ...done, listId: 'l-1', doneAt: STAMP }, { ...done, listId: 'l-1', doneAt: null }).listId).toBe('l-1')
-    const renamed = cardInput(card({ doneAt: STAMP }))
-    expect(withDoneMove(tasks(true), renamed, { ...renamed, title: 'Pay the rent' }).listId).toBe('l-1')
+  it('leaves Work cards, open cards, and cards already in Done alone', () => {
+    expect(doneMove(tasks(true), checked(cards[2]))).toBeNull()
+    expect(doneMove(tasks(true), cardInput(cards[0]))).toBeNull()
+    expect(doneMove(tasks(true), cardInput(cards[1]))).toBeNull()
+  })
+
+  it('treats only a check in place as marking done', () => {
+    const open = cardInput(cards[0])
+    expect(marksDone(open, checked(cards[0]))).toBe(true)
+    expect(marksDone(open, { ...checked(cards[0]), listId: 'l-done' })).toBe(false)
+    expect(marksDone(checked(cards[0]), { ...checked(cards[0]), title: 'Pay the rent' })).toBe(false)
+    expect(marksDone(checked(cards[0]), open)).toBe(false)
   })
 })
 

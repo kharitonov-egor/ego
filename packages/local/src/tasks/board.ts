@@ -51,17 +51,25 @@ export function doneList(data: TaskData, boardId: string): TaskListRecord | null
   return boardLists(data, boardId).find(isTaskDoneList) ?? null
 }
 
+/** A card just marked done stays checked in its list this long before it moves, so the check is seen. */
+export const DONE_MOVE_DELAY_MS = 100
+
+/** A change that checks a card off where it sits, which the board's move-done setting may follow with a move. */
+export function marksDone(before: TaskCardInput, next: TaskCardInput): boolean {
+  return before.doneAt === null && next.doneAt !== null && next.listId === before.listId
+}
+
 /**
- * With the board's move-done setting on, a card just marked done goes to the bottom of the Done
- * list. Work cards stay put, because the work Trello sync archives them once Trello has them in Done!.
+ * With the board's move-done setting on, a done card goes to the bottom of the Done list. Null when it
+ * stays put. Work cards stay, because the work Trello sync archives them once Trello has them in Done!.
  */
-export function withDoneMove(data: TaskData, before: TaskCardInput, next: TaskCardInput): TaskCardInput {
-  if (before.doneAt !== null || next.doneAt === null || next.listId !== before.listId) return next
-  if (!data.boards.find((board) => board.id === next.boardId)?.moveDone) return next
-  if (data.lists.find((list) => list.id === next.listId)?.kind === 'work') return next
-  const target = doneList(data, next.boardId)
-  if (!target || target.id === next.listId) return next
-  return { ...next, listId: target.id, position: endPosition(listCards(data, target.id)) }
+export function doneMove(data: TaskData, card: TaskCardInput): TaskCardInput | null {
+  if (card.doneAt === null) return null
+  if (!data.boards.find((board) => board.id === card.boardId)?.moveDone) return null
+  if (data.lists.find((list) => list.id === card.listId)?.kind === 'work') return null
+  const target = doneList(data, card.boardId)
+  if (!target || target.id === card.listId) return null
+  return { ...card, listId: target.id, position: endPosition(listCards(data, target.id)) }
 }
 
 /** The board Tasks opens on: the one holding the Inbox. */
