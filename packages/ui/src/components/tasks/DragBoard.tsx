@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useRef, useState } from 'react'
-import { Ellipsis, GraduationCap, Inbox, Plus, X } from 'lucide-react'
+import { Briefcase, Ellipsis, GraduationCap, Inbox, Plus, X } from 'lucide-react'
 import type { TaskCardRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
 import { Blurred } from '../../lib/blur'
 import { columnAt, dropIndex, edgeScroll, usePointerDrag } from '../../lib/tasks/drag'
@@ -48,6 +48,8 @@ export interface DragBoardProps {
   now: Date
   uploads: ReadonlyMap<string, 'sending' | 'failed'>
   onOpenCard: (cardId: string) => void
+  /** A right click on a card, with where the card sits on screen. */
+  onCardMenu: (cardId: string, rect: DOMRect) => void
   onToggleDone: (cardId: string) => void
   onMoveCard: (cardId: string, listId: string, index: number, siblingIds: string[]) => void
   onMoveList: (listId: string, index: number) => void
@@ -248,7 +250,7 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
       <div
         role="button"
         tabIndex={0}
-        aria-label={`${list.name}${list.kind === 'inbox' ? ', the Inbox' : usf ? ', with Canvas assignments' : ''}, ${all.length} cards. Drag to move the list.`}
+        aria-label={`${list.name}${list.kind === 'inbox' ? ', the Inbox' : usf ? ', with Canvas assignments' : list.kind === 'work' ? ', synced with work Trello' : ''}, ${all.length} cards. Drag to move the list.`}
         onPointerDown={(event) => press(event, { kind: 'list', list })}
         onKeyDown={(event) => {
           if (event.key !== 'Enter' && event.key !== ' ') return
@@ -262,6 +264,7 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
       >
         {list.kind === 'inbox' && <Inbox color={color.textSecondary} size={17} className="mr-2 shrink-0" />}
         {usf && <GraduationCap color="#ffffff" size={18} className="mr-2 shrink-0" />}
+        {list.kind === 'work' && <Briefcase color={color.textSecondary} size={17} className="mr-2 shrink-0" />}
         <Blurred><span className={usf ? 'min-w-0 flex-1 truncate text-[16px] font-bold text-white' : 'min-w-0 flex-1 truncate text-[16px] font-bold text-surface-100'}>{list.name}</span></Blurred>
         <span className={usf ? 'tabular ml-2 text-[14px] font-semibold text-white/70' : 'tabular ml-2 text-[14px] font-semibold text-surface-500'}>{all.length}</span>
         {extras?.action}
@@ -292,6 +295,10 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
               if (event.key !== 'Enter' && event.key !== ' ') return
               event.preventDefault()
               props.onOpenCard(item.id)
+            }}
+            onContextMenu={(event) => {
+              event.preventDefault()
+              if (!dragRef.current) props.onCardMenu(item.id, event.currentTarget.getBoundingClientRect())
             }}
             className="shrink-0 cursor-pointer select-none rounded-xl transition-[filter] hover:brightness-125"
           >

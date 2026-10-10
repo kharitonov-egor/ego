@@ -37,9 +37,10 @@ export function cardIdFromNotification(identifier: string): string | null {
   return identifier.slice(TASK_REMINDER_PREFIX.length) || null
 }
 
-/** "today at 5 PM" reads as a sentence; "Oct 3" keeps its capital. */
+/** "Due tomorrow at 5 PM" and "Due at 5 PM" read as sentences; "Oct 3" and "EOD" keep their capitals. */
 function dueWords(label: string): string {
-  return /^(Today|Tomorrow|Yesterday)/.test(label) ? `${label.charAt(0).toLowerCase()}${label.slice(1)}` : label
+  if (/^\d/.test(label)) return `at ${label}`
+  return /^(Tomorrow|Yesterday)/.test(label) ? `${label.charAt(0).toLowerCase()}${label.slice(1)}` : label
 }
 
 function plural(count: number, one: string): string {

@@ -29,6 +29,9 @@ export interface Env {
   TASKS_INBOX_TOKEN?: string
   TRELLO_API_KEY?: string
   TRELLO_TOKEN?: string
+  /** The work Trello account, which the Work list mirrors. The token needs read and write. */
+  TRELLO_WORK_API_KEY?: string
+  TRELLO_WORK_TOKEN?: string
   /** The Canvas calendar feed link. Anyone holding it can read the calendar. */
   CANVAS_CALENDAR_URL?: string
   /** The secret given to `eas webhook:create`. EAS signs each build report with it. */

@@ -3,7 +3,7 @@ import {
   Animated, PanResponder, Pressable, ScrollView, Text, TextInput, Vibration, View, useWindowDimensions,
   type GestureResponderEvent, type LayoutChangeEvent
 } from 'react-native'
-import { Ellipsis, GraduationCap, Inbox, Plus, X } from 'lucide-react-native'
+import { Briefcase, Ellipsis, GraduationCap, Inbox, Plus, X } from 'lucide-react-native'
 import type { TaskCardRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
 import { Blurred } from '../../lib/blur'
 import { color } from '../money/tokens'
@@ -327,7 +327,7 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
     >
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${list.name}${list.kind === 'inbox' ? ', the Inbox' : usf ? ', with Canvas assignments' : ''}, ${all.length} cards. Hold to move the list.`}
+        accessibilityLabel={`${list.name}${list.kind === 'inbox' ? ', the Inbox' : usf ? ', with Canvas assignments' : list.kind === 'work' ? ', synced with work Trello' : ''}, ${all.length} cards. Hold to move the list.`}
         onPress={() => props.onListMenu(list)}
         onLongPress={(event) => liftList(list, event)}
         onPressOut={releasedInPlace}
@@ -337,6 +337,7 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
       >
         {list.kind === 'inbox' && <Inbox color={color.textSecondary} size={17} style={{ marginRight: 8 }} />}
         {usf && <GraduationCap color="#ffffff" size={18} style={{ marginRight: 8 }} />}
+        {list.kind === 'work' && <Briefcase color={color.textSecondary} size={17} style={{ marginRight: 8 }} />}
         <Blurred tint="#fafafa"><Text numberOfLines={1} className={`flex-1 text-[16px] font-bold ${usf ? 'text-white' : 'text-surface-100'}`}>{list.name}</Text></Blurred>
         <Text className={`ml-2 text-[14px] font-semibold ${usf ? 'text-white/70' : 'text-surface-500'}`}>{all.length}</Text>
         {extras?.action}

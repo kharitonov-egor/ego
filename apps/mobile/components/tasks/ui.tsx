@@ -68,16 +68,21 @@ export function PriorityIcon({ priority, size = 14 }: { priority: TaskPriority; 
   </View>
 }
 
+/** Dark enough for white text to stay readable at 12px. */
+const DUE_RED = '#c43c3c'
+
 export function DueChip({ due, large = false }: { due: DueBadge; large?: boolean }): React.ReactElement {
-  const tone = due.state === 'overdue'
-    ? { background: 'rgba(248, 113, 113, 0.16)', text: color.expense }
+  const pill = due.state === 'overdue' || due.state === 'today'
+  const tone = pill
+    ? { background: DUE_RED, text: '#ffffff' }
     : due.state === 'soon'
       ? { background: 'rgba(250, 250, 250, 0.14)', text: color.text }
       : due.state === 'done'
         ? { background: 'transparent', text: color.textFaint }
         : { background: 'transparent', text: color.textMuted }
   const Icon = due.state === 'done' ? CircleCheck : Clock
-  return <View style={{ backgroundColor: tone.background }} className={`flex-row items-center rounded-md ${large ? 'px-2.5 py-1.5' : 'px-1.5 py-0.5'}`}>
+  const padding = large ? (pill ? 'px-3 py-1.5' : 'px-2.5 py-1.5') : (pill ? 'px-2 py-0.5' : 'px-1.5 py-0.5')
+  return <View style={{ backgroundColor: tone.background }} className={`flex-row items-center ${pill ? 'rounded-full' : 'rounded-md'} ${padding}`}>
     <Icon color={tone.text} size={large ? 16 : 13} />
     <Text style={{ color: tone.text }} className={`ml-1 ${large ? 'text-[15px]' : 'text-[12px]'} font-semibold`}>{due.label}</Text>
   </View>

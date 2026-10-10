@@ -8,7 +8,7 @@ import {
   type TaskLabelColor, type TaskPriority, type TaskReminder
 } from '@ego/core'
 import { formatIso, isoToday, shiftIso } from '@ego/local/dates'
-import { boardLabels, boardLists, liveBoards, type CardFilter, type DueFilter, NO_FILTER } from '@ego/local/tasks/board'
+import { EOD, boardLabels, boardLists, liveBoards, type CardFilter, type DueFilter, NO_FILTER } from '@ego/local/tasks/board'
 import { useTasks } from '../../lib/tasks/context'
 import { useTaskNotifications } from '../../lib/tasks/notifications'
 import { BottomSheet, inputClass } from '../money/Common'
@@ -308,23 +308,31 @@ export function DueSheet({ visible, card, onSave, onClose }: {
   const [date, setDate] = useState(card.dueDate ?? today)
   const [timed, setTimed] = useState(card.dueTime !== null)
   const [clock, setClock] = useState(draftOf(card.dueTime))
-  const [reminder, setReminder] = useState<TaskReminder | null>(card.dueDate ? card.reminderMinutes : defaultTaskReminder(null))
+  const [reminder, setReminder] = useState<TaskReminder | null>(card.dueDate ? card.reminderMinutes : null)
   const [calendar, setCalendar] = useState(false)
   useEffect(() => {
     if (!visible) return
     setDate(card.dueDate ?? today)
     setTimed(card.dueTime !== null)
     setClock(draftOf(card.dueTime))
-    setReminder(card.dueDate ? card.reminderMinutes : defaultTaskReminder(null))
+    setReminder(card.dueDate ? card.reminderMinutes : null)
   }, [card.dueDate, card.dueTime, card.reminderMinutes, today, visible])
   const time = timed ? timeOf(clock) : null
   const choices: readonly TaskReminder[] = timed ? TASK_REMINDERS : TASK_DATE_ONLY_REMINDERS
   const shownReminder = reminder !== null && !choices.includes(reminder) ? defaultTaskReminder(timed ? time : null) : reminder
   const days = [
-    { label: 'Today', date: today },
+    { label: EOD, date: today },
     { label: 'Tomorrow', date: shiftIso(today, 1) },
     { label: 'Next week', date: shiftIso(today, 7) }
   ]
+  const changeTimed = (on: boolean): void => {
+    setTimed(on)
+    if (reminder !== null) setReminder(defaultTaskReminder(on ? '17:00' : null))
+  }
+  const pickDay = (day: string): void => {
+    setDate(day)
+    if (day === today && timed) changeTimed(false)
+  }
   const picked = !days.some((day) => day.date === date)
   const digits = (text: string): string => text.replace(/\D/g, '')
   const save = async (): Promise<void> => {
@@ -334,7 +342,7 @@ export function DueSheet({ visible, card, onSave, onClose }: {
   }
   return <BottomSheet visible={visible} title="Dates" onClose={onClose}>
     <View className="flex-row flex-wrap gap-2">
-      {days.map((day) => <Option key={day.label} label={day.label} selected={date === day.date} onPress={() => setDate(day.date)} />)}
+      {days.map((day) => <Option key={day.label} label={day.label} selected={date === day.date} onPress={() => pickDay(day.date)} />)}
       <Option label={picked ? formatIso(date) : 'Pick a day'} selected={picked} onPress={() => setCalendar(true)}>
         <CalendarDays color={picked ? '#0a0a0a' : '#fafafa'} size={17} />
       </Option>
@@ -344,10 +352,7 @@ export function DueSheet({ visible, card, onSave, onClose }: {
       <Switch
         accessibilityLabel="Due at a time"
         value={timed}
-        onValueChange={(on) => {
-          setTimed(on)
-          if (reminder !== null) setReminder(defaultTaskReminder(on ? '17:00' : null))
-        }}
+        onValueChange={changeTimed}
         trackColor={{ false: '#404040', true: '#fafafa' }}
         thumbColor={timed ? '#0a0a0a' : '#d4d4d4'}
         ios_backgroundColor="#404040"
@@ -511,7 +516,7 @@ export function MoveSheet({ visible, mode, card, onDone, onClose }: {
 
 const DUE_FILTERS: Array<{ value: DueFilter; label: string }> = [
   { value: 'overdue', label: 'Overdue' },
-  { value: 'today', label: 'Due today' },
+  { value: 'today', label: EOD },
   { value: 'week', label: 'Due this week' },
   { value: 'none', label: 'No date' }
 ]
