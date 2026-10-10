@@ -1226,12 +1226,19 @@ async function planTaskBoard(
   }
 }
 
+interface TaskListStyle {
+  kind: TaskListKind
+  color: string | null
+  icon: string
+  border: number
+}
+
 function taskListRowFrom(
-  id: string, input: TaskListInput, kind: TaskListKind, createdAt: string, updatedAt: string, revision: number
+  id: string, input: TaskListInput, style: TaskListStyle, createdAt: string, updatedAt: string, revision: number
 ): TaskListRow {
   return {
     id, board_id: input.boardId, name: input.name.trim(), position: input.position, archived_at: input.archivedAt,
-    kind, created_at: createdAt, updated_at: updatedAt, revision
+    ...style, created_at: createdAt, updated_at: updatedAt, revision
   }
 }
 
@@ -1243,13 +1250,17 @@ async function planTaskList(
     const input = command.payload
     if (!await liveRow<TaskBoardRow>(db, 'taskBoard', input.boardId)) return conflict('That board was deleted on another device')
     const parent = liveGuard('taskBoard', input.boardId)
-    const row = taskListRowFrom(id, input, input.kind ?? 'cards', now, now, 1)
+    const style = {
+      kind: input.kind ?? 'cards', color: input.color ?? null, icon: input.icon?.trim() ?? '', border: input.border ? 1 : 0
+    }
+    const row = taskListRowFrom(id, input, style, now, now, 1)
     return {
       ok: true,
       data: upsertPlan('taskList', id, 1, { entity: 'taskList', record: toTaskListRecord(row) }, guarded({
-        sql: `INSERT INTO task_lists (id, board_id, name, position, archived_at, kind, created_at, updated_at, revision)
-          SELECT ?, ?, ?, ?, ?, ?, ?, ?, 1`,
-        params: [id, row.board_id, row.name, row.position, row.archived_at, row.kind, now, now]
+        sql: `INSERT INTO task_lists (id, board_id, name, position, archived_at, kind, color, icon, border, created_at, updated_at,
+          revision)
+          SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1`,
+        params: [id, row.board_id, row.name, row.position, row.archived_at, row.kind, row.color, row.icon, row.border, now, now]
       }, parent), parent)
     }
   }
@@ -1262,14 +1273,20 @@ async function planTaskList(
   }
   if (command.payload.boardId !== current.board_id) return invalid('A list cannot move to another board')
   const revision = expected + 1
-  const kind = command.payload.kind ?? (isTaskListKind(current.kind) ? current.kind : 'cards')
-  const row = taskListRowFrom(id, command.payload, kind, current.created_at, now, revision)
+  const input = command.payload
+  const style = {
+    kind: input.kind ?? (isTaskListKind(current.kind) ? current.kind : 'cards'),
+    color: input.color === undefined ? current.color : input.color,
+    icon: input.icon?.trim() ?? current.icon,
+    border: input.border === undefined ? current.border : input.border ? 1 : 0
+  }
+  const row = taskListRowFrom(id, input, style, current.created_at, now, revision)
   return {
     ok: true,
     data: upsertPlan('taskList', id, revision, { entity: 'taskList', record: toTaskListRecord(row) }, {
-      sql: `UPDATE task_lists SET name = ?, position = ?, archived_at = ?, kind = ?, updated_at = ?, revision = revision + 1
-        WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
-      params: [row.name, row.position, row.archived_at, row.kind, now, id, expected]
+      sql: `UPDATE task_lists SET name = ?, position = ?, archived_at = ?, kind = ?, color = ?, icon = ?, border = ?, updated_at = ?,
+        revision = revision + 1 WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+      params: [row.name, row.position, row.archived_at, row.kind, row.color, row.icon, row.border, now, id, expected]
     }, guard)
   }
 }

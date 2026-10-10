@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { TaskBoardRecord, TaskCardRecord, TaskListRecord } from '@ego/api-contracts'
 import {
-  NO_FILTER, cardInput, carryLabels, doneList, dueBadge, homeBoardId, inboxCardInput, inboxList, matchesFilter, placeAt,
-  upcomingSections, withDoneMove
+  NO_FILTER, cardInput, carryLabels, columnHex, doneList, dueBadge, focusListOf, hexWithAlpha, homeBoardId, inboxCardInput, inboxList,
+  matchesFilter, placeAt, upcomingSections, withDoneMove
 } from '../src/tasks/board'
 import { parseInline, parseMarkdown, prefixLines, toggleTaskLine, wrapSelection } from '../src/tasks/markdown'
 import { cardIdFromNotification, taskNotificationPlan } from '../src/tasks/reminders'
@@ -16,7 +16,7 @@ const board = (overrides: Partial<TaskBoardRecord> = {}): TaskBoardRecord => ({
 })
 
 const list = (overrides: Partial<TaskListRecord> = {}): TaskListRecord => ({
-  id: 'l-1', boardId: 'b-1', name: 'To Do', position: 1024, archivedAt: null, kind: 'cards',
+  id: 'l-1', boardId: 'b-1', name: 'To Do', position: 1024, archivedAt: null, kind: 'cards', color: null, icon: '', border: false,
   createdAt: STAMP, updatedAt: STAMP, revision: 1, ...overrides
 })
 
@@ -232,5 +232,25 @@ describe('moving done cards to Done', () => {
     expect(withDoneMove(tasks(true), { ...done, listId: 'l-1', doneAt: STAMP }, { ...done, listId: 'l-1', doneAt: null }).listId).toBe('l-1')
     const renamed = cardInput(card({ doneAt: STAMP }))
     expect(withDoneMove(tasks(true), renamed, { ...renamed, title: 'Pay the rent' }).listId).toBe('l-1')
+  })
+})
+
+describe('column looks and focus mode', () => {
+  const labelHex = { green: '#4f9d69', yellow: '#c4a13a', orange: '#cc7a3d', red: '#c95757', purple: '#8b6fc4', blue: '#4f82c9', sky: '#3f9fb3', pink: '#c0619a' }
+
+  it('draws a label color the way labels look and a hex as it is', () => {
+    expect(columnHex(null, labelHex)).toBeNull()
+    expect(columnHex('sky', labelHex)).toBe('#3f9fb3')
+    expect(columnHex('#006747', labelHex)).toBe('#006747')
+    expect(hexWithAlpha('#006747', 0.24)).toBe('rgba(0, 103, 71, 0.24)')
+  })
+
+  it('opens focus mode on the list asked for, else the Inbox, else the first list', () => {
+    const lists = [list({ id: 'backlog' }), list({ id: 'inbox', kind: 'inbox' }), list({ id: 'later' })]
+    expect(focusListOf(lists, 'later')?.id).toBe('later')
+    expect(focusListOf(lists, 'gone')?.id).toBe('inbox')
+    expect(focusListOf(lists, null)?.id).toBe('inbox')
+    expect(focusListOf([list({ id: 'only' })], null)?.id).toBe('only')
+    expect(focusListOf([], null)).toBeNull()
   })
 })

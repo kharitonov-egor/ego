@@ -11,7 +11,8 @@ import { toTaskCardRecord, type TaskCardRow } from './rows'
 
 /**
  * The Work list mirrors two lists on the VCS board of the work Trello account, "Selected for
- * Development" and "In Progress: execute". Marking a card done in Ego moves it to "Done!".
+ * Development" and "In Progress: execute". Marking a card done in Ego moves it to "Done!". Only
+ * cards that came from Trello sync: one made in the Work list or dragged into it stays in Ego.
  */
 export const TRELLO_WORK_LISTS = {
   selected: '6ab28dfae12f8582e955f0d3',
@@ -317,11 +318,9 @@ async function runOnce(ctx: Context, work: WorkList): Promise<ApiResult<TrelloWo
   const progress = fetched.filter((card) => card.idList === TRELLO_WORK_LISTS.progress).sort((a, b) => b.pos - a.pos)
   const selected = fetched.filter((card) => card.idList === TRELLO_WORK_LISTS.selected).sort((a, b) => a.pos - b.pos)
 
-  const [mappings, mapped, loose, ends] = await Promise.all([
+  const [mappings, mapped, ends] = await Promise.all([
     query<MappingRow>(ctx.db, 'SELECT trello_id, card_id, base FROM trello_work_cards'),
     query<CardRow>(ctx.db, 'SELECT * FROM task_cards WHERE id IN (SELECT card_id FROM trello_work_cards)'),
-    query<CardRow>(ctx.db, `SELECT * FROM task_cards WHERE list_id = ? AND deleted_at IS NULL AND archived_at IS NULL
-      AND done_at IS NULL AND id NOT IN (SELECT card_id FROM trello_work_cards) ORDER BY position`, [work.id]),
     query<{ top: number | null; bottom: number | null }>(ctx.db, `SELECT MIN(position) AS top, MAX(position) AS bottom
       FROM task_cards WHERE list_id = ? AND deleted_at IS NULL AND archived_at IS NULL`, [work.id])
   ])
@@ -421,20 +420,6 @@ async function runOnce(ctx: Context, work: WorkList): Promise<ApiResult<TrelloWo
     await saveMapping(ctx, mapping.trello_id, mapping.card_id, { ...base, gone: true }, mapping.base)
   }
 
-  for (const row of loose) {
-    const card = taskCardInput(toTaskCardRecord(row))
-    const status: ActiveStatus = egoStatus(card, labels) === 'progress' ? 'progress' : 'selected'
-    const result = await ctx.trello.send('POST', '/cards', {
-      idList: TRELLO_WORK_LISTS[status], name: card.title, desc: card.description,
-      due: trelloDue(card.dueDate, card.dueTime, ctx.timeZone), pos: 'top'
-    })
-    if (!result.ok || !isTrelloCard(result.data)) {
-      problem ??= result.ok ? 'Trello did not return the new card' : result.error.message
-      continue
-    }
-    await saveMapping(ctx, result.data.id, row.id, { trello: trelloSide(result.data), ego: egoSide(card, status), gone: false }, null)
-  }
-
   return { ok: true, data: { changed, problem } }
 }
 
@@ -506,16 +491,21 @@ export async function syncTrelloWork(env: Env, options: TrelloWorkOptions = {}):
   }
 }
 
-/** After a device's writes: syncs only if they touched a mirrored card or the Work list. */
+/**
+ * After a device's writes: syncs only if they touched a mirrored card. A card made in Ego or moved
+ * into the Work list stays in Ego, so it never needs a sync.
+ */
 export async function syncTrelloWorkAfterWrites(env: Env, since: string): Promise<void> {
   if (!env.TRELLO_WORK_API_KEY || !env.TRELLO_WORK_TOKEN) return
-  const touched = await query<{ id: string }>(env.DB, `SELECT c.id FROM task_cards c
-      JOIN task_lists l ON l.id = c.list_id AND l.kind = 'work' AND l.deleted_at IS NULL
-      WHERE c.deleted_at IS NULL AND c.updated_at >= ?
-    UNION ALL
-    SELECT c.id FROM trello_work_cards m JOIN task_cards c ON c.id = m.card_id WHERE c.updated_at >= ?
-    LIMIT 1`, [since, since])
+  const touched = await query<{ id: string }>(env.DB, `SELECT c.id FROM trello_work_cards m
+    JOIN task_cards c ON c.id = m.card_id WHERE c.updated_at >= ? LIMIT 1`, [since])
   if (touched.length > 0) await syncTrelloWork(env)
+}
+
+/** The Ego cards that still have a copy in the two Trello lists. */
+async function linkedCards(db: D1Database): Promise<string[]> {
+  const mappings = await query<Pick<MappingRow, 'card_id' | 'base'>>(db, 'SELECT card_id, base FROM trello_work_cards')
+  return mappings.filter((mapping) => parseBase(mapping.base)?.gone === false).map((mapping) => mapping.card_id)
 }
 
 /** POST /v1/tasks/work/sync, sent when a board with the Work list opens. */
@@ -523,7 +513,8 @@ export async function trelloWorkRoute(request: Request, env: Env): Promise<Respo
   let body: unknown = null
   try { body = await request.json() } catch { body = null }
   const timeZone = isRecord(body) && typeof body.timeZone === 'string' ? body.timeZone : null
-  const result = await syncTrelloWork(env, { timeZone })
+  const synced = await syncTrelloWork(env, { timeZone })
+  const result = synced.ok ? { ...synced, data: { ...synced.data, linked: await linkedCards(env.DB) } } : synced
   return new Response(JSON.stringify(result), {
     status: result.ok ? 200 : HTTP_STATUS[result.error.code],
     headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }

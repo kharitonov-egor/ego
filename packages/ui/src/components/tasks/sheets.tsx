@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { BellRing, CalendarDays, Check, Pencil, Plus, Search, Trash2 } from 'lucide-react'
-import type { TaskCardRecord } from '@ego/api-contracts'
+import { BellRing, CalendarDays, Check, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
+import type { TaskCardRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
 import {
   TASK_DATE_ONLY_REMINDERS, TASK_LABEL_COLORS, TASK_PRIORITIES, TASK_PRIORITY_LABELS, TASK_REMINDERS,
-  defaultTaskReminder, taskReminderLabel,
-  type TaskLabelColor, type TaskPriority, type TaskReminder
+  defaultTaskReminder, isTaskLabelColor, taskReminderLabel,
+  type TaskLabelColor, type TaskListColor, type TaskPriority, type TaskReminder
 } from '@ego/core'
 import { formatIso, isoToday, shiftIso } from '@ego/local/dates'
 import { EOD, boardLabels, boardLists, liveBoards, type CardFilter, type DueFilter, NO_FILTER } from '@ego/local/tasks/board'
@@ -18,6 +18,7 @@ import { Sheet } from '../ui/dialog'
 import { inputClass } from '../ui/input'
 import { SegmentedControl } from '../ui/segmented-control'
 import { Switch } from '../ui/switch'
+import { ColumnHeader, columnFrame } from './ColumnHeader'
 import { LABEL_COLORS, LABEL_COLOR_NAMES, LabelChip, PriorityIcon } from './ui'
 
 const BOARD_EMOJI = ['📋', '🏠', '💼', '🎓', '💪', '💡', '🛒', '✈️', '💰', '🎯', '📚', '🧰']
@@ -50,6 +51,43 @@ function Heading({ children }: { children: string }): React.ReactElement {
   return <h3 className="mb-2 mt-5 text-[15px] font-medium text-surface-200">{children}</h3>
 }
 
+/** A row of emoji to pick from, and a field that takes any other. Picking the chosen one clears it. */
+function EmojiChooser({ value, choices, onChange }: {
+  value: string
+  choices: readonly string[]
+  onChange: (emoji: string) => void
+}): React.ReactElement {
+  const options = value === '' || choices.includes(value) ? choices : [value, ...choices]
+  return <>
+    <div className="flex flex-wrap gap-2">
+      {options.map((emoji) => {
+        const selected = emoji === value
+        return <button
+          key={emoji}
+          type="button"
+          aria-label={`Use ${emoji}`}
+          aria-pressed={selected}
+          onClick={() => onChange(selected ? '' : emoji)}
+          className={cn('flex h-12 w-12 items-center justify-center rounded-xl text-[24px] transition-colors',
+            selected ? 'border-2 border-primary bg-surface-800' : 'border border-input bg-surface-900 hover:bg-surface-800')}
+        >{emoji}</button>
+      })}
+    </div>
+    <input
+      value=""
+      onChange={(event) => {
+        const symbol = typedSymbol(event.target.value)
+        if (symbol) onChange(symbol)
+      }}
+      aria-label="Type any emoji"
+      placeholder="Or type any emoji"
+      autoComplete="off"
+      spellCheck={false}
+      className={cn(inputClass, 'mt-3')}
+    />
+  </>
+}
+
 /** A new board, or a board's name and emoji. */
 export function BoardSheet({ visible, title, name: initialName, icon: initialIcon, confirm, placeholder = 'Board name', onSave, onClose }: {
   visible: boolean
@@ -68,7 +106,6 @@ export function BoardSheet({ visible, title, name: initialName, icon: initialIco
     setName(initialName)
     setIcon(initialIcon)
   }, [initialIcon, initialName, visible])
-  const options = icon === '' || BOARD_EMOJI.includes(icon) ? BOARD_EMOJI : [icon, ...BOARD_EMOJI]
   return <Sheet visible={visible} title={title} onClose={onClose}>
     <form onSubmit={(event) => {
       event.preventDefault()
@@ -84,34 +121,114 @@ export function BoardSheet({ visible, title, name: initialName, icon: initialIco
         className={inputClass}
       />
       <Heading>Emoji</Heading>
-      <div className="flex flex-wrap gap-2">
-        {options.map((emoji) => {
-          const selected = emoji === icon
-          return <button
-            key={emoji}
-            type="button"
-            aria-label={`Use ${emoji}`}
-            aria-pressed={selected}
-            onClick={() => setIcon(selected ? '' : emoji)}
-            className={cn('flex h-12 w-12 items-center justify-center rounded-xl text-[24px] transition-colors',
-              selected ? 'border-2 border-primary bg-surface-800' : 'border border-input bg-surface-900 hover:bg-surface-800')}
-          >{emoji}</button>
-        })}
-      </div>
-      <input
-        value=""
-        onChange={(event) => {
-          const symbol = typedSymbol(event.target.value)
-          if (symbol) setIcon(symbol)
-        }}
-        aria-label="Type any emoji"
-        placeholder="Or type any emoji"
-        autoComplete="off"
-        spellCheck={false}
-        className={cn(inputClass, 'mt-3')}
-      />
+      <EmojiChooser value={icon} choices={BOARD_EMOJI} onChange={setIcon} />
       <Button type="submit" size="lg" className="mt-5 w-full" disabled={name.trim() === ''}>{confirm}</Button>
     </form>
+  </Sheet>
+}
+
+const LIST_EMOJI = ['📥', '📌', '⭐', '🔥', '⏳', '✅', '🎓', '💼', '🏠', '💡', '📚', '🛒', '🎯', '💪', '🧠', '🗂️']
+
+export interface ListStyle {
+  color: TaskListColor | null
+  icon: string
+  border: boolean
+}
+
+function hexOf(text: string): TaskListColor | null {
+  const typed = text.trim()
+  const hex = typed.startsWith('#') ? typed : `#${typed}`
+  return /^#[0-9a-f]{6}$/i.test(hex) ? `#${hex.slice(1).toLowerCase()}` : null
+}
+
+/** A column's color, emoji, and outline, with its header drawn as it will look. */
+export function ListStyleSheet({ visible, list, onSave, onClose }: {
+  visible: boolean
+  list: TaskListRecord | null
+  onSave: (style: ListStyle) => void
+  onClose: () => void
+}): React.ReactElement {
+  const [tint, setTint] = useState<TaskListColor | null>(null)
+  const [icon, setIcon] = useState('')
+  const [border, setBorder] = useState(false)
+  const [hex, setHex] = useState('')
+  useEffect(() => {
+    if (!visible || !list) return
+    setTint(list.color)
+    setIcon(list.icon)
+    setBorder(list.border)
+    setHex(list.color && !isTaskLabelColor(list.color) ? list.color : '')
+  }, [list, visible])
+  const custom = tint !== null && !isTaskLabelColor(tint) ? tint : null
+  const pickHex = (text: string): void => {
+    setHex(text)
+    const parsed = hexOf(text)
+    if (parsed) setTint(parsed)
+  }
+  return <Sheet visible={visible} title="Color and emoji" onClose={onClose} dismissOnBackdrop>
+    {list && <div className="overflow-hidden rounded-2xl bg-surface-900" style={columnFrame(tint, border)}>
+      <ColumnHeader list={{ ...list, color: tint, icon, border }} count={0} />
+      <div className="h-6" />
+    </div>}
+    <Heading>Color</Heading>
+    <div className="flex flex-wrap gap-2">
+      <button
+        type="button"
+        aria-label="No color"
+        title="No color"
+        aria-pressed={tint === null}
+        onClick={() => setTint(null)}
+        className={cn('flex h-10 w-10 items-center justify-center rounded-xl bg-surface-900 hover:bg-surface-800',
+          tint === null ? 'border-2 border-primary' : 'border border-input')}
+      ><X color={color.textMuted} size={16} /></button>
+      {TASK_LABEL_COLORS.map((item) => <button
+        key={item}
+        type="button"
+        aria-label={LABEL_COLOR_NAMES[item]}
+        title={LABEL_COLOR_NAMES[item]}
+        aria-pressed={item === tint}
+        onClick={() => setTint(item)}
+        className="flex h-10 w-10 items-center justify-center rounded-xl transition-transform hover:scale-105"
+        style={{ backgroundColor: LABEL_COLORS[item], borderWidth: item === tint ? 2 : 0, borderColor: '#fafafa' }}
+      >{item === tint && <Check color="#fafafa" size={18} strokeWidth={3} />}</button>)}
+    </div>
+    <div className="mt-3 flex items-center gap-2">
+      <label
+        title="Pick any color"
+        className="relative flex h-12 w-12 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-xl border-input"
+        style={{ backgroundColor: custom ?? '#262626', borderWidth: custom ? 2 : 1, borderColor: custom ? '#fafafa' : undefined }}
+      >
+        <input
+          type="color"
+          aria-label="Pick any color"
+          value={custom ?? '#006747'}
+          onChange={(event) => pickHex(event.target.value)}
+          className="absolute inset-0 cursor-pointer opacity-0"
+        />
+      </label>
+      <input
+        value={hex}
+        onChange={(event) => pickHex(event.target.value)}
+        placeholder="Hex, like #006747"
+        aria-label="Hex color"
+        autoComplete="off"
+        spellCheck={false}
+        maxLength={7}
+        className={cn(inputClass, 'flex-1 font-mono')}
+      />
+    </div>
+    <Heading>Emoji</Heading>
+    <EmojiChooser value={icon} choices={LIST_EMOJI} onChange={setIcon} />
+    <div className="mt-5">
+      <Toggle
+        label="Outline the column"
+        detail={tint === null ? 'Pick a color first' : 'Draws the color around the whole column'}
+        value={border && tint !== null}
+        disabled={tint === null}
+        onChange={setBorder}
+      />
+    </div>
+    <Button size="lg" className="mt-6 w-full" onClick={() => onSave({ color: tint, icon, border: border && tint !== null })}>Save</Button>
   </Sheet>
 }
 
@@ -147,7 +264,13 @@ export function TextSheet({ visible, title, value, placeholder, confirm, onSave,
   </Sheet>
 }
 
-function LabelEditor({ boardId, labelId, onDone }: { boardId: string; labelId: string | null; onDone: () => void }): React.ReactElement {
+/** Makes a label or changes one. `compact` fits it in the label picker beside a card. */
+export function LabelEditor({ boardId, labelId, compact = false, onDone }: {
+  boardId: string
+  labelId: string | null
+  compact?: boolean
+  onDone: () => void
+}): React.ReactElement {
   const tasks = useTasks()
   const existing = labelId ? tasks.data?.labels.find((label) => label.id === labelId) : undefined
   const [name, setName] = useState(existing?.name ?? '')
@@ -157,9 +280,9 @@ function LabelEditor({ boardId, labelId, onDone }: { boardId: string; labelId: s
     void tasks.saveLabel(boardId, labelId, name, tint)
     onDone()
   }
-  return <div className="rounded-2xl border border-surface-800 bg-surface-900 p-4">
+  return <div className={compact ? 'p-1' : 'rounded-2xl border border-surface-800 bg-surface-900 p-4'}>
     <div className="flex items-start">
-      <LabelChip size="large" label={{ id: 'preview', boardId, name: name.trim(), color: tint, position: 0, createdAt: '', updatedAt: '', revision: 1 }} />
+      <LabelChip size={compact ? 'medium' : 'large'} label={{ id: 'preview', boardId, name: name.trim(), color: tint, position: 0, createdAt: '', updatedAt: '', revision: 1 }} />
     </div>
     <input
       value={name}
@@ -173,9 +296,9 @@ function LabelEditor({ boardId, labelId, onDone }: { boardId: string; labelId: s
       aria-label="Label name"
       autoFocus
       maxLength={40}
-      className={cn(inputClass, 'mt-3')}
+      className={compact ? COMPACT_INPUT : cn(inputClass, 'mt-3')}
     />
-    <div className="mt-3 flex flex-wrap gap-2">
+    <div className={cn('mt-3 flex flex-wrap', compact ? 'gap-1.5' : 'gap-2')}>
       {TASK_LABEL_COLORS.map((item) => <button
         key={item}
         type="button"
@@ -183,28 +306,65 @@ function LabelEditor({ boardId, labelId, onDone }: { boardId: string; labelId: s
         title={LABEL_COLOR_NAMES[item]}
         aria-pressed={item === tint}
         onClick={() => setTint(item)}
-        className="flex h-11 w-11 items-center justify-center rounded-xl transition-transform hover:scale-105"
+        className={cn('flex items-center justify-center transition-transform hover:scale-105', compact ? 'h-7 w-7 rounded-lg' : 'h-11 w-11 rounded-xl')}
         style={{ backgroundColor: LABEL_COLORS[item], borderWidth: item === tint ? 2 : 0, borderColor: '#fafafa' }}
       >{item === tint && <Check color="#fafafa" size={18} strokeWidth={3} />}</button>)}
     </div>
     {deleting
-      ? <div className="mt-4">
-        <p className="text-[15px] leading-5 text-muted-foreground">Delete this label? It comes off every card on the board.</p>
-        <div className="mt-3 flex gap-3">
-          <Button variant="outline" className="flex-1" onClick={() => setDeleting(false)}>Keep</Button>
-          <Button variant="destructive" className="flex-1" onClick={() => {
+      ? <div className={compact ? 'mt-3' : 'mt-4'}>
+        <p className={cn('leading-5 text-muted-foreground', compact ? 'text-[13px]' : 'text-[15px]')}>Delete this label? It comes off every card on the board.</p>
+        <div className={cn('mt-3 flex', compact ? 'gap-2' : 'gap-3')}>
+          <Button variant="outline" size={compact ? 'sm' : 'default'} className="flex-1" onClick={() => setDeleting(false)}>Keep</Button>
+          <Button variant="destructive" size={compact ? 'sm' : 'default'} className="flex-1" onClick={() => {
             if (labelId) void tasks.deleteLabel(labelId)
             onDone()
           }}>Delete</Button>
         </div>
       </div>
-      : <div className="mt-4 flex gap-3">
-        {existing && <Button variant="outline" size="icon" aria-label="Delete label" title="Delete label" className="h-11 w-11" onClick={() => setDeleting(true)}>
-          <Trash2 color={color.destructive} size={18} />
+      : <div className={cn('flex', compact ? 'mt-3 gap-2' : 'mt-4 gap-3')}>
+        {existing && <Button variant="outline" size="icon" aria-label="Delete label" title="Delete label" className={compact ? 'h-9 w-9' : 'h-11 w-11'} onClick={() => setDeleting(true)}>
+          <Trash2 color={color.destructive} size={compact ? 16 : 18} />
         </Button>}
-        <Button variant="outline" className="flex-1" onClick={onDone}>Cancel</Button>
-        <Button className="flex-1" onClick={save}>{existing ? 'Save' : 'Create'}</Button>
+        <Button variant="outline" size={compact ? 'sm' : 'default'} className="flex-1" onClick={onDone}>Cancel</Button>
+        <Button size={compact ? 'sm' : 'default'} className="flex-1" onClick={save}>{existing ? 'Save' : 'Create'}</Button>
       </div>}
+  </div>
+}
+
+const COMPACT_INPUT = 'mt-3 min-h-9 w-full rounded-lg border border-input bg-surface-900 px-2.5 text-[14px] text-foreground outline-none focus:border-surface-500'
+
+/** One label in a list of them: a checkbox when it can go on a card, the chip, and a pencil. */
+export function LabelRow({ label, checked, onPress, onEdit }: {
+  label: TaskLabelRecord
+  /** Undefined draws no checkbox. */
+  checked?: boolean
+  onPress: () => void
+  onEdit: () => void
+}): React.ReactElement {
+  return <div className="group flex min-h-8 items-center rounded-lg hover:bg-surface-900">
+    <button
+      type="button"
+      role={checked === undefined ? undefined : 'checkbox'}
+      aria-checked={checked}
+      aria-label={label.name || `${LABEL_COLOR_NAMES[label.color]} label`}
+      onClick={onPress}
+      className="flex min-h-8 min-w-0 flex-1 items-center rounded-lg px-1.5 text-left"
+    >
+      {checked !== undefined && <span className={cn('mr-2.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border',
+        checked ? 'border-transparent bg-primary' : 'border-surface-500')}>
+        {checked && <Check color="#0a0a0a" size={12} strokeWidth={3.5} />}
+      </span>}
+      <LabelChip label={label} size="medium" />
+    </button>
+    <button
+      type="button"
+      aria-label="Edit label"
+      title="Edit label"
+      onClick={onEdit}
+      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg opacity-60 hover:bg-surface-800 hover:opacity-100 group-hover:opacity-100"
+    >
+      <Pencil color={color.textMuted} size={14} />
+    </button>
   </div>
 }
 
@@ -223,31 +383,19 @@ export function LabelSheet({ visible, boardId, selected, onToggle, onClose }: {
   const [editing, setEditing] = useState<string | 'new' | null>(null)
   useEffect(() => { if (!visible) setEditing(null) }, [visible])
   const labels = tasks.data ? boardLabels(tasks.data, boardId) : []
-  return <Sheet visible={visible} title="Labels" onClose={onClose}>
+  return <Sheet visible={visible} title="Labels" onClose={onClose} dismissOnBackdrop={editing === null}>
     {labels.length === 0 && editing === null && <p className="text-[15px] leading-5 text-muted-foreground">
       This board has no labels yet. Labels belong to a board and can go on any of its cards.
     </p>}
     {labels.map((label) => editing === label.id
-      ? <div key={label.id} className="mb-2"><LabelEditor boardId={boardId} labelId={label.id} onDone={() => setEditing(null)} /></div>
-      : <div key={label.id} className="flex min-h-14 items-center border-b border-surface-900">
-        <button
-          type="button"
-          role={selected ? 'checkbox' : undefined}
-          aria-checked={selected ? selected.includes(label.id) : undefined}
-          aria-label={label.name || `${LABEL_COLOR_NAMES[label.color]} label`}
-          onClick={() => selected && onToggle ? onToggle(label.id) : setEditing(label.id)}
-          className="flex min-w-0 flex-1 items-center rounded-lg py-2 text-left hover:bg-surface-900"
-        >
-          {selected && <span className={cn('mr-3 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border',
-            selected.includes(label.id) ? 'border-transparent bg-primary' : 'border-surface-500')}>
-            {selected.includes(label.id) && <Check color="#0a0a0a" size={16} strokeWidth={3} />}
-          </span>}
-          <LabelChip label={label} size="large" />
-        </button>
-        <button type="button" aria-label="Edit label" title="Edit label" onClick={() => setEditing(label.id)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full hover:bg-surface-900">
-          <Pencil color={color.textMuted} size={18} />
-        </button>
-      </div>)}
+      ? <div key={label.id} className="my-2"><LabelEditor boardId={boardId} labelId={label.id} onDone={() => setEditing(null)} /></div>
+      : <LabelRow
+        key={label.id}
+        label={label}
+        checked={selected?.includes(label.id)}
+        onPress={() => selected && onToggle ? onToggle(label.id) : setEditing(label.id)}
+        onEdit={() => setEditing(label.id)}
+      />)}
     <div className="mt-4">
       {editing === 'new'
         ? <LabelEditor boardId={boardId} labelId={null} onDone={() => setEditing(null)} />

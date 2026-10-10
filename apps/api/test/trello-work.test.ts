@@ -222,29 +222,23 @@ describe('the Work list and the work Trello board', () => {
     expect(await cards(env.DB)).toEqual([])
   })
 
-  it('creates a Trello card for a card added to the Work list, without touching the Ego card', async () => {
+  it('keeps a card made in the Work list or moved into it in Ego, and never sends it to Trello', async () => {
     const env = await setup()
     const trello = fakeTrello([])
     await sync(env, trello)
-    await apply(env.DB, 'mine', null, {
-      entity: 'taskCard', type: 'create', payload: {
-        boardId: 'gtd', listId: 'work', title: 'From Ego', description: 'notes', position: 1024, labelIds: [], priority: 'none',
-        dueDate: '2026-10-12', dueTime: null, reminderMinutes: null, doneAt: null, archivedAt: null, checklists: [], attachments: [], activity: []
-      }
-    })
-    const revision = (await card(env.DB, 'mine')).revision
+    const payload = {
+      boardId: 'gtd', listId: 'work', title: 'From Ego', description: 'notes', position: 1024, labelIds: [], priority: 'none' as const,
+      dueDate: '2026-10-12', dueTime: null, reminderMinutes: null, doneAt: null, archivedAt: null, checklists: [], attachments: [], activity: []
+    }
+    await apply(env.DB, 'mine', null, { entity: 'taskCard', type: 'create', payload })
+    await apply(env.DB, 'moved', null, { entity: 'taskCard', type: 'create', payload: { ...payload, listId: 'inbox', title: 'Moved' } })
+    await edit(env.DB, 'moved', (input) => ({ ...input, listId: 'work', position: 2048 }))
+    const before = await cards(env.DB)
 
-    await sync(env, trello)
-    expect(trello.writes()).toEqual([{
-      method: 'POST', path: '/1/cards',
-      body: { idList: SELECTED, name: 'From Ego', desc: 'notes', due: '2026-10-13T03:59:00.000Z', pos: 'top' }
-    }])
-    expect((await card(env.DB, 'mine')).revision).toBe(revision)
-    const mapped = await query<{ card_id: string }>(env.DB, 'SELECT card_id FROM trello_work_cards WHERE trello_id = ?', [trello.cards[0].id])
-    expect(mapped).toEqual([{ card_id: 'mine' }])
-
-    await sync(env, trello)
-    expect(trello.writes()).toHaveLength(1)
+    expect(await sync(env, trello)).toEqual({ ok: true, data: { changed: false, problem: null } })
+    expect(trello.writes()).toEqual([])
+    expect(await cards(env.DB)).toEqual(before)
+    expect(await query(env.DB, 'SELECT card_id FROM trello_work_cards')).toEqual([])
   })
 
   it('reads Trello due times on the saved clock and keeps a pushed date-only due from coming back as an edit', async () => {
@@ -276,7 +270,7 @@ describe('the Work list and the work Trello board', () => {
     expect(trello.cards[0].name).toBe('New')
   })
 
-  it('syncs after a device write only when it touched the Work list', async () => {
+  it('syncs after a device write only when it touched a card from Trello', async () => {
     const env = await setup()
     const trello = fakeTrello([trelloCard('a', SELECTED, 100)])
     await sync(env, trello)
@@ -285,6 +279,15 @@ describe('the Work list and the work Trello board', () => {
     const original = globalThis.fetch
     globalThis.fetch = trello.fetch as typeof globalThis.fetch
     try {
+      await syncTrelloWorkAfterWrites(env, later)
+      expect(trello.calls).toHaveLength(calls)
+      await apply(env.DB, 'mine', null, {
+        entity: 'taskCard', type: 'create', payload: {
+          boardId: 'gtd', listId: 'work', title: 'Ego only', description: '', position: 4096, labelIds: [], priority: 'none',
+          dueDate: null, dueTime: null, reminderMinutes: null, doneAt: null, archivedAt: null, checklists: [], attachments: [], activity: []
+        }
+      })
+      await exec(env.DB, 'UPDATE task_cards SET updated_at = ? WHERE id = ?', [later, 'mine'])
       await syncTrelloWorkAfterWrites(env, later)
       expect(trello.calls).toHaveLength(calls)
       await exec(env.DB, 'UPDATE task_cards SET title = ?, updated_at = ?, revision = revision + 1 WHERE id = ?', ['Edited', later, 'trello-a'])
@@ -299,12 +302,19 @@ describe('the Work list and the work Trello board', () => {
     const env = await setup(false)
     await exec(env.DB, `INSERT INTO devices (id, name, token_hash, dataset_id, created_at) VALUES ('device-1', 'Phone', ?, 'ego', ?)`,
       [await hashToken(TOKEN), NOW])
+    const agreed = {
+      trello: { name: 'A', desc: '', due: null, list: SELECTED },
+      ego: { title: 'A', description: '', dueDate: null, dueTime: null, status: 'selected' }
+    }
+    await exec(env.DB, 'INSERT INTO trello_work_cards (trello_id, card_id, base, updated_at) VALUES (?, ?, ?, ?), (?, ?, ?, ?)', [
+      't-live', 'live', JSON.stringify({ ...agreed, gone: false }), NOW, 't-gone', 'gone', JSON.stringify({ ...agreed, gone: true }), NOW
+    ])
     const response = await handle(new Request('https://ego.example/v1/tasks/work/sync', {
       method: 'POST', body: JSON.stringify({ timeZone: 'Europe/Moscow' }),
       headers: { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' }
     }), env)
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ ok: true, data: { changed: false, problem: null } })
+    expect(await response.json()).toEqual({ ok: true, data: { changed: false, problem: null, linked: ['live'] } })
 
     const missing = await handle(new Request('https://ego.example/v1/tasks/work/sync', {
       method: 'POST', body: '{}', headers: { authorization: `Bearer ${TOKEN}` }

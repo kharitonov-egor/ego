@@ -1,7 +1,8 @@
 import type { TaskBoardRecord, TaskCardRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
 import {
-  checklistProgress, isTaskDoneList, positionBetween, positionsTooClose, taskDueAt, taskDueLabel, taskTimeLabel, withTaskActivity,
-  type TaskAttachment, type TaskCardInput, type TaskNames, type TaskPriority
+  checklistProgress, isTaskDoneList, isTaskLabelColor, positionBetween, positionsTooClose, taskDueAt, taskDueLabel, taskTimeLabel,
+  withTaskActivity,
+  type TaskAttachment, type TaskCardInput, type TaskLabelColor, type TaskListColor, type TaskNames, type TaskPriority
 } from '@ego/core'
 import { isoFromParts } from '../dates'
 import type { TaskData } from './repository'
@@ -18,6 +19,22 @@ export function liveBoards(data: TaskData): TaskBoardRecord[] {
 
 export function boardLists(data: TaskData, boardId: string): TaskListRecord[] {
   return data.lists.filter((list) => list.boardId === boardId && list.archivedAt === null).sort(byPosition)
+}
+
+/** A column's color as `#rrggbb`, with label colors drawn the way each app draws its labels. */
+export function columnHex(color: TaskListColor | null, labelHex: Readonly<Record<TaskLabelColor, string>>): string | null {
+  if (color === null) return null
+  return isTaskLabelColor(color) ? labelHex[color] : color
+}
+
+export function hexWithAlpha(hex: string, alpha: number): string {
+  const value = Number.parseInt(hex.slice(1), 16)
+  return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`
+}
+
+/** The list focus mode opens on: the one asked for, else the board's Inbox, else its first list. */
+export function focusListOf(lists: readonly TaskListRecord[], wanted: string | null): TaskListRecord | null {
+  return lists.find((list) => list.id === wanted) ?? lists.find((list) => list.kind === 'inbox') ?? lists[0] ?? null
 }
 
 /** The first live Inbox list under a live board. Quick add and the inbox endpoint write there. */

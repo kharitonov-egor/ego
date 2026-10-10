@@ -45,6 +45,8 @@ export const remoteApi: RemoteApi = {
   trelloLists: call('trelloLists'),
   trelloCard: call('trelloCard'),
   trelloWorkSync: call('trelloWorkSync'),
+  sharedSetting: call('sharedSetting'),
+  saveSharedSetting: call('saveSharedSetting'),
   dockets: call('dockets'),
   docket: call('docket'),
   updateDocket: call('updateDocket'),

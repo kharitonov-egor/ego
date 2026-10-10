@@ -257,15 +257,16 @@ async function writeTaskBoard(tx: LocalDatabase, record: TaskBoardRecord): Promi
 }
 
 async function writeTaskList(tx: LocalDatabase, record: TaskListRecord): Promise<void> {
-  await tx.run(`INSERT INTO task_lists (id, board_id, name, position, archived_at, kind, created_at, updated_at, revision,
-    deleted_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+  await tx.run(`INSERT INTO task_lists (id, board_id, name, position, archived_at, kind, color, icon, border, created_at,
+    updated_at, revision, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
     ON CONFLICT(id) DO UPDATE SET board_id = excluded.board_id, name = excluded.name, position = excluded.position,
-      archived_at = excluded.archived_at, kind = excluded.kind, created_at = excluded.created_at,
-      updated_at = excluded.updated_at, revision = excluded.revision, deleted_at = NULL
+      archived_at = excluded.archived_at, kind = excluded.kind, color = excluded.color, icon = excluded.icon,
+      border = excluded.border, created_at = excluded.created_at, updated_at = excluded.updated_at,
+      revision = excluded.revision, deleted_at = NULL
     WHERE excluded.revision >= task_lists.revision`,
-  [record.id, record.boardId, record.name, record.position, record.archivedAt, record.kind ?? 'cards', record.createdAt,
-    record.updatedAt, record.revision])
+  [record.id, record.boardId, record.name, record.position, record.archivedAt, record.kind ?? 'cards', record.color ?? null,
+    record.icon ?? '', record.border ? 1 : 0, record.createdAt, record.updatedAt, record.revision])
 }
 
 async function writeTaskLabel(tx: LocalDatabase, record: TaskLabelRecord): Promise<void> {

@@ -12,8 +12,6 @@ import { AssignmentDetail, useCourseColors } from '../study/Assignment'
 import { Blurred } from '../../lib/blur'
 import { useStudy } from '../../lib/study/context'
 
-export const USF_GREEN = '#006747'
-
 export interface UsfFilter {
   course: string | null
   view: StudyView

@@ -7,6 +7,7 @@ import { BlurProvider } from './lib/blur'
 import { FoodProvider } from './lib/food/context'
 import { GymProvider } from './lib/gym/context'
 import { RestTimerProvider } from './lib/gym/rest-timer'
+import { HotkeysProvider } from './lib/hotkeys'
 import { LedgerProvider } from './lib/ledger'
 import { MoneyProvider } from './lib/money'
 import { PeriodProvider } from './lib/period'
@@ -63,7 +64,9 @@ function Providers({ children }: { children: React.ReactNode }): React.ReactElem
                 <TasksProvider>
                   <TaskNotificationsProvider>
                     <FoodProvider>
-                      {children}
+                      <HotkeysProvider>
+                        {children}
+                      </HotkeysProvider>
                     </FoodProvider>
                   </TaskNotificationsProvider>
                 </TasksProvider>

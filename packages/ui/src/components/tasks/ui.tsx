@@ -35,20 +35,27 @@ export const LABEL_COLOR_NAMES: Record<TaskLabelColor, string> = {
   green: 'Green', yellow: 'Yellow', orange: 'Orange', red: 'Red', purple: 'Purple', blue: 'Blue', sky: 'Sky', pink: 'Pink'
 }
 
-export function LabelChip({ label, size = 'small' }: { label: TaskLabelRecord; size?: 'small' | 'large' }): React.ReactElement {
+const CHIP_SIZES = {
+  small: { blank: [32, 8, 4], pill: 'px-2 py-0.5', dot: 7, gap: 5, text: 'text-[12px]' },
+  medium: { blank: [40, 20, 6], pill: 'px-2.5 py-[3px]', dot: 8, gap: 6, text: 'text-[13px]' },
+  large: { blank: [48, 28, 8], pill: 'px-3 py-1.5', dot: 10, gap: 7, text: 'text-[15px]' }
+} as const
+
+export function LabelChip({ label, size = 'small' }: { label: TaskLabelRecord; size?: keyof typeof CHIP_SIZES }): React.ReactElement {
   const tint = LABEL_COLORS[label.color]
-  const large = size === 'large'
+  const look = CHIP_SIZES[size]
   if (!label.name) {
+    const [width, height, radius] = look.blank
     return <span
       role="img"
       aria-label={`${LABEL_COLOR_NAMES[label.color]} label`}
       className="inline-block shrink-0"
-      style={{ width: large ? 48 : 32, height: large ? 28 : 8, borderRadius: large ? 8 : 4, backgroundColor: tint }}
+      style={{ width, height, borderRadius: radius, backgroundColor: tint }}
     />
   }
-  return <span className={cn('inline-flex min-w-0 max-w-full items-center rounded-full bg-surface-800', large ? 'px-3 py-1.5' : 'px-2 py-0.5')}>
-    <span className="shrink-0" style={{ width: large ? 10 : 7, height: large ? 10 : 7, borderRadius: 5, backgroundColor: tint, marginRight: large ? 7 : 5 }} />
-    <Blurred><span className={cn('truncate font-semibold text-surface-200', large ? 'text-[15px]' : 'text-[12px]')}>{label.name}</span></Blurred>
+  return <span className={cn('inline-flex min-w-0 max-w-full items-center rounded-full bg-surface-800', look.pill)}>
+    <span className="shrink-0" style={{ width: look.dot, height: look.dot, borderRadius: 5, backgroundColor: tint, marginRight: look.gap }} />
+    <Blurred><span className={cn('truncate font-semibold text-surface-200', look.text)}>{label.name}</span></Blurred>
   </span>
 }
 
@@ -132,11 +139,21 @@ export function TaskImage({ mediaId, version, className, style }: {
   />
 }
 
+/** Trello's logo, small, for a card that syncs with the work Trello board. */
+export function TrelloMark({ size = 13 }: { size?: number }): React.ReactElement {
+  return <svg role="img" aria-label="Syncs with work Trello" width={size} height={size} viewBox="0 0 16 16" className="shrink-0">
+    <title>Syncs with work Trello</title>
+    <rect x="0.75" y="0.75" width="14.5" height="14.5" rx="3" fill="none" stroke={color.textMuted} strokeWidth="1.5" />
+    <rect x="3.5" y="3.5" width="3.5" height="8.5" rx="0.75" fill={color.textMuted} />
+    <rect x="9" y="3.5" width="3.5" height="5.5" rx="0.75" fill={color.textMuted} />
+  </svg>
+}
+
 /**
  * A card as a column shows it. `onToggleDone` draws the round done button before the title, and
  * `title` replaces the title, as the quick editor's text box does.
  */
-export const CardFace = memo(function CardFace({ card, labels, now, upload, onToggleDone, lifted = false, title }: {
+export const CardFace = memo(function CardFace({ card, labels, now, upload, onToggleDone, lifted = false, title, synced = false }: {
   card: TaskCardRecord
   labels: readonly TaskLabelRecord[]
   now: Date
@@ -144,6 +161,7 @@ export const CardFace = memo(function CardFace({ card, labels, now, upload, onTo
   onToggleDone?: () => void
   lifted?: boolean
   title?: React.ReactNode
+  synced?: boolean
 }): React.ReactElement {
   const { blurred } = useBlur()
   const badges = cardBadges(card, now)
@@ -175,7 +193,7 @@ export const CardFace = memo(function CardFace({ card, labels, now, upload, onTo
           <span className={cn('min-w-0 flex-1 break-words text-[15px] leading-5', done ? 'text-surface-500' : 'text-surface-100')}>{card.title}</span>
         </Blurred>}
       </div>
-      {(card.priority !== 'none' || badges.due || badges.description || badges.checklist || badges.attachments > 0 || upload) &&
+      {(card.priority !== 'none' || badges.due || badges.description || badges.checklist || badges.attachments > 0 || upload || synced) &&
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
           <PriorityIcon priority={card.priority} />
           {badges.due && <DueChip due={badges.due} />}
@@ -187,6 +205,7 @@ export const CardFace = memo(function CardFace({ card, labels, now, upload, onTo
           {badges.attachments > 0 && <Badge Icon={Paperclip} text={String(badges.attachments)} />}
           {upload === 'sending' && <CloudUpload color={color.textMuted} size={14} aria-label="Files uploading" />}
           {upload === 'failed' && <TriangleAlert color={color.attention} size={14} aria-label="A file did not upload" />}
+          {synced && <TrelloMark />}
         </div>}
     </div>
   </div>

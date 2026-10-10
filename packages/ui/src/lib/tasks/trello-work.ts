@@ -4,14 +4,19 @@ import { useLedger } from '../ledger'
 export interface TrelloWork {
   syncing: boolean
   problem: string | null
+  /** Cards that sync with Trello, as of the last sync. */
+  linked: ReadonlySet<string>
   refresh: () => void
 }
+
+const NONE: ReadonlySet<string> = new Set()
 
 /** Syncs the Work list with the work Trello board when a board holding it opens, and when asked. */
 export function useTrelloWork(active: boolean): TrelloWork {
   const { api, sync } = useLedger()
   const [syncing, setSyncing] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
+  const [linked, setLinked] = useState<ReadonlySet<string>>(NONE)
   const running = useRef(false)
 
   const refresh = useCallback((): void => {
@@ -22,6 +27,7 @@ export function useTrelloWork(active: boolean): TrelloWork {
       try {
         const result = await api.trelloWorkSync(Intl.DateTimeFormat().resolvedOptions().timeZone)
         setProblem(result.ok ? result.data.problem : result.error.message)
+        if (result.ok && result.data.linked) setLinked(new Set(result.data.linked))
         if (result.ok && result.data.changed) await sync()
       } catch {
         setProblem('Ego could not reach the server')
@@ -38,5 +44,5 @@ export function useTrelloWork(active: boolean): TrelloWork {
     if (active) latest.current()
   }, [active])
 
-  return { syncing, problem, refresh }
+  return { syncing, problem, linked, refresh }
 }
