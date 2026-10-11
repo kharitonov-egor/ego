@@ -1,11 +1,12 @@
 import {
   BROWSER_IDLE_DAYS, DOCKET_COOKIE, DOCKET_ID_LENGTH, DOCKET_ID_PATTERN, DOCKET_KEY_PREFIX, DOCKET_OPEN_PARAM,
   DOCKET_OPEN_PATH, DOCKET_SESSION_PATH, HTTP_STATUS, MAX_DOCKET_BYTES, MAX_DOCKET_DESCRIPTION, MAX_DOCKET_TITLE, TAB_IDLE_DAYS,
-  isDocketUpdate, isDocketUploadMeta,
+  docketPdfName, isDocketUpdate, isDocketUploadMeta,
   type ApiErrorCode, type DeviceIdentity, type DocketDetail, type DocketKeyCreated, type DocketKeySummary, type DocketSummary,
   type DocketUploaded, type DocketUploadMeta, type DocketVersion
 } from '@ego/api-contracts'
 import { authorize, bearer, deviceExpiry, hashToken, touchDevice, type Env } from './auth'
+import { browserPdfRenderer, type DocketPdfRenderer } from './docket-pdf'
 import { query } from './reads'
 import { formFile } from './services'
 import { webOrigins } from './web'
@@ -420,6 +421,11 @@ async function updateDocket(request: Request, env: Env, datasetId: string, id: s
   return readDocket(env, datasetId, id)
 }
 
+/** A version's PDF sits next to its HTML once someone downloads it. */
+function pdfKeyOf(objectKey: string): string {
+  return objectKey.replace(/\.html$/, '.pdf')
+}
+
 async function deleteDocket(env: Env, datasetId: string, id: string): Promise<Response> {
   const row = await findDocket(env.DB, datasetId, id)
   if (!row) return notFound()
@@ -429,8 +435,19 @@ async function deleteDocket(env: Env, datasetId: string, id: string): Promise<Re
     env.DB.prepare('DELETE FROM dockets WHERE id = ? AND dataset_id = ?').bind(id, datasetId)
   ])
   const bucket = bucketOf(env)
-  if (bucket && versions.length > 0) await bucket.delete(versions.map((version) => version.object_key)).catch(() => undefined)
+  const files = versions.flatMap((version) => [version.object_key, pdfKeyOf(version.object_key)])
+  if (bucket && files.length > 0) await bucket.delete(files).catch(() => undefined)
   return ok({ deleted: true })
+}
+
+/** The file behind `?version=`, or behind the latest version when the request names none. */
+async function askedVersion(env: Env, row: DocketRow, url: URL): Promise<{ version: number; objectKey: string } | Response> {
+  const asked = url.searchParams.get('version')
+  const version = asked === null ? row.latest_version : Number(asked)
+  if (!Number.isSafeInteger(version) || version < 1) return failure('INVALID_REQUEST', 'version must be a version number')
+  const stored = await env.DB.prepare('SELECT object_key FROM docket_versions WHERE docket_id = ? AND version = ?')
+    .bind(row.id, version).first<{ object_key: string }>()
+  return stored ? { version, objectKey: stored.object_key } : failure('NOT_FOUND', `This docket has no version ${version}`)
 }
 
 async function readHtml(env: Env, datasetId: string, id: string, url: URL): Promise<Response> {
@@ -438,16 +455,49 @@ async function readHtml(env: Env, datasetId: string, id: string, url: URL): Prom
   if (!bucket) return storageMissing()
   const row = await findDocket(env.DB, datasetId, id)
   if (!row) return notFound()
-  const asked = url.searchParams.get('version')
-  const version = asked === null ? row.latest_version : Number(asked)
-  if (!Number.isSafeInteger(version) || version < 1) return failure('INVALID_REQUEST', 'version must be a version number')
-  const stored = await env.DB.prepare('SELECT object_key FROM docket_versions WHERE docket_id = ? AND version = ?')
-    .bind(id, version).first<{ object_key: string }>()
-  const object = stored ? await bucket.get(stored.object_key) : null
-  if (!object) return failure('NOT_FOUND', `This docket has no version ${version}`)
+  const asked = await askedVersion(env, row, url)
+  if (asked instanceof Response) return asked
+  const object = await bucket.get(asked.objectKey)
+  if (!object) return failure('NOT_FOUND', `This docket has no version ${asked.version}`)
   return new Response(object.body, {
-    headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-docket-version': String(version) }
+    headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-docket-version': String(asked.version) }
   })
+}
+
+function pdfResponse(body: ReadableStream | Uint8Array, title: string, version: number): Response {
+  const name = docketPdfName(title)
+  return new Response(body, {
+    headers: {
+      'content-type': 'application/pdf',
+      'content-disposition': `attachment; filename="${name.replace(/[^\x20-\x7e]|"/g, '_')}"; filename*=UTF-8''${encodeURIComponent(name)}`,
+      'cache-control': 'private, no-store',
+      'x-docket-version': String(version)
+    }
+  })
+}
+
+/**
+ * A version never changes, so it is printed once and the PDF kept in R2. The first download waits
+ * several seconds on Browser Rendering; later ones are a plain read.
+ */
+export async function readPdf(env: Env, datasetId: string, id: string, url: URL, render?: DocketPdfRenderer): Promise<Response> {
+  const bucket = bucketOf(env)
+  if (!bucket) return storageMissing()
+  const row = await findDocket(env.DB, datasetId, id)
+  if (!row) return notFound()
+  const asked = await askedVersion(env, row, url)
+  if (asked instanceof Response) return asked
+  const pdfKey = pdfKeyOf(asked.objectKey)
+  const cached = await bucket.get(pdfKey)
+  if (cached) return pdfResponse(cached.body, row.title, asked.version)
+  const renderer = render ?? (env.BROWSER ? browserPdfRenderer(env.BROWSER) : null)
+  if (!renderer) return failure('NOT_CONFIGURED', 'PDF downloads are not set up on the server')
+  const html = await bucket.get(asked.objectKey)
+  if (!html) return failure('NOT_FOUND', `This docket has no version ${asked.version}`)
+  const printed = await renderer(await html.text())
+  if (typeof printed === 'string') return failure('UPSTREAM_ERROR', `The PDF could not be made: ${printed}`)
+  await bucket.put(pdfKey, printed, { httpMetadata: { contentType: 'application/pdf' } })
+  return pdfResponse(printed, row.title, asked.version)
 }
 
 async function listKeys(env: Env, datasetId: string): Promise<Response> {
@@ -532,6 +582,7 @@ async function docketApi(request: Request, env: Env, path: string, now: string):
     return upload instanceof Response ? upload : addVersion(env, who, id, upload, now)
   }
   if (child === 'html' && method === 'GET') return readHtml(env, datasetId, id, new URL(request.url))
+  if (child === 'pdf' && method === 'GET') return readPdf(env, datasetId, id, new URL(request.url))
   return failure('NOT_FOUND', 'That endpoint does not exist')
 }
 

@@ -16,7 +16,7 @@ function contentTypeOf(metadata: R2HTTPMetadata | Headers | undefined): string |
   return metadata instanceof Headers ? metadata.get('content-type') ?? undefined : metadata.contentType
 }
 
-/** Just enough of R2 for the diary routes: whole objects, one byte range, and multipart uploads. */
+/** Just enough of R2 for the diary and docket routes: whole objects, one byte range, and multipart uploads. */
 export function createTestBucket(): { bucket: R2Bucket; objects: Map<string, Stored> } {
   const objects = new Map<string, Stored>()
   const uploads = new Map<string, { key: string; contentType: string | undefined; parts: Map<number, Uint8Array> }>()
@@ -51,7 +51,7 @@ export function createTestBucket(): { bucket: R2Bucket; objects: Map<string, Sto
       if (!stored) return null
       const range = options?.range
       const slice = range ? stored.bytes.slice(range.offset, range.offset + range.length) : stored.bytes
-      return { ...describe(key, stored, range), body: new Response(slice).body }
+      return { ...describe(key, stored, range), body: new Response(slice).body, text: async () => new TextDecoder().decode(slice) }
     },
     put: async (key: string, value: Body, options?: R2PutOptions) =>
       store(key, await bytesOf(value), contentTypeOf(options?.httpMetadata)),

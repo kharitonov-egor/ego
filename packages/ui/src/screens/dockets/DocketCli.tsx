@@ -6,13 +6,17 @@ import { Button } from '../../components/ui/button'
 import { ConfirmDialog } from '../../components/ui/dialog'
 import { stamp } from '../../lib/dockets'
 import { useLedger } from '../../lib/ledger'
+import { isWeb } from '../../lib/platform'
 import { CopyButton, DocketGate, DocketHeader } from './shared'
 
 const HEAD = 'border-b border-surface-800 pb-2 text-left text-[13px] font-semibold uppercase tracking-wide text-surface-400'
 const CELL = 'border-b border-surface-800 py-3 text-[15px]'
 
+/** The desktop app has no web origin of its own, so it points at the live site. */
+const LIVE_SITE = 'https://ego.kharitonovegor.com'
+
 function installCommand(): string {
-  return `npm install -g ${window.location.origin}/cli/docket.tgz`
+  return `npm install -g ${isWeb() ? window.location.origin : LIVE_SITE}/cli/docket.tgz`
 }
 
 function Code({ children }: { children: React.ReactNode }): React.ReactElement {

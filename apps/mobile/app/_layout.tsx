@@ -40,6 +40,7 @@ function Screens(): React.ReactElement {
       <Stack.Screen name="food" options={{ headerShown: false }} />
       <Stack.Screen name="calendar" options={{ headerShown: false }} />
       <Stack.Screen name="content" options={{ title: 'Content' }} />
+      <Stack.Screen name="dockets" options={{ title: 'Docket' }} />
       <Stack.Screen name="capture" options={{ title: 'New card in Inbox' }} />
       <Stack.Screen name="settings" options={{ title: 'Settings' }} />
       <Stack.Screen name="auth" options={{ title: 'Sign in', headerShown: false }} />
