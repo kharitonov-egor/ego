@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { FoodAnalyzeResponse, FoodProductResponse } from '@ego/api-contracts'
+import type { FoodAnalyzeResponse, FoodNutrientsResponse, FoodProductResponse } from '@ego/api-contracts'
 import { hashToken, type Env } from '../src/auth'
 import { handle } from '../src/router'
 import { NOW, exec, seedLedger, type Ledger } from './helpers'
@@ -51,8 +51,8 @@ describe('POST /v1/food/analyze', () => {
     const fetchMock = vi.fn().mockResolvedValueOnce(completion({
       isFood: true, name: 'Burrito bowl', serving: '1 bowl', note: 'About 1 tbsp of oil',
       parts: [
-        { name: 'Chicken', calories: 280.4, protein: 40.04, carbs: 0, fat: 12 },
-        { name: 'Rice', calories: 360, protein: 5, carbs: 60.26, fat: 10 }
+        { name: 'Chicken', calories: 280.4, protein: 40.04, carbs: 0, fat: 12, saturatedFat: 3.44, fiber: 0, sodium: 520.4 },
+        { name: 'Rice', calories: 360, protein: 5, carbs: 60.26, fat: 10, saturatedFat: 1.2, fiber: 2.06, sodium: 410 }
       ]
     }))
     vi.stubGlobal('fetch', fetchMock)
@@ -63,10 +63,10 @@ describe('POST /v1/food/analyze', () => {
       meal: {
         name: 'Burrito bowl', serving: '1 bowl', note: 'About 1 tbsp of oil',
         parts: [
-          { name: 'Chicken', calories: 280, protein: 40, carbs: 0, fat: 12 },
-          { name: 'Rice', calories: 360, protein: 5, carbs: 60.3, fat: 10 }
+          { name: 'Chicken', calories: 280, protein: 40, carbs: 0, fat: 12, saturatedFat: 3.4, fiber: 0, sodium: 520 },
+          { name: 'Rice', calories: 360, protein: 5, carbs: 60.3, fat: 10, saturatedFat: 1.2, fiber: 2.1, sodium: 410 }
         ],
-        calories: 640, protein: 45, carbs: 60.3, fat: 22
+        calories: 640, protein: 45, carbs: 60.3, fat: 22, saturatedFat: 4.6, fiber: 2.1, sodium: 930
       }
     })
     const sent = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body)) as Record<string, unknown>
@@ -74,6 +74,7 @@ describe('POST /v1/food/analyze', () => {
     expect(JSON.stringify(sent.messages)).toContain('The person wrote: half the rice')
     expect(JSON.stringify(sent.messages)).toContain('data:image/jpeg;base64,aGVsbG8=')
     expect(sent.response_format).toMatchObject({ type: 'json_schema', json_schema: { name: 'food_meal', strict: true } })
+    expect(JSON.stringify(sent.response_format)).toContain('milligrams of sodium')
   })
 
   it('lists the groceries in a fridge photo', async () => {
@@ -110,7 +111,10 @@ describe('GET /v1/food/products/:barcode', () => {
     product: {
       product_name: 'Diet Coke Soft Drink', brands: 'Coke', serving_size: '1 can (354.9 mL)', serving_quantity: 354.9,
       nutrition_data_per: '100ml',
-      nutriments: { 'energy-kcal_serving': 0, proteins_serving: 0, carbohydrates_serving: 0, fat_serving: 0 }
+      nutriments: {
+        'energy-kcal_serving': 0, proteins_serving: 0, carbohydrates_serving: 0, fat_serving: 0, 'saturated-fat_serving': 0,
+        sodium_serving: 0.04
+      }
     }
   }
   const usda = {
@@ -121,7 +125,9 @@ describe('GET /v1/food/products/:barcode', () => {
         { nutrientNumber: '208', unitName: 'KCAL', value: 59 },
         { nutrientNumber: '203', unitName: 'G', value: 10 },
         { nutrientNumber: '205', unitName: 'G', value: 3.6 },
-        { nutrientNumber: '204', unitName: 'G', value: 0.4 }
+        { nutrientNumber: '204', unitName: 'G', value: 0.4 },
+        { nutrientNumber: '606', unitName: 'G', value: 0.2 },
+        { nutrientNumber: '307', unitName: 'MG', value: 36 }
       ]
     }]
   }
@@ -133,7 +139,7 @@ describe('GET /v1/food/products/:barcode', () => {
     const body = await payload<FoodProductResponse>(await handle(request('/v1/food/products/049000028911'), env))
     expect(body.data.product).toEqual({
       barcode: '049000028911', name: 'Diet Coke Soft Drink', brand: 'Coke', serving: '1 can (354.9 mL)',
-      macros: { calories: 0, protein: 0, carbs: 0, fat: 0 }, source: 'openfoodfacts'
+      macros: { calories: 0, protein: 0, carbs: 0, fat: 0, saturatedFat: 0, fiber: null, sodium: 40 }, source: 'openfoodfacts'
     })
     expect(String(fetchMock.mock.calls[0][0])).toContain('world.openfoodfacts.org/api/v2/product/049000028911.json')
     expect((fetchMock.mock.calls[0][1] as RequestInit).headers).toMatchObject({ 'user-agent': expect.stringContaining('Ego') })
@@ -143,12 +149,14 @@ describe('GET /v1/food/products/:barcode', () => {
     const env = await environment({ USDA_API_KEY: 'usda-key' })
     const fetchMock = vi.fn(async (url: string) => url.includes('api.nal.usda.gov')
       ? new Response(JSON.stringify(usda), { status: 200 })
-      : new Response(JSON.stringify({ status: 1, product: { product_name: 'Plain Greek Yogurt', brands: 'Chobani', nutriments: {} } }), { status: 200 }))
+      : new Response(JSON.stringify({
+        status: 1, product: { product_name: 'Plain Greek Yogurt', brands: 'Chobani', nutriments: { 'energy-kcal_100g': 59, fiber_100g: 0.5 } }
+      }), { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
     const body = await payload<FoodProductResponse>(await handle(request('/v1/food/products/894700010199'), env))
     expect(body.data.product).toEqual({
       barcode: '894700010199', name: 'Plain Greek Yogurt', brand: 'Chobani', serving: '1 container (170 g)',
-      macros: { calories: 100.3, protein: 17, carbs: 6.1, fat: 0.7 }, source: 'usda'
+      macros: { calories: 100.3, protein: 17, carbs: 6.1, fat: 0.7, saturatedFat: 0.3, fiber: 0.9, sodium: 61 }, source: 'usda'
     })
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes('query=00894700010199'))).toBe(true)
   })
@@ -158,5 +166,43 @@ describe('GET /v1/food/products/:barcode', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ status: 0 }), { status: 200 })))
     expect((await payload<FoodProductResponse>(await handle(request('/v1/food/products/12345678'), env))).data).toEqual({ product: null })
     expect((await handle(request('/v1/food/products/abc'), env)).status).toBe(400)
+  })
+})
+
+describe('POST /v1/food/nutrients', () => {
+  const meal = {
+    name: 'Pelmeni with sour cream', serving: '1 plate', note: '',
+    parts: [
+      { name: 'Pelmeni', calories: 520, protein: 24, carbs: 58, fat: 21 },
+      { name: 'Sour cream', calories: 120, protein: 1.5, carbs: 2, fat: 12 }
+    ],
+    image: null
+  }
+
+  it('estimates each part in order and sends the parts with their portions', async () => {
+    const env = await environment()
+    const fetchMock = vi.fn().mockResolvedValueOnce(completion({
+      parts: [
+        { name: 'Pelmeni', saturatedFat: 8.04, fiber: 2.26, sodium: 1180.4 },
+        { name: 'Sour cream', saturatedFat: 7, fiber: 0, sodium: 40 }
+      ]
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    const response = await handle(request('/v1/food/nutrients', { method: 'POST', body: JSON.stringify(meal) }), env)
+    expect((await payload<FoodNutrientsResponse>(response)).data).toEqual({
+      parts: [{ saturatedFat: 8, fiber: 2.3, sodium: 1180 }, { saturatedFat: 7, fiber: 0, sodium: 40 }]
+    })
+    const sent = JSON.stringify(JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body)))
+    expect(sent).toContain('1. Pelmeni: 520 kcal, 24 g protein, 58 g carbs, 21 g fat')
+    expect(sent).toContain('food_nutrients')
+  })
+
+  it('refuses a meal with no parts and an answer with the wrong count', async () => {
+    const env = await environment()
+    const empty = await handle(request('/v1/food/nutrients', { method: 'POST', body: JSON.stringify({ ...meal, parts: [] }) }), env)
+    expect(empty.status).toBe(400)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(completion({ parts: [{ name: 'Pelmeni', saturatedFat: 8, fiber: 2, sodium: 1180 }] })))
+    const short = await handle(request('/v1/food/nutrients', { method: 'POST', body: JSON.stringify(meal) }), env)
+    expect(short.status).toBe(502)
   })
 })

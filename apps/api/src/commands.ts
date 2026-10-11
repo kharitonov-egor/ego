@@ -6,7 +6,8 @@ import {
   type SyncCommand, type SyncEntity, type SyncOperation
 } from '@ego/api-contracts'
 import {
-  FOOD_GOAL_ID, HABIT_TARGET_LIMIT, diaryMediaIds, entryKindFits, foodMediaIds, isTaskListKind, taskMediaIds,
+  FOOD_GOAL_ID, HABIT_TARGET_LIMIT, NO_NUTRIENTS, diaryMediaIds, entryKindFits, foodMediaIds, isTaskListKind, nutrientsOf,
+  taskMediaIds,
   type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type DiaryMessageInput,
   type FoodEntryInput, type FoodGoalInput, type FridgeItemInput, type GymPlanInput, type GymSetInput, type HabitInput,
   type MoodInput, type PurchaseInput, type SheetInput, type SheetRowInput, type TaskBoardInput, type TaskCardInput,
@@ -14,7 +15,7 @@ import {
 } from '@ego/core'
 import { query, readLatestChange, serverSequence } from './reads'
 import {
-  toAccountRecord, toBudgetRecord, toCategoryRecord, toDiaryMessageRecord, toFoodEntryRecord, toFoodGoalRecord,
+  foodParts, toAccountRecord, toBudgetRecord, toCategoryRecord, toDiaryMessageRecord, toFoodEntryRecord, toFoodGoalRecord,
   toFridgeItemRecord, toGymCategoryRecord, toGymExerciseRecord, toGymPlanRecord, toGymSetRecord, toGymWorkoutRecord,
   toHabitEntryRecord, toHabitRecord, toMoodRecord, toPurchaseRecord, toReceiptItem, toSheetRecord, toSheetRowRecord,
   toTaskBoardRecord, toTaskCardRecord, toTaskGoalRecord, toTaskLabelRecord, toTaskListRecord, toTransactionRecord,
@@ -1575,10 +1576,28 @@ async function missingFoodMedia(db: D1Database, input: FoodEntryInput): Promise<
   return ids.filter((id) => !found.has(id))
 }
 
+/**
+ * A build from before saturated fat, fiber, and sodium sends entries without them. Its edit keeps
+ * the stored numbers, and each part keeps its own when the part in that place has the same name.
+ */
+function withStoredNutrients(input: FoodEntryInput, current: FoodEntryRow | null): FoodEntryInput {
+  const storedParts = current ? foodParts(current.parts) : []
+  const stored = current ? { saturatedFat: current.saturated_fat, fiber: current.fiber, sodium: current.sodium } : NO_NUTRIENTS
+  return {
+    ...input,
+    ...nutrientsOf(input, stored),
+    parts: input.parts.map((part, index) => {
+      const same = storedParts[index]?.name === part.name ? storedParts[index] : NO_NUTRIENTS
+      return { ...part, ...nutrientsOf(part, same) }
+    })
+  }
+}
+
 function foodEntryRowFrom(id: string, input: FoodEntryInput, createdAt: string, updatedAt: string, revision: number): FoodEntryRow {
   return {
     id, name: input.name.trim(), date: input.date, eaten_at: input.eatenAt, serving: input.serving.trim(),
     calories: input.calories, protein: input.protein, carbs: input.carbs, fat: input.fat,
+    saturated_fat: input.saturatedFat, fiber: input.fiber, sodium: input.sodium,
     parts: JSON.stringify(input.parts), source: input.source, barcode: input.barcode,
     photo: input.photo ? JSON.stringify(input.photo) : null, note: input.note.trim(),
     created_at: createdAt, updated_at: updatedAt, revision
@@ -1586,7 +1605,8 @@ function foodEntryRowFrom(id: string, input: FoodEntryInput, createdAt: string, 
 }
 
 const FOOD_ENTRY_COLUMNS = [
-  'name', 'date', 'eaten_at', 'serving', 'calories', 'protein', 'carbs', 'fat', 'parts', 'source', 'barcode', 'photo', 'note'
+  'name', 'date', 'eaten_at', 'serving', 'calories', 'protein', 'carbs', 'fat', 'saturated_fat', 'fiber', 'sodium', 'parts',
+  'source', 'barcode', 'photo', 'note'
 ] as const
 
 function foodEntryValues(row: FoodEntryRow): unknown[] {
@@ -1605,11 +1625,10 @@ async function planFoodEntry(
       data: deletePlan('foodEntry', id, expected, now, guardFor('foodEntry', id, expected), { entity: 'foodEntry', record: null })
     }
   }
-  const input = command.payload
-  const missing = await missingFoodMedia(db, input)
+  const missing = await missingFoodMedia(db, command.payload)
   if (missing.length > 0) return invalid('Upload the photo before saving')
   if (command.type === 'create') {
-    const row = foodEntryRowFrom(id, input, now, now, 1)
+    const row = foodEntryRowFrom(id, withStoredNutrients(command.payload, null), now, now, 1)
     return {
       ok: true,
       data: upsertPlan('foodEntry', id, 1, { entity: 'foodEntry', record: toFoodEntryRecord(row) }, {
@@ -1623,7 +1642,7 @@ async function planFoodEntry(
   if (!current) return notFound('That food entry was not found')
   const expected = operation.expectedRevision ?? 0
   const revision = expected + 1
-  const row = foodEntryRowFrom(id, input, current.created_at, now, revision)
+  const row = foodEntryRowFrom(id, withStoredNutrients(command.payload, current), current.created_at, now, revision)
   return {
     ok: true,
     data: upsertPlan('foodEntry', id, revision, { entity: 'foodEntry', record: toFoodEntryRecord(row) }, {
@@ -1682,12 +1701,21 @@ async function planFridgeItem(
   }
 }
 
-function foodGoalRowFrom(input: FoodGoalInput, createdAt: string, updatedAt: string, revision: number): FoodGoalRow {
+/** Targets from a build that predates sodium, saturated fat, and fiber leave those three as they were. */
+function foodGoalRowFrom(
+  input: FoodGoalInput, current: FoodGoalRow | null, createdAt: string, updatedAt: string, revision: number
+): FoodGoalRow {
+  const kept = (value: number | null | undefined, stored: number | null): number | null => value === undefined ? stored : value
   return {
     id: FOOD_GOAL_ID, calories: input.calories, protein: input.protein, carbs: input.carbs, fat: input.fat,
+    sodium: kept(input.sodium, current?.sodium ?? null),
+    saturated_fat_percent: kept(input.saturatedFatPercent, current?.saturated_fat_percent ?? null),
+    fiber: kept(input.fiber, current?.fiber ?? null),
     created_at: createdAt, updated_at: updatedAt, revision
   }
 }
+
+const FOOD_GOAL_COLUMNS = ['calories', 'protein', 'carbs', 'fat', 'sodium', 'saturated_fat_percent', 'fiber'] as const
 
 /** Two phones creating the targets at once collide on the one ID, and the second gets Keep mine or Use saved version. */
 async function planFoodGoal(
@@ -1695,13 +1723,13 @@ async function planFoodGoal(
 ): Promise<ApiResult<Plan>> {
   const input = command.payload
   if (command.type === 'create') {
-    const row = foodGoalRowFrom(input, now, now, 1)
+    const row = foodGoalRowFrom(input, null, now, now, 1)
     return {
       ok: true,
       data: upsertPlan('foodGoal', FOOD_GOAL_ID, 1, { entity: 'foodGoal', record: toFoodGoalRecord(row) }, {
-        sql: `INSERT INTO food_goals (id, calories, protein, carbs, fat, created_at, updated_at, revision)
-          SELECT ?, ?, ?, ?, ?, ?, ?, 1`,
-        params: [FOOD_GOAL_ID, row.calories, row.protein, row.carbs, row.fat, now, now]
+        sql: `INSERT INTO food_goals (id, ${FOOD_GOAL_COLUMNS.join(', ')}, created_at, updated_at, revision)
+          SELECT ?, ${FOOD_GOAL_COLUMNS.map(() => '?').join(', ')}, ?, ?, 1`,
+        params: [FOOD_GOAL_ID, ...FOOD_GOAL_COLUMNS.map((column) => row[column]), now, now]
       }, null)
     }
   }
@@ -1709,13 +1737,13 @@ async function planFoodGoal(
   if (!current) return notFound('The food targets were not found')
   const expected = operation.expectedRevision ?? 0
   const revision = expected + 1
-  const row = foodGoalRowFrom(input, current.created_at, now, revision)
+  const row = foodGoalRowFrom(input, current, current.created_at, now, revision)
   return {
     ok: true,
     data: upsertPlan('foodGoal', FOOD_GOAL_ID, revision, { entity: 'foodGoal', record: toFoodGoalRecord(row) }, {
-      sql: `UPDATE food_goals SET calories = ?, protein = ?, carbs = ?, fat = ?, updated_at = ?, revision = revision + 1
-        WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
-      params: [row.calories, row.protein, row.carbs, row.fat, now, FOOD_GOAL_ID, expected]
+      sql: `UPDATE food_goals SET ${FOOD_GOAL_COLUMNS.map((column) => `${column} = ?`).join(', ')}, updated_at = ?,
+        revision = revision + 1 WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+      params: [...FOOD_GOAL_COLUMNS.map((column) => row[column]), now, FOOD_GOAL_ID, expected]
     }, guardFor('foodGoal', FOOD_GOAL_ID, expected))
   }
 }

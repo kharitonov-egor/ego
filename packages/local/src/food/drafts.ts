@@ -14,7 +14,7 @@ export function entryFromMeal(meal: FoodMealDraft, source: FoodSource, photo: Fo
   return {
     name: meal.name, date: localDay(at), eatenAt: at.toISOString(), serving: meal.serving,
     calories: meal.calories, protein: meal.protein, carbs: meal.carbs, fat: meal.fat,
-    parts: meal.parts, source, barcode: null, photo, note: meal.note
+    saturatedFat: meal.saturatedFat, fiber: meal.fiber, sodium: meal.sodium, parts: meal.parts, source, barcode: null, photo, note: meal.note
   }
 }
 
@@ -93,6 +93,7 @@ export function addedLabel(iso: string, today: string): string {
  */
 export function cleanEntry(entry: FoodEntryInput): FoodEntryInput | null {
   const round = (value: number, places: number): number => Math.round(value * 10 ** places) / 10 ** places
+  const roundKnown = (value: number | null, places: number): number | null => value === null ? null : round(value, places)
   const clean: FoodEntryInput = {
     name: entry.name.trim(),
     date: entry.date,
@@ -102,6 +103,9 @@ export function cleanEntry(entry: FoodEntryInput): FoodEntryInput | null {
     protein: round(entry.protein, 1),
     carbs: round(entry.carbs, 1),
     fat: round(entry.fat, 1),
+    saturatedFat: roundKnown(entry.saturatedFat, 1),
+    fiber: roundKnown(entry.fiber, 1),
+    sodium: roundKnown(entry.sodium, 0),
     parts: entry.parts,
     source: entry.source,
     barcode: entry.barcode,

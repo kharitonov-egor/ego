@@ -36,8 +36,13 @@ function timeFrom(clock: Clock): string | null {
   return `${String(hours).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
 }
 
-function numberText(value: number): string {
-  return String(Math.round(value * 10) / 10)
+function numberText(value: number | null): string {
+  return value === null ? '' : String(Math.round(value * 10) / 10)
+}
+
+/** An empty box means the number is not known. */
+function knownAmount(text: string): number | null {
+  return text.trim() === '' ? null : Number(text)
 }
 
 function NumberInput({ label, unit, value, onChange }: { label: string; unit: string; value: string; onChange: (text: string) => void }): React.ReactElement {
@@ -103,6 +108,9 @@ function Editor({ initial, onClose, onDraftEdit }: {
   const [protein, setProtein] = useState(numberText(initial.protein))
   const [carbs, setCarbs] = useState(numberText(initial.carbs))
   const [fat, setFat] = useState(numberText(initial.fat))
+  const [saturatedFat, setSaturatedFat] = useState(numberText(initial.saturatedFat))
+  const [fiber, setFiber] = useState(numberText(initial.fiber))
+  const [sodium, setSodium] = useState(numberText(initial.sodium))
   const [note, setNote] = useState(initial.note)
   const [deleting, setDeleting] = useState(false)
   const saved = useRef(false)
@@ -133,10 +141,15 @@ function Editor({ initial, onClose, onDraftEdit }: {
   const edited = useMemo<FoodEntryInput | null>(() => {
     if (time === null) return null
     const amounts = [calories, protein, carbs, fat].map(Number)
-    if (amounts.some((value) => !Number.isFinite(value))) return null
+    const nutrients = [saturatedFat, fiber, sodium].map(knownAmount)
+    if ([...amounts, ...nutrients].some((value) => value !== null && !Number.isFinite(value))) return null
     const [kcal, grams, carb, fats] = amounts
-    return entryAt({ ...initial, name, serving, note, calories: kcal, protein: grams, carbs: carb, fat: fats }, date, time)
-  }, [calories, carbs, date, fat, initial, name, note, protein, serving, time])
+    const [saturated, fibers, salt] = nutrients
+    return entryAt({
+      ...initial, name, serving, note, calories: kcal, protein: grams, carbs: carb, fat: fats,
+      saturatedFat: saturated, fiber: fibers, sodium: salt
+    }, date, time)
+  }, [calories, carbs, date, fat, fiber, initial, name, note, protein, saturatedFat, serving, sodium, time])
   const canSave = edited !== null && name.trim() !== ''
 
   const report = useRef(onDraftEdit)
@@ -237,6 +250,12 @@ function Editor({ initial, onClose, onDraftEdit }: {
           <NumberInput label="Protein" unit="g" value={protein} onChange={setProtein} />
           <NumberInput label="Carbs" unit="g" value={carbs} onChange={setCarbs} />
           <NumberInput label="Fat" unit="g" value={fat} onChange={setFat} />
+        </div>
+        <div className="mb-5 flex gap-2">
+          <NumberInput label="Sat fat" unit="g" value={saturatedFat} onChange={setSaturatedFat} />
+          <NumberInput label="Fiber" unit="g" value={fiber} onChange={setFiber} />
+          <NumberInput label="Sodium" unit="mg" value={sodium} onChange={setSodium} />
+          <span className="min-w-0 flex-1" />
         </div>
         {initial.parts.length > 1 && <div className="mb-5 rounded-2xl border border-border bg-card px-4 py-3">
           <p className="mb-1 text-[14px] font-medium text-muted-foreground">What the estimate counted</p>

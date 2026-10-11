@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import type { ApiError, ApiResult, BootstrapData, DiaryMediaInfo, OperationResponse } from '@ego/api-contracts'
-import type { FoodEntryInput, FridgeItemInput } from '@ego/core'
+import type { ApiError, ApiResult, BootstrapData, DiaryMediaInfo, OperationResponse, SyncOperation } from '@ego/api-contracts'
+import { NO_FOOD_GOAL, type FoodEntryInput, type FridgeItemInput } from '@ego/core'
 import { filterQuery, type MoneyApi } from '../../../packages/local/src/api-client'
 import type { LocalDatabase } from '../../../packages/local/src/database/types'
 import { queueUploads, uploadPendingMedia, type UploadTransport } from '../../../packages/local/src/diary/uploads'
@@ -82,10 +82,10 @@ async function phone(env: Env): Promise<{ db: LocalDatabase; sync: () => Promise
 
 const lunch = (overrides: Partial<FoodEntryInput> = {}): FoodEntryInput => ({
   name: 'Chicken burrito bowl', date: '2026-09-12', eatenAt: '2026-09-12T16:30:00.000Z', serving: '1 bowl',
-  calories: 640, protein: 45, carbs: 60, fat: 22,
+  calories: 640, protein: 45, carbs: 60, fat: 22, saturatedFat: 6.5, fiber: 9, sodium: 1450,
   parts: [
-    { name: 'Chicken', calories: 280, protein: 40, carbs: 0, fat: 12 },
-    { name: 'Rice and beans', calories: 360, protein: 5, carbs: 60, fat: 10 }
+    { name: 'Chicken', calories: 280, protein: 40, carbs: 0, fat: 12, saturatedFat: 3.5, fiber: 0, sodium: 600 },
+    { name: 'Rice and beans', calories: 360, protein: 5, carbs: 60, fat: 10, saturatedFat: 3, fiber: 9, sodium: 850 }
   ],
   source: 'photo', barcode: null, photo: { mediaId: 'meal-1', previewId: 'meal-1-small', width: 1600, height: 1200 }, note: '',
   ...overrides
@@ -121,6 +121,8 @@ describe('food between two phones and the Worker', () => {
       photo: { mediaId: 'meal-1', previewId: 'meal-1-small', width: 1600, height: 1200 }
     })
     expect(seen.entries[0].parts.map((part) => part.name)).toEqual(['Chicken', 'Rice and beans'])
+    expect(seen.entries[0]).toMatchObject({ saturatedFat: 6.5, fiber: 9, sodium: 1450 })
+    expect(seen.entries[0].parts[1]).toMatchObject({ saturatedFat: 3, fiber: 9, sodium: 850 })
 
     await saveFoodEntry(second.db, 'f-1', seen.entries[0].revision, lunch({ calories: 700, serving: '1 large bowl' }), NOW)
     await second.sync()
@@ -166,31 +168,84 @@ describe('food between two phones and the Worker', () => {
     const first = await phone(env)
     const second = await phone(env)
     await second.sync()
-    await saveFoodGoal(first.db, { calories: 2200, protein: 150, carbs: null, fat: null }, null, NOW)
+    await saveFoodGoal(first.db, { ...NO_FOOD_GOAL, calories: 2200, protein: 150 }, null, NOW)
     await first.sync()
-    await saveFoodGoal(second.db, { calories: 2000, protein: 160, carbs: 200, fat: 70 }, null, NOW)
+    await saveFoodGoal(second.db, { calories: 2000, protein: 160, carbs: 200, fat: 70, sodium: 2300, saturatedFatPercent: 10, fiber: 34 }, null, NOW)
     await second.sync()
     const conflict = (await allOperations(second.db)).find((entry) => entry.status === 'conflict')
     if (!conflict) throw new Error('Expected the second create to conflict')
     await keepMine(second.db, conflict, 'op-keep', NOW)
     await second.sync()
     await first.sync()
-    expect((await localFood(first.db)).goal).toMatchObject({ id: 'daily', calories: 2000, protein: 160, carbs: 200, fat: 70, revision: 2 })
+    expect((await localFood(first.db)).goal).toMatchObject({
+      id: 'daily', calories: 2000, protein: 160, carbs: 200, fat: 70, sodium: 2300, saturatedFatPercent: 10, fiber: 34, revision: 2
+    })
     const bootstrap = await over<BootstrapData>(env, '/v1/bootstrap')
     expect(bootstrap.ok && bootstrap.data.foodGoals?.map((goal) => goal.calories)).toEqual([2000])
   })
 })
 
 describe('the Worker checks food before saving it', () => {
-  async function send(env: Env, payload: FoodEntryInput, id = 'f-1'): Promise<OperationResponse> {
+  async function sendOperation(env: Env, value: SyncOperation): Promise<OperationResponse> {
     const result = await over<OperationResponse>(env, '/v1/operations', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ operations: [operation({ operationId: `op-${id}`, entityId: id, command: { entity: 'foodEntry', type: 'create', payload } })] })
+      body: JSON.stringify({ operations: [value] })
     })
     if (!result.ok) throw new Error(result.error.message)
     return result.data
   }
+
+  function send(env: Env, payload: FoodEntryInput, id = 'f-1'): Promise<OperationResponse> {
+    return sendOperation(env, operation({ operationId: `op-${id}`, entityId: id, command: { entity: 'foodEntry', type: 'create', payload } }))
+  }
+
+  /** What a build from before saturated fat, fiber, and sodium sends. */
+  function legacy(entry: FoodEntryInput): FoodEntryInput {
+    const strip = (value: object): Record<string, unknown> =>
+      Object.fromEntries(Object.entries(value).filter(([key]) => !['saturatedFat', 'fiber', 'sodium'].includes(key)))
+    const payload: unknown = { ...strip(entry), parts: entry.parts.map(strip) }
+    return payload as FoodEntryInput
+  }
+
+  async function storedEntry(env: Env, id: string): Promise<unknown> {
+    const bootstrap = await over<BootstrapData>(env, '/v1/bootstrap')
+    if (!bootstrap.ok) throw new Error(bootstrap.error.message)
+    return bootstrap.data.foodEntries?.find((entry) => entry.id === id)
+  }
+
+  it('keeps saturated fat, fiber, and sodium when an older build edits an entry', async () => {
+    const env = await setup()
+    expect((await send(env, lunch({ photo: null }))).failed).toBeNull()
+    const edit = legacy(lunch({ photo: null, name: 'Burrito bowl', parts: [...lunch().parts.slice(0, 1), { ...lunch().parts[1], name: 'Beans' }] }))
+    expect((await sendOperation(env, operation({
+      operationId: 'op-edit', entityId: 'f-1', expectedRevision: 1, command: { entity: 'foodEntry', type: 'update', payload: edit }
+    }))).failed).toBeNull()
+    expect(await storedEntry(env, 'f-1')).toMatchObject({
+      name: 'Burrito bowl', saturatedFat: 6.5, fiber: 9, sodium: 1450, revision: 2,
+      parts: [
+        { name: 'Chicken', saturatedFat: 3.5, fiber: 0, sodium: 600 },
+        { name: 'Beans', saturatedFat: null, fiber: null, sodium: null }
+      ]
+    })
+    expect((await send(env, legacy(lunch({ photo: null })), 'f-2')).failed).toBeNull()
+    expect(await storedEntry(env, 'f-2')).toMatchObject({ saturatedFat: null, fiber: null, sodium: null })
+  })
+
+  it('keeps the newer targets when an older build saves the four it knows', async () => {
+    const env = await setup()
+    const full = { calories: 2500, protein: 100, carbs: null, fat: null, sodium: 2300, saturatedFatPercent: 10, fiber: 34 }
+    expect((await sendOperation(env, operation({
+      operationId: 'op-goal', entityId: 'daily', command: { entity: 'foodGoal', type: 'create', payload: full }
+    }))).failed).toBeNull()
+    const older: unknown = { calories: 2400, protein: 100, carbs: null, fat: null }
+    expect((await sendOperation(env, operation({
+      operationId: 'op-goal-2', entityId: 'daily', expectedRevision: 1,
+      command: { entity: 'foodGoal', type: 'update', payload: older as typeof full }
+    }))).failed).toBeNull()
+    const bootstrap = await over<BootstrapData>(env, '/v1/bootstrap')
+    expect(bootstrap.ok && bootstrap.data.foodGoals?.[0]).toMatchObject({ calories: 2400, sodium: 2300, saturatedFatPercent: 10, fiber: 34 })
+  })
 
   it('refuses a photo that was never uploaded and accepts an entry without one', async () => {
     const env = await setup()
@@ -204,7 +259,7 @@ describe('the Worker checks food before saving it', () => {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ operations: [operation({
-        entityId: 'weekly', command: { entity: 'foodGoal', type: 'create', payload: { calories: 2000, protein: null, carbs: null, fat: null } }
+        entityId: 'weekly', command: { entity: 'foodGoal', type: 'create', payload: { ...NO_FOOD_GOAL, calories: 2000 } }
       })] })
     })
     expect(result.ok).toBe(false)

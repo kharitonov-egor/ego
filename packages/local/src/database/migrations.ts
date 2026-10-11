@@ -536,6 +536,14 @@ export const LOCAL_MIGRATIONS: readonly string[][] = [
     'ALTER TABLE task_lists ADD COLUMN color TEXT',
     "ALTER TABLE task_lists ADD COLUMN icon TEXT NOT NULL DEFAULT ''",
     'ALTER TABLE task_lists ADD COLUMN border INTEGER NOT NULL DEFAULT 0'
+  ],
+  [
+    'ALTER TABLE food_entries ADD COLUMN saturated_fat REAL',
+    'ALTER TABLE food_entries ADD COLUMN fiber REAL',
+    'ALTER TABLE food_entries ADD COLUMN sodium REAL',
+    'ALTER TABLE food_goals ADD COLUMN sodium REAL',
+    'ALTER TABLE food_goals ADD COLUMN saturated_fat_percent REAL',
+    'ALTER TABLE food_goals ADD COLUMN fiber REAL'
   ]
 ]
 

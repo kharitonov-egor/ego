@@ -35,7 +35,8 @@ const PHO: ApiResult<FoodAnalyzeResponse> = {
     mode: 'meal',
     meal: {
       name: 'Large bowl of pho', serving: '1 large bowl', note: '', calories: 680, protein: 42, carbs: 88, fat: 14,
-      parts: [{ name: 'Pho', calories: 680, protein: 42, carbs: 88, fat: 14 }]
+      saturatedFat: 4, fiber: 3, sodium: 2100,
+      parts: [{ name: 'Pho', calories: 680, protein: 42, carbs: 88, fat: 14, saturatedFat: 4, fiber: 3, sodium: 2100 }]
     }
   }
 }

@@ -384,7 +384,8 @@ describe('writes wait on a card that saves itself', () => {
     const { bucket, objects } = createTestBucket()
     const env = await environment({ DIARY_MEDIA: bucket })
     const meal = {
-      name: 'Chicken bowl', date: TODAY, time: '12:30', serving: '1 bowl', calories: 640, protein: 45, carbs: 60, fat: 22, usePhoto: true
+      name: 'Chicken bowl', date: TODAY, time: '12:30', serving: '1 bowl', calories: 640, protein: 45, carbs: 60, fat: 22,
+      saturatedFat: 6.04, fiber: 9, sodium: 1450.4, usePhoto: true
     }
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(toolCall('call_f', 'log_food', { entries: [meal] }))
@@ -395,13 +396,15 @@ describe('writes wait on a card that saves itself', () => {
     const list = await events(await handle(request('/v1/assistant/turns', { method: 'POST', body: turnBody({ text: 'lunch', image }) }), env))
     const pending = find(list, 'pending')[0].pending
     expect(pending.changes?.[0]).toEqual({
-      toolName: 'log_food', title: 'Log food', lines: ['Chicken bowl: 640 kcal · P 45 · C 60 · F 22 · 12:30 PM']
+      toolName: 'log_food', title: 'Log food', lines: ['Chicken bowl: 640 kcal · P 45 · C 60 · F 22 · SF 6 · Fiber 9 · Na 1,450 mg · 12:30 PM']
     })
     expect([...objects.keys()]).toHaveLength(1)
     await events(await handle(request('/v1/assistant/confirm', { method: 'POST', body: confirmBody(pending.chatId, pending.callId, true) }), env))
-    const entry = await env.DB.prepare('SELECT name, date, eaten_at, calories, source, photo FROM food_entries').first<Record<string, unknown>>()
+    const entry = await env.DB.prepare('SELECT name, date, eaten_at, calories, saturated_fat, sodium, source, photo FROM food_entries').first<Record<string, unknown>>()
     const mediaId = [...objects.keys()][0].replace('food/', '')
-    expect(entry).toMatchObject({ name: 'Chicken bowl', date: TODAY, eaten_at: '2026-09-12T16:30:00.000Z', calories: 640, source: 'assistant' })
+    expect(entry).toMatchObject({
+      name: 'Chicken bowl', date: TODAY, eaten_at: '2026-09-12T16:30:00.000Z', calories: 640, saturated_fat: 6, sodium: 1450, source: 'assistant'
+    })
     expect(JSON.parse(String(entry?.photo))).toEqual({ mediaId, previewId: null, width: null, height: null })
 
     const second = await events(await handle(request('/v1/assistant/turns', {
