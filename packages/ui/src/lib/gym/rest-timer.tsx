@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router'
 import { DEFAULT_REST, parseRestPreference, secondsLeft, type RestPreference } from '@ego/local/gym/rest'
+import { beep } from '../beep'
 import { SecureStore } from '../preferences'
 
 export { REST_PRESETS } from '@ego/local/gym/rest'
@@ -26,29 +27,6 @@ interface RestClockValue {
 const RestTimerContext = createContext<RestTimerValue | null>(null)
 /** Separate from the controls, so only the countdown text re-renders every tick. */
 const RestClockContext = createContext<RestClockValue>({ remaining: 0, finished: false })
-
-let audio: AudioContext | null = null
-
-/** Two short tones, where the phone vibrates twice. */
-function beep(): void {
-  if (typeof AudioContext === 'undefined') return
-  audio ??= new AudioContext()
-  const context = audio
-  void context.resume().catch(() => undefined)
-  for (const offset of [0, 0.3]) {
-    const at = context.currentTime + offset
-    const tone = context.createOscillator()
-    const gain = context.createGain()
-    tone.type = 'sine'
-    tone.frequency.value = 880
-    gain.gain.setValueAtTime(0.0001, at)
-    gain.gain.exponentialRampToValueAtTime(0.25, at + 0.02)
-    gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.2)
-    tone.connect(gain).connect(context.destination)
-    tone.start(at)
-    tone.stop(at + 0.22)
-  }
-}
 
 /**
  * The beep sounds either way. When Ego is behind another window or in the tray, a notification

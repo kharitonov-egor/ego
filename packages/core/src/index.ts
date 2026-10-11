@@ -25,3 +25,4 @@ export * from './calendar'
 
 export * from './content'
 export * from './hotkeys'
+export * from './resolve'
