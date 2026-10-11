@@ -1,4 +1,7 @@
-import { DOCKET_OPEN_PARAM, DOCKET_OPEN_PATH, DOCKET_OPEN_TARGET, DOCKET_SESSION_PATH } from '@ego/api-contracts'
+import {
+  DOCKET_OPEN_PARAM, DOCKET_OPEN_PATH, DOCKET_OPEN_TARGET, DOCKET_PDF_TIMEOUT_MS, DOCKET_SESSION_PATH, docketPdfName
+} from '@ego/api-contracts'
+import { resultFrom, type EgoApi } from '@ego/local/api-client'
 import type { WebSession } from './session'
 
 /** A private docket that sent this tab to sign in, kept across the round trip to Google. */
@@ -28,6 +31,27 @@ export function docketOpenTarget(location: Pick<Location, 'pathname' | 'search'>
   if (location.pathname !== DOCKET_OPEN_PATH) return null
   const target = new URLSearchParams(location.search).get(DOCKET_OPEN_PARAM)
   return target && DOCKET_OPEN_TARGET.test(target) ? `/docket/${target}` : null
+}
+
+/** Fetches the PDF with the token and hands it to the browser as a download named after the docket. */
+export async function downloadDocketPdf(api: Pick<EgoApi, 'docketPdfUrl' | 'authHeaders'>, id: string, title: string): Promise<string | null> {
+  let response: Response
+  try {
+    response = await fetch(api.docketPdfUrl(id), { headers: api.authHeaders(), signal: AbortSignal.timeout(DOCKET_PDF_TIMEOUT_MS) })
+  } catch {
+    return 'The Ego server is unreachable'
+  }
+  if (!response.ok) {
+    const result = resultFrom(response.status, await response.text())
+    return result.ok ? 'The PDF did not download' : result.error.message
+  }
+  const url = URL.createObjectURL(await response.blob())
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = docketPdfName(title)
+  link.click()
+  return null
 }
 
 export function rememberDocketReturn(target: string): void {

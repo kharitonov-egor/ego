@@ -42,6 +42,7 @@ const api: IpcApi = {
   mediaStageFile: (input) => ipcRenderer.invoke('media-stage-file', input),
   mediaDeleteStaged: (paths) => ipcRenderer.invoke('media-delete-staged', paths),
   mediaOpen: (input) => ipcRenderer.invoke('media-open', input),
+  docketPdf: (id, title) => ipcRenderer.invoke('docket-pdf', id, title),
   onMediaProgress: (callback) => {
     const handler = (_event: Electron.IpcRendererEvent, progress: MediaProgress): void => callback(progress)
     ipcRenderer.on('media-progress', handler)

@@ -29,7 +29,7 @@ export const APPS: readonly AppEntry[] = [
   { label: 'Food', Icon: UtensilsCrossed, path: '/food', prefix: '/food' },
   { label: 'Content', Icon: Bookmark, path: '/content', prefix: '/content' },
   { label: 'Calendar', Icon: CalendarDays, path: '/calendar', prefix: '/calendar' },
-  { label: 'Docket', Icon: FileText, path: '/dockets', prefix: '/dockets', webOnly: true }
+  { label: 'Docket', Icon: FileText, path: '/dockets', prefix: '/dockets' }
 ]
 
 export function visibleApps(): readonly AppEntry[] {

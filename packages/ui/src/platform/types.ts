@@ -125,6 +125,8 @@ export interface IpcApi {
   mediaDeleteStaged: (paths: string[]) => Promise<void>
   /** Resolves with why the file did not open, or null once Windows has it. */
   mediaOpen: (input: MediaOpenInput) => Promise<string | null>
+  /** Saves a docket's latest version as a PDF. Resolves with why it did not, or null once saved. */
+  docketPdf: (id: string, title: string) => Promise<string | null>
   onMediaProgress: (callback: (progress: MediaProgress) => void) => () => void
   /** The path of a dropped or picked file, so a large video goes to the main process by name, not by bytes. */
   pathForFile: (file: File) => string

@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import {
-  DOCKET_ID_PATTERN, DOCKET_KEY_PREFIX, MAX_DOCKET_BYTES,
+  DOCKET_ID_PATTERN, DOCKET_KEY_PREFIX, MAX_DOCKET_BYTES, docketPdfName,
   type DocketDetail, type DocketKeyCreated, type DocketKeyList, type DocketKeySummary, type DocketList, type DocketUploaded
 } from '@ego/api-contracts'
 import { hashToken, type Env } from '../src/auth'
-import { htmlDescription, htmlTitle, newDocketId } from '../src/dockets'
+import { htmlDescription, htmlTitle, newDocketId, readPdf } from '../src/dockets'
 import worker from '../src/index'
 import { handle } from '../src/router'
 import { createTestDatabase } from './d1'
@@ -314,6 +314,72 @@ describe('docket pages', () => {
     const response = await handle(request('/docket/session', DEVICE_TOKEN, { method: 'POST' }), env)
     expect(response.headers.get('set-cookie')).not.toContain('Max-Age')
     expect((await handle(request('/docket/session', null, { method: 'POST' }), env)).status).toBe(401)
+  })
+})
+
+describe('docket PDFs', () => {
+  const PDF = new TextEncoder().encode('%PDF-1.7 printed')
+
+  function pdfUrl(id: string, query = ''): URL {
+    return new URL(`${API}/v1/dockets/${id}/pdf${query}`)
+  }
+
+  it('prints a version once, keeps the PDF, and serves the copy without printing again', async () => {
+    const { env, objects } = await setup()
+    const { token } = await newKey(env)
+    const first = await upload(env, token, PLAN, { title: 'Plan: v1 / draft' })
+    await upload(env, token, PLAN_V2, { title: 'Plan: v1 / draft' }, first.docket.id)
+    const printed: string[] = []
+    const render = async (html: string): Promise<Uint8Array> => {
+      printed.push(html)
+      return PDF
+    }
+
+    const latest = await readPdf(env, 'ego', first.docket.id, pdfUrl(first.docket.id), render)
+    expect(latest.status).toBe(200)
+    expect(latest.headers.get('content-type')).toBe('application/pdf')
+    expect(latest.headers.get('content-disposition')).toBe(
+      `attachment; filename="Plan_ v1 _ draft.pdf"; filename*=UTF-8''Plan_%20v1%20_%20draft.pdf`)
+    expect(latest.headers.get('x-docket-version')).toBe('2')
+    expect(new Uint8Array(await latest.arrayBuffer())).toEqual(PDF)
+    expect(printed).toEqual([PLAN_V2])
+
+    const again = await handle(request(`/v1/dockets/${first.docket.id}/pdf`, DEVICE_TOKEN), env)
+    expect(again.status).toBe(200)
+    expect(new Uint8Array(await again.arrayBuffer())).toEqual(PDF)
+    await readPdf(env, 'ego', first.docket.id, pdfUrl(first.docket.id, '?version=1'), render)
+    expect(printed).toEqual([PLAN_V2, PLAN])
+
+    expect(objects.size).toBe(4)
+    await call(env, `/v1/dockets/${first.docket.id}`, token, { method: 'DELETE' })
+    expect(objects.size).toBe(0)
+  })
+
+  it('says why when it cannot print', async () => {
+    const { env } = await setup()
+    const { token } = await newKey(env)
+    const { docket } = await upload(env, token, PLAN)
+    const unset = await call(env, `/v1/dockets/${docket.id}/pdf`, DEVICE_TOKEN)
+    expect(unset.status).toBe(503)
+    expect(unset.body.error?.code).toBe('NOT_CONFIGURED')
+
+    const failed = await readPdf(env, 'ego', docket.id, pdfUrl(docket.id), async () => 'Navigation timeout')
+    expect(failed.status).toBe(502)
+    expect(await failed.json()).toMatchObject({ error: { message: 'The PDF could not be made: Navigation timeout' } })
+
+    const render = async (): Promise<Uint8Array> => PDF
+    expect((await readPdf(env, 'other', docket.id, pdfUrl(docket.id), render)).status).toBe(404)
+    expect((await readPdf(env, 'ego', docket.id, pdfUrl(docket.id, '?version=7'), render)).status).toBe(404)
+    expect((await readPdf(env, 'ego', docket.id, pdfUrl(docket.id, '?version=x'), render)).status).toBe(400)
+  })
+})
+
+describe('docket file names', () => {
+  it('replaces characters a file name cannot hold', () => {
+    expect(docketPdfName('Plan: "v2" <final>?')).toBe('Plan_ _v2_ _final__.pdf')
+    expect(docketPdfName('  ends with dots...  ')).toBe('ends with dots.pdf')
+    expect(docketPdfName('   ')).toBe('docket.pdf')
+    expect(docketPdfName('x'.repeat(300))).toBe(`${'x'.repeat(120)}.pdf`)
   })
 })
 

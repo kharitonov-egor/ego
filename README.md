@@ -573,8 +573,9 @@ in `apps/web/vercel.json` only lets the page call that Worker.
 
 ## Docket
 
-Docket publishes the HTML plans and reports that coding agents write. It shows in the web app only,
-under Docket in the sidebar, and the `docket` CLI in `apps/docket` does the uploading.
+Docket publishes the HTML plans and reports that coding agents write. It shows under Docket in the
+sidebar on the web and the desktop, and as a tile on the phone. The `docket` CLI in `apps/docket`
+does the uploading.
 
 - Every docket gets a 10-character ID and a link at `https://ego.kharitonovegor.com/docket/<id>`.
   `docket upload plan.html --id <id>` adds the next version, and the link always shows the latest.
@@ -582,8 +583,14 @@ under Docket in the sidebar, and the `docket` CLI in `apps/docket` does the uplo
 - A new docket is private: only a browser signed in to Ego can open it, and anyone else gets a
   "This docket is private" page. `--public` on upload, `docket publish <id>`, or the switch on the
   details page opens it to anyone with the link. Public pages carry `noindex`.
-- My dockets groups dockets by the git repository the CLI ran in, and each version records its
-  commit and branch. The details page has the link, the visibility switch, the versions, and Delete.
+- My dockets sorts newest first, oldest first, by the latest version, or grouped by the git
+  repository the CLI ran in. Each device remembers the choice. Each version records its commit and
+  branch. The details page has the link, the visibility switch, the versions, and Delete.
+- The download button on each row saves the latest version as a PDF. The Worker prints it with
+  Cloudflare Browser Rendering the first time, which takes several seconds, and keeps the PDF in R2
+  next to the HTML. The PDF keeps the page's dark background, so it has no page margins. The web
+  downloads it, the desktop saves it to Downloads and shows it in Explorer, and the phone opens it
+  in its PDF viewer.
 - CLI setup makes API keys. Ego shows a key once and keeps only its hash. A key reaches the docket
   routes and nothing else in Ego, and Revoke stops it at once. On sign-in the CLI renames its key
   after the computer, like "CLI · JARVIS", so each computer's key can be revoked alone.

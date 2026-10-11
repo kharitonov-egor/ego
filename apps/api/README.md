@@ -82,6 +82,7 @@ and the docket pages under `/docket/` check a cookie instead.
 | `DELETE /v1/dockets/:id` | Deletes the docket, every version, and their files in R2 |
 | `POST /v1/dockets/:id/versions` | Uploads the next version. The link stays the same |
 | `GET /v1/dockets/:id/html` | The HTML of the latest version, or of `version=` |
+| `GET /v1/dockets/:id/pdf` | The same version as a PDF, printed by Browser Rendering on the first request and kept in R2 |
 | `GET`, `POST /v1/docket-keys`, `DELETE /v1/docket-keys/:id` | Lists, makes, and revokes CLI keys. Device token only |
 | `GET /v1/docket-keys/current` | The key making the call. CLI key only |
 | `POST /docket/session` | Sets the private-docket cookie for a browser device |

@@ -96,6 +96,18 @@ export interface DocketKeyCreated {
   token: string
 }
 
+/** Printing a docket the first time loads the page, waits for it to settle, and renders every page. */
+export const DOCKET_PDF_TIMEOUT_MS = 90_000
+
+const MAX_FILE_NAME = 120
+
+/** `<title>.pdf`, with the characters Windows and Android refuse in a file name replaced. */
+export function docketPdfName(title: string): string {
+  const base = title.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').replace(/\s+/g, ' ').trim()
+    .slice(0, MAX_FILE_NAME).replace(/[. ]+$/, '')
+  return `${base || 'docket'}.pdf`
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
