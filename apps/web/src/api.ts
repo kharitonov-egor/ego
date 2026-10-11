@@ -4,6 +4,7 @@ import type {
   AssistantStreamMessage, MediaProgress, RemoteApi, RemoteApiMethod, SignInOutcome
 } from '@ego/ui/platform/local'
 import type { IpcApi, QuickAddPayload, QuickAddResult, TransactionImageSettings } from '@ego/ui/platform/types'
+import { downloadDocketPdf } from './docket'
 import { currentSession, ledgerApi, ledgerDatabase, ledgerState, onLedgerEvent, onMediaProgress, syncLedger } from './ledger'
 import {
   TRELLO_BOARD, TRELLO_LIST, connectorStatus, createLiveSession, disconnectConnector, executeLiveTool, getLivePreferences,
@@ -124,6 +125,7 @@ export function createWebApi(): IpcApi {
     mediaStageFile: () => Promise.reject(new Error('A browser hands files over by content, not by path')),
     mediaDeleteStaged: deleteStaged,
     mediaOpen: async (input) => openMedia(input, (await ledgerDatabase())?.local ?? null, currentSession() ? ledgerApi() : null),
+    docketPdf: (id, title) => currentSession() ? downloadDocketPdf(ledgerApi(), id, title) : Promise.resolve('Sign in to Ego first'),
     onMediaProgress: (callback: (progress: MediaProgress) => void) => onMediaProgress(callback),
     pathForFile: () => '',
     notify: () => undefined,

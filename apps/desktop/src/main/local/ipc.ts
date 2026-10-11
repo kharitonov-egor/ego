@@ -1,8 +1,10 @@
 import { ipcMain, type IpcMainInvokeEvent, type WebContents } from 'electron'
+import { DOCKET_ID_PATTERN } from '@ego/api-contracts'
 import type { SqlParam } from '@ego/local/database/types'
 import { isRemoteApiMethod, type MediaFileInput, type MediaOpenInput, type MediaPathInput } from '@ego/ui/platform/local'
 import { getPreference, setPreference } from '../settings'
 import { streamAssistant } from './assistant'
+import { saveDocketPdf } from './dockets'
 import { ledgerApi, ledgerDatabase, ledgerState, syncLedger } from './ledger'
 import { deleteStagedMedia, openMedia, stageMedia, stageMediaFile } from './media'
 import { beginGoogleSignIn, signOut, useDeviceToken } from './signIn'
@@ -138,6 +140,11 @@ export function setupLocalIpc(isMainWindow: (sender: WebContents) => boolean): v
     guard(event)
     if (!isMediaOpen(input)) throw new Error('Invalid file')
     return openMedia({ database: async () => (await ledgerDatabase())?.local ?? null, api: ledgerApi }, input)
+  })
+  ipcMain.handle('docket-pdf', (event, id: unknown, title: unknown) => {
+    guard(event)
+    if (typeof id !== 'string' || !DOCKET_ID_PATTERN.test(id) || typeof title !== 'string') throw new Error('Invalid docket')
+    return saveDocketPdf(ledgerApi(), id, title)
   })
 
   ipcMain.handle('preference-get', (event, key: unknown) => {

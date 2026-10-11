@@ -1,21 +1,4 @@
-import type { DocketSummary } from '@ego/api-contracts'
 import { isWeb } from './platform'
-
-export interface DocketGroup {
-  repository: string | null
-  dockets: DocketSummary[]
-}
-
-/** Keeps the list's newest-first order: a repository sits where its newest docket would. */
-export function groupByRepository(dockets: readonly DocketSummary[]): DocketGroup[] {
-  const groups = new Map<string | null, DocketSummary[]>()
-  for (const docket of dockets) {
-    const group = groups.get(docket.repository)
-    if (group) group.push(docket)
-    else groups.set(docket.repository, [docket])
-  }
-  return [...groups].map(([repository, members]) => ({ repository, dockets: members }))
-}
 
 function pad(value: number): string {
   return String(value).padStart(2, '0')

@@ -115,6 +115,8 @@ export interface DocketApi {
   docket: (id: string) => Promise<ApiResult<DocketDetail>>
   updateDocket: (id: string, update: DocketUpdate) => Promise<ApiResult<DocketDetail>>
   deleteDocket: (id: string) => Promise<ApiResult<{ deleted: true }>>
+  /** The latest version as a PDF, fetched with `authHeaders()`. A version's first download waits on the Worker printing it. */
+  docketPdfUrl: (id: string) => string
   docketKeys: () => Promise<ApiResult<DocketKeyList>>
   createDocketKey: (name: string | null) => Promise<ApiResult<DocketKeyCreated>>
   revokeDocketKey: (keyId: string) => Promise<ApiResult<{ revoked: true }>>
@@ -445,6 +447,7 @@ export function moneyApiFor(config: ApiConfig, options: { streamFetch?: StreamFe
       body: JSON.stringify(update)
     }),
     deleteDocket: (id) => call<{ deleted: true }>(`/v1/dockets/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    docketPdfUrl: (id) => `${base}/v1/dockets/${encodeURIComponent(id)}/pdf`,
     contentKeys: () => call<ContentKeyList>('/v1/content/keys'),
     createContentKey: () => call<ContentKeyCreated>('/v1/content/keys', { method: 'POST' }),
     revokeContentKey: (id) => call<{ revoked: true }>(`/v1/content/keys/${encodeURIComponent(id)}`, { method: 'DELETE' }),
