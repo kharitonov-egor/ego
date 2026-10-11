@@ -40,6 +40,8 @@ export interface FocusViewProps {
   onToggleDone: (cardId: string) => void
   /** The card in the middle, which the keyboard shortcuts act on. */
   onCurrent: (cardId: string | null, element: HTMLElement | null) => void
+  /** Drawn in the top-right corner, before the way back to the board. */
+  corner?: React.ReactNode
 }
 
 /**
@@ -174,10 +176,11 @@ export function FocusView(props: FocusViewProps): React.ReactElement {
         <ChevronDown color={color.textMuted} size={16} />
       </button>
       {current && <span className="tabular text-[14px] font-semibold text-surface-500">{index + 1} of {cards.length}</span>}
+      {props.corner ?? <span className="ml-auto" />}
       <button
         type="button"
         onClick={props.onExit}
-        className="ml-auto flex min-h-10 items-center gap-1.5 rounded-xl px-3 text-[14px] font-semibold text-surface-300 hover:bg-surface-900"
+        className="flex min-h-10 items-center gap-1.5 rounded-xl px-3 text-[14px] font-semibold text-surface-300 hover:bg-surface-900"
       ><X size={16} />Back to the board</button>
     </div>
     <div className="relative min-h-0 flex-1">

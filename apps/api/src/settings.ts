@@ -1,9 +1,10 @@
 import { invalid, isSharedSettingKey, type ApiResult, type SharedSetting, type SharedSettingKey } from '@ego/api-contracts'
-import { isHotkeyBindings } from '@ego/core'
+import { isHotkeyBindings, isResolveRuns } from '@ego/core'
 import { query } from './reads'
 
 const VALIDATORS: Record<SharedSettingKey, (value: unknown) => boolean> = {
-  hotkeys: isHotkeyBindings
+  hotkeys: isHotkeyBindings,
+  'resolve-runs': isResolveRuns
 }
 
 interface SettingRow {

@@ -45,4 +45,13 @@ describe('shared settings', () => {
     expect(bad.status).toBe(400)
     expect((await call(env, 'GET', '/v1/settings/theme')).status).toBe(404)
   })
+
+  it('keeps Resolve mode runs and refuses one that ran longer than it was set for', async () => {
+    const env = await setup()
+    const runs = [{ id: 'run-1', boardId: 'board-1', startedAt: '2026-10-10T12:00:00.000Z', plannedSeconds: 600, seconds: 600, cards: 7 }]
+    const saved = { value: runs, updatedAt: '2026-10-10T12:10:00.000Z' }
+    expect((await call(env, 'PUT', '/v1/settings/resolve-runs', saved)).payload).toEqual({ ok: true, data: saved })
+    const bad = await call(env, 'PUT', '/v1/settings/resolve-runs', { value: [{ ...runs[0], seconds: 900 }], updatedAt: NOW })
+    expect(bad.status).toBe(400)
+  })
 })

@@ -15,6 +15,7 @@ import { DragBoard, type ListExtras } from '../../components/tasks/DragBoard'
 import { FocusView } from '../../components/tasks/FocusView'
 import { LabelPicker, anchorOf, toggledLabel, type PickerAnchor } from '../../components/tasks/LabelPicker'
 import { QuickEdit, type QuickEditTarget } from '../../components/tasks/QuickEdit'
+import { ResolveBadge, ResolveMode } from '../../components/tasks/ResolveMode'
 import { BoardSheet, FilterSheet, LabelSheet, ListStyleSheet, TextSheet } from '../../components/tasks/sheets'
 import { MenuSheet, TasksError, TasksGate, TasksMessage, type MenuItem } from '../../components/tasks/ui'
 import { NO_USF_FILTER, UsfAssignments, UsfControls, UsfRefresh, inCourse, type UsfFilter } from '../../components/tasks/UsfColumn'
@@ -201,7 +202,7 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
         onClick={() => setFocus(focusing ? null : focusListOf(lists, null)?.id ?? null)}
         disabled={!focusing && lists.length === 0}
         className={focusing ? 'text-foreground' : 'text-surface-300'}
-      ><Focus size={16} />Focus</Button>
+      ><Focus size={16} />Focus{!focusing && <ResolveBadge boardId={board.id} />}</Button>
     } right={<>
       {isHome && <Button variant="ghost" size="sm" onClick={() => navigate(BOARDS_PATH)} className="text-surface-300">
         <LayoutGrid size={16} />All boards
@@ -243,6 +244,7 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
       onCardMenu={(cardId, rect) => setQuick({ cardId, rect: { top: rect.top, left: rect.left, width: rect.width } })}
       onToggleDone={toggleDone}
       onCurrent={onCurrent}
+      corner={<ResolveMode boardId={board.id} listId={focusList.id} />}
     /> : <DragBoard
       lists={lists}
       cards={cards}

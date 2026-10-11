@@ -20,7 +20,7 @@ export interface TrelloWorkSyncResult {
 }
 
 /** Settings every device shares. Each key has its own shape, checked by the Worker. */
-export const SHARED_SETTING_KEYS = ['hotkeys'] as const
+export const SHARED_SETTING_KEYS = ['hotkeys', 'resolve-runs'] as const
 export type SharedSettingKey = typeof SHARED_SETTING_KEYS[number]
 
 export function isSharedSettingKey(value: unknown): value is SharedSettingKey {

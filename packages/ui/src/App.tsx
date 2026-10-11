@@ -14,6 +14,7 @@ import { PeriodProvider } from './lib/period'
 import { ReminderProvider } from './lib/reminder'
 import { TasksProvider } from './lib/tasks/context'
 import { TaskNotificationsProvider } from './lib/tasks/notifications'
+import { ResolveProvider } from './lib/tasks/resolve'
 import Assistant from './screens/ai/Assistant'
 import CalendarScreen from './screens/calendar/Calendar'
 import Diary from './screens/diary/Diary'
@@ -63,11 +64,13 @@ function Providers({ children }: { children: React.ReactNode }): React.ReactElem
               <ReminderProvider>
                 <TasksProvider>
                   <TaskNotificationsProvider>
-                    <FoodProvider>
-                      <HotkeysProvider>
-                        {children}
-                      </HotkeysProvider>
-                    </FoodProvider>
+                    <ResolveProvider>
+                      <FoodProvider>
+                        <HotkeysProvider>
+                          {children}
+                        </HotkeysProvider>
+                      </FoodProvider>
+                    </ResolveProvider>
                   </TaskNotificationsProvider>
                 </TasksProvider>
               </ReminderProvider>
