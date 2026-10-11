@@ -340,17 +340,18 @@ async function writeSheetRow(tx: LocalDatabase, record: SheetRowRecord): Promise
 }
 
 async function writeFoodEntry(tx: LocalDatabase, record: FoodEntryRecord): Promise<void> {
-  await tx.run(`INSERT INTO food_entries (id, name, date, eaten_at, serving, calories, protein, carbs, fat, parts, source,
-    barcode, photo, note, created_at, updated_at, revision, deleted_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+  await tx.run(`INSERT INTO food_entries (id, name, date, eaten_at, serving, calories, protein, carbs, fat, saturated_fat,
+    fiber, sodium, parts, source, barcode, photo, note, created_at, updated_at, revision, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
     ON CONFLICT(id) DO UPDATE SET name = excluded.name, date = excluded.date, eaten_at = excluded.eaten_at,
       serving = excluded.serving, calories = excluded.calories, protein = excluded.protein, carbs = excluded.carbs,
-      fat = excluded.fat, parts = excluded.parts, source = excluded.source, barcode = excluded.barcode,
+      fat = excluded.fat, saturated_fat = excluded.saturated_fat, fiber = excluded.fiber, sodium = excluded.sodium,
+      parts = excluded.parts, source = excluded.source, barcode = excluded.barcode,
       photo = excluded.photo, note = excluded.note, created_at = excluded.created_at, updated_at = excluded.updated_at,
       revision = excluded.revision, deleted_at = NULL
     WHERE excluded.revision >= food_entries.revision`,
   [record.id, record.name, record.date, record.eatenAt, record.serving, record.calories, record.protein, record.carbs,
-    record.fat, JSON.stringify(record.parts), record.source, record.barcode, record.photo ? JSON.stringify(record.photo) : null,
+    record.fat, record.saturatedFat ?? null, record.fiber ?? null, record.sodium ?? null, JSON.stringify(record.parts), record.source, record.barcode, record.photo ? JSON.stringify(record.photo) : null,
     record.note, record.createdAt, record.updatedAt, record.revision])
 }
 
@@ -367,13 +368,16 @@ async function writeFridgeItem(tx: LocalDatabase, record: FridgeItemRecord): Pro
 }
 
 async function writeFoodGoal(tx: LocalDatabase, record: FoodGoalRecord): Promise<void> {
-  await tx.run(`INSERT INTO food_goals (id, calories, protein, carbs, fat, created_at, updated_at, revision, deleted_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)
+  await tx.run(`INSERT INTO food_goals (id, calories, protein, carbs, fat, sodium, saturated_fat_percent, fiber, created_at,
+    updated_at, revision, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
     ON CONFLICT(id) DO UPDATE SET calories = excluded.calories, protein = excluded.protein, carbs = excluded.carbs,
-      fat = excluded.fat, created_at = excluded.created_at, updated_at = excluded.updated_at, revision = excluded.revision,
+      fat = excluded.fat, sodium = excluded.sodium, saturated_fat_percent = excluded.saturated_fat_percent,
+      fiber = excluded.fiber, created_at = excluded.created_at, updated_at = excluded.updated_at, revision = excluded.revision,
       deleted_at = NULL
     WHERE excluded.revision >= food_goals.revision`,
-  [record.id, record.calories, record.protein, record.carbs, record.fat, record.createdAt, record.updatedAt, record.revision])
+  [record.id, record.calories, record.protein, record.carbs, record.fat, record.sodium ?? null,
+    record.saturatedFatPercent ?? null, record.fiber ?? null, record.createdAt, record.updatedAt, record.revision])
 }
 
 /** Applies a record only when it is at least as new as the stored revision. */

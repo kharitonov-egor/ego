@@ -159,6 +159,9 @@ export function TargetsSheet({ visible, goal, onSave, onClose }: {
   const [protein, setProtein] = useState('')
   const [carbs, setCarbs] = useState('')
   const [fat, setFat] = useState('')
+  const [sodium, setSodium] = useState('')
+  const [saturatedFat, setSaturatedFat] = useState('')
+  const [fiber, setFiber] = useState('')
   const saved = useRef(goal)
   saved.current = goal
   // Only opening the sheet refills it. A sync landing while it is open would wipe what was typed.
@@ -168,17 +171,29 @@ export function TargetsSheet({ visible, goal, onSave, onClose }: {
     setProtein(targetText(saved.current.protein))
     setCarbs(targetText(saved.current.carbs))
     setFat(targetText(saved.current.fat))
+    setSodium(targetText(saved.current.sodium))
+    setSaturatedFat(targetText(saved.current.saturatedFatPercent))
+    setFiber(targetText(saved.current.fiber))
   }, [visible])
   return <Sheet visible={visible} title="Daily targets" onClose={onClose}>
     <form onSubmit={(event) => {
       event.preventDefault()
-      onSave({ calories: targetValue(calories), protein: targetValue(protein), carbs: targetValue(carbs), fat: targetValue(fat) })
+      onSave({
+        calories: targetValue(calories), protein: targetValue(protein), carbs: targetValue(carbs), fat: targetValue(fat),
+        sodium: targetValue(sodium), saturatedFatPercent: targetValue(saturatedFat), fiber: targetValue(fiber)
+      })
     }}>
       <NumberField label="Calories" unit="kcal" value={calories} onChange={setCalories} />
       <NumberField label="Protein" unit="g" value={protein} onChange={setProtein} />
       <NumberField label="Carbs" unit="g" value={carbs} onChange={setCarbs} />
       <NumberField label="Fat" unit="g" value={fat} onChange={setFat} />
-      <p className="text-[13px] leading-5 text-muted-foreground">Leave a box empty for no target. Every day compares against these.</p>
+      <NumberField label="Sodium" unit="mg" value={sodium} onChange={setSodium} />
+      <NumberField label="Saturated fat" unit="%" value={saturatedFat} onChange={setSaturatedFat} />
+      <NumberField label="Fiber" unit="g" value={fiber} onChange={setFiber} />
+      <p className="text-[13px] leading-5 text-muted-foreground">
+        Leave a box empty for no target. Sodium and saturated fat are limits, and fiber is a minimum. Saturated fat is a
+        percent of the calorie target, or of what you ate when there is no calorie target.
+      </p>
       <Button type="submit" size="lg" className="mt-4 w-full">Save</Button>
     </form>
   </Sheet>

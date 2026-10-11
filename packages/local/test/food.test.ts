@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import type { FoodEntryInput, FoodMealDraft } from '@ego/core'
+import type { FoodEntryRecord, FoodGoalRecord } from '@ego/api-contracts'
+import { NO_FOOD_GOAL, type FoodEntryInput, type FoodMealDraft } from '@ego/core'
 import type { LocalDatabase } from '../src/database/types'
+import { writeRecord } from '../src/database/writes'
 import { queueUploads, releaseReadyMessages } from '../src/diary/uploads'
 import {
   addedLabel, cleanEntry, clockOf, dayTitle, entryAt, entryFromMeal, entryFromProduct, fridgeItemsFrom, localDay, productName
@@ -15,8 +17,11 @@ const LUNCH = new Date(2026, 9, 2, 12, 30)
 
 const meal: FoodMealDraft = {
   name: 'Burrito bowl', serving: '1 bowl', note: 'About 1 tbsp of oil',
-  parts: [{ name: 'Chicken', calories: 280, protein: 40, carbs: 0, fat: 12 }, { name: 'Rice', calories: 360, protein: 5, carbs: 60, fat: 10 }],
-  calories: 640, protein: 45, carbs: 60, fat: 22
+  parts: [
+    { name: 'Chicken', calories: 280, protein: 40, carbs: 0, fat: 12, saturatedFat: 3.4, fiber: 0, sodium: 520 },
+    { name: 'Rice', calories: 360, protein: 5, carbs: 60, fat: 10, saturatedFat: 1.2, fiber: 2.1, sodium: 410 }
+  ],
+  calories: 640, protein: 45, carbs: 60, fat: 22, saturatedFat: 4.6, fiber: 2.1, sodium: 930
 }
 
 const entry = (overrides: Partial<FoodEntryInput> = {}): FoodEntryInput => ({
@@ -33,7 +38,10 @@ afterEach(async () => {
 describe('drafts', () => {
   it('logs a meal on the phone\'s own day and clock', () => {
     const logged = entryFromMeal(meal, 'photo', { mediaId: 'm', previewId: 'p', width: 10, height: 10 }, LUNCH)
-    expect(logged).toMatchObject({ name: 'Burrito bowl', date: '2026-10-02', calories: 640, source: 'photo', note: 'About 1 tbsp of oil' })
+    expect(logged).toMatchObject({
+      name: 'Burrito bowl', date: '2026-10-02', calories: 640, saturatedFat: 4.6, fiber: 2.1, sodium: 930, source: 'photo',
+      note: 'About 1 tbsp of oil'
+    })
     expect(clockOf(logged.eatenAt)).toBe('12:30')
     expect(localDay(new Date(2026, 9, 2, 23, 59))).toBe('2026-10-02')
   })
@@ -44,9 +52,12 @@ describe('drafts', () => {
     expect(productName({ name: 'Oats', brand: null })).toBe('Oats')
     const scanned = entryFromProduct({
       barcode: '012345678905', name: 'Greek Yogurt', brand: 'Chobani', serving: '1 cup (170 g)',
-      macros: { calories: 100, protein: 17, carbs: 6, fat: 0.7 }, source: 'usda'
+      macros: { calories: 100, protein: 17, carbs: 6, fat: 0.7, saturatedFat: 0.5, fiber: null, sodium: 65 }, source: 'usda'
     }, null, LUNCH)
-    expect(scanned).toMatchObject({ name: 'Chobani Greek Yogurt', serving: '1 cup (170 g)', barcode: '012345678905', source: 'barcode', protein: 17 })
+    expect(scanned).toMatchObject({
+      name: 'Chobani Greek Yogurt', serving: '1 cup (170 g)', barcode: '012345678905', source: 'barcode', protein: 17,
+      saturatedFat: 0.5, fiber: null, sodium: 65
+    })
   })
 
   it('moves an entry to another day and time', () => {
@@ -58,6 +69,8 @@ describe('drafts', () => {
 
   it('cleans an edit and refuses one with no name', () => {
     expect(cleanEntry(entry({ name: '  Bowl  ', calories: 640.4, protein: 45.26 }))).toMatchObject({ name: 'Bowl', calories: 640, protein: 45.3 })
+    expect(cleanEntry(entry({ sodium: 930.6, saturatedFat: 4.66, fiber: null }))).toMatchObject({ sodium: 931, saturatedFat: 4.7, fiber: null })
+    expect(cleanEntry(entry({ sodium: -5 }))).toBeNull()
     expect(cleanEntry(entry({ name: ' ' }))).toBeNull()
     expect(cleanEntry(entry({ fat: -1 }))).toBeNull()
   })
@@ -79,14 +92,18 @@ describe('the food log on the phone', () => {
     await saveFoodEntry(db, 'f-1', null, entry({ name: 'Breakfast', date: '2026-10-01', eatenAt: '2026-10-01T12:00:00.000Z' }), NOW)
     await saveFoodEntry(db, 'f-2', null, entry(), NOW)
     await createFridgeItem(db, { name: 'Milk', icon: '🥛', brand: null, barcode: null, source: 'manual', purchaseId: null, addedAt: NOW }, NOW, 'i-1')
-    await saveFoodGoal(db, { calories: 2200, protein: 150, carbs: null, fat: null }, null, NOW)
+    await saveFoodGoal(db, { ...NO_FOOD_GOAL, calories: 2200, protein: 150, sodium: 2300, saturatedFatPercent: 10, fiber: 34 }, null, NOW)
     const food = await localFood(db)
     expect(food.entries.map((item) => item.id)).toEqual(['f-2', 'f-1'])
     expect(food.entries[0].parts.map((part) => part.name)).toEqual(['Chicken', 'Rice'])
+    expect(food.entries[0]).toMatchObject({ saturatedFat: 4.6, fiber: 2.1, sodium: 930 })
+    expect(food.entries[0].parts[1]).toMatchObject({ saturatedFat: 1.2, fiber: 2.1, sodium: 410 })
     expect(food.fridge.map((item) => item.name)).toEqual(['Milk'])
-    expect(food.goal).toMatchObject({ id: 'daily', calories: 2200, protein: 150, carbs: null, revision: 1 })
+    expect(food.goal).toMatchObject({
+      id: 'daily', calories: 2200, protein: 150, carbs: null, sodium: 2300, saturatedFatPercent: 10, fiber: 34, revision: 1
+    })
 
-    await saveFoodGoal(db, { calories: 2000, protein: 150, carbs: null, fat: null }, 1, NOW)
+    await saveFoodGoal(db, { ...NO_FOOD_GOAL, calories: 2000, protein: 150 }, 1, NOW)
     expect((await allOperations(db)).filter((operation) => operation.entity === 'foodGoal').map((operation) => operation.commandType))
       .toEqual(['create', 'update'])
     await deleteFridgeItem(db, 'i-1', 1, NOW)
@@ -134,7 +151,27 @@ describe('editing a stored entry', () => {
   it('sends only the entry\'s own fields', () => {
     const stored = { ...entry(), id: 'f-1', createdAt: NOW, updatedAt: NOW, revision: 3 }
     expect(Object.keys(cleanEntry(stored) ?? {}).sort()).toEqual([
-      'barcode', 'calories', 'carbs', 'date', 'eatenAt', 'fat', 'name', 'note', 'parts', 'photo', 'protein', 'serving', 'source'
+      'barcode', 'calories', 'carbs', 'date', 'eatenAt', 'fat', 'fiber', 'name', 'note', 'parts', 'photo', 'protein',
+      'saturatedFat', 'serving', 'sodium', 'source'
     ])
+  })
+})
+
+describe('records from before saturated fat, fiber, and sodium', () => {
+  it('stores a pulled entry and targets without them as unknown', async () => {
+    db = await openTestLedger()
+    const { saturatedFat, fiber, sodium, ...legacy } = entry()
+    const record: unknown = {
+      ...legacy, parts: [{ name: 'Rice', calories: 360, protein: 5, carbs: 60, fat: 10 }],
+      id: 'f-old', createdAt: NOW, updatedAt: NOW, revision: 2
+    }
+    const goal: unknown = { id: 'daily', calories: 2200, protein: null, carbs: null, fat: null, createdAt: NOW, updatedAt: NOW, revision: 1 }
+    await writeRecord(db, { entity: 'foodEntry', record: record as FoodEntryRecord })
+    await writeRecord(db, { entity: 'foodGoal', record: goal as FoodGoalRecord })
+    const food = await localFood(db)
+    expect([saturatedFat, fiber, sodium]).toEqual([4.6, 2.1, 930])
+    expect(food.entries[0]).toMatchObject({ id: 'f-old', saturatedFat: null, fiber: null, sodium: null })
+    expect(food.entries[0].parts[0]).toMatchObject({ name: 'Rice', saturatedFat: null, fiber: null, sodium: null })
+    expect(food.goal).toMatchObject({ calories: 2200, sodium: null, saturatedFatPercent: null, fiber: null })
   })
 })

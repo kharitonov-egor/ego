@@ -4,8 +4,8 @@ import { useRouter } from 'expo-router'
 import { Image } from 'expo-image'
 import { Barcode, Refrigerator, TriangleAlert, UtensilsCrossed, X, type LucideIcon } from 'lucide-react-native'
 import {
-  formatCalories, formatGrams,
-  type FoodEntryInput, type FoodGoalInput, type FoodMacros, type FoodPhoto
+  formatCalories, formatGrams, formatNutrient, isOverLimit, nutrientReadings,
+  type FoodEntryInput, type FoodGoalInput, type FoodMacros, type FoodPhoto, type NutrientReading
 } from '@ego/core'
 import { useBlur } from '../../lib/blur'
 import { mediaSource } from '../../lib/diary/media'
@@ -129,8 +129,9 @@ export function FridgeIcon({ icon, size = 44 }: { icon: string; size?: number })
   </View>
 }
 
-function Bar({ share }: { share: number }): React.ReactElement {
-  const over = share > 1
+/** A minimum, like fiber, fills up and never warns. */
+function Bar({ share, limit = true }: { share: number; limit?: boolean }): React.ReactElement {
+  const over = limit && share > 1
   return <View className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface-800">
     <View style={{ width: `${Math.min(share, 1) * 100}%`, height: '100%', backgroundColor: over ? color.attention : color.text }} />
   </View>
@@ -145,6 +146,38 @@ function MacroColumn({ label, value, target }: { label: string; value: number; t
     </View>
     {target ? <Bar share={value / target} /> : null}
   </View>
+}
+
+function NutrientColumn({ reading }: { reading: NutrientReading }): React.ReactElement {
+  const { label, value, target, unit, limit } = reading
+  return <View className="flex-1">
+    <Text className="text-[13px] font-medium text-muted-foreground">{label}</Text>
+    <View className="mt-0.5 flex-row items-baseline">
+      <Text className={`text-[17px] font-semibold ${isOverLimit(reading) ? 'text-attention' : ''}`} style={tabular}>{formatNutrient(value, unit)}</Text>
+      <Text className="ml-0.5 text-[13px] text-muted-foreground" style={tabular}>
+        {target ? ` / ${formatNutrient(target, unit)} ${unit}` : ` ${unit}`}
+      </Text>
+    </View>
+    {target ? <Bar share={(value ?? 0) / target} limit={limit} /> : null}
+  </View>
+}
+
+/** A day's sodium, saturated fat, and fiber on one line, with a limit that was passed in the attention color. */
+export function DayNutrients({ totals, goal, className = '' }: {
+  totals: FoodMacros
+  goal: FoodGoalInput
+  className?: string
+}): React.ReactElement | null {
+  const readings = nutrientReadings(totals, goal).filter((reading) => reading.value !== null)
+  if (readings.length === 0) return null
+  return <Text className={`text-[13px] text-muted-foreground ${className}`} style={tabular}>
+    {readings.map((reading, index) => <React.Fragment key={reading.key}>
+      {index > 0 && ' · '}
+      <Text className={isOverLimit(reading) ? 'text-attention' : 'text-muted-foreground'}>
+        {reading.label} {formatNutrient(reading.value, reading.unit)} {reading.unit}
+      </Text>
+    </React.Fragment>)}
+  </Text>
 }
 
 /** Today against the daily targets. Tapping it opens the targets. */
@@ -177,7 +210,10 @@ export function TodayCard({ totals, goal, onPress }: {
       <MacroColumn label="Carbs" value={totals.carbs} target={goal.carbs} />
       <MacroColumn label="Fat" value={totals.fat} target={goal.fat} />
     </View>
-    {goal.calories === null && goal.protein === null && goal.carbs === null && goal.fat === null &&
+    <View className="mt-4 flex-row gap-4">
+      {nutrientReadings(totals, goal).map((reading) => <NutrientColumn key={reading.key} reading={reading} />)}
+    </View>
+    {[goal.calories, goal.protein, goal.carbs, goal.fat, goal.sodium, goal.saturatedFatPercent, goal.fiber].every((target) => target === null) &&
       <Text className="mt-3 text-[13px] text-surface-400">Tap to set daily targets.</Text>}
   </Pressable>
 }

@@ -1,6 +1,6 @@
 import type { FoodEntryRecord, FoodGoalRecord, FridgeItemRecord } from '@ego/api-contracts'
 import {
-  FOOD_GOAL_ID, isFoodPart, isFoodPhoto,
+  FOOD_GOAL_ID, isFoodPart, isFoodPhoto, nutrientsOf,
   type FoodPart, type FoodPhoto, type FoodSource, type FridgeSource
 } from '@ego/core'
 import type { LocalDatabase } from '../database/types'
@@ -21,6 +21,9 @@ interface EntryRow {
   protein: number
   carbs: number
   fat: number
+  saturated_fat: number | null
+  fiber: number | null
+  sodium: number | null
   parts: string
   source: FoodSource
   barcode: string | null
@@ -51,6 +54,9 @@ interface GoalRow {
   protein: number | null
   carbs: number | null
   fat: number | null
+  sodium: number | null
+  saturated_fat_percent: number | null
+  fiber: number | null
   created_at: string
   updated_at: string
   revision: number
@@ -67,7 +73,7 @@ function parsed(raw: string | null): unknown {
 
 function parts(raw: string): FoodPart[] {
   const value = parsed(raw)
-  return Array.isArray(value) ? value.filter(isFoodPart) : []
+  return Array.isArray(value) ? value.filter(isFoodPart).map((part) => ({ ...part, ...nutrientsOf(part) })) : []
 }
 
 function photo(raw: string | null): FoodPhoto | null {
@@ -86,7 +92,8 @@ export async function localFood(db: LocalDatabase): Promise<FoodData> {
   return {
     entries: entries.map((row) => ({
       id: row.id, name: row.name, date: row.date, eatenAt: row.eaten_at, serving: row.serving,
-      calories: row.calories, protein: row.protein, carbs: row.carbs, fat: row.fat, parts: parts(row.parts),
+      calories: row.calories, protein: row.protein, carbs: row.carbs, fat: row.fat,
+      saturatedFat: row.saturated_fat, fiber: row.fiber, sodium: row.sodium, parts: parts(row.parts),
       source: row.source, barcode: row.barcode, photo: photo(row.photo), note: row.note,
       createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
     })),
@@ -98,6 +105,7 @@ export async function localFood(db: LocalDatabase): Promise<FoodData> {
     goal: goal
       ? {
         id: goal.id, calories: goal.calories, protein: goal.protein, carbs: goal.carbs, fat: goal.fat,
+        sodium: goal.sodium, saturatedFatPercent: goal.saturated_fat_percent, fiber: goal.fiber,
         createdAt: goal.created_at, updatedAt: goal.updated_at, revision: goal.revision
       }
       : null

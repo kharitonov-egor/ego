@@ -1,11 +1,12 @@
 import {
   DEFAULT_ASSISTANT_MODEL, FOOD_IMAGE_MIME_TYPES, FOOD_TEXT_LIMIT, MAX_FOOD_IMAGE_BYTES, analyzeFood, barcodeKey,
-  isFoodBarcode, mergeProducts, parseOpenFoodFacts, parseUsdaSearch,
+  estimateNutrients, isFoodBarcode, isFoodNutrientsQuery, mergeProducts, parseOpenFoodFacts, parseUsdaSearch,
   type FoodAnalysisFailure, type FoodProduct
 } from '@ego/core'
 import {
   HTTP_STATUS,
-  type ApiErrorCode, type FoodAnalyzeRequest, type FoodAnalyzeResponse, type FoodImage, type FoodProductResponse
+  type ApiErrorCode, type FoodAnalyzeRequest, type FoodAnalyzeResponse, type FoodImage, type FoodNutrientsRequest,
+  type FoodNutrientsResponse, type FoodProductResponse
 } from '@ego/api-contracts'
 import type { Env } from './auth'
 
@@ -75,6 +76,27 @@ async function analyze(request: Request, env: Env): Promise<Response> {
   return ok(data)
 }
 
+function parseNutrients(value: unknown): FoodNutrientsRequest | null {
+  if (!isRecord(value) || !isFoodNutrientsQuery(value)) return null
+  if (value.image !== null && !isFoodImage(value.image)) return null
+  return { name: value.name, serving: value.serving, note: value.note, parts: value.parts, image: value.image }
+}
+
+/** Saturated fat, fiber, and sodium for a meal logged before they were tracked. */
+async function nutrients(request: Request, env: Env): Promise<Response> {
+  if (!env.OPENROUTER_API_KEY) return failure('NOT_CONFIGURED', 'Add OPENROUTER_API_KEY on the Worker to estimate food')
+  let body: unknown
+  try { body = await request.json() } catch { return failure('INVALID_REQUEST', 'The request body is not valid JSON') }
+  const input = parseNutrients(body)
+  if (!input) return failure('INVALID_REQUEST', 'Send a meal name and its parts, with an optional photo under 10 MB')
+  const { image, ...query } = input
+  const result = await estimateNutrients({ apiKey: env.OPENROUTER_API_KEY, model: foodModel(env), query, image },
+    (url, init) => fetch(url, init))
+  if (!result.ok) return failure(FAILURE_CODES[result.reason], result.message)
+  const data: FoodNutrientsResponse = { parts: result.data }
+  return ok(data)
+}
+
 async function fetchJson(url: string, headers: Record<string, string> = {}): Promise<unknown> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), LOOKUP_TIMEOUT_MS)
@@ -122,6 +144,7 @@ async function product(env: Env, barcode: string): Promise<Response> {
 /** Routes under `/v1/food/`, apart from media. Null means the path is not one of them. */
 export function foodRoute(request: Request, env: Env, path: string): Promise<Response> | null {
   if (request.method === 'POST' && path === '/v1/food/analyze') return analyze(request, env)
+  if (request.method === 'POST' && path === '/v1/food/nutrients') return nutrients(request, env)
   if (request.method === 'GET' && path.startsWith('/v1/food/products/')) {
     return product(env, decodeURIComponent(path.slice('/v1/food/products/'.length)))
   }

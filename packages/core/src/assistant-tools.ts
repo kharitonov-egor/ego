@@ -120,10 +120,16 @@ const foodEntry = object({
   protein: { type: 'number', minimum: 0, maximum: 3000, description: 'grams' },
   carbs: { type: 'number', minimum: 0, maximum: 3000, description: 'grams' },
   fat: { type: 'number', minimum: 0, maximum: 3000, description: 'grams' },
+  saturatedFat: { type: 'number', minimum: 0, maximum: 3000, description: 'grams of saturated fat' },
+  fiber: { type: 'number', minimum: 0, maximum: 3000, description: 'grams of dietary fiber' },
+  sodium: { type: 'number', minimum: 0, maximum: 100000, description: 'milligrams of sodium, counting salt in cooking, sauces, and restaurant food' },
   usePhoto: { type: 'boolean', description: 'True for the entry the photo attached to this very message shows. A photo from an earlier message cannot be attached.' }
 })
 
 const target: ToolSchema = { type: ['number', 'null'], minimum: 0, maximum: 20000 }
+const sodiumTarget: ToolSchema = { type: ['number', 'null'], minimum: 0, maximum: 100000, description: 'milligrams a day at most' }
+const percentTarget: ToolSchema = { type: ['number', 'null'], minimum: 0, maximum: 100, description: 'saturated fat as a percent of the calorie target, at most' }
+const fiberTarget: ToolSchema = { type: ['number', 'null'], minimum: 0, maximum: 3000, description: 'grams a day at least' }
 
 const eventKey: ToolSchema = { type: 'string', minLength: 3, maxLength: 600, description: 'An event key from read_calendar' }
 const allEvents: ToolSchema = {
@@ -304,7 +310,7 @@ export const ASSISTANT_TOOLS: Record<AssistantToolName, AssistantToolDefinition>
   },
   read_food: {
     name: 'read_food',
-    description: 'Food logged between two dates: each entry with its time, calories, protein, carbs, and fat, the totals per day, and the daily targets. Up to 62 days.',
+    description: 'Food logged between two dates: each entry with its time, calories, protein, carbs, fat, saturated fat, fiber, and sodium, the totals per day, and the daily targets. Null means unknown. Up to 62 days.',
     parameters: object(range),
     access: 'read'
   },
@@ -316,7 +322,7 @@ export const ASSISTANT_TOOLS: Record<AssistantToolName, AssistantToolDefinition>
   },
   log_food: {
     name: 'log_food',
-    description: 'Log food the user ate. Estimate calories and protein, carbs, and fat for the amount eaten. When a photo is attached, read it, and use a visible nutrition label\'s numbers. Put every dish or snack the user mentioned in one call.',
+    description: 'Log food the user ate. Estimate calories, protein, carbs, fat, saturated fat, fiber, and sodium for the amount eaten. When a photo is attached, read it, and use a visible nutrition label\'s numbers. Put every dish or snack the user mentioned in one call.',
     parameters: object({ entries: { type: 'array', minItems: 1, maxItems: 20, items: foodEntry } }),
     access: 'write'
   },
@@ -390,8 +396,11 @@ export const ASSISTANT_TOOLS: Record<AssistantToolName, AssistantToolDefinition>
   },
   set_food_targets: {
     name: 'set_food_targets',
-    description: 'Set the daily food targets: calories in kcal, protein, carbs, and fat in grams. Null keeps a target as it is; 0 removes it.',
-    parameters: object({ calories: target, protein: target, carbs: target, fat: target }),
+    description: 'Set the daily food targets: calories in kcal; protein, carbs, and fat in grams; a sodium limit in mg; a saturated fat limit as a percent of calories; and a fiber minimum in grams. Null keeps a target as it is; 0 removes it.',
+    parameters: object({
+      calories: target, protein: target, carbs: target, fat: target,
+      sodium: sodiumTarget, saturatedFatPercent: percentTarget, fiber: fiberTarget
+    }),
     access: 'write'
   }
 }

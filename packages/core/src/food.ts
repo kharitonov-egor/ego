@@ -12,13 +12,26 @@ export type FridgeSource = 'barcode' | 'photo' | 'receipt' | 'manual' | 'assista
 export const FOOD_SOURCES: readonly FoodSource[] = ['photo', 'barcode', 'text', 'manual', 'assistant']
 export const FRIDGE_SOURCES: readonly FridgeSource[] = ['barcode', 'photo', 'receipt', 'manual', 'assistant']
 
-/** Calories in kcal; protein, carbs, and fat in grams. */
+/**
+ * Calories in kcal; protein, carbs, fat, saturated fat, and fiber in grams; sodium in milligrams.
+ * Saturated fat, fiber, and sodium are null when nobody knows them, like an entry from before they
+ * were tracked or a label that leaves one out.
+ */
 export interface FoodMacros {
   calories: number
   protein: number
   carbs: number
   fat: number
+  saturatedFat: number | null
+  fiber: number | null
+  sodium: number | null
 }
+
+export type FoodNutrients = Pick<FoodMacros, 'saturatedFat' | 'fiber' | 'sodium'>
+
+const NUTRIENT_KEYS = ['saturatedFat', 'fiber', 'sodium'] as const
+
+export const NO_NUTRIENTS: FoodNutrients = { saturatedFat: null, fiber: null, sodium: null }
 
 /** One thing on the plate, as the model or the label split it. */
 export interface FoodPart extends FoodMacros {
@@ -72,13 +85,21 @@ export interface FridgeItem extends FridgeItemInput {
   updatedAt: string
 }
 
-/** Null means no target for that number. */
+/**
+ * Null means no target for that number. Sodium is in milligrams and fiber in grams. Saturated fat
+ * is a share of the calorie target, so changing calories moves it too.
+ */
 export interface FoodGoalInput {
   calories: number | null
   protein: number | null
   carbs: number | null
   fat: number | null
+  sodium: number | null
+  saturatedFatPercent: number | null
+  fiber: number | null
 }
+
+const GOAL_EXTRA_KEYS = ['sodium', 'saturatedFatPercent', 'fiber'] as const
 
 export interface FoodGoal extends FoodGoalInput {
   id: string
@@ -95,6 +116,8 @@ export const FOOD_NOTE_LIMIT = 1000
 export const FOOD_PART_LIMIT = 30
 export const FOOD_CALORIE_LIMIT = 20000
 export const FOOD_GRAM_LIMIT = 3000
+export const FOOD_SODIUM_LIMIT = 100000
+export const FOOD_PERCENT_LIMIT = 100
 export const FRIDGE_NAME_LIMIT = 120
 export const FRIDGE_BRAND_LIMIT = 80
 export const FRIDGE_ICON_LIMIT = 16
@@ -126,11 +149,38 @@ export function isFoodBarcode(value: unknown): value is string {
   return typeof value === 'string' && BARCODE.test(value)
 }
 
+/** Builds from before saturated fat, fiber, and sodium leave them out, which reads as unknown. */
+function isNutrient(value: unknown, limit: number): boolean {
+  return value === undefined || value === null || isAmount(value, limit)
+}
+
 function hasMacros(value: Record<string, unknown>): boolean {
   return isAmount(value.calories, FOOD_CALORIE_LIMIT) &&
     isAmount(value.protein, FOOD_GRAM_LIMIT) &&
     isAmount(value.carbs, FOOD_GRAM_LIMIT) &&
-    isAmount(value.fat, FOOD_GRAM_LIMIT)
+    isAmount(value.fat, FOOD_GRAM_LIMIT) &&
+    isNutrient(value.saturatedFat, FOOD_GRAM_LIMIT) &&
+    isNutrient(value.fiber, FOOD_GRAM_LIMIT) &&
+    isNutrient(value.sodium, FOOD_SODIUM_LIMIT)
+}
+
+/** False for an entry or a part from a build that predates saturated fat, fiber, and sodium. */
+export function carriesNutrients(value: object): boolean {
+  return NUTRIENT_KEYS.every((key) => key in value)
+}
+
+/** The three numbers, with any an older build left out taken from `fallback`. */
+export function nutrientsOf(value: Partial<FoodNutrients>, fallback: FoodNutrients = NO_NUTRIENTS): FoodNutrients {
+  return {
+    saturatedFat: value.saturatedFat === undefined ? fallback.saturatedFat : value.saturatedFat,
+    fiber: value.fiber === undefined ? fallback.fiber : value.fiber,
+    sodium: value.sodium === undefined ? fallback.sodium : value.sodium
+  }
+}
+
+/** False for targets saved by a build that predates sodium, saturated fat, and fiber. */
+export function carriesGoalExtras(value: object): boolean {
+  return GOAL_EXTRA_KEYS.every((key) => key in value)
 }
 
 export function isFoodMacros(value: unknown): value is FoodMacros {
@@ -181,7 +231,10 @@ export function isFoodGoalInput(value: unknown): value is FoodGoalInput {
     isTarget(value.calories, FOOD_CALORIE_LIMIT) &&
     isTarget(value.protein, FOOD_GRAM_LIMIT) &&
     isTarget(value.carbs, FOOD_GRAM_LIMIT) &&
-    isTarget(value.fat, FOOD_GRAM_LIMIT)
+    isTarget(value.fat, FOOD_GRAM_LIMIT) &&
+    (value.sodium === undefined || isTarget(value.sodium, FOOD_SODIUM_LIMIT)) &&
+    (value.saturatedFatPercent === undefined || isTarget(value.saturatedFatPercent, FOOD_PERCENT_LIMIT)) &&
+    (value.fiber === undefined || isTarget(value.fiber, FOOD_GRAM_LIMIT))
 }
 
 /** Every file an entry points at, so the server can check each one finished uploading. */
@@ -190,11 +243,21 @@ export function foodMediaIds(input: Pick<FoodEntryInput, 'photo'>): string[] {
   return input.photo.previewId ? [input.photo.mediaId, input.photo.previewId] : [input.photo.mediaId]
 }
 
-export const NO_MACROS: FoodMacros = { calories: 0, protein: 0, carbs: 0, fat: 0 }
-export const NO_FOOD_GOAL: FoodGoalInput = { calories: null, protein: null, carbs: null, fat: null }
+/** Nothing eaten: zero of everything. */
+export const NO_MACROS: FoodMacros = { calories: 0, protein: 0, carbs: 0, fat: 0, saturatedFat: 0, fiber: 0, sodium: 0 }
+export const NO_FOOD_GOAL: FoodGoalInput = {
+  calories: null, protein: null, carbs: null, fat: null, sodium: null, saturatedFatPercent: null, fiber: null
+}
 
 function tidy(value: number): number {
   return Math.round(value * 10) / 10
+}
+
+/** Unknown numbers count as nothing, and the total is unknown only when every one is. */
+function sumKnown(values: readonly (number | null)[], round: (value: number) => number): number | null {
+  const known = values.filter((value): value is number => value !== null)
+  if (values.length > 0 && known.length === 0) return null
+  return round(known.reduce((sum, value) => sum + value, 0))
 }
 
 export function sumMacros(list: readonly FoodMacros[]): FoodMacros {
@@ -203,8 +266,13 @@ export function sumMacros(list: readonly FoodMacros[]): FoodMacros {
     protein: sum.protein + item.protein,
     carbs: sum.carbs + item.carbs,
     fat: sum.fat + item.fat
-  }), NO_MACROS)
-  return { calories: tidy(total.calories), protein: tidy(total.protein), carbs: tidy(total.carbs), fat: tidy(total.fat) }
+  }), { calories: 0, protein: 0, carbs: 0, fat: 0 })
+  return {
+    calories: tidy(total.calories), protein: tidy(total.protein), carbs: tidy(total.carbs), fat: tidy(total.fat),
+    saturatedFat: sumKnown(list.map((item) => item.saturatedFat ?? null), tidy),
+    fiber: sumKnown(list.map((item) => item.fiber ?? null), tidy),
+    sodium: sumKnown(list.map((item) => item.sodium ?? null), Math.round)
+  }
 }
 
 export function scaleMacros(macros: FoodMacros, factor: number): FoodMacros {
@@ -212,8 +280,21 @@ export function scaleMacros(macros: FoodMacros, factor: number): FoodMacros {
     calories: tidy(macros.calories * factor),
     protein: tidy(macros.protein * factor),
     carbs: tidy(macros.carbs * factor),
-    fat: tidy(macros.fat * factor)
+    fat: tidy(macros.fat * factor),
+    saturatedFat: macros.saturatedFat === null ? null : tidy(macros.saturatedFat * factor),
+    fiber: macros.fiber === null ? null : tidy(macros.fiber * factor),
+    sodium: macros.sodium === null ? null : Math.round(macros.sodium * factor)
   }
+}
+
+/**
+ * The day's saturated fat limit in grams: a share of the calorie target, or of what was eaten when
+ * there is no calorie target. Fat has 9 kcal per gram.
+ */
+export function saturatedFatLimit(goal: Pick<FoodGoalInput, 'calories' | 'saturatedFatPercent'>, eaten: number): number | null {
+  if (goal.saturatedFatPercent === null) return null
+  const calories = goal.calories ?? eaten
+  return calories > 0 ? tidy(calories * goal.saturatedFatPercent / 100 / 9) : null
 }
 
 /** Atwater's 4, 4, and 9 kcal per gram, for a label that leaves energy out. */
@@ -252,6 +333,43 @@ export function formatGrams(value: number): string {
   return value >= 10 ? String(Math.round(value)) : String(tidy(value))
 }
 
+/** "2,300" for sodium. */
+export function formatMilligrams(value: number): string {
+  return Math.round(value).toLocaleString('en-US')
+}
+
+/** One of saturated fat, fiber, and sodium for a day, against its target. */
+export interface NutrientReading {
+  key: keyof FoodNutrients
+  label: string
+  value: number | null
+  target: number | null
+  unit: 'g' | 'mg'
+  /** Sodium and saturated fat are limits to stay under; fiber is a minimum to reach. */
+  limit: boolean
+}
+
+export function nutrientReadings(totals: FoodMacros, goal: FoodGoalInput): NutrientReading[] {
+  return [
+    { key: 'sodium', label: 'Sodium', value: totals.sodium, target: goal.sodium, unit: 'mg', limit: true },
+    {
+      key: 'saturatedFat', label: 'Sat fat', value: totals.saturatedFat, target: saturatedFatLimit(goal, totals.calories),
+      unit: 'g', limit: true
+    },
+    { key: 'fiber', label: 'Fiber', value: totals.fiber, target: goal.fiber, unit: 'g', limit: false }
+  ]
+}
+
+export function isOverLimit(reading: NutrientReading): boolean {
+  return reading.limit && reading.value !== null && reading.target !== null && reading.value > reading.target
+}
+
+/** "2,300" in milligrams or "4.5" in grams, and "–" when unknown. */
+export function formatNutrient(value: number | null, unit: NutrientReading['unit']): string {
+  if (value === null) return '–'
+  return unit === 'mg' ? formatMilligrams(value) : formatGrams(value)
+}
+
 function cleanText(value: unknown, limit: number): string {
   return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, limit) : ''
 }
@@ -286,6 +404,14 @@ function numberAt(record: Record<string, unknown>, key: string): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null
 }
 
+/** Open Food Facts keeps sodium in grams, and some products give only salt, which is 40% sodium. */
+function offSodium(nutriments: Record<string, unknown>, suffix: '_serving' | '_100g'): number | null {
+  const sodium = numberAt(nutriments, `sodium${suffix}`)
+  if (sodium !== null) return Math.round(sodium * 1000)
+  const salt = numberAt(nutriments, `salt${suffix}`)
+  return salt === null ? null : Math.round(salt * 400)
+}
+
 function offMacros(nutriments: Record<string, unknown>, suffix: '_serving' | '_100g'): FoodMacros | null {
   const protein = numberAt(nutriments, `proteins${suffix}`)
   const carbs = numberAt(nutriments, `carbohydrates${suffix}`)
@@ -294,7 +420,14 @@ function offMacros(nutriments: Record<string, unknown>, suffix: '_serving' | '_1
   const calories = numberAt(nutriments, `energy-kcal${suffix}`) ?? (kilojoules === null ? null : kilojoules / 4.184)
   if (calories === null && protein === null && carbs === null && fat === null) return null
   const macros = { protein: tidy(protein ?? 0), carbs: tidy(carbs ?? 0), fat: tidy(fat ?? 0) }
-  return { calories: tidy(calories ?? caloriesFromMacros(macros.protein, macros.carbs, macros.fat)), ...macros }
+  const saturatedFat = numberAt(nutriments, `saturated-fat${suffix}`)
+  const fiber = numberAt(nutriments, `fiber${suffix}`)
+  return {
+    calories: tidy(calories ?? caloriesFromMacros(macros.protein, macros.carbs, macros.fat)), ...macros,
+    saturatedFat: saturatedFat === null ? null : tidy(saturatedFat),
+    fiber: fiber === null ? null : tidy(fiber),
+    sodium: offSodium(nutriments, suffix)
+  }
 }
 
 /** Reads Open Food Facts' `/api/v2/product/<code>.json` answer. */
@@ -321,13 +454,16 @@ export function parseOpenFoodFacts(value: unknown, barcode: string): FoodProduct
     macros = per100
     serving = product.nutrition_data_per === '100ml' ? '100 ml' : '100 g'
   } else {
-    macros = NO_MACROS
+    macros = { ...NO_MACROS, ...NO_NUTRIENTS }
     serving = servingText
   }
   return { barcode, name: readableName(name), brand: brand ? readableName(brand) : null, serving, macros, source: 'openfoodfacts' }
 }
 
-const USDA_NUTRIENTS = { calories: ['208', '1008', '957', '958'], protein: ['203'], carbs: ['205'], fat: ['204'] } as const
+const USDA_NUTRIENTS = {
+  calories: ['208', '1008', '957', '958'], protein: ['203'], carbs: ['205'], fat: ['204'],
+  saturatedFat: ['606'], fiber: ['291'], sodium: ['307']
+} as const
 
 function usdaNutrient(nutrients: readonly Record<string, unknown>[], numbers: readonly string[]): number | null {
   for (const number of numbers) {
@@ -357,7 +493,10 @@ export function parseUsdaSearch(value: unknown, barcode: string): FoodProduct | 
     calories: calories ?? caloriesFromMacros(protein ?? 0, carbs ?? 0, fat ?? 0),
     protein: protein ?? 0,
     carbs: carbs ?? 0,
-    fat: fat ?? 0
+    fat: fat ?? 0,
+    saturatedFat: usdaNutrient(nutrients, USDA_NUTRIENTS.saturatedFat),
+    fiber: usdaNutrient(nutrients, USDA_NUTRIENTS.fiber),
+    sodium: usdaNutrient(nutrients, USDA_NUTRIENTS.sodium)
   }
   const size = numberAt(food, 'servingSize')
   const unit = cleanText(food.servingSizeUnit, 10).toLowerCase()
@@ -382,7 +521,22 @@ export function parseUsdaSearch(value: unknown, barcode: string): FoodProduct | 
 export function mergeProducts(usda: FoodProduct | null, openFoodFacts: FoodProduct | null): FoodProduct | null {
   if (!usda) return openFoodFacts
   if (!openFoodFacts) return usda
-  return { ...usda, name: openFoodFacts.name, brand: openFoodFacts.brand ?? usda.brand }
+  return {
+    ...usda, name: openFoodFacts.name, brand: openFoodFacts.brand ?? usda.brand,
+    macros: { ...usda.macros, ...missingNutrients(usda.macros, openFoodFacts.macros) }
+  }
+}
+
+/** Fills what USDA left out from the other source, scaled by calories since the two servings can differ. */
+function missingNutrients(own: FoodMacros, other: FoodMacros): FoodNutrients {
+  const factor = other.calories > 0 && own.calories > 0 ? own.calories / other.calories : null
+  const fill = (mine: number | null, theirs: number | null, round: (value: number) => number): number | null =>
+    mine ?? (theirs === null || factor === null ? null : round(theirs * factor))
+  return {
+    saturatedFat: fill(own.saturatedFat, other.saturatedFat, tidy),
+    fiber: fill(own.fiber, other.fiber, tidy),
+    sodium: fill(own.sodium, other.sodium, Math.round)
+  }
 }
 
 export type FoodAnalysisMode = 'meal' | 'fridge'
@@ -428,12 +582,19 @@ const ANALYSIS_TIMEOUT_MS = 60_000
 const MAX_DRAFT_PARTS = 20
 const MAX_FRIDGE_DRAFT_ITEMS = 60
 
+const nutrientProperties = {
+  saturatedFat: { type: 'number', minimum: 0, description: 'grams of saturated fat' },
+  fiber: { type: 'number', minimum: 0, description: 'grams of dietary fiber' },
+  sodium: { type: 'number', minimum: 0, description: 'milligrams of sodium' }
+}
+
 const partProperties = {
   name: { type: 'string' },
   calories: { type: 'number', minimum: 0, description: 'kcal for this part as eaten' },
   protein: { type: 'number', minimum: 0, description: 'grams' },
   carbs: { type: 'number', minimum: 0, description: 'grams' },
-  fat: { type: 'number', minimum: 0, description: 'grams' }
+  fat: { type: 'number', minimum: 0, description: 'grams' },
+  ...nutrientProperties
 }
 
 const MEAL_SCHEMA = {
@@ -470,14 +631,17 @@ const FRIDGE_SCHEMA = {
   }
 }
 
+const SALT_HINT = 'Count the salt in cooking, sauces, broth, cheese, cured and smoked meat or fish, pickles, bread, and restaurant food, which is usually saltier than home cooking.'
+
 const MEAL_PROMPT = [
-  'Estimate the calories, protein, carbs, and fat of the food or drink a person ate, from a photo, a description, or both.',
+  'Estimate the calories, protein, carbs, fat, saturated fat, fiber, and sodium of the food or drink a person ate, from a photo, a description, or both.',
   'Split the meal into its parts, one per food on the plate, with each part\'s numbers for the amount eaten.',
   'When a nutrition facts label is visible, read it: use its serving size and its per-serving values exactly, and put that serving in serving.',
   'When a known packaged or restaurant item is visible, use its published values.',
   'Otherwise judge portions from the plate, utensils, hands, and packaging. Count cooking oil, butter, sauces, dressings, and drinks you can see.',
+  SALT_HINT,
   'The person\'s own words override what you see: "half", "two of these", or "about 200 g" change the amount.',
-  'Round calories to whole numbers and grams to one decimal. Never return negative numbers.',
+  'Round calories and sodium to whole numbers and grams to one decimal. Never return negative numbers.',
   'Set isFood to false and leave parts empty when there is nothing to eat or drink in it.'
 ].join(' ')
 
@@ -488,9 +652,78 @@ const FRIDGE_PROMPT = [
   'Return an empty list when there is no food in it.'
 ].join(' ')
 
+const NUTRIENTS_PROMPT = [
+  'A person already logged this meal. Estimate saturated fat and fiber in grams and sodium in milligrams for each part.',
+  'Each part lists its calories, protein, carbs, and fat for the amount eaten, which tells you the portion.',
+  'Return exactly one result per part, in the same order, and repeat each part\'s name.',
+  SALT_HINT,
+  'When a photo is attached, use it for what the names leave out.',
+  'Round sodium to whole milligrams and grams to one decimal. Never return negative numbers.'
+].join(' ')
+
 interface ChatCompletion {
   choices?: Array<{ message?: { content?: string | null; refusal?: string | null } }>
   error?: { message?: string }
+}
+
+type ModelImage = { base64: string; mimeType: string }
+type ModelReply = { ok: true; value: unknown } | { ok: false; reason: FoodAnalysisFailure; message: string }
+
+const UNREADABLE = 'The model returned something unreadable. Try again.'
+
+/** Sends one prompt, and a photo when there is one, to OpenRouter with a strict schema, and parses the JSON. */
+async function askModel(
+  input: { apiKey: string; model: string; prompt: string; image: ModelImage | null; schemaName: string; schema: Record<string, unknown> },
+  fetcher: FetchLike
+): Promise<ModelReply> {
+  const content: Array<Record<string, unknown>> = [{ type: 'text', text: input.prompt }]
+  if (input.image) content.push({ type: 'image_url', image_url: { url: `data:${input.image.mimeType};base64,${input.image.base64}` } })
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), ANALYSIS_TIMEOUT_MS)
+  let response: Response
+  try {
+    response = await fetcher('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${input.apiKey.trim()}`,
+        'content-type': 'application/json',
+        'x-title': 'Ego food'
+      },
+      body: JSON.stringify({
+        model: input.model.trim(),
+        messages: [{ role: 'user', content }],
+        response_format: { type: 'json_schema', json_schema: { name: input.schemaName, strict: true, schema: input.schema } }
+      }),
+      signal: controller.signal
+    })
+  } catch (error: unknown) {
+    clearTimeout(timer)
+    if (error instanceof Error && error.name === 'AbortError') {
+      return { ok: false, reason: 'timeout', message: 'Reading the food took longer than a minute. Try again.' }
+    }
+    return { ok: false, reason: 'upstream', message: 'OpenRouter is unreachable. Check the connection and try again.' }
+  }
+  clearTimeout(timer)
+  if (response.status === 401 || response.status === 403) {
+    return { ok: false, reason: 'unauthorized', message: 'OpenRouter rejected the server key. Replace OPENROUTER_API_KEY on the Worker.' }
+  }
+  if (response.status === 429) return { ok: false, reason: 'rate_limited', message: 'OpenRouter is busy. Wait a moment and try again.' }
+  let body: ChatCompletion
+  try {
+    body = await response.json() as ChatCompletion
+  } catch {
+    return { ok: false, reason: 'upstream', message: 'OpenRouter returned an unreadable response.' }
+  }
+  if (!response.ok) return { ok: false, reason: 'upstream', message: body.error?.message ?? `OpenRouter returned HTTP ${response.status}.` }
+  const message = body.choices?.[0]?.message
+  if (message?.refusal || !message?.content) {
+    return { ok: false, reason: 'invalid', message: 'The model could not read that. Try a clearer photo or a few more words.' }
+  }
+  try {
+    return { ok: true, value: JSON.parse(message.content) }
+  } catch {
+    return { ok: false, reason: 'invalid', message: UNREADABLE }
+  }
 }
 
 function rounded(value: number, places: number): number {
@@ -498,17 +731,31 @@ function rounded(value: number, places: number): number {
   return Math.round(value * factor) / factor
 }
 
+function isCount(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+}
+
+/** A number the model left out or got wrong stays unknown rather than sinking the whole draft. */
+function draftNutrients(value: Record<string, unknown>): FoodNutrients {
+  return {
+    saturatedFat: isCount(value.saturatedFat) ? rounded(value.saturatedFat, 1) : null,
+    fiber: isCount(value.fiber) ? rounded(value.fiber, 1) : null,
+    sodium: isCount(value.sodium) ? rounded(value.sodium, 0) : null
+  }
+}
+
 function draftPart(value: unknown): FoodPart | null {
   if (!isRecord(value)) return null
   const name = cleanText(value.name, FOOD_NAME_LIMIT)
   const numbers = [value.calories, value.protein, value.carbs, value.fat]
-  if (!name || !numbers.every((number) => typeof number === 'number' && Number.isFinite(number) && number >= 0)) return null
+  if (!name || !numbers.every(isCount)) return null
   const part: FoodPart = {
     name,
     calories: rounded(Number(value.calories), 0),
     protein: rounded(Number(value.protein), 1),
     carbs: rounded(Number(value.carbs), 1),
-    fat: rounded(Number(value.fat), 1)
+    fat: rounded(Number(value.fat), 1),
+    ...draftNutrients(value)
   }
   return isFoodPart(part) ? part : null
 }
@@ -555,68 +802,93 @@ export async function analyzeFood(input: AnalyzeFoodInput, fetcher: FetchLike): 
   const text = input.text.trim().slice(0, FOOD_TEXT_LIMIT)
   if (!input.image && !text) return { ok: false, reason: 'invalid', message: 'Add a photo or describe the food.' }
   const prompt = input.mode === 'meal' ? MEAL_PROMPT : FRIDGE_PROMPT
-  const content: Array<Record<string, unknown>> = [{ type: 'text', text: text ? `${prompt}\n\nThe person wrote: ${text}` : prompt }]
-  if (input.image) content.push({ type: 'image_url', image_url: { url: `data:${input.image.mimeType};base64,${input.image.base64}` } })
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), ANALYSIS_TIMEOUT_MS)
-  let response: Response
-  try {
-    response = await fetcher('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${input.apiKey.trim()}`,
-        'content-type': 'application/json',
-        'x-title': 'Ego food'
-      },
-      body: JSON.stringify({
-        model: input.model.trim(),
-        messages: [{ role: 'user', content }],
-        response_format: {
-          type: 'json_schema',
-          json_schema: {
-            name: input.mode === 'meal' ? 'food_meal' : 'food_fridge',
-            strict: true,
-            schema: input.mode === 'meal' ? MEAL_SCHEMA : FRIDGE_SCHEMA
-          }
-        }
-      }),
-      signal: controller.signal
-    })
-  } catch (error: unknown) {
-    clearTimeout(timer)
-    if (error instanceof Error && error.name === 'AbortError') {
-      return { ok: false, reason: 'timeout', message: 'Reading the food took longer than a minute. Try again.' }
-    }
-    return { ok: false, reason: 'upstream', message: 'OpenRouter is unreachable. Check the connection and try again.' }
-  }
-  clearTimeout(timer)
-  if (response.status === 401 || response.status === 403) {
-    return { ok: false, reason: 'unauthorized', message: 'OpenRouter rejected the server key. Replace OPENROUTER_API_KEY on the Worker.' }
-  }
-  if (response.status === 429) return { ok: false, reason: 'rate_limited', message: 'OpenRouter is busy. Wait a moment and try again.' }
-  let body: ChatCompletion
-  try {
-    body = await response.json() as ChatCompletion
-  } catch {
-    return { ok: false, reason: 'upstream', message: 'OpenRouter returned an unreadable response.' }
-  }
-  if (!response.ok) return { ok: false, reason: 'upstream', message: body.error?.message ?? `OpenRouter returned HTTP ${response.status}.` }
-  const message = body.choices?.[0]?.message
-  if (message?.refusal || !message?.content) {
-    return { ok: false, reason: 'invalid', message: 'The model could not read that. Try a clearer photo or a few more words.' }
-  }
-  let parsed: unknown
-  try { parsed = JSON.parse(message.content) } catch {
-    return { ok: false, reason: 'invalid', message: 'The model returned something unreadable. Try again.' }
-  }
+  const reply = await askModel({
+    apiKey: input.apiKey,
+    model: input.model,
+    prompt: text ? `${prompt}\n\nThe person wrote: ${text}` : prompt,
+    image: input.image,
+    schemaName: input.mode === 'meal' ? 'food_meal' : 'food_fridge',
+    schema: input.mode === 'meal' ? MEAL_SCHEMA : FRIDGE_SCHEMA
+  }, fetcher)
+  if (!reply.ok) return reply
   if (input.mode === 'fridge') {
-    const items = fridgeDraftFrom(parsed)
-    if (!items) return { ok: false, reason: 'invalid', message: 'The model returned something unreadable. Try again.' }
+    const items = fridgeDraftFrom(reply.value)
+    if (!items) return { ok: false, reason: 'invalid', message: UNREADABLE }
     if (items.length === 0) return { ok: false, reason: 'not_food', message: 'No food showed up in that photo.' }
     return { ok: true, data: { mode: 'fridge', items } }
   }
-  const meal = mealDraftFrom(parsed)
+  const meal = mealDraftFrom(reply.value)
   if (meal === 'not_food') return { ok: false, reason: 'not_food', message: 'No food showed up in that. Try another photo.' }
-  if (!meal) return { ok: false, reason: 'invalid', message: 'The model returned something unreadable. Try again.' }
+  if (!meal) return { ok: false, reason: 'invalid', message: UNREADABLE }
   return { ok: true, data: { mode: 'meal', meal } }
+}
+
+/** A logged meal whose saturated fat, fiber, and sodium are wanted. An entry without parts is its own one part. */
+export interface FoodNutrientsQuery {
+  name: string
+  serving: string
+  note: string
+  parts: Array<Pick<FoodPart, 'name' | 'calories' | 'protein' | 'carbs' | 'fat'>>
+}
+
+export const FOOD_NUTRIENT_PART_LIMIT = FOOD_PART_LIMIT
+
+export function isFoodNutrientsQuery(value: unknown): value is FoodNutrientsQuery {
+  return isRecord(value) &&
+    isText(value.name, 1, FOOD_NAME_LIMIT) &&
+    isText(value.serving, 0, FOOD_SERVING_LIMIT) &&
+    isText(value.note, 0, FOOD_NOTE_LIMIT) &&
+    Array.isArray(value.parts) && value.parts.length >= 1 && value.parts.length <= FOOD_NUTRIENT_PART_LIMIT &&
+    value.parts.every((part) => isRecord(part) && isText(part.name, 1, FOOD_NAME_LIMIT) &&
+      isAmount(part.calories, FOOD_CALORIE_LIMIT) && isAmount(part.protein, FOOD_GRAM_LIMIT) &&
+      isAmount(part.carbs, FOOD_GRAM_LIMIT) && isAmount(part.fat, FOOD_GRAM_LIMIT))
+}
+
+export type FoodNutrientsResult =
+  | { ok: true; data: FoodNutrients[] }
+  | { ok: false; reason: FoodAnalysisFailure; message: string }
+
+/** One set of numbers per part, in the parts' order, or null when the model returned another count. */
+export function nutrientsFrom(value: unknown, count: number): FoodNutrients[] | null {
+  if (!isRecord(value) || !Array.isArray(value.parts) || value.parts.length !== count) return null
+  const parts: unknown[] = value.parts
+  const records = parts.filter(isRecord)
+  return records.length === count ? records.map(draftNutrients) : null
+}
+
+/** Asks for saturated fat, fiber, and sodium of a meal that was logged before they were tracked. */
+export async function estimateNutrients(
+  input: { apiKey: string; model: string; query: FoodNutrientsQuery; image: ModelImage | null },
+  fetcher: FetchLike
+): Promise<FoodNutrientsResult> {
+  const { query } = input
+  const lines = query.parts.map((part, index) => `${index + 1}. ${part.name}: ${Math.round(part.calories)} kcal, ` +
+    `${part.protein} g protein, ${part.carbs} g carbs, ${part.fat} g fat`)
+  const meal = [`Meal: ${query.name}`, query.serving ? `Serving: ${query.serving}` : '', query.note ? `Note: ${query.note}` : '', 'Parts:', ...lines]
+    .filter(Boolean).join('\n')
+  const count = query.parts.length
+  const reply = await askModel({
+    apiKey: input.apiKey,
+    model: input.model,
+    prompt: `${NUTRIENTS_PROMPT}\n\n${meal}`,
+    image: input.image,
+    schemaName: 'food_nutrients',
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['parts'],
+      properties: {
+        parts: {
+          type: 'array', minItems: count, maxItems: count,
+          items: {
+            type: 'object', additionalProperties: false, required: ['name', ...Object.keys(nutrientProperties)],
+            properties: { name: { type: 'string' }, ...nutrientProperties }
+          }
+        }
+      }
+    }
+  }, fetcher)
+  if (!reply.ok) return reply
+  const parts = nutrientsFrom(reply.value, count)
+  return parts ? { ok: true, data: parts } : { ok: false, reason: 'invalid', message: UNREADABLE }
 }

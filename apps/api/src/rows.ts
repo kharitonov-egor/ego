@@ -1,7 +1,7 @@
 import {
-  isDiaryAttachment, isFoodPart, isFoodPhoto, isTaskAttachment, isTaskListColor, isTaskListKind, isTaskReminder, parseSheetCells, parseSheetColumns,
+  isDiaryAttachment, isFoodPart, isFoodPhoto, nutrientsOf, isTaskAttachment, isTaskListColor, isTaskListKind, isTaskReminder, parseSheetCells, parseSheetColumns,
   parseSheetRowTypes, parseSheetView,
-  type AccountKind, type FoodPhoto, type FoodSource, type FridgeSource, type CategoryKind, type DiaryAttachment, type DiaryEntity, type DiarySource, type DistanceUnit,
+  type AccountKind, type FoodPart, type FoodPhoto, type FoodSource, type FridgeSource, type CategoryKind, type DiaryAttachment, type DiaryEntity, type DiarySource, type DistanceUnit,
   type ExerciseType, type ExerciseWeightUnit, type HabitEntryKind, type HabitKind, type HabitPeriod,
   type MoneyPurchase, type MoodLevel, type ReceiptItem, type TaskActivity, type TaskAttachment, type TaskChecklist,
   type TaskGoalMilestone, type TaskLabelColor, type TaskPriority, type TransactionKind, type WeightUnit
@@ -587,6 +587,9 @@ export interface FoodEntryRow {
   protein: number
   carbs: number
   fat: number
+  saturated_fat: number | null
+  fiber: number | null
+  sodium: number | null
   parts: string
   source: FoodSource
   barcode: string | null
@@ -617,9 +620,17 @@ export interface FoodGoalRow {
   protein: number | null
   carbs: number | null
   fat: number | null
+  sodium: number | null
+  saturated_fat_percent: number | null
+  fiber: number | null
   created_at: string
   updated_at: string
   revision: number
+}
+
+/** Parts saved before saturated fat, fiber, and sodium were tracked read as unknown. */
+export function foodParts(raw: string): FoodPart[] {
+  return jsonList(raw).filter(isFoodPart).map((part) => ({ ...part, ...nutrientsOf(part) }))
 }
 
 function foodPhoto(raw: string | null): FoodPhoto | null {
@@ -636,7 +647,8 @@ export function toFoodEntryRecord(row: FoodEntryRow): FoodEntryRecord {
   return {
     id: row.id, name: row.name, date: row.date, eatenAt: row.eaten_at, serving: row.serving,
     calories: row.calories, protein: row.protein, carbs: row.carbs, fat: row.fat,
-    parts: jsonList(row.parts).filter(isFoodPart), source: row.source, barcode: row.barcode, photo: foodPhoto(row.photo),
+    saturatedFat: row.saturated_fat, fiber: row.fiber, sodium: row.sodium,
+    parts: foodParts(row.parts), source: row.source, barcode: row.barcode, photo: foodPhoto(row.photo),
     note: row.note, createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
   }
 }
@@ -652,6 +664,7 @@ export function toFridgeItemRecord(row: FridgeItemRow): FridgeItemRecord {
 export function toFoodGoalRecord(row: FoodGoalRow): FoodGoalRecord {
   return {
     id: row.id, calories: row.calories, protein: row.protein, carbs: row.carbs, fat: row.fat,
+    sodium: row.sodium, saturatedFatPercent: row.saturated_fat_percent, fiber: row.fiber,
     createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
   }
 }

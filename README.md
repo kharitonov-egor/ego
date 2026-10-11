@@ -481,17 +481,27 @@ version, the same as Tasks. Changing a column's type rewrites only the rows whos
 The Food tile has two tabs: Log, for what you ate, and Fridge, for the food you have at home.
 
 - Log lists every entry grouped by day, newest first: today at the top, yesterday under it, and so
-  on as you scroll. Each day's header has its calories. Each entry shows the time, the serving,
-  calories, and protein, carbs, and fat. The Pictures checkbox at the top shows or hides the photo
+  on as you scroll. Each day's header has its calories, with a line under it for sodium, saturated
+  fat, and fiber. A limit the day went over shows in the attention color. Each entry shows the time,
+  the serving, calories, and protein, carbs, and fat. The Pictures checkbox at the top shows or hides the photo
   beside each entry.
-- The card at the top compares today with the daily targets for calories, protein, carbs, and fat.
-  Tap it, or the target icon, to set them. An empty box means no target for that number.
+- The card at the top compares today with the daily targets for calories, protein, carbs, and fat,
+  and in a second row sodium, saturated fat, and fiber. Tap it, or the target icon, to set them. An
+  empty box means no target for that number. Sodium (mg) and saturated fat are limits; fiber (g) is
+  a minimum, so its bar fills up and never warns. Saturated fat is set as a percent of calories: the
+  limit in grams is that share of the calorie target, or of what was eaten when there is no calorie
+  target, at 9 kcal per gram.
+- An entry's saturated fat, fiber, and sodium can be unknown, shown as "–" and left out of the day's
+  sum. The editor leaves those boxes empty.
 - The camera button takes a photo of a plate or a nutrition label. The plus also chooses a photo
   from the gallery, scans a barcode, or takes a description like "a large bowl of pho". The model
-  reads the photo or the words and splits the meal into parts, each with its own numbers. On a
-  label it copies the label's serving and values.
+  reads the photo or the words and splits the meal into parts, each with its own numbers, saturated
+  fat, fiber, and sodium included. On a label it copies the label's serving and values. Salt is
+  invisible in a photo, so restaurant meals tend to read low on sodium; a barcode gives the label's
+  number.
 - A barcode is looked up in USDA FoodData Central and Open Food Facts. USDA's numbers come from the
-  label, so they win when both know the product; Open Food Facts usually has the plainer name. The
+  label, so they win when both know the product; Open Food Facts usually has the plainer name and
+  fills in saturated fat, fiber, or sodium that USDA left out, scaled by calories. The
   scanner keeps a still of the package as the entry's photo. When neither database knows a code,
   the card offers a photo of the label instead.
 - Whatever gets read lands on a card that saves itself after three seconds, the same as the AI
@@ -525,6 +535,14 @@ calls OpenRouter for photos and descriptions (`POST /v1/food/analyze`) with a st
 then adds the parts up itself rather than trusting the model's arithmetic. `FOOD_MODEL` picks the
 model and falls back to `ASSISTANT_MODEL`. Barcodes go through `GET /v1/food/products/:barcode`,
 which asks USDA only when `USDA_API_KEY` is set.
+
+Saturated fat, fiber, and sodium came later (migration 0033, bootstrap version 13). A build from
+before them sends entries and targets without those fields; the Worker keeps the stored numbers on
+its edits, and each part keeps its own when the part in that place has the same name.
+`POST /v1/food/nutrients` estimates the three for a logged meal, part by part, with its photo.
+`scripts/food-backfill.mjs` uses it to fill entries that are missing them, takes a barcode entry's
+numbers from its label, and sets the targets to 2,300 mg sodium, 10% saturated fat, and 34 g fiber
+when none are set.
 
 ## Desktop
 

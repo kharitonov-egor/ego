@@ -2,12 +2,12 @@ import React, { memo, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { ImagePlus, Plus, Target } from 'lucide-react'
 import type { FoodEntryRecord } from '@ego/api-contracts'
-import { NO_FOOD_GOAL, NO_MACROS, formatCalories, type FoodDay, type FoodEntryInput } from '@ego/core'
+import { NO_FOOD_GOAL, NO_MACROS, formatCalories, type FoodDay, type FoodEntryInput, type FoodGoalInput } from '@ego/core'
 import { dayTitle, timeLabel } from '@ego/local/food/drafts'
 import { DraftCard } from '../../components/food/DraftCard'
 import { PhotoDropZone } from '../../components/food/PhotoDrop'
 import { AddSheet, BarcodeSheet, DescribeSheet, TargetsSheet, type AddChoice } from '../../components/food/sheets'
-import { FoodError, FoodGate, FoodHeader, FoodThumb, TodayCard, macroText } from '../../components/food/ui'
+import { DayNutrients, FoodError, FoodGate, FoodHeader, FoodThumb, TodayCard, macroText } from '../../components/food/ui'
 import { Screen } from '../../components/screen'
 import { IconButton } from '../../components/ui/button'
 import { Checkbox } from '../../components/ui/checkbox'
@@ -56,10 +56,13 @@ const EntryRow = memo(function EntryRow({ entry, pictures, stuck, first, last, s
   </button>
 })
 
-function DayHeader({ day, today }: { day: FoodDay<FoodEntryRecord>; today: string }): React.ReactElement {
-  return <div className="flex items-end justify-between px-1 pb-2 pt-6">
-    <h2 className="text-[15px] font-bold">{dayTitle(day.date, today)}</h2>
-    <span className="tabular text-[13px] text-muted-foreground">{formatCalories(day.totals.calories)} kcal</span>
+function DayHeader({ day, today, goal }: { day: FoodDay<FoodEntryRecord>; today: string; goal: FoodGoalInput }): React.ReactElement {
+  return <div className="px-1 pb-2 pt-6">
+    <div className="flex items-end justify-between">
+      <h2 className="text-[15px] font-bold">{dayTitle(day.date, today)}</h2>
+      <span className="tabular text-[13px] text-muted-foreground">{formatCalories(day.totals.calories)} kcal</span>
+    </div>
+    <DayNutrients totals={day.totals} goal={goal} className="mt-0.5" />
   </div>
 }
 
@@ -210,7 +213,7 @@ function LogBody({ entryId, onDraftEdit, onTargets, onPhoto, onChoosePhoto, onLa
             {days.length > 0 && <span className="text-[13px] text-surface-500">Newest first</span>}
           </div>
           {days.map((day) => <section key={day.date} aria-label={dayTitle(day.date, food.today)}>
-            <DayHeader day={day} today={food.today} />
+            <DayHeader day={day} today={food.today} goal={goal} />
             {day.entries.map((entry, index) => <EntryRow
               key={entry.id}
               entry={entry}

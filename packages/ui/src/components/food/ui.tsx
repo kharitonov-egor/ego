@@ -2,8 +2,8 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Barcode, NotebookPen, Refrigerator, TriangleAlert, UtensilsCrossed, X, type LucideIcon } from 'lucide-react'
 import {
-  formatCalories, formatGrams,
-  type FoodEntryInput, type FoodGoalInput, type FoodMacros, type FoodPhoto
+  formatCalories, formatGrams, formatNutrient, isOverLimit, nutrientReadings,
+  type FoodEntryInput, type FoodGoalInput, type FoodMacros, type FoodPhoto, type NutrientReading
 } from '@ego/core'
 import { mediaUrl } from '../../lib/platform'
 import { useBlur } from '../../lib/blur'
@@ -136,8 +136,9 @@ export function FridgeIcon({ icon, size = 44 }: { icon: string; size?: number })
   </span>
 }
 
-function Bar({ share }: { share: number }): React.ReactElement {
-  const over = share > 1
+/** A minimum, like fiber, fills up and never warns. */
+function Bar({ share, limit = true }: { share: number; limit?: boolean }): React.ReactElement {
+  const over = limit && share > 1
   return <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-surface-800">
     <span className="block h-full" style={{ width: `${Math.min(share, 1) * 100}%`, backgroundColor: over ? color.attention : color.text }} />
   </span>
@@ -152,6 +153,36 @@ function MacroColumn({ label, value, target }: { label: string; value: number; t
     </span>
     {target ? <Bar share={value / target} /> : null}
   </span>
+}
+
+function NutrientColumn({ reading }: { reading: NutrientReading }): React.ReactElement {
+  const { label, value, target, unit, limit } = reading
+  return <span className="block min-w-0 flex-1">
+    <span className="block text-[13px] font-medium text-muted-foreground">{label}</span>
+    <span className="mt-0.5 flex items-baseline">
+      <span className={cn('tabular text-[17px] font-semibold', isOverLimit(reading) && 'text-attention')}>{formatNutrient(value, unit)}</span>
+      <span className="tabular ml-0.5 whitespace-pre text-[13px] text-muted-foreground">
+        {target ? ` / ${formatNutrient(target, unit)} ${unit}` : ` ${unit}`}
+      </span>
+    </span>
+    {target ? <Bar share={(value ?? 0) / target} limit={limit} /> : null}
+  </span>
+}
+
+/** A day's sodium, saturated fat, and fiber on one line, with a limit that was passed in the attention color. */
+export function DayNutrients({ totals, goal, className }: {
+  totals: FoodMacros
+  goal: FoodGoalInput
+  className?: string
+}): React.ReactElement | null {
+  const readings = nutrientReadings(totals, goal).filter((reading) => reading.value !== null)
+  if (readings.length === 0) return null
+  return <p className={cn('tabular text-[13px] text-muted-foreground', className)}>
+    {readings.map((reading, index) => <React.Fragment key={reading.key}>
+      {index > 0 && ' · '}
+      <span className={cn(isOverLimit(reading) && 'text-attention')}>{reading.label} {formatNutrient(reading.value, reading.unit)} {reading.unit}</span>
+    </React.Fragment>)}
+  </p>
 }
 
 /** Today against the daily targets. Clicking it opens the targets. */
@@ -184,7 +215,10 @@ export function TodayCard({ totals, goal, onPress }: {
       <MacroColumn label="Carbs" value={totals.carbs} target={goal.carbs} />
       <MacroColumn label="Fat" value={totals.fat} target={goal.fat} />
     </span>
-    {goal.calories === null && goal.protein === null && goal.carbs === null && goal.fat === null &&
+    <span className="mt-4 flex gap-4">
+      {nutrientReadings(totals, goal).map((reading) => <NutrientColumn key={reading.key} reading={reading} />)}
+    </span>
+    {[goal.calories, goal.protein, goal.carbs, goal.fat, goal.sodium, goal.saturatedFatPercent, goal.fiber].every((target) => target === null) &&
       <span className="mt-3 block text-[13px] text-surface-400">Click to set daily targets.</span>}
   </button>
 }

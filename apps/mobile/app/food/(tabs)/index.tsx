@@ -4,10 +4,10 @@ import { useNavigation, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Camera, Plus, Target } from 'lucide-react-native'
 import type { FoodEntryRecord } from '@ego/api-contracts'
-import { NO_FOOD_GOAL, NO_MACROS, formatCalories, type FoodDay } from '@ego/core'
+import { NO_FOOD_GOAL, NO_MACROS, formatCalories, type FoodDay, type FoodGoalInput } from '@ego/core'
 import { DraftCard } from '../../../components/food/DraftCard'
 import { AddSheet, DescribeSheet, TargetsSheet, type AddChoice } from '../../../components/food/sheets'
-import { FoodError, FoodGate, FoodHeaderRight, FoodThumb, TodayCard, macroText } from '../../../components/food/ui'
+import { DayNutrients, FoodError, FoodGate, FoodHeaderRight, FoodThumb, TodayCard, macroText } from '../../../components/food/ui'
 import { HeaderIcon } from '../../../components/gym/ui'
 import { color, tabular } from '../../../components/money/tokens'
 import { Checkbox } from '../../../components/ui/checkbox'
@@ -50,10 +50,13 @@ const EntryRow = memo(function EntryRow({ entry, pictures, stuck, first, last, o
   </Pressable>
 })
 
-function DayHeader({ section, today }: { section: Section; today: string }): React.ReactElement {
-  return <View className="flex-row items-end justify-between bg-background px-5 pb-2 pt-6">
-    <Text accessibilityRole="header" className="text-[15px] font-bold">{dayTitle(section.date, today)}</Text>
-    <Text className="text-[13px] text-muted-foreground" style={tabular}>{formatCalories(section.totals.calories)} kcal</Text>
+function DayHeader({ section, today, goal }: { section: Section; today: string; goal: FoodGoalInput }): React.ReactElement {
+  return <View className="bg-background px-5 pb-2 pt-6">
+    <View className="flex-row items-end justify-between">
+      <Text accessibilityRole="header" className="text-[15px] font-bold">{dayTitle(section.date, today)}</Text>
+      <Text className="text-[13px] text-muted-foreground" style={tabular}>{formatCalories(section.totals.calories)} kcal</Text>
+    </View>
+    <DayNutrients totals={section.totals} goal={goal} className="mt-0.5" />
   </View>
 }
 
@@ -119,7 +122,7 @@ function Log(): React.ReactElement {
       keyExtractor={(entry) => entry.id}
       stickySectionHeadersEnabled={false}
       ListHeaderComponent={header}
-      renderSectionHeader={({ section }) => <DayHeader section={section} today={food.today} />}
+      renderSectionHeader={({ section }) => <DayHeader section={section} today={food.today} goal={goal} />}
       renderItem={({ item, index, section }) => <EntryRow
         entry={item}
         pictures={food.picturesOn}
