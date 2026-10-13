@@ -24,7 +24,8 @@
         align-items: flex-start;
         gap: 10px;
         padding: 12px 14px;
-        box-shadow: 0 8px 22px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.04);
+        /* The shadow must fade out inside .toast's margin, or the window edge clips it into a gray box. */
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.04);
       }
       .ego { background: rgba(10, 10, 10, 0.97); border: 1px solid #333333; }
       .ego.error { border-color: rgba(251, 113, 133, 0.45); }
