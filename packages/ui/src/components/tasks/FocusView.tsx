@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronDown, X } from 'lucide-react'
-import type { TaskCardRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
+import type { TaskAgentRun, TaskCardRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
 import { HOTKEY_ACTIONS, type HotkeyActionId } from '@ego/core'
 import { Blurred } from '../../lib/blur'
 import { useHotkeys } from '../../lib/hotkeys'
@@ -33,6 +33,7 @@ export interface FocusViewProps {
   now: Date
   uploads: ReadonlyMap<string, 'sending' | 'failed'>
   linked?: ReadonlySet<string>
+  agentRuns?: ReadonlyMap<string, TaskAgentRun>
   onPickList: (listId: string) => void
   onExit: () => void
   onOpenCard: (cardId: string) => void
@@ -227,6 +228,8 @@ export function FocusView(props: FocusViewProps): React.ReactElement {
               now={props.now}
               upload={props.uploads.get(card.id)}
               synced={props.linked?.has(card.id)}
+              inAgentList={props.list.kind === 'agent'}
+              agentRun={props.agentRuns?.get(card.id)}
               onToggleDone={middle ? () => props.onToggleDone(card.id) : undefined}
             />
           </div>

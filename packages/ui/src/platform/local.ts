@@ -43,6 +43,7 @@ export const REMOTE_API_METHODS = [
   'trelloLists',
   'trelloCard',
   'trelloWorkSync',
+  'taskAgentRuns',
   'sharedSetting',
   'saveSharedSetting',
   'dockets',
