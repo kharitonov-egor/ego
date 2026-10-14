@@ -10,7 +10,7 @@ const KEY = 'egoct_' + 'a'.repeat(64)
 const view = (id: string) => document.getElementById(id)?.hidden === false
 afterEach(() => { document.body.innerHTML = '' })
 
-function setup(options: { failOnce?: boolean; restricted?: boolean; pageUrl?: string; storedKey?: string; rejectKey?: boolean } = {}) {
+function setup(options: { failOnce?: boolean; restricted?: boolean; pageUrl?: string; page?: string; storedKey?: string; rejectKey?: boolean } = {}) {
   document.body.innerHTML = readFileSync(resolve(root, 'popup.html'), 'utf8').replace(/<script[\s\S]*?<\/script>/g, '')
   let attempts = 0
   const captureBodies: Array<{ id: string; item: { title: string; notes: string; coverUrl: string | null; tags: string[] } }> = []
@@ -21,8 +21,12 @@ function setup(options: { failOnce?: boolean; restricted?: boolean; pageUrl?: st
       session: { get: vi.fn(async () => session), set: vi.fn(async (value: Record<string, unknown>) => Object.assign(session, value)), remove: vi.fn(async (key: string) => { delete session[key] }) }
     },
     tabs: { query: vi.fn(async () => [{ id: 7, url: options.pageUrl ?? 'https://example.com/article', title: 'Fallback title' }]) },
-    scripting: { executeScript: vi.fn(async () => {
+    scripting: { executeScript: vi.fn(async ({ func }: { func: () => unknown }) => {
       if (options.restricted) throw new Error('Restricted')
+      if (options.page !== undefined) {
+        const tab = createContext({ document: new DOMParser().parseFromString(options.page, 'text/html'), location: new URL(options.pageUrl ?? ''), URL, URLSearchParams })
+        return [{ result: runInContext(`(${func})()`, tab) }]
+      }
       return [{ result: { title: '<b>Page title</b>', description: 'Description', coverUrl: 'javascript:void(0)', kind: 'article' } }]
     }) }
   }
@@ -63,6 +67,21 @@ describe('Chrome popup', () => {
   it('still saves a URL when Chrome refuses access to the page DOM', async () => {
     const popup = setup({ restricted: true }); await popup.start(); await popup.save()
     expect(popup.captureBodies[0].item.title).toBe('Fallback title')
+  })
+  it('describes the YouTube video in the tab, also after YouTube switches videos without reloading', async () => {
+    const ld = (id: string, name: string, description = `${name} description`) => `<script type="application/ld+json">${JSON.stringify({ '@type': 'VideoObject', '@id': `https://www.youtube.com/watch?v=${id}`, name, description, thumbnailUrl: [`https://i.ytimg.com/vi/${id}/maxresdefault.jpg`] })}</script>`
+    const head = `<title>(3) Second video - YouTube</title><meta property="og:title" content="First video"><meta property="og:description" content="First video, cut..."><meta property="og:url" content="https://www.youtube.com/watch?v=firstvideo1"><meta property="og:image" content="https://i.ytimg.com/vi/firstvideo1/maxresdefault.jpg">${ld('firstvideo1', 'First video', '')}`
+    const direct = setup({ pageUrl: 'https://www.youtube.com/watch?v=firstvideo1', page: `<head>${head}</head><body></body>` })
+    await direct.start(); await direct.save()
+    expect(direct.captureBodies[0].item).toMatchObject({ title: 'First video', description: 'First video, cut...', coverUrl: 'https://i.ytimg.com/vi/firstvideo1/maxresdefault.jpg', kind: 'video' })
+    document.body.innerHTML = ''
+    const popup = setup({ pageUrl: 'https://www.youtube.com/watch?v=second-vid2', page: `<head>${head}</head><body>${ld('second-vid2', 'Second video')}</body>` })
+    await popup.start(); await popup.save()
+    expect(popup.captureBodies[0].item).toMatchObject({ title: 'Second video', description: 'Second video description', coverUrl: 'https://i.ytimg.com/vi/second-vid2/maxresdefault.jpg', kind: 'video' })
+    document.body.innerHTML = ''
+    const loading = setup({ pageUrl: 'https://www.youtube.com/watch?v=second-vid2', page: `<head>${head}</head><body></body>` })
+    await loading.start(); await loading.save()
+    expect(loading.captureBodies[0].item).toMatchObject({ title: 'Second video', description: '', coverUrl: 'https://i.ytimg.com/vi/second-vid2/hqdefault.jpg', kind: 'video' })
   })
   it('does not capture internal browser pages', async () => {
     const popup = setup({ pageUrl: 'chrome://extensions/' }); await popup.start()
