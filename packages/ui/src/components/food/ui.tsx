@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router'
-import { Barcode, NotebookPen, Refrigerator, TriangleAlert, UtensilsCrossed, X, type LucideIcon } from 'lucide-react'
+import { Barcode, Droplet, NotebookPen, Plus, Refrigerator, TriangleAlert, UtensilsCrossed, X, type LucideIcon } from 'lucide-react'
 import {
-  formatCalories, formatGrams, formatNutrient, isOverLimit, nutrientReadings,
+  WATER_BOTTLE_ML, formatCalories, formatGrams, formatNutrient, formatWater, isOverLimit, isWaterEntry, nutrientReadings,
   type FoodEntryInput, type FoodGoalInput, type FoodMacros, type FoodPhoto, type NutrientReading
 } from '@ego/core'
 import { mediaUrl } from '../../lib/platform'
@@ -123,10 +123,10 @@ export function FoodPhotoView({ photo, uri, size = 'small', className, style }: 
   />
 }
 
-export function FoodThumb({ entry, size = 56 }: { entry: Pick<FoodEntryInput, 'photo' | 'source'>; size?: number }): React.ReactElement {
+export function FoodThumb({ entry, size = 56 }: { entry: Pick<FoodEntryInput, 'name' | 'photo' | 'source'>; size?: number }): React.ReactElement {
   const style = { width: size, height: size, borderRadius: 14 }
   if (entry.photo) return <FoodPhotoView photo={entry.photo} className="shrink-0" style={style} />
-  const Icon = entry.source === 'barcode' ? Barcode : UtensilsCrossed
+  const Icon = isWaterEntry(entry) ? Droplet : entry.source === 'barcode' ? Barcode : UtensilsCrossed
   return <span style={style} className="flex shrink-0 items-center justify-center bg-surface-900"><Icon color={color.textFaint} size={size * 0.4} /></span>
 }
 
@@ -169,20 +169,44 @@ function NutrientColumn({ reading }: { reading: NutrientReading }): React.ReactE
   </span>
 }
 
-/** A day's sodium, saturated fat, and fiber on one line, with a limit that was passed in the attention color. */
-export function DayNutrients({ totals, goal, className }: {
+/** A day's sodium, saturated fat, fiber, and water on one line, with a limit that was passed in the attention color. */
+export function DayNutrients({ totals, goal, water = 0, className }: {
   totals: FoodMacros
   goal: FoodGoalInput
+  /** Millilitres. */
+  water?: number
   className?: string
 }): React.ReactElement | null {
   const readings = nutrientReadings(totals, goal).filter((reading) => reading.value !== null)
-  if (readings.length === 0) return null
+  if (readings.length === 0 && water === 0) return null
   return <p className={cn('tabular text-[13px] text-muted-foreground', className)}>
     {readings.map((reading, index) => <React.Fragment key={reading.key}>
       {index > 0 && ' · '}
       <span className={cn(isOverLimit(reading) && 'text-attention')}>{reading.label} {formatNutrient(reading.value, reading.unit)} {reading.unit}</span>
     </React.Fragment>)}
+    {water > 0 && `${readings.length > 0 ? ' · ' : ''}Water ${formatWater(water)}`}
   </p>
+}
+
+/** Today's water, and the button that logs one more bottle. */
+export function WaterRow({ millilitres, disabled, onAdd }: {
+  millilitres: number
+  /** A photo or a description is being read or waits on Try again, and a new card would throw it away. */
+  disabled: boolean
+  onAdd: () => void
+}): React.ReactElement {
+  return <div className="mt-3 flex items-center rounded-3xl border border-border bg-card py-3 pl-4 pr-3">
+    <Droplet color={color.textSecondary} size={20} className="shrink-0" />
+    <span className="ml-3 flex min-w-0 flex-1 items-baseline">
+      <span className="text-[15px] font-semibold">Water</span>
+      <span className="tabular ml-2 truncate text-[14px] text-muted-foreground">
+        {millilitres > 0 ? `${formatWater(millilitres)} today` : 'None today'}
+      </span>
+    </span>
+    <Button variant="secondary" size="sm" disabled={disabled} onClick={onAdd} aria-label={`Log ${WATER_BOTTLE_ML} ml of water`}>
+      <Plus color={color.text} size={16} />{WATER_BOTTLE_ML} ml
+    </Button>
+  </div>
 }
 
 /** Today against the daily targets. Clicking it opens the targets. */

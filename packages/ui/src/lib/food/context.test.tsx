@@ -4,7 +4,7 @@ import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ApiResult, FoodAnalyzeResponse, FoodProductResponse } from '@ego/api-contracts'
 import { SAVE_DELAY_MS } from '@ego/core'
-import { FoodProvider, useFood } from './context'
+import { FoodProvider, pendingRead, useFood } from './context'
 import type { PhotoPick } from './photo'
 
 const mocks = vi.hoisted(() => {
@@ -109,6 +109,39 @@ describe('FoodProvider drafts', () => {
     expect(mocks.write).not.toHaveBeenCalled()
     await settle(600)
     expect(mocks.write).toHaveBeenCalledTimes(1)
+  })
+
+  it('logs a bottle of water on the countdown card, and a second tap saves the first', async () => {
+    await settle()
+    await act(async () => { await current().logWater() })
+    const draft = current().draft
+    expect(draft?.kind === 'meal' && draft.entry).toMatchObject({ name: 'Water', serving: '700 ml', calories: 0 })
+    expect(draft?.state).toBe('ready')
+    expect(mocks.foodAnalyze).not.toHaveBeenCalled()
+    await act(async () => { await current().logWater() })
+    expect(mocks.write).toHaveBeenCalledTimes(1)
+    await settle(SAVE_DELAY_MS + 100)
+    expect(mocks.write).toHaveBeenCalledTimes(2)
+    expect(current().draft).toBeNull()
+  })
+
+  it('holds water back only while a read runs or a failed one can still be tried again', async () => {
+    let finish: (value: ApiResult<FoodAnalyzeResponse>) => void = () => undefined
+    mocks.foodAnalyze.mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
+    await settle()
+    expect(pendingRead(current().draft)).toBe(false)
+    let reading: Promise<void> = Promise.resolve()
+    act(() => { reading = current().logText('a large bowl of pho') })
+    expect(pendingRead(current().draft)).toBe(true)
+    await act(async () => {
+      finish({ ok: false, error: { code: 'INVALID_REQUEST', message: 'The server is busy.' } })
+      await reading
+    })
+    expect(current().draft?.state).toBe('failed')
+    expect(pendingRead(current().draft)).toBe(true)
+    mocks.foodProduct.mockResolvedValue({ ok: true, data: { product: null } })
+    await act(async () => { await current().logBarcode('0000123', null) })
+    expect(pendingRead(current().draft)).toBe(false)
   })
 
   it('offers another way in when no database knows the barcode', async () => {

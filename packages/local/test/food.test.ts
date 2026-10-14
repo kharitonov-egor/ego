@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { FoodEntryRecord, FoodGoalRecord } from '@ego/api-contracts'
-import { NO_FOOD_GOAL, type FoodEntryInput, type FoodMealDraft } from '@ego/core'
+import { NO_FOOD_GOAL, isFoodEntryInput, waterMillilitres, type FoodEntryInput, type FoodMealDraft } from '@ego/core'
 import type { LocalDatabase } from '../src/database/types'
 import { writeRecord } from '../src/database/writes'
 import { queueUploads, releaseReadyMessages } from '../src/diary/uploads'
 import {
-  addedLabel, cleanEntry, clockOf, dayTitle, entryAt, entryFromMeal, entryFromProduct, fridgeItemsFrom, localDay, productName
+  addedLabel, cleanEntry, clockOf, dayTitle, entryAt, entryFromMeal, entryFromProduct, fridgeItemsFrom, localDay, productName,
+  waterEntry
 } from '../src/food/drafts'
 import { failedFoodUploads, localFood, localFoodRevision } from '../src/food/repository'
 import { createFridgeItem, deleteFoodEntry, deleteFridgeItem, saveFoodEntry, saveFoodGoal } from '../src/sync/commands'
@@ -58,6 +59,17 @@ describe('drafts', () => {
       name: 'Chobani Greek Yogurt', serving: '1 cup (170 g)', barcode: '012345678905', source: 'barcode', protein: 17,
       saturatedFat: 0.5, fiber: null, sodium: 65
     })
+  })
+
+  it('logs a bottle of water as a zero-calorie entry the day total counts', () => {
+    const water = waterEntry(LUNCH)
+    expect(water).toMatchObject({
+      name: 'Water', date: '2026-10-02', serving: '700 ml', calories: 0, protein: 0, saturatedFat: 0, sodium: 0, source: 'manual', photo: null
+    })
+    expect(clockOf(water.eatenAt)).toBe('12:30')
+    expect(isFoodEntryInput(water)).toBe(true)
+    expect(cleanEntry(water)).toEqual(water)
+    expect(waterMillilitres(water)).toBe(700)
   })
 
   it('moves an entry to another day and time', () => {

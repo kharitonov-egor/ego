@@ -370,6 +370,38 @@ export function formatNutrient(value: number | null, unit: NutrientReading['unit
   return unit === 'mg' ? formatMilligrams(value) : formatGrams(value)
 }
 
+/** What the water button logs in one tap. */
+export const WATER_BOTTLE_ML = 700
+export const WATER_NAME = 'Water'
+
+/** Water is a zero-calorie entry named "Water", so it needs no column of its own. */
+export function isWaterEntry(entry: Pick<FoodEntryInput, 'name'>): boolean {
+  return entry.name.trim().toLowerCase() === WATER_NAME.toLowerCase()
+}
+
+/**
+ * Read from the serving, like "700 ml", "1 glass (250 ml)", "1.5 L", or "1 litre". A comma is a
+ * thousands separator in "1,000 ml" and a decimal point in "0,5 l". Anything else counts as none.
+ */
+export function waterMillilitres(entry: Pick<FoodEntryInput, 'name' | 'serving'>): number {
+  if (!isWaterEntry(entry)) return 0
+  const match = /(\d[\d,]*(?:\.\d+)?|\.\d+)\s*(ml|millilit(?:er|re)s?|l|lit(?:er|re)s?)\b/i.exec(entry.serving)
+  if (!match) return 0
+  const [, digits, unit] = match
+  const amount = Number(/^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(digits) ? digits.replace(/,/g, '') : digits.replace(',', '.'))
+  if (!Number.isFinite(amount)) return 0
+  return Math.round(unit.toLowerCase().startsWith('m') ? amount : amount * 1000)
+}
+
+export function dayWater(entries: readonly Pick<FoodEntryInput, 'name' | 'serving'>[]): number {
+  return entries.reduce((sum, entry) => sum + waterMillilitres(entry), 0)
+}
+
+/** "700 ml" under a litre, "1.4 L" from there. */
+export function formatWater(millilitres: number): string {
+  return millilitres < 1000 ? `${Math.round(millilitres)} ml` : `${tidy(millilitres / 1000)} L`
+}
+
 function cleanText(value: unknown, limit: number): string {
   return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim().slice(0, limit) : ''
 }
