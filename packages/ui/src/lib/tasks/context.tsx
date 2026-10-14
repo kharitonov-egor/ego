@@ -12,8 +12,8 @@ import {
   deleteTaskLabel, deleteTaskList, newId, saveTaskCard, updateTaskBoard, updateTaskGoal, updateTaskLabel, updateTaskList
 } from '@ego/local/sync/commands'
 import {
-  DONE_MOVE_DELAY_MS, boardLabels, boardLists, cardInput, carryLabels, doneMove, endPosition, inboxCardInput, listCards, liveBoards,
-  marksDone, placeAt, startPosition
+  DONE_MOVE_DELAY_MS, boardLabels, boardLists, cardInput, carryLabels, doneMove, endPosition, inboxCardInput, listCardMoves, listCards,
+  liveBoards, marksDone, placeAt, startPosition
 } from '@ego/local/tasks/board'
 import { localTaskRevision, localTasks, type TaskData, type TaskTable } from '@ego/local/tasks/repository'
 import { useLedger, type LocalWrite } from '../ledger'
@@ -61,6 +61,8 @@ interface TasksContextValue {
   moveList: (listId: string, index: number) => Promise<boolean>
   deleteList: (listId: string) => Promise<boolean>
   archiveListCards: (listId: string) => Promise<boolean>
+  /** Moves every card in one list to the top or bottom of another, on any board, keeping their order. */
+  moveListCards: (fromListId: string, toListId: string, place: 'top' | 'bottom') => Promise<boolean>
   saveLabel: (boardId: string, labelId: string | null, name: string, color: TaskLabelColor) => Promise<string | null>
   deleteLabel: (labelId: string) => Promise<boolean>
   createCard: (listId: string, title: string, place?: 'top' | 'bottom') => Promise<string | null>
@@ -575,6 +577,27 @@ export function TasksProvider({ children }: { children: React.ReactNode }): Reac
       'This computer could not archive those cards')
   }, [commit])
 
+  const moveListCards = useCallback(async (fromListId: string, toListId: string, place: 'top' | 'bottom'): Promise<boolean> => {
+    const current = dataRef.current
+    if (!current) return false
+    const at = new Date().toISOString()
+    const moves = listCardMoves(current, fromListId, toListId, place, at)
+    if (moves.length === 0) return true
+    const moved = new Map(moves.map(({ card, input }) => [card.id, input]))
+    return commit(
+      (data) => ({
+        ...data,
+        cards: data.cards.map((card) => {
+          const input = moved.get(card.id)
+          return input ? { ...card, ...input, updatedAt: at } : card
+        })
+      }),
+      (database, time) => database.transaction(async (tx) => {
+        for (const { card, input } of moves) await saveTaskCard(tx, card.id, await revisionOf(tx, 'task_cards', card.id), input, time)
+      }),
+      'This computer could not move those cards')
+  }, [commit])
+
   const retryUploads = useCallback((cardId: string): Promise<boolean> =>
     commit(null, (database) => retryRecordUploads(database, 'taskCard', cardId), 'This computer could not try those files again'), [commit])
 
@@ -620,12 +643,12 @@ export function TasksProvider({ children }: { children: React.ReactNode }): Reac
   const value = useMemo<TasksContextValue>(() => ({
     enabled, data, now, error, dismissError,
     createBoard, updateBoard, moveBoard, deleteBoard,
-    createList, updateList, setListKind, moveList, deleteList, archiveListCards,
+    createList, updateList, setListKind, moveList, deleteList, archiveListCards, moveListCards,
     saveLabel, deleteLabel,
     createCard, addInboxCard, updateCard, moveCard, copyCard, addFiles, removeFile, deleteCard, retryUploads,
     createGoal, updateGoal, deleteGoal
   }), [addFiles, addInboxCard, archiveListCards, copyCard, createBoard, createCard, createList, data, deleteBoard, deleteCard, deleteLabel,
-    deleteList, dismissError, enabled, error, moveBoard, moveCard, moveList, now, removeFile, retryUploads, saveLabel,
+    deleteList, dismissError, enabled, error, moveBoard, moveCard, moveList, moveListCards, now, removeFile, retryUploads, saveLabel,
     setListKind, updateBoard, updateCard, updateList, createGoal, updateGoal, deleteGoal])
 
   return <TasksContext.Provider value={value}>{children}</TasksContext.Provider>

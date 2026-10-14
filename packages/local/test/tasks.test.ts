@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { TaskBoardRecord, TaskCardRecord, TaskListRecord } from '@ego/api-contracts'
 import {
   NO_FILTER, cardInput, carryLabels, columnHex, doneList, doneMove, dueBadge, focusListOf, hexWithAlpha, homeBoardId, inboxCardInput,
-  inboxList, marksDone, matchesFilter, placeAt, upcomingSections
+  inboxList, listCardMoves, marksDone, matchesFilter, placeAt, upcomingSections
 } from '../src/tasks/board'
 import { parseInline, parseMarkdown, prefixLines, toggleTaskLine, wrapSelection } from '../src/tasks/markdown'
 import { cardIdFromNotification, taskNotificationPlan } from '../src/tasks/reminders'
@@ -238,6 +238,41 @@ describe('moving done cards to Done', () => {
     expect(marksDone(open, { ...checked(cards[0]), listId: 'l-done' })).toBe(false)
     expect(marksDone(checked(cards[0]), { ...checked(cards[0]), title: 'Pay the rent' })).toBe(false)
     expect(marksDone(checked(cards[0]), open)).toBe(false)
+  })
+})
+
+describe('moving every card in a list', () => {
+  const label = (id: string, boardId: string) => ({ id, boardId, name: 'Home', color: 'green' as const, position: 1, createdAt: STAMP, updatedAt: STAMP, revision: 1 })
+  const tasks = data([
+    card({ id: 'a', listId: 'l-backlog', position: 2048, labelIds: ['x-home'] }),
+    card({ id: 'b', listId: 'l-backlog', position: 1024 }),
+    card({ id: 'old', listId: 'l-backlog', position: 512, archivedAt: STAMP }),
+    card({ id: 't', position: 1024 }),
+    card({ id: 'u', position: 3072 })
+  ], {
+    boards: [board(), board({ id: 'b-2', name: 'Work' })],
+    lists: [list(), list({ id: 'l-backlog', name: 'Backlog', position: 2048 }), list({ id: 'l-later', boardId: 'b-2', name: 'Later' })],
+    labels: [label('x-home', 'b-1'), label('y-home', 'b-2')]
+  })
+
+  it('keeps their order above or below the cards already there', () => {
+    const bottom = listCardMoves(tasks, 'l-backlog', 'l-1', 'bottom', STAMP)
+    expect(bottom.map(({ card, input }) => [card.id, input.listId, input.position])).toEqual([['b', 'l-1', 4096], ['a', 'l-1', 5120]])
+    expect(listCardMoves(tasks, 'l-backlog', 'l-1', 'top', STAMP).map(({ input }) => input.position)).toEqual([-1024, 0])
+  })
+
+  it('logs each move and carries labels to another board', () => {
+    const [first, second] = listCardMoves(tasks, 'l-backlog', 'l-later', 'top', STAMP)
+    expect(first.input).toMatchObject({ boardId: 'b-2', listId: 'l-later', position: 1024 })
+    expect(second.input).toMatchObject({ boardId: 'b-2', listId: 'l-later', position: 2048, labelIds: ['y-home'] })
+    expect(second.input.activity).toContainEqual({ at: STAMP, kind: 'move', text: 'Moved this card from "Life" to "Work"' })
+    expect(listCardMoves(tasks, 'l-backlog', 'l-1', 'top', STAMP)[0].input.activity)
+      .toContainEqual({ at: STAMP, kind: 'move', text: 'Moved this card from "Backlog" to "To Do"' })
+  })
+
+  it('moves nothing into the same list or one that is gone', () => {
+    expect(listCardMoves(tasks, 'l-backlog', 'l-backlog', 'top', STAMP)).toEqual([])
+    expect(listCardMoves(tasks, 'l-backlog', 'l-gone', 'top', STAMP)).toEqual([])
   })
 })
 
