@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  courseColors, courseList, courseSummaries, dayHeading, dueClock, dueDay, dueSentence, dueWithin, isOverdue,
+  courseColors, courseFor, courseList, courseSummaries, dayHeading, dueClock, dueDay, dueSentence, dueWithin, isOverdue,
   overdueCount, studySections, type StudyFilter
 } from '../src/study/schedule'
 import type { StudyItem } from '../src/study/store'
@@ -10,7 +10,7 @@ const NOW = new Date(2026, 8, 28, 12, 0)
 const ALL: StudyFilter = { course: null, hideOverdue: false }
 
 function item(id: string, due: StudyItem['due'], overrides: Partial<StudyItem> = {}): StudyItem {
-  return { id, title: id, course: 'CDA4205', due, url: null, description: '', doneAt: null, pending: false, ...overrides }
+  return { id, title: id, course: 'CDA4205', due, url: null, description: '', doneAt: null, pending: false, kind: 'assignment', entry: null, ...overrides }
 }
 
 const ITEMS: StudyItem[] = [
@@ -88,6 +88,17 @@ describe('study days', () => {
   })
 })
 
+describe('exams', () => {
+  it('reads as an exam, and takes the whole day when it has no time', () => {
+    const timed = item('x', { kind: 'time', at: local(28, 14) }, { kind: 'exam' })
+    const allDay = item('x', { kind: 'day', date: '2026-09-28' }, { kind: 'exam' })
+    expect(dueSentence(timed)).toBe('Exam Mon, Sep 28 at 2:00 PM')
+    expect(dueClock(allDay)).toBe('All day')
+    expect(dueSentence(allDay)).toBe('Exam Mon, Sep 28')
+    expect(dueSentence(item('x', { kind: 'day', date: '2026-09-28' }, { kind: 'deadline' }))).toBe('Due Mon, Sep 28 at 11:59 PM')
+  })
+})
+
 describe('courses', () => {
   it('gives each course a color in sorted order', () => {
     const courses = courseList(ITEMS)
@@ -99,5 +110,13 @@ describe('courses', () => {
     const cda = courseSummaries(ITEMS, NOW).find((summary) => summary.course === 'CDA4205')
     expect(cda).toMatchObject({ left: 1, overdue: 1, total: 2 })
     expect(cda?.next?.id).toBe('next-week')
+  })
+})
+
+describe('a typed course', () => {
+  it('takes the spelling of a course it matches, and is null when blank', () => {
+    expect(courseFor(' cop 4530 ', ['COP4530', 'CDA4205'])).toBe('COP4530')
+    expect(courseFor('PHY2049', ['COP4530'])).toBe('PHY2049')
+    expect(courseFor('   ', ['COP4530'])).toBeNull()
   })
 })

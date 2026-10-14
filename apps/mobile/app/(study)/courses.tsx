@@ -53,7 +53,7 @@ function CourseList(): React.ReactElement {
   const tintOf = useCourseColors(study.items)
   const summaries = useMemo(() => courseSummaries(study.items, now), [now, study.items])
   if (summaries.length === 0) {
-    return <StudyMessage title="No courses yet" detail="Courses appear once Canvas lists an assignment for them." />
+    return <StudyMessage title="No courses yet" detail="Courses appear once Canvas lists an assignment for them, or you add one on Assignments." />
   }
   const left = summaries.reduce((sum, summary) => sum + summary.left, 0)
   return <ScrollView className="flex-1 bg-surface-950" contentContainerStyle={{ padding: 16, paddingBottom: 32 + insets.bottom, gap: 12 }}>

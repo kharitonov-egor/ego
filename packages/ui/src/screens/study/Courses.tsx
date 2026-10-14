@@ -59,7 +59,7 @@ function CourseList(): React.ReactElement {
   const tintOf = useCourseColors(study.items)
   const summaries = useMemo(() => courseSummaries(study.items, now), [now, study.items])
   if (summaries.length === 0) {
-    return <StudyMessage title="No courses yet" detail="Courses appear once Canvas lists an assignment for them." />
+    return <StudyMessage title="No courses yet" detail="Courses appear once Canvas lists an assignment for them, or you add one with +." />
   }
   const left = summaries.reduce((sum, summary) => sum + summary.left, 0)
   return <div className="min-h-0 flex-1 overflow-y-auto">

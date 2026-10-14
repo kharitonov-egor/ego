@@ -2,12 +2,14 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Pressable, RefreshControl, SectionList, Text, View } from 'react-native'
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { CalendarCheck, TriangleAlert } from 'lucide-react-native'
-import { Sheet } from '../../components/money/Common'
+import { CalendarCheck, Plus, TriangleAlert } from 'lucide-react-native'
+import type { StudyEntryRecord } from '@ego/api-contracts'
+import { ConfirmDialog, Sheet } from '../../components/money/Common'
 import { color } from '../../components/money/tokens'
 import { Checkbox } from '../../components/ui/checkbox'
 import { SegmentedControl } from '../../components/ui/segmented-control'
 import { AssignmentDetail, AssignmentRow, useCourseColors } from '../../components/study/Assignment'
+import { StudyEntrySheet } from '../../components/study/EntrySheet'
 import { StudyGate } from '../../components/study/StudyGate'
 import { useStudy } from '../../lib/study/context'
 import {
@@ -54,6 +56,8 @@ function AssignmentList(): React.ReactElement {
   const [view, setView] = useState<StudyView>('upcoming')
   const [course, setCourse] = useState<string | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
+  const [editing, setEditing] = useState<{ entry: StudyEntryRecord | null } | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [pulling, setPulling] = useState(false)
   const [now, setNow] = useState(() => new Date())
 
@@ -78,6 +82,7 @@ function AssignmentList(): React.ReactElement {
   const thisWeek = dueWithin(study.items, now, 7)
   const waiting = study.items.filter((item) => item.pending).length
   const open = study.items.find((item) => item.id === openId) ?? null
+  const deleting = study.items.find((item) => item.id === deletingId) ?? null
   const setDone = study.setDone
   const toggle = useCallback((id: string, done: boolean) => void setDone(id, done), [setDone])
 
@@ -116,17 +121,17 @@ function AssignmentList(): React.ReactElement {
       sections={sections}
       keyExtractor={(item) => item.id}
       stickySectionHeadersEnabled={false}
-      contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 + insets.bottom }}
+      contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 96 + insets.bottom }}
       refreshControl={<RefreshControl refreshing={pulling} onRefresh={() => void pull()} tintColor="#fafafa" colors={['#0a0a0a']} progressBackgroundColor="#fafafa" />}
       ListHeaderComponent={study.fetchedAt ? <Text accessibilityLiveRegion="polite" className="pt-3 text-[14px] text-surface-500">
         {view === 'upcoming' ? `${thisWeek} due in the next 7 days · ` : ''}Updated {updatedLabel(study.fetchedAt)}{study.refreshing ? ', checking Canvas' : ''}
-        {waiting > 0 ? ` · ${waiting} ${waiting === 1 ? 'check mark' : 'check marks'} not synced` : ''}
+        {waiting > 0 ? ` · ${waiting} ${waiting === 1 ? 'change' : 'changes'} not synced` : ''}
       </Text> : null}
       ListEmptyComponent={<View className="items-center px-8 py-14">
         <View className="h-16 w-16 items-center justify-center rounded-full bg-surface-900"><CalendarCheck color="#a3a3a3" size={30} /></View>
         <Text className="mt-4 text-center text-[20px] font-semibold text-surface-100">{view === 'upcoming' ? 'Nothing due' : 'Nothing earlier'}</Text>
         <Text className="mt-2 text-center text-[16px] leading-6 text-surface-400">{view === 'upcoming'
-          ? course ? `${course} has nothing coming up in Canvas.` : 'Canvas has no upcoming assignments. Pull down to check again.'
+          ? course ? `${course} has nothing coming up.` : 'Canvas has no upcoming assignments. Pull down to check again, or tap Add.'
           : hideOverdue ? 'Unchecked past assignments are hidden. Clear Hide overdue to see them.' : 'Assignments show up here once their day has passed.'}</Text>
       </View>}
       renderSectionHeader={({ section }) => <View className="flex-row items-end justify-between bg-surface-950 pb-2 pt-5">
@@ -146,9 +151,48 @@ function AssignmentList(): React.ReactElement {
         />
       </View>}
     />
+    {!open && !editing && !deleting && <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Add an assignment, exam, or deadline"
+      onPress={() => setEditing({ entry: null })}
+      style={{ minHeight: 48 }}
+      className="absolute bottom-5 right-4 flex-row items-center rounded-2xl bg-primary px-5 active:opacity-80"
+    ><Plus color="#0a0a0a" size={19} /><Text className="ml-1.5 text-[16px] font-semibold text-primary-foreground">Add</Text></Pressable>}
     <Sheet visible={open !== null} title={open?.title ?? ''} onClose={() => setOpenId(null)} dismissOnBackdrop privateTitle>
-      {open && <AssignmentDetail item={open} tint={tintOf(open.course)} overdue={isOverdue(open, now)} onToggle={(done) => void setDone(open.id, done)} />}
+      {open && <AssignmentDetail
+        item={open}
+        tint={tintOf(open.course)}
+        overdue={isOverdue(open, now)}
+        onToggle={(done) => void setDone(open.id, done)}
+        onEdit={() => {
+          setOpenId(null)
+          setEditing({ entry: open.entry })
+        }}
+        onDelete={() => {
+          setOpenId(null)
+          setDeletingId(open.id)
+        }}
+      />}
     </Sheet>
+    <StudyEntrySheet
+      visible={editing !== null}
+      entry={editing?.entry ?? null}
+      courses={courses}
+      onSave={(input) => study.saveEntry(editing?.entry?.id ?? null, input)}
+      onClose={() => setEditing(null)}
+    />
+    <ConfirmDialog
+      visible={deleting !== null}
+      title={`Delete this ${deleting?.kind ?? 'item'}?`}
+      detail={`"${deleting?.title ?? ''}" goes from Study on every device.`}
+      confirmLabel="Delete"
+      destructive
+      onCancel={() => setDeletingId(null)}
+      onConfirm={() => {
+        if (deleting) void study.deleteEntry(deleting.id)
+        setDeletingId(null)
+      }}
+    />
   </View>
 }
 

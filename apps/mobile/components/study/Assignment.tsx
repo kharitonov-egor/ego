@@ -1,6 +1,7 @@
 import React, { memo, useMemo } from 'react'
 import { Linking, Pressable, Text, View } from 'react-native'
-import { Check, ExternalLink } from 'lucide-react-native'
+import { Check, ExternalLink, Pencil, Trash2 } from 'lucide-react-native'
+import { STUDY_ENTRY_KIND_LABELS } from '@ego/core'
 import type { StudyItem } from '@ego/local/study/store'
 import { courseColors, courseList, dueClock, dueSentence, isDone, shortDay, dueDay } from '@ego/local/study/schedule'
 import { COLORS } from '../money/Common'
@@ -41,6 +42,15 @@ export function DoneToggle({ done, tint, title, onToggle }: {
   </Pressable>
 }
 
+/** Exams and deadlines say so. An assignment, from Canvas or added here, needs no tag. */
+export function KindTag({ item }: { item: StudyItem }): React.ReactElement | null {
+  if (item.kind === 'assignment') return null
+  const exam = item.kind === 'exam'
+  return <View className={`rounded-md px-1.5 py-0.5 ${exam ? 'bg-attention/15' : 'bg-surface-800'}`}>
+    <Text className={`text-[12px] font-semibold uppercase tracking-wide ${exam ? 'text-attention' : 'text-surface-300'}`}>{STUDY_ENTRY_KIND_LABELS[item.kind]}</Text>
+  </View>
+}
+
 /** Inside a day the right column is the time. In the overdue group it is the day, since that group spans several. */
 export const AssignmentRow = memo(function AssignmentRow({ item, tint, overdue, showDay, onToggle, onOpen }: {
   item: StudyItem
@@ -64,9 +74,12 @@ export const AssignmentRow = memo(function AssignmentRow({ item, tint, overdue, 
     <DoneToggle done={done} tint={tint} title={item.title} onToggle={() => onToggle(item.id, !done)} />
     <View className="flex-1">
       <Blurred tint={done ? '#737373' : '#f5f5f5'}><Text numberOfLines={2} className={`text-[17px] font-semibold ${done ? 'text-surface-500 line-through' : 'text-surface-100'}`}>{item.title}</Text></Blurred>
-      {item.course && <View className="mt-0.5 flex-row items-center">
-        <View className="mr-1.5 h-2 w-2 rounded-full" style={{ backgroundColor: tint }} />
-        <Blurred tint="#a3a3a3"><Text numberOfLines={1} className="text-[14px] text-surface-400">{item.course}</Text></Blurred>
+      {(item.course || item.kind !== 'assignment') && <View className="mt-0.5 flex-row items-center gap-1.5">
+        {item.course && <>
+          <View className="h-2 w-2 rounded-full" style={{ backgroundColor: tint }} />
+          <Blurred tint="#a3a3a3"><Text numberOfLines={1} className="text-[14px] text-surface-400">{item.course}</Text></Blurred>
+        </>}
+        <KindTag item={item} />
       </View>}
     </View>
     <Text
@@ -76,11 +89,14 @@ export const AssignmentRow = memo(function AssignmentRow({ item, tint, overdue, 
   </Pressable>
 })
 
-export function AssignmentDetail({ item, tint, overdue, onToggle }: {
+/** An item added in Ego can be edited and deleted where the screen passes the handlers. */
+export function AssignmentDetail({ item, tint, overdue, onToggle, onEdit, onDelete }: {
   item: StudyItem
   tint: string
   overdue: boolean
   onToggle: (done: boolean) => void
+  onEdit?: () => void
+  onDelete?: () => void
 }): React.ReactElement {
   const done = isDone(item)
   return <View>
@@ -88,6 +104,9 @@ export function AssignmentDetail({ item, tint, overdue, onToggle }: {
       {item.course && <View className="flex-row items-center rounded-full bg-surface-900 px-3 py-1.5">
         <View className="mr-2 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: tint }} />
         <Blurred tint="#e5e5e5"><Text className="text-[14px] font-semibold text-surface-200">{item.course}</Text></Blurred>
+      </View>}
+      {item.kind !== 'assignment' && <View className={`rounded-full px-3 py-1.5 ${item.kind === 'exam' ? 'bg-attention/15' : 'bg-surface-900'}`}>
+        <Text className={`text-[14px] font-semibold ${item.kind === 'exam' ? 'text-attention' : 'text-surface-200'}`}>{STUDY_ENTRY_KIND_LABELS[item.kind]}</Text>
       </View>}
       {overdue && <View className="rounded-full bg-red-500/15 px-3 py-1.5"><Text className="text-[14px] font-semibold text-red-300">Overdue</Text></View>}
       {done && <View className="rounded-full bg-positive/15 px-3 py-1.5"><Text className="text-[14px] font-semibold text-positive">Done</Text></View>}
@@ -100,5 +119,16 @@ export function AssignmentDetail({ item, tint, overdue, onToggle }: {
       <ExternalLink color="#fafafa" size={18} />
       <UiText>Open in Canvas</UiText>
     </Button>}
+    {item.entry && (onEdit || onDelete) && <View className="mt-3 flex-row gap-3">
+      {onEdit && <Button variant="outline" size="lg" onPress={onEdit} className="flex-1">
+        <Pencil color="#fafafa" size={17} />
+        <UiText>Edit</UiText>
+      </Button>}
+      {onDelete && <Button variant="outline" size="lg" onPress={onDelete} className="flex-1">
+        <Trash2 color="#fca5a5" size={17} />
+        <UiText className="text-red-300">Delete</UiText>
+      </Button>}
+    </View>}
+    {item.entry && <Text className="mt-4 text-center text-[13px] text-surface-500">Added in Ego, not in Canvas</Text>}
   </View>
 }

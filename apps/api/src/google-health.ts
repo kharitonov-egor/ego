@@ -196,6 +196,13 @@ function offsetMinutes(ms: number, timeZone: string): number {
   return daysBetween(utc.slice(0, 10), seen.date) * 1440 + seen.minute - utcMinute
 }
 
+/** The instant a wall-clock time happens on a local day, with the offset in force at that moment, not at midnight. */
+export function localInstant(date: string, minuteOfDay: number, timeZone: string): number {
+  const guess = Date.parse(`${date}T00:00:00Z`) + minuteOfDay * 60_000
+  const first = guess - offsetMinutes(guess, timeZone) * 60_000
+  return guess - offsetMinutes(first, timeZone) * 60_000
+}
+
 /**
  * Formatting every point through Intl would spend most of a free-plan cron run's CPU, so the offset
  * is looked up once and each point is shifted by it, unless a clock change falls inside the range.

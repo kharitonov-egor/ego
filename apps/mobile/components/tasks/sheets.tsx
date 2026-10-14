@@ -27,7 +27,7 @@ function typedSymbol(text: string): string | null {
   return trimmed.length <= 16 ? trimmed : Array.from(trimmed)[0] ?? null
 }
 
-function Option({ selected, onPress, label, children }: {
+export function Option({ selected, onPress, label, children }: {
   selected: boolean
   onPress: () => void
   label: string
@@ -45,7 +45,7 @@ function Option({ selected, onPress, label, children }: {
   </Pressable>
 }
 
-function Heading({ children }: { children: string }): React.ReactElement {
+export function Heading({ children }: { children: string }): React.ReactElement {
   return <Text className="mb-2 mt-5 text-[15px] font-medium text-surface-200">{children}</Text>
 }
 
@@ -262,21 +262,21 @@ export function PrioritySheet({ visible, value, onChange, onClose }: {
   </BottomSheet>
 }
 
-interface ClockDraft {
+export interface ClockDraft {
   hour: string
   minute: string
   meridiem: 'am' | 'pm'
 }
 
-const MERIDIEMS = [{ value: 'am' as const, label: 'AM' }, { value: 'pm' as const, label: 'PM' }]
-const TIME_PRESETS = ['09:00', '12:00', '17:00', '21:00']
+export const MERIDIEMS = [{ value: 'am' as const, label: 'AM' }, { value: 'pm' as const, label: 'PM' }]
+export const TIME_PRESETS = ['09:00', '12:00', '17:00', '21:00']
 
-function draftOf(time: string | null): ClockDraft {
+export function draftOf(time: string | null): ClockDraft {
   const [hours, minutes] = (time ?? '17:00').split(':').map(Number)
   return { hour: String(hours % 12 || 12), minute: String(minutes).padStart(2, '0'), meridiem: hours >= 12 ? 'pm' : 'am' }
 }
 
-function timeOf(draft: ClockDraft): string | null {
+export function timeOf(draft: ClockDraft): string | null {
   if (!/^\d{1,2}$/.test(draft.hour) || !/^\d{1,2}$/.test(draft.minute)) return null
   const hour = Number(draft.hour)
   const minute = Number(draft.minute)
@@ -285,7 +285,7 @@ function timeOf(draft: ClockDraft): string | null {
   return `${String(hours).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
 }
 
-function presetLabel(time: string): string {
+export function presetLabel(time: string): string {
   const [hours] = time.split(':').map(Number)
   return hours === 12 ? 'Noon' : `${hours % 12 || 12} ${hours < 12 ? 'AM' : 'PM'}`
 }

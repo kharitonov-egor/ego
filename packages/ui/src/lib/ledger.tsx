@@ -15,10 +15,10 @@ import { remoteApi, remoteDatabase } from './remote'
 export type LocalWrite = (db: LocalDatabase, now: string) => Promise<void>
 
 /** Which screens re-read after a write. A logged set should not rebuild the money screens. */
-export type WriteScope = 'money' | 'gym' | 'health' | 'habits' | 'diary' | 'tasks' | 'sheets' | 'food' | 'content'
+export type WriteScope = 'money' | 'gym' | 'health' | 'habits' | 'diary' | 'tasks' | 'sheets' | 'food' | 'content' | 'study'
 
 const EVERYTHING: Touched = {
-  money: true, gym: true, health: true, habits: true, diary: true, tasks: true, sheets: true, food: true, content: true
+  money: true, gym: true, health: true, habits: true, diary: true, tasks: true, sheets: true, food: true, content: true, study: true
 }
 
 /** Alt-tabbing back is frequent on a desktop; a sync per return would mostly find nothing. */
@@ -60,6 +60,8 @@ interface LedgerContextValue {
   /** The same for food entries, the fridge, and the daily targets. */
   foodVersion: number
   contentVersion: number
+  /** The same for the assignments, exams, and deadlines added in Study. */
+  studyVersion: number
   db: LocalDatabase | null
   api: RemoteApi
   feed: (filters: TransactionFilters, cursor: FeedCursor | null, size: number) => Promise<LocalTransactionPage>
@@ -84,7 +86,8 @@ const EMPTY_PAGE: LocalTransactionPage = {
 function only(scope: WriteScope): Touched {
   return {
     money: scope === 'money', gym: scope === 'gym', health: scope === 'health', habits: scope === 'habits',
-    diary: scope === 'diary', tasks: scope === 'tasks', sheets: scope === 'sheets', food: scope === 'food', content: scope === 'content'
+    diary: scope === 'diary', tasks: scope === 'tasks', sheets: scope === 'sheets', food: scope === 'food', content: scope === 'content',
+    study: scope === 'study'
   }
 }
 
@@ -104,6 +107,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
   const [sheetsVersion, setSheetsVersion] = useState(0)
   const [foodVersion, setFoodVersion] = useState(0)
   const [contentVersion, setContentVersion] = useState(0)
+  const [studyVersion, setStudyVersion] = useState(0)
   const writingRef = useRef(false)
   const lastSync = useRef(0)
   /** Set until a full re-read has run against a ready database: at launch and after sign-in or a server change. */
@@ -127,6 +131,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     if (scope.sheets) setSheetsVersion((current) => current + 1)
     if (scope.food) setFoodVersion((current) => current + 1)
     if (scope.content) setContentVersion((current) => current + 1)
+    if (scope.study) setStudyVersion((current) => current + 1)
   }, [])
 
   const sync = useCallback(async (): Promise<void> => {
@@ -235,6 +240,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     sheetsVersion,
     foodVersion,
     contentVersion,
+    studyVersion,
     db,
     api: remoteApi,
     feed,
@@ -252,7 +258,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
       keepMine(database, entry, newId(), new Date().toISOString()).then(() => undefined)),
     resolveUseSaved: (entry) => resolve((database) => useSavedVersion(database, entry, new Date().toISOString()))
   }), [balances, conflicts, db, diaryVersion, feed, foodVersion, contentVersion, gymVersion, habitsVersion, healthVersion, loaded, purchasePage,
-    receipt, reference, resolve, sheetsVersion, state, sync, tasksVersion, transaction, version, write, writing])
+    receipt, reference, resolve, sheetsVersion, state, studyVersion, sync, tasksVersion, transaction, version, write, writing])
 
   return <LedgerContext.Provider value={value}>{children}</LedgerContext.Provider>
 }

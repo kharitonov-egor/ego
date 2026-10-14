@@ -6,11 +6,11 @@ import {
   type SyncCommand, type SyncEntity, type SyncOperation
 } from '@ego/api-contracts'
 import {
-  FOOD_GOAL_ID, HABIT_TARGET_LIMIT, NO_NUTRIENTS, diaryMediaIds, entryKindFits, foodMediaIds, isTaskLabelStyle, isTaskListKind,
-  nutrientsOf, taskMediaIds,
+  FOOD_GOAL_ID, HABIT_TARGET_LIMIT, NO_NUTRIENTS, cleanStudyEntry, diaryMediaIds, entryKindFits, foodMediaIds, isTaskLabelStyle,
+  isTaskListKind, nutrientsOf, taskMediaIds,
   type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type DiaryMessageInput,
   type FoodEntryInput, type FoodGoalInput, type FridgeItemInput, type GymPlanInput, type GymSetInput, type HabitInput,
-  type MoodInput, type PurchaseInput, type SheetInput, type SheetRowInput, type TaskBoardInput, type TaskCardInput,
+  type MoodInput, type PurchaseInput, type SheetInput, type SheetRowInput, type StudyEntryInput, type TaskBoardInput, type TaskCardInput,
   type TaskGoalInput, type TaskLabelInput, type TaskLabelStyle, type TaskListInput, type TaskListKind, type TransactionInput
 } from '@ego/core'
 import { query, readLatestChange, serverSequence } from './reads'
@@ -18,11 +18,11 @@ import {
   foodParts, toAccountRecord, toBudgetRecord, toCategoryRecord, toDiaryMessageRecord, toFoodEntryRecord, toFoodGoalRecord,
   toFridgeItemRecord, toGymCategoryRecord, toGymExerciseRecord, toGymPlanRecord, toGymSetRecord, toGymWorkoutRecord,
   toHabitEntryRecord, toHabitRecord, toMoodRecord, toPurchaseRecord, toReceiptItem, toSheetRecord, toSheetRowRecord,
-  toTaskBoardRecord, toTaskCardRecord, toTaskGoalRecord, toTaskLabelRecord, toTaskListRecord, toTransactionRecord,
+  toStudyEntryRecord, toTaskBoardRecord, toTaskCardRecord, toTaskGoalRecord, toTaskLabelRecord, toTaskListRecord, toTransactionRecord,
   type AccountRow, type BudgetAllocationRow, type BudgetRow, type CategoryRow, type DiaryMessageRow, type FoodEntryRow,
   type FoodGoalRow, type FridgeItemRow, type GymCategoryRow, type GymExerciseRow, type GymPlanRow, type GymSetRow,
   type GymWorkoutRow, type HabitEntryRow, type HabitRow, type MoodRow, type PurchaseRow, type ReceiptItemRow,
-  type SheetRow, type SheetRowRow, type TaskBoardRow, type TaskCardRow, type TaskGoalRow, type TaskLabelRow,
+  type SheetRow, type SheetRowRow, type StudyEntryRow, type TaskBoardRow, type TaskCardRow, type TaskGoalRow, type TaskLabelRow,
   type TaskListRow, type TransactionRow
 } from './rows'
 
@@ -71,7 +71,8 @@ const TABLES: Record<SyncEntity, string> = {
   fridgeItem: 'fridge_items',
   contentItem: 'content_items',
   contentCollection: 'content_collections',
-  foodGoal: 'food_goals'
+  foodGoal: 'food_goals',
+  studyEntry: 'study_entries'
 }
 
 /** Budgets are keyed by month and mood entries by date, so each has one row per period. */
@@ -101,7 +102,8 @@ const KEYS: Record<SyncEntity, string> = {
   fridgeItem: 'id',
   contentItem: 'id',
   contentCollection: 'id',
-  foodGoal: 'id'
+  foodGoal: 'id',
+  studyEntry: 'id'
 }
 
 function canonical(value: unknown): unknown {
@@ -1720,6 +1722,55 @@ async function planFridgeItem(
   }
 }
 
+function studyEntryRowFrom(id: string, input: StudyEntryInput, createdAt: string, updatedAt: string, revision: number): StudyEntryRow {
+  const clean = cleanStudyEntry(input)
+  return {
+    id, kind: clean.kind, title: clean.title, course: clean.course,
+    due_at: clean.due.kind === 'time' ? clean.due.at : null, due_date: clean.due.kind === 'day' ? clean.due.date : null,
+    notes: clean.notes, done_at: clean.doneAt, created_at: createdAt, updated_at: updatedAt, revision
+  }
+}
+
+const STUDY_ENTRY_COLUMNS = ['kind', 'title', 'course', 'due_at', 'due_date', 'notes', 'done_at'] as const
+
+function studyEntryValues(row: StudyEntryRow): unknown[] {
+  return STUDY_ENTRY_COLUMNS.map((column) => row[column])
+}
+
+async function planStudyEntry(
+  db: D1Database, operation: SyncOperation, command: Extract<SyncCommand, { entity: 'studyEntry' }>, now: string
+): Promise<ApiResult<Plan>> {
+  const id = operation.entityId
+  if (command.type === 'create') {
+    const row = studyEntryRowFrom(id, command.payload, now, now, 1)
+    return {
+      ok: true,
+      data: upsertPlan('studyEntry', id, 1, { entity: 'studyEntry', record: toStudyEntryRecord(row) }, {
+        sql: `INSERT INTO study_entries (id, ${STUDY_ENTRY_COLUMNS.join(', ')}, created_at, updated_at, revision)
+          SELECT ?, ${STUDY_ENTRY_COLUMNS.map(() => '?').join(', ')}, ?, ?, 1`,
+        params: [id, ...studyEntryValues(row), now, now]
+      }, null)
+    }
+  }
+  const current = await liveRow<StudyEntryRow>(db, 'studyEntry', id)
+  if (!current) return notFound('That study item was deleted')
+  const expected = operation.expectedRevision ?? 0
+  const guard = guardFor('studyEntry', id, expected)
+  if (command.type === 'delete') {
+    return { ok: true, data: deletePlan('studyEntry', id, expected, now, guard, { entity: 'studyEntry', record: null }) }
+  }
+  const revision = expected + 1
+  const row = studyEntryRowFrom(id, command.payload, current.created_at, now, revision)
+  return {
+    ok: true,
+    data: upsertPlan('studyEntry', id, revision, { entity: 'studyEntry', record: toStudyEntryRecord(row) }, {
+      sql: `UPDATE study_entries SET ${STUDY_ENTRY_COLUMNS.map((column) => `${column} = ?`).join(', ')}, updated_at = ?,
+        revision = revision + 1 WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+      params: [...studyEntryValues(row), now, id, expected]
+    }, guard)
+  }
+}
+
 /** Targets from a build that predates sodium, saturated fat, and fiber leave those three as they were. */
 function foodGoalRowFrom(
   input: FoodGoalInput, current: FoodGoalRow | null, createdAt: string, updatedAt: string, revision: number
@@ -1821,6 +1872,7 @@ function planFor(db: D1Database, operation: SyncOperation, now: string): Promise
     case 'foodEntry': return planFoodEntry(db, operation, operation.command, now)
     case 'fridgeItem': return planFridgeItem(db, operation, operation.command, now)
     case 'foodGoal': return planFoodGoal(db, operation, operation.command, now)
+    case 'studyEntry': return planStudyEntry(db, operation, operation.command, now)
   }
 }
 

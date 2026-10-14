@@ -16,11 +16,11 @@ import { mediaUploadTransport } from './media'
 const BACKGROUND_SYNC_MS = 10 * 60 * 1000
 
 const EVERYTHING: Touched = {
-  money: true, gym: true, health: true, habits: true, diary: true, tasks: true, sheets: true, food: true, content: true
+  money: true, gym: true, health: true, habits: true, diary: true, tasks: true, sheets: true, food: true, content: true, study: true
 }
 
 const NOTHING: Touched = {
-  money: false, gym: false, health: false, habits: false, diary: false, tasks: false, sheets: false, food: false, content: false
+  money: false, gym: false, health: false, habits: false, diary: false, tasks: false, sheets: false, food: false, content: false, study: false
 }
 
 interface Session {
@@ -186,7 +186,8 @@ async function runSync(): Promise<LedgerState> {
       tasks: outcome.touched.tasks || outcome.delivered > 0,
       sheets: outcome.touched.sheets || outcome.delivered > 0,
       food: outcome.touched.food || outcome.delivered > 0,
-      content: outcome.touched.content || outcome.delivered > 0
+      content: outcome.touched.content || outcome.delivered > 0,
+      study: outcome.touched.study || outcome.delivered > 0
     }
   } catch (failure: unknown) {
     syncError = failure instanceof Error ? failure.message : 'Sync stopped unexpectedly'

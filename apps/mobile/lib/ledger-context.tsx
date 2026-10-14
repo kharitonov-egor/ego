@@ -22,12 +22,12 @@ import { uploadPendingMedia } from '@ego/local/diary/uploads'
 export type LocalWrite = (db: LocalDatabase, now: string) => Promise<void>
 
 /** Which screens re-read after a write. A logged set should not rebuild the money snapshot. */
-export type WriteScope = 'money' | 'gym' | 'health' | 'habits' | 'diary' | 'tasks' | 'sheets' | 'food' | 'content'
+export type WriteScope = 'money' | 'gym' | 'health' | 'habits' | 'diary' | 'tasks' | 'sheets' | 'food' | 'content' | 'study'
 
 type RefreshScope = Record<WriteScope, boolean>
 
 const EVERYTHING: RefreshScope = {
-  money: true, gym: true, health: true, habits: true, diary: true, tasks: true, sheets: true, food: true, content: true
+  money: true, gym: true, health: true, habits: true, diary: true, tasks: true, sheets: true, food: true, content: true, study: true
 }
 
 interface LedgerContextValue {
@@ -64,6 +64,8 @@ interface LedgerContextValue {
   /** The same for food entries, the fridge, and the daily targets. */
   foodVersion: number
   contentVersion: number
+  /** The same for the assignments, exams, and deadlines added in Study. */
+  studyVersion: number
   db: LocalDatabase | null
   api: EgoApi
   feed: (filters: TransactionFilters, cursor: FeedCursor | null, size: number) => Promise<LocalTransactionPage>
@@ -108,6 +110,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
   const [sheetsVersion, setSheetsVersion] = useState(0)
   const [foodVersion, setFoodVersion] = useState(0)
   const [contentVersion, setContentVersion] = useState(0)
+  const [studyVersion, setStudyVersion] = useState(0)
   const generation = useRef(0)
   const writingRef = useRef(false)
   const lastStatus = useRef<SyncOutcome | null>(null)
@@ -171,6 +174,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     if (scope.sheets) setSheetsVersion((current) => current + 1)
     if (scope.food) setFoodVersion((current) => current + 1)
     if (scope.content) setContentVersion((current) => current + 1)
+    if (scope.study) setStudyVersion((current) => current + 1)
   }, [])
 
   const sync = useCallback(async (): Promise<void> => {
@@ -192,7 +196,8 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
         tasks: downloaded || outcome.touched.tasks || outcome.delivered > 0,
         sheets: downloaded || outcome.touched.sheets || outcome.delivered > 0,
         food: downloaded || outcome.touched.food || outcome.delivered > 0,
-        content: downloaded || outcome.touched.content || outcome.delivered > 0
+        content: downloaded || outcome.touched.content || outcome.delivered > 0,
+        study: downloaded || outcome.touched.study || outcome.delivered > 0
       }
       const changed = Object.values(scope).some(Boolean) || outcome.conflictCount !== previous?.conflictCount
       if (changed) await refreshLocal(db, scope)
@@ -231,7 +236,8 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
       await work(db, new Date().toISOString())
       await refreshLocal(db, {
         money: scope === 'money', gym: scope === 'gym', health: scope === 'health', habits: scope === 'habits',
-        diary: scope === 'diary', tasks: scope === 'tasks', sheets: scope === 'sheets', food: scope === 'food', content: scope === 'content'
+        diary: scope === 'diary', tasks: scope === 'tasks', sheets: scope === 'sheets', food: scope === 'food', content: scope === 'content',
+        study: scope === 'study'
       })
       void sync()
       return true
@@ -278,6 +284,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     sheetsVersion,
     foodVersion,
     contentVersion,
+    studyVersion,
     db,
     api,
     feed,
@@ -294,7 +301,7 @@ export function LedgerProvider({ children }: { children: React.ReactNode }): Rea
     resolveKeepMine: (entry) => resolve((database) =>
       keepMine(database, entry, newId(), new Date().toISOString()).then(() => undefined)),
     resolveUseSaved: (entry) => resolve((database) => useSavedVersion(database, entry, new Date().toISOString()))
-  }), [api, balances, conflicts, current, db, diaryVersion, tasksVersion, sheetsVersion, foodVersion, contentVersion, enabled, error, feed, gymVersion, habitsVersion, healthVersion, purchasePage, ready, receipt, reference, resolve,
+  }), [api, balances, conflicts, current, db, diaryVersion, tasksVersion, sheetsVersion, foodVersion, contentVersion, studyVersion, enabled, error, feed, gymVersion, habitsVersion, healthVersion, purchasePage, ready, receipt, reference, resolve,
     status, sync, syncing, transaction, version, write, writing])
 
   return <LedgerContext.Provider value={value}>{children}</LedgerContext.Provider>

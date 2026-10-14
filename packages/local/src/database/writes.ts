@@ -1,7 +1,8 @@
 import type {
   AccountRecord, BudgetRecord, CategoryRecord, ChangePayload, DiaryMessageRecord, FeedTransaction, FoodEntryRecord,
   FoodGoalRecord, FridgeItemRecord, GymCategoryRecord, GymExerciseRecord, GymPlanRecord, GymSetRecord, GymWorkoutRecord,
-  HabitEntryRecord, HabitRecord, MoodRecord, PurchaseRecord, SheetRecord, SheetRowRecord, SyncEntity, TaskBoardRecord,
+  HabitEntryRecord, HabitRecord, MoodRecord, PurchaseRecord, SheetRecord, SheetRowRecord, StudyEntryRecord, SyncEntity,
+  TaskBoardRecord,
   TaskCardRecord, TaskGoalRecord, TaskLabelRecord, TaskListRecord, TransactionRecord
 } from '@ego/api-contracts'
 import type { LocalDatabase } from './types'
@@ -32,7 +33,8 @@ export const TABLES: Record<SyncEntity, string> = {
   fridgeItem: 'fridge_items',
   contentItem: 'content_items',
   contentCollection: 'content_collections',
-  foodGoal: 'food_goals'
+  foodGoal: 'food_goals',
+  studyEntry: 'study_entries'
 }
 
 /** Budgets are keyed by month and mood entries by date; every other record by its ID. */
@@ -381,6 +383,19 @@ async function writeFoodGoal(tx: LocalDatabase, record: FoodGoalRecord): Promise
     record.saturatedFatPercent ?? null, record.fiber ?? null, record.createdAt, record.updatedAt, record.revision])
 }
 
+async function writeStudyEntry(tx: LocalDatabase, record: StudyEntryRecord): Promise<void> {
+  await tx.run(`INSERT INTO study_entries (id, kind, title, course, due_at, due_date, notes, done_at, created_at,
+    updated_at, revision, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+    ON CONFLICT(id) DO UPDATE SET kind = excluded.kind, title = excluded.title, course = excluded.course,
+      due_at = excluded.due_at, due_date = excluded.due_date, notes = excluded.notes, done_at = excluded.done_at,
+      created_at = excluded.created_at, updated_at = excluded.updated_at, revision = excluded.revision, deleted_at = NULL
+    WHERE excluded.revision >= study_entries.revision`,
+  [record.id, record.kind, record.title, record.course, record.due.kind === 'time' ? record.due.at : null,
+    record.due.kind === 'day' ? record.due.date : null, record.notes, record.doneAt, record.createdAt, record.updatedAt,
+    record.revision])
+}
+
 /** Applies a record only when it is at least as new as the stored revision. */
 export async function writeRecord(tx: LocalDatabase, payload: ChangePayload): Promise<void> {
   if (payload.record === null) return
@@ -419,6 +434,7 @@ export async function writeRecord(tx: LocalDatabase, payload: ChangePayload): Pr
     case 'foodEntry': return writeFoodEntry(tx, payload.record)
     case 'fridgeItem': return writeFridgeItem(tx, payload.record)
     case 'foodGoal': return writeFoodGoal(tx, payload.record)
+    case 'studyEntry': return writeStudyEntry(tx, payload.record)
   }
 }
 

@@ -1,15 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { CalendarCheck, TriangleAlert } from 'lucide-react'
+import type { StudyEntryRecord } from '@ego/api-contracts'
 import {
   courseList, courseSummaries, dayHeading, dueWithin, isDone, isOverdue, localDay, overdueCount, studySections,
   type StudySection, type StudyView
 } from '@ego/local/study/schedule'
 import type { StudyItem } from '@ego/local/study/store'
 import { AssignmentDetail, AssignmentRow, useCourseColors } from '../../components/study/Assignment'
+import { StudyEntrySheet } from '../../components/study/EntrySheet'
 import { StudyGate } from '../../components/study/StudyGate'
 import { Checkbox } from '../../components/ui/checkbox'
-import { Sheet } from '../../components/ui/dialog'
+import { ConfirmDialog, Sheet } from '../../components/ui/dialog'
 import { SegmentedControl } from '../../components/ui/segmented-control'
 import { Blurred } from '../../lib/blur'
 import { useStudy } from '../../lib/study/context'
@@ -56,8 +58,11 @@ function AssignmentList(): React.ReactElement {
   const [view, setView] = useState<StudyView>('upcoming')
   const [course, setCourse] = useState<string | null>(null)
   const [openId, setOpenId] = useState<string | null>(null)
+  const [editing, setEditing] = useState<{ entry: StudyEntryRecord | null } | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [now, setNow] = useState(() => new Date())
   const requested = params.get('course')
+  const adding = params.get('new') !== null
 
   useEffect(() => {
     const onFocus = (): void => setNow(new Date())
@@ -73,6 +78,13 @@ function AssignmentList(): React.ReactElement {
     setParams({}, { replace: true })
   }, [requested, setParams])
 
+  useEffect(() => {
+    if (!adding) return
+    setOpenId(null)
+    setEditing({ entry: null })
+    setParams({}, { replace: true })
+  }, [adding, setParams])
+
   const tintOf = useCourseColors(study.items)
   const courses = useMemo(() => courseList(study.items), [study.items])
   const summaries = useMemo(() => courseSummaries(study.items, now), [now, study.items])
@@ -85,6 +97,7 @@ function AssignmentList(): React.ReactElement {
   const thisWeek = dueWithin(study.items, now, 7)
   const waiting = study.items.filter((item) => item.pending).length
   const open = study.items.find((item) => item.id === openId) ?? null
+  const deleting = study.items.find((item) => item.id === deletingId) ?? null
   const setDone = study.setDone
   const toggle = useCallback((id: string, done: boolean) => void setDone(id, done), [setDone])
   const pickCourse = (code: string): void => setCourse(course === code ? null : code)
@@ -119,14 +132,14 @@ function AssignmentList(): React.ReactElement {
           </div>
           {study.fetchedAt && <p aria-live="polite" className="pt-3 text-[14px] text-surface-500">
             {view === 'upcoming' ? `${thisWeek} due in the next 7 days · ` : ''}Updated {updatedLabel(study.fetchedAt)}{study.refreshing ? ', checking Canvas' : ''}
-            {waiting > 0 ? ` · ${waiting} ${waiting === 1 ? 'check mark' : 'check marks'} not synced` : ''}
+            {waiting > 0 ? ` · ${waiting} ${waiting === 1 ? 'change' : 'changes'} not synced` : ''}
           </p>}
           {sections.length === 0
             ? <div className="flex flex-col items-center px-8 py-14 text-center">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-900"><CalendarCheck color="#a3a3a3" size={30} /></div>
               <h2 className="mt-4 text-[20px] font-semibold text-surface-100">{view === 'upcoming' ? 'Nothing due' : 'Nothing earlier'}</h2>
               <p className="mt-2 max-w-md text-[16px] leading-6 text-surface-400">{view === 'upcoming'
-                ? course ? `${course} has nothing coming up in Canvas.` : 'Canvas has no upcoming assignments. Refresh to check again.'
+                ? course ? `${course} has nothing coming up.` : 'Canvas has no upcoming assignments. Refresh to check again, or add one with +.'
                 : hideOverdue ? 'Unchecked past assignments are hidden. Clear Hide overdue to see them.' : 'Assignments show up here once their day has passed.'}</p>
             </div>
             : sections.map((section) => <section key={section.key}>
@@ -167,8 +180,38 @@ function AssignmentList(): React.ReactElement {
       </div>
     </div>
     <Sheet visible={open !== null} title={open?.title ?? ''} onClose={() => setOpenId(null)} dismissOnBackdrop privateTitle>
-      {open && <AssignmentDetail item={open} tint={tintOf(open.course)} overdue={isOverdue(open, now)} onToggle={(done) => void setDone(open.id, done)} />}
+      {open && <AssignmentDetail
+        item={open}
+        tint={tintOf(open.course)}
+        overdue={isOverdue(open, now)}
+        onToggle={(done) => void setDone(open.id, done)}
+        onEdit={() => {
+          setOpenId(null)
+          setEditing({ entry: open.entry })
+        }}
+        onDelete={() => setDeletingId(open.id)}
+      />}
     </Sheet>
+    <StudyEntrySheet
+      visible={editing !== null}
+      entry={editing?.entry ?? null}
+      courses={courses}
+      onSave={(input) => study.saveEntry(editing?.entry?.id ?? null, input)}
+      onClose={() => setEditing(null)}
+    />
+    <ConfirmDialog
+      visible={deleting !== null}
+      title={`Delete this ${deleting?.kind ?? 'item'}?`}
+      detail={`"${deleting?.title ?? ''}" goes from Study on every device.`}
+      confirmLabel="Delete"
+      destructive
+      onCancel={() => setDeletingId(null)}
+      onConfirm={() => {
+        if (deleting) void study.deleteEntry(deleting.id)
+        setDeletingId(null)
+        setOpenId(null)
+      }}
+    />
   </div>
 }
 
