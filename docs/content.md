@@ -69,7 +69,9 @@ Content's Chrome extension panel to disconnect it.
 
 The extension requests access to the active tab when pressed. It reads the page
 title and Open Graph metadata, with the tab title as a fallback for restricted
-viewers. It does not read all tabs or run on pages in the background.
+viewers. On YouTube video pages it reads the player's `VideoObject` data instead,
+because YouTube switches videos without reloading and leaves the first page's Open
+Graph tags in place. It does not read all tabs or run on pages in the background.
 Interrupted saves retain their request ID in Chrome's session storage so retries
 do not create a second record. A deliberate second save of an existing URL is
 allowed and shows a notice first.

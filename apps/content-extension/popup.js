@@ -47,6 +47,20 @@ function setKind(kind) {
 function pageMetadata() {
   const meta = (name) => document.querySelector(`meta[property="${name}"],meta[name="${name}"]`)?.getAttribute('content') || ''
   const absolute = (value) => { try { return value ? new URL(value, location.href).href : null } catch { return null } }
+  const youtubeId = /(^|\.)youtube\.com$/.test(location.hostname) && (location.pathname === '/watch' ? new URLSearchParams(location.search).get('v') : location.pathname.match(/^\/(?:shorts|live)\/([^/]+)/)?.[1])
+  if (youtubeId && /^[\w-]{11}$/.test(youtubeId)) {
+    // YouTube switches videos without reloading, so the head keeps the first page's tags. The player's VideoObject, after the head's, follows the current video.
+    const videoObject = [...document.querySelectorAll('script[type="application/ld+json"]')]
+      .map(script => { try { return JSON.parse(script.textContent) } catch { return null } })
+      .findLast(data => data?.['@type'] === 'VideoObject' && String(data['@id']).includes(youtubeId))
+    const fresh = meta('og:url').includes(youtubeId)
+    return {
+      title: (videoObject?.name || (fresh && meta('og:title')) || document.title.replace(/^\(\d+\+?\) /, '').replace(/ - YouTube( Music)?$/, '')).slice(0, 500),
+      description: (videoObject?.description || (fresh && meta('og:description')) || '').slice(0, 4000),
+      coverUrl: absolute([videoObject?.thumbnailUrl].flat()[0] || (fresh && meta('og:image'))) || `https://i.ytimg.com/vi/${youtubeId}/hqdefault.jpg`,
+      kind: 'video'
+    }
+  }
   const type = meta('og:type')
   const video = type.startsWith('video') || /(^|\.)youtube\.com$|(^|\.)youtu\.be$|(^|\.)vimeo\.com$/.test(location.hostname)
   return {
