@@ -1,4 +1,4 @@
-import type { CanvasDue } from '@ego/core'
+import type { CanvasDue, StudyEntryKind } from '@ego/core'
 import { isoFromParts, parseIso, shiftIso } from '../dates'
 import type { StudyItem } from './store'
 
@@ -25,7 +25,7 @@ export interface CourseSummary {
   next: StudyItem | null
 }
 
-type Dated = { due: CanvasDue }
+type Dated = { due: CanvasDue; kind?: StudyEntryKind }
 
 export function localDay(instant: Date): string {
   return isoFromParts(instant.getFullYear(), instant.getMonth(), instant.getDate())
@@ -88,10 +88,8 @@ export function studySections(items: StudyItem[], view: StudyView, now: Date, fi
   return overdue.length > 0 ? [{ key: 'overdue', day: null, data: overdue }, ...ahead] : ahead
 }
 
-/** Course codes compared without spaces or case, so a label "cop 4530" matches Canvas's "COP4530". */
-export function courseKey(value: string): string {
-  return value.replace(/\s+/g, '').toUpperCase()
-}
+/** A label "cop 4530" matches Canvas's "COP4530"; a typed course takes the spelling of one it matches. */
+export { studyCourseKey as courseKey, matchStudyCourse as courseFor } from '@ego/core'
 
 export function courseList(items: StudyItem[]): string[] {
   return [...new Set(items.map((item) => item.course).filter((course): course is string => course !== null))]
@@ -133,13 +131,16 @@ export function dayHeading(day: string, today: string): string {
   return shortDay(day)
 }
 
-/** Canvas files an assignment due at 11:59 PM as an all-day event, so that is the time an all-day item shows. */
+/**
+ * Canvas files an assignment due at 11:59 PM as an all-day event, so that is the time an all-day item
+ * shows. An exam with no time is not due at midnight; it takes the day.
+ */
 export function dueClock(item: Dated): string {
-  return item.due.kind === 'day'
-    ? '11:59 PM'
-    : new Date(item.due.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+  if (item.due.kind === 'day') return item.kind === 'exam' ? 'All day' : '11:59 PM'
+  return new Date(item.due.at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
 }
 
 export function dueSentence(item: Dated): string {
-  return `Due ${shortDay(dueDay(item))} at ${dueClock(item)}`
+  if (item.kind !== 'exam') return `Due ${shortDay(dueDay(item))} at ${dueClock(item)}`
+  return item.due.kind === 'day' ? `Exam ${shortDay(dueDay(item))}` : `Exam ${shortDay(dueDay(item))} at ${dueClock(item)}`
 }

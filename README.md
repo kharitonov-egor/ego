@@ -313,14 +313,26 @@ check it off. Tap the row for the description and an Open in Canvas button.
 
 The Worker downloads the Canvas calendar feed and parses it. Anyone holding the feed link can read
 the calendar, so the link is a Worker secret, `CANVAS_CALENDAR_URL`, and never enters this repo.
-D1 stores only the check marks, in `study_completions`. The assignments stay in Canvas, and copying
-them into D1 would only add a second list that goes stale. The phone keeps the last list in SQLite.
+For Canvas items D1 stores only the check marks, in `study_completions`. The assignments stay in
+Canvas, and copying them into D1 would only add a second list that goes stale. The phone keeps the
+last list in SQLite.
 Study opens offline and refreshes on open, on pull-down, and on return to the app once the saved
 copy is five minutes old. A check mark made offline waits on the phone and goes out with the next
 refresh.
 
 Canvas sends deadlines in UTC. The phone places each one on its own calendar, so a deadline at
 10:59 PM Eastern (02:59 UTC) shows on the evening it is due, not the next morning.
+
+Canvas misses things, so Study also takes assignments, exams, and deadlines added by hand: the Add
+button on the phone's Assignments tab, or the plus in the desktop header. Each has a title, an
+optional course (a typed code that matches a Canvas course takes its spelling), a day, an optional
+time, and notes. With no time an assignment or deadline is due at 11:59 PM, like Canvas's all-day
+items, and an exam takes the whole day. Exams and deadlines carry a tag on the row, and an exam reads
+"Exam Tue, Oct 20 at 2:00 PM" instead of "Due". Tap one for Edit and Delete. These are ours, so
+they sync like the other apps' records, as `studyEntry` in `study_entries` (migration 0037,
+bootstrap version 16), and their check marks live on the record. They show on the calendar's Study
+layer and in the Tasks USF column, and the AI reads them with `read_study` and adds them with
+`add_study_item`.
 
 The desktop puts Assignments and Courses in the header, with a refresh button in place of pulling
 down. Click the circle to check a row off, or the rest of the row for the description and Open in

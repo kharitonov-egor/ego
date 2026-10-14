@@ -7,7 +7,7 @@ import {
   foodGoalRecordFrom, fridgeItemRecordFrom, gymCategoryRecordFrom,
   gymExerciseRecordFrom, gymPlanRecordFrom, gymSetRecordFrom, gymWorkoutRecordFrom, habitEntryRecordFrom,
   habitRecordFrom, moodIdFor, moodRecordFrom, purchaseRecordFrom, purchaseTransactionInput, receiptTransactionIdFor,
-  sheetRecordFrom, sheetRowRecordFrom, taskBoardRecordFrom, taskCardRecordFrom, taskGoalRecordFrom, taskLabelRecordFrom, taskListRecordFrom,
+  sheetRecordFrom, sheetRowRecordFrom, studyEntryRecordFrom, taskBoardRecordFrom, taskCardRecordFrom, taskGoalRecordFrom, taskLabelRecordFrom, taskListRecordFrom,
   transactionRecordFrom
 } from './records'
 
@@ -233,6 +233,19 @@ export async function applyCommandLocally(
     } else {
       await writeRecord(tx, { entity: 'foodGoal', record: foodGoalRecordFrom(command.payload, createdAt, now, nextRevision) })
     }
+    return
+  }
+
+  if (command.entity === 'studyEntry') {
+    if (command.type === 'delete') {
+      await writeTombstone(tx, 'studyEntry', entityId, revision, now)
+      return
+    }
+    const current = await existing(tx, 'study_entries', 'id', entityId)
+    await writeRecord(tx, {
+      entity: 'studyEntry',
+      record: studyEntryRecordFrom(entityId, command.payload, current?.created_at ?? now, now, command.type === 'create' ? 1 : revision)
+    })
     return
   }
 

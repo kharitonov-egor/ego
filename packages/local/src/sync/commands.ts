@@ -4,7 +4,7 @@ import {
   type AccountInput, type BudgetInput, type CategoryInput, type DiaryMessageInput, type FoodEntryInput, type FoodGoalInput,
   type FridgeItemInput, type GymCategoryInput, type GymExerciseInput, type GymPlanInput, type GymSetInput,
   type GymWorkoutInput, type HabitEntryInput, type HabitInput, type MoodInput, type PurchaseInput, type SheetInput,
-  type SheetRowInput, type TaskBoardInput, type TaskCardInput, type TaskGoalInput, type TaskLabelInput, type TaskListInput,
+  type SheetRowInput, type StudyEntryInput, type TaskBoardInput, type TaskCardInput, type TaskGoalInput, type TaskLabelInput, type TaskListInput,
   type TransactionInput
 } from '@ego/core'
 import type { LocalDatabase } from '../database/types'
@@ -349,6 +349,15 @@ export const updateFridgeItem = (db: LocalDatabase, id: string, revision: number
 
 export const deleteFridgeItem = (db: LocalDatabase, id: string, revision: number, now: string) =>
   submit(db, id, revision, { entity: 'fridgeItem', type: 'delete' }, now)
+
+export const createStudyEntry = (db: LocalDatabase, input: StudyEntryInput, now: string, id = newId()) =>
+  submit(db, id, null, { entity: 'studyEntry', type: 'create', payload: input }, now)
+
+export const updateStudyEntry = (db: LocalDatabase, id: string, revision: number, input: StudyEntryInput, now: string) =>
+  submit(db, id, revision, { entity: 'studyEntry', type: 'update', payload: input }, now)
+
+export const deleteStudyEntry = (db: LocalDatabase, id: string, revision: number, now: string) =>
+  submit(db, id, revision, { entity: 'studyEntry', type: 'delete' }, now)
 
 export const saveFoodGoal = (db: LocalDatabase, input: FoodGoalInput, revision: number | null, now: string) =>
   submit(db, FOOD_GOAL_ID, revision, revision === null

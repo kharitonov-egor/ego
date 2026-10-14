@@ -1,6 +1,6 @@
 import {
   MAX_OPERATIONS_PER_REQUEST, isDiaryEntity, isFoodEntity, isGymEntity, isHabitEntity, isHealthEntity, isSheetEntity,
-  isTaskEntity,
+  isStudyEntity, isTaskEntity,
   type ApiError, type ChangeRecord, type OperationOutcome, type SyncEntity
 } from '@ego/api-contracts'
 import type { MoneyApi } from '../api-client'
@@ -41,6 +41,7 @@ export interface Touched {
   sheets: boolean
   content: boolean
   food: boolean
+  study: boolean
 }
 
 export interface SyncOutcome {
@@ -55,7 +56,8 @@ export interface SyncOutcome {
 }
 
 const NOTHING_TOUCHED: Touched = {
-  money: false, gym: false, health: false, habits: false, diary: false, tasks: false, sheets: false, food: false, content: false
+  money: false, gym: false, health: false, habits: false, diary: false, tasks: false, sheets: false, food: false, content: false,
+  study: false
 }
 
 function touch(touched: Touched, entity: SyncEntity): void {
@@ -66,6 +68,7 @@ function touch(touched: Touched, entity: SyncEntity): void {
   else if (isTaskEntity(entity)) touched.tasks = true
   else if (isSheetEntity(entity)) touched.sheets = true
   else if (isFoodEntity(entity)) touched.food = true
+  else if (isStudyEntity(entity)) touched.study = true
   else if (entity === 'contentItem' || entity === 'contentCollection') touched.content = true
   else touched.money = true
 }
@@ -85,9 +88,10 @@ interface SyncStateRow {
  * Version 10 brings each list's kind, which earlier builds dropped. Version 11 does the same for
  * each board's move-done setting, and version 12 for each list's color, emoji, and outline. Version 13
  * brings each food entry's saturated fat, fiber, and sodium and the targets for them, and version 14
- * each exercise's machine settings. Version 15 brings each board's label style.
+ * each exercise's machine settings. Version 15 brings each board's label style, and version 16 the
+ * assignments, exams, and deadlines added in Study.
  */
-export const BOOTSTRAP_VERSION = 15
+export const BOOTSTRAP_VERSION = 16
 
 async function syncStateRow(db: LocalDatabase): Promise<SyncStateRow> {
   const rows = await db.all<SyncStateRow>(
@@ -148,6 +152,7 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
   const foodGoals = data.foodGoals ?? []
   const contentItems = data.contentItems ?? []
   const contentCollections = data.contentCollections ?? []
+  const studyEntries = data.studyEntries ?? []
   const live: Record<SyncEntity, Set<string>> = {
     contentItem: new Set(contentItems.map(record => record.id)),
     contentCollection: new Set(contentCollections.map(record => record.id)),
@@ -174,7 +179,8 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
     sheetRow: new Set(sheetRows.map((record) => record.id)),
     foodEntry: new Set(foodEntries.map((record) => record.id)),
     fridgeItem: new Set(fridgeItems.map((record) => record.id)),
-    foodGoal: new Set(foodGoals.map((record) => record.id))
+    foodGoal: new Set(foodGoals.map((record) => record.id)),
+    studyEntry: new Set(studyEntries.map((record) => record.id))
   }
   const deletedAt = now()
   await db.transaction((tx) => withPreparedRuns(tx, async (cached) => {
@@ -204,6 +210,7 @@ export async function bootstrap(deps: SyncDeps): Promise<ApiError | null> {
     for (const record of foodGoals) if (!skip('foodGoal', record.id)) await writeRecord(cached, { entity: 'foodGoal', record })
     for (const record of contentItems) if (!skip('contentItem', record.id)) await writeRecord(cached, { entity: 'contentItem', record })
     for (const record of contentCollections) if (!skip('contentCollection', record.id)) await writeRecord(cached, { entity: 'contentCollection', record })
+    for (const record of studyEntries) if (!skip('studyEntry', record.id)) await writeRecord(cached, { entity: 'studyEntry', record })
     for (const entity of Object.keys(TABLES) as SyncEntity[]) {
       const key = keyColumn(entity)
       const local = await tx.all<{ key: string }>(`SELECT ${key} AS key FROM ${TABLES[entity]} WHERE deleted_at IS NULL`)
@@ -352,6 +359,7 @@ export function createSyncCoordinator(deps: SyncDeps): SyncCoordinator {
       touched.sheets = true
       touched.food = true
       touched.content = true
+      touched.study = true
     }
     const delivery = await deliver(deps, touched)
     if (delivery.paused) return outcomeFor(db, delivery.error, true, delivery.delivered, 0, touched)
@@ -392,6 +400,7 @@ export function createSyncCoordinator(deps: SyncDeps): SyncCoordinator {
           touched.sheets ||= outcome.touched.sheets
           touched.food ||= outcome.touched.food
           touched.content ||= outcome.touched.content
+          touched.study ||= outcome.touched.study
         } while (again)
         return { ...outcome, touched }
       })().finally(() => {

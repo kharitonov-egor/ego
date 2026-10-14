@@ -192,6 +192,29 @@ describe('sheet operations', () => {
   })
 })
 
+describe('study entry operations', () => {
+  const exam = {
+    kind: 'exam', title: 'Midterm 2', course: 'COP4530', due: { kind: 'time', at: '2026-10-20T18:00:00.000Z' }, notes: '', doneAt: null
+  }
+
+  it('accepts an exam, a whole-day deadline, and a delete with its revision', () => {
+    expect(isSyncOperation(operation({ entityId: 's-1', command: { entity: 'studyEntry', type: 'create', payload: exam } }))).toBe(true)
+    const deadline = { ...exam, kind: 'deadline', course: null, due: { kind: 'day', date: '2026-10-30' } }
+    expect(isSyncOperation(operation({ entityId: 's-2', command: { entity: 'studyEntry', type: 'create', payload: deadline } }))).toBe(true)
+    expect(isSyncOperation(operation({ entityId: 's-1', expectedRevision: 2, command: { entity: 'studyEntry', type: 'delete' } }))).toBe(true)
+  })
+
+  it('turns away an unknown kind, a blank title, a due with no day, or a time with no zone', () => {
+    const bad = [
+      { ...exam, kind: 'quiz' }, { ...exam, title: ' ' }, { ...exam, due: { kind: 'day', date: '10/20' } }, { ...exam, due: { kind: 'time' } },
+      { ...exam, due: { kind: 'time', at: '2026-10-20T18:00:00' } }, { ...exam, doneAt: '1' }
+    ]
+    for (const payload of bad) {
+      expect(isSyncOperation(operation({ entityId: 's-1', command: { entity: 'studyEntry', type: 'create', payload } }))).toBe(false)
+    }
+  })
+})
+
 describe('food operations', () => {
   const entry = {
     name: 'Toast', date: '2026-10-02', eatenAt: '2026-10-02T12:00:00.000Z', serving: '2 slices', calories: 180, protein: 6,

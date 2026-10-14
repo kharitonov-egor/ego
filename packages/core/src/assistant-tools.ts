@@ -21,6 +21,7 @@ export type AssistantToolName =
   | 'unlog_habit'
   | 'log_gym_sets'
   | 'mark_study'
+  | 'add_study_item'
   | 'add_task_card'
   | 'update_task_card'
   | 'read_food'
@@ -225,7 +226,7 @@ export const ASSISTANT_TOOLS: Record<AssistantToolName, AssistantToolDefinition>
   },
   read_study: {
     name: 'read_study',
-    description: 'Canvas assignments with due dates, courses, and whether each is checked off.',
+    description: 'Canvas assignments, and the assignments, exams, and deadlines the user added in Study (addedByUser), with due dates, courses, and whether each is checked off.',
     parameters: object({}),
     access: 'read'
   },
@@ -273,8 +274,21 @@ export const ASSISTANT_TOOLS: Record<AssistantToolName, AssistantToolDefinition>
   },
   mark_study: {
     name: 'mark_study',
-    description: 'Check off a Canvas assignment, or uncheck it.',
+    description: 'Check off an assignment, exam, or deadline from read_study, or uncheck it.',
     parameters: object({ assignmentId: { type: 'string', minLength: 1, maxLength: 200 }, done: { type: 'boolean' } }),
+    access: 'write'
+  },
+  add_study_item: {
+    name: 'add_study_item',
+    description: 'Add an assignment, exam, or deadline to Study, beside the ones Canvas lists. time is on the user\'s clock; null means the whole day, and an assignment or deadline is then due at 11:59 PM. course is a course code as read_study shows it, like COP4530, or null.',
+    parameters: object({
+      kind: { type: 'string', enum: ['assignment', 'exam', 'deadline'] },
+      title: { type: 'string', minLength: 1, maxLength: 200 },
+      course: { type: ['string', 'null'], minLength: 1, maxLength: 120 },
+      date,
+      time: nullableTime,
+      notes: { type: ['string', 'null'], maxLength: 4000 }
+    }),
     access: 'write'
   },
   add_task_card: {

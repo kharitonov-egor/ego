@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react'
 import { Circle, CircleCheck, Clock, CloudUpload, RefreshCw, TriangleAlert } from 'lucide-react'
 import {
-  courseKey, courseList, dayHeading, dueClock, dueDay, dueWithin, isDone, isOverdue, localDay, overdueCount, shortDay,
+  courseKey, courseList, dayHeading, dueClock, dueDay, dueSentence, dueWithin, isDone, isOverdue, localDay, overdueCount, shortDay,
   studySections, type StudySection, type StudyView
 } from '@ego/local/study/schedule'
 import type { StudyItem } from '@ego/local/study/store'
@@ -9,7 +9,7 @@ import { Blurred } from '../../lib/blur'
 import { useStudy } from '../../lib/study/context'
 import { color } from '../../lib/tokens'
 import { cn } from '../../lib/utils'
-import { AssignmentDetail, useCourseColors } from '../study/Assignment'
+import { AssignmentDetail, KindTag, useCourseColors } from '../study/Assignment'
 import { Button } from '../ui/button'
 import { Sheet } from '../ui/dialog'
 import { Spinner } from '../ui/spinner'
@@ -127,7 +127,7 @@ function AssignmentCard({ item, tint, now, showDay, onToggle, onOpen }: {
   return <div
     role="button"
     tabIndex={0}
-    aria-label={`${item.title}${item.course ? `, ${item.course}` : ''}, due ${when}${done ? ', done' : overdue ? ', overdue' : ''}`}
+    aria-label={`${item.title}${item.course ? `, ${item.course}` : ''}, ${dueSentence(item)}${done ? ', done' : overdue ? ', overdue' : ''}`}
     onClick={() => onOpen(item.id)}
     onKeyDown={(event) => {
       if (event.key !== 'Enter' && event.key !== ' ') return
@@ -136,11 +136,12 @@ function AssignmentCard({ item, tint, now, showDay, onToggle, onOpen }: {
     }}
     className="shrink-0 cursor-pointer select-none rounded-xl border border-surface-800 bg-card px-3 py-2.5 transition-[filter] hover:brightness-125"
   >
-    {item.course && <div className="mb-1.5 flex">
-      <span className="inline-flex min-w-0 max-w-full items-center rounded-full bg-surface-800 px-2 py-0.5">
+    {(item.course || item.kind !== 'assignment') && <div className="mb-1.5 flex items-center gap-1.5">
+      {item.course && <span className="inline-flex min-w-0 max-w-full items-center rounded-full bg-surface-800 px-2 py-0.5">
         <span className="mr-[5px] h-[7px] w-[7px] shrink-0 rounded-full" style={{ backgroundColor: tint }} />
         <Blurred><span className="truncate text-[12px] font-semibold text-surface-200">{item.course}</span></Blurred>
-      </span>
+      </span>}
+      <KindTag item={item} />
     </div>}
     <div className="flex items-start">
       <button
@@ -197,7 +198,7 @@ export function UsfAssignments({ filter, now }: { filter: UsfFilter; now: Date }
     </ColumnNote>
   } else if (sections.length === 0) {
     body = <ColumnNote>{filter.view === 'upcoming'
-      ? filter.course ? `${filter.course} has nothing coming up in Canvas.` : 'Nothing due in Canvas.'
+      ? filter.course ? `${filter.course} has nothing coming up.` : 'Nothing due.'
       : 'Nothing earlier.'}</ColumnNote>
   } else {
     body = sections.map((section) => <React.Fragment key={section.key}>

@@ -1,5 +1,6 @@
 import React, { memo, useMemo } from 'react'
-import { Check, ExternalLink } from 'lucide-react'
+import { Check, ExternalLink, Pencil, Trash2 } from 'lucide-react'
+import { STUDY_ENTRY_KIND_LABELS } from '@ego/core'
 import { courseColors, courseList, dueClock, dueDay, dueSentence, isDone, shortDay } from '@ego/local/study/schedule'
 import type { StudyItem } from '@ego/local/study/store'
 import { Blurred } from '../../lib/blur'
@@ -40,6 +41,14 @@ export function DoneToggle({ done, tint, title, onToggle }: {
   </button>
 }
 
+/** Exams and deadlines say so. An assignment, from Canvas or added here, needs no tag. */
+export function KindTag({ item }: { item: StudyItem }): React.ReactElement | null {
+  if (item.kind === 'assignment') return null
+  return <span className={cn('shrink-0 rounded-md px-1.5 py-0.5 text-[12px] font-semibold uppercase tracking-wide',
+    item.kind === 'exam' ? 'bg-attention/15 text-attention' : 'bg-surface-800 text-surface-300')}
+  >{STUDY_ENTRY_KIND_LABELS[item.kind]}</span>
+}
+
 /** Inside a day the right column is the time. In the overdue group it is the day, since that group spans several. */
 export const AssignmentRow = memo(function AssignmentRow({ item, tint, overdue, showDay, onToggle, onOpen }: {
   item: StudyItem
@@ -62,9 +71,12 @@ export const AssignmentRow = memo(function AssignmentRow({ item, tint, overdue, 
     >
       <span className="flex min-w-0 flex-1 flex-col">
         <Blurred><span className={cn('line-clamp-2 text-[17px] font-semibold', done ? 'text-surface-500 line-through' : 'text-surface-100')}>{item.title}</span></Blurred>
-        {item.course && <span className="mt-0.5 flex items-center">
-          <span className="mr-1.5 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: tint }} />
-          <Blurred><span className="truncate text-[14px] text-surface-400">{item.course}</span></Blurred>
+        {(item.course || item.kind !== 'assignment') && <span className="mt-0.5 flex min-w-0 items-center gap-1.5">
+          {item.course && <>
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: tint }} />
+            <Blurred><span className="truncate text-[14px] text-surface-400">{item.course}</span></Blurred>
+          </>}
+          <KindTag item={item} />
         </span>}
       </span>
       <span
@@ -75,11 +87,14 @@ export const AssignmentRow = memo(function AssignmentRow({ item, tint, overdue, 
   </div>
 })
 
-export function AssignmentDetail({ item, tint, overdue, onToggle }: {
+/** An item added in Ego can be edited and deleted where the screen passes the handlers. */
+export function AssignmentDetail({ item, tint, overdue, onToggle, onEdit, onDelete }: {
   item: StudyItem
   tint: string
   overdue: boolean
   onToggle: (done: boolean) => void
+  onEdit?: () => void
+  onDelete?: () => void
 }): React.ReactElement {
   const done = isDone(item)
   return <div>
@@ -88,6 +103,8 @@ export function AssignmentDetail({ item, tint, overdue, onToggle }: {
         <span className="mr-2 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: tint }} />
         <Blurred><span className="text-[14px] font-semibold text-surface-200">{item.course}</span></Blurred>
       </span>}
+      {item.kind !== 'assignment' && <span className={cn('rounded-full px-3 py-1.5 text-[14px] font-semibold',
+        item.kind === 'exam' ? 'bg-attention/15 text-attention' : 'bg-surface-900 text-surface-200')}>{STUDY_ENTRY_KIND_LABELS[item.kind]}</span>}
       {overdue && <span className="rounded-full bg-red-500/15 px-3 py-1.5 text-[14px] font-semibold text-red-300">Overdue</span>}
       {done && <span className="rounded-full bg-positive/15 px-3 py-1.5 text-[14px] font-semibold text-positive">Done</span>}
     </div>
@@ -99,5 +116,16 @@ export function AssignmentDetail({ item, tint, overdue, onToggle }: {
       <ExternalLink color="#fafafa" size={18} />
       Open in Canvas
     </Button>}
+    {item.entry && (onEdit || onDelete) && <div className="mt-3 flex gap-3">
+      {onEdit && <Button variant="outline" size="lg" onClick={onEdit} className="flex-1">
+        <Pencil color="#fafafa" size={17} />
+        Edit
+      </Button>}
+      {onDelete && <Button variant="outline" size="lg" onClick={onDelete} className="flex-1 text-red-300">
+        <Trash2 color="#fca5a5" size={17} />
+        Delete
+      </Button>}
+    </div>}
+    {item.entry && <p className="mt-4 text-center text-[13px] text-surface-500">Added in Ego, not in Canvas</p>}
   </div>
 }

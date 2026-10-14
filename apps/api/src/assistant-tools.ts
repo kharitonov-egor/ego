@@ -3,10 +3,13 @@ import {
   displayWeightUnit, exerciseRecords, foodDays, formatCalories, formatGrams, formatMilligrams, isFoodEntryInput, isFoodGoalInput,
   isFoodPhoto,
   isFridgeItemInput, isGymSetInput, isGymWorkoutInput, isHabitEntryInput, isMoodInput, isPurchaseInput, isTaskCardInput,
-  isTaskDoneList, isTaskPriority, isTransactionInput, sumMacros, taskActivityFor, taskCardInput, taskDueLabel, taskTimeLabel,
+  isDateString, isStudyEntryInput, isTaskDoneList, isTaskPriority, isTransactionInput, matchStudyCourse, STUDY_ENTRY_KINDS,
+  sumMacros, taskActivityFor,
+  taskCardInput, taskDueLabel, taskTimeLabel,
   type AssistantCall, type AssistantToolName, type DistanceUnit, type ExerciseType, type FoodEntryInput, type FoodGoalInput,
   type FoodMacros, type FridgeItemInput, type GymSetInput, type GymWorkoutInput, type HabitEntryInput, type MoodInput,
-  type PurchaseInput, type TaskCardInput, type TaskNames, type TransactionInput, type WeightUnit
+  type PurchaseInput, type StudyEntryInput, type StudyEntryKind, type TaskCardInput, type TaskNames, type TransactionInput,
+  type WeightUnit
 } from '@ego/core'
 import { HEALTH_HEART_CURVE_DAYS, type AssistantUnits, type DeviceIdentity, type SyncCommand } from '@ego/api-contracts'
 import {
@@ -15,14 +18,17 @@ import {
 } from './assistant-calendar'
 import type { Env } from './auth'
 import { applyOperation } from './commands'
-import { isValidTimeZone, localDate, shiftDate, startOfLocalDay } from './google-health'
+import { isValidTimeZone, localDate, localInstant, shiftDate } from './google-health'
 import { toDay, toHeart, toSleep, type DayRow, type HeartRow, type SleepDbRow } from './health'
 import {
-  query, readBalances, readFoodRows, readReference, readSummary, readTaskRows, readTransactionDetail, readTransactionPage,
+  query, readBalances, readFoodRows, readReference, readStudyEntries, readSummary, readTaskRows, readTransactionDetail,
+  readTransactionPage,
   type TaskRows
 } from './reads'
-import type { FoodEntryRow, FoodGoalRow, FridgeItemRow, GymExerciseRow, GymSetRow, GymWorkoutRow, HabitEntryRow, HabitRow, MoodRow } from './rows'
-import { toFoodEntryRecord, toFoodGoalRecord, toFridgeItemRecord, toGymSetRecord, toTaskCardRecord } from './rows'
+import type {
+  FoodEntryRow, FoodGoalRow, FridgeItemRow, GymExerciseRow, GymSetRow, GymWorkoutRow, HabitEntryRow, HabitRow, MoodRow, StudyEntryRow
+} from './rows'
+import { studyDueOf, toFoodEntryRecord, toFoodGoalRecord, toFridgeItemRecord, toGymSetRecord, toTaskCardRecord } from './rows'
 import { loadStudyAssignments, setStudyMark } from './study'
 
 export interface ToolContext {
@@ -323,7 +329,7 @@ export async function assistantSystemPrompt(ctx: ToolContext): Promise<string> {
   return [
     'You are the assistant inside Ego, the user\'s personal app. You have two jobs.',
     '1. Answer questions from the user\'s own data: money, gym, health, mood, habits, study, task boards, food eaten, the fridge, and Google Calendar. Call the read tools first, then answer with the numbers you read. Never guess or estimate a figure you did not read from a tool. If a tool returns nothing for the range, say so.',
-    '2. Record what the user tells you: expenses and income, a mood for a day, habit check-offs and slips, gym sets, study check marks, task cards, food eaten, groceries for the fridge, and calendar events and answers to invitations. Call the matching write tools, all in the same reply, with everything the user mentioned. Each write shows on a card that saves itself after three seconds unless the user taps Undo, so never ask whether to go ahead.',
+    '2. Record what the user tells you: expenses and income, a mood for a day, habit check-offs and slips, gym sets, study check marks and the assignments, exams, and deadlines the user adds, task cards, food eaten, groceries for the fridge, and calendar events and answers to invitations. Call the matching write tools, all in the same reply, with everything the user mentioned. Each write shows on a card that saves itself after three seconds unless the user taps Undo, so never ask whether to go ahead.',
     `Today is ${weekday}, ${ctx.today}${timeZone ? ` in the ${timeZone} time zone` : ''}. Resolve "yesterday", "last month", or "this week" from that. Weeks start on Monday. Use YYYY-MM-DD dates in tool calls. When the user gives no date, use today.`,
     `Money is USD. Tools take and return integer cents; write amounts in cents and say them in dollars. Accounts: ${JSON.stringify(accounts)}. The first account is the default when the user names none. Categories: ${JSON.stringify(categories)}. Pick the category by meaning and match its kind to the transaction.`,
     `Habits: ${JSON.stringify(habitList)}. A habit to build is checked off; a habit to break logs slips. target is check-offs per day, or days per week when period is week.`,
@@ -626,18 +632,28 @@ async function readTransaction(ctx: ToolContext, args: Record<string, unknown>):
   }
 }
 
+/** What the user added in Study reads even while Canvas is down, with the reason Canvas is missing. */
 async function readStudy(ctx: ToolContext): Promise<ReadOutcome> {
-  const result = await loadStudyAssignments(ctx.env, ctx.device, ctx.now)
-  if (!result.ok) throw new Error(result.message)
-  const assignments = [...result.data.assignments]
+  const [result, entries] = await Promise.all([loadStudyAssignments(ctx.env, ctx.device, ctx.now), readStudyEntries(ctx.env.DB)])
+  if (!result.ok && entries.length === 0) throw new Error(result.message)
+  const canvas = result.ok ? result.data.assignments.map((item) => ({ ...item, kind: 'assignment' as StudyEntryKind, addedByUser: false })) : []
+  const own = entries.map((row) => ({
+    id: row.id, title: row.title, course: row.course, due: studyDueOf(row), doneAt: row.done_at, kind: row.kind, addedByUser: true,
+    notes: row.notes || null
+  }))
+  // Added items pile up over the terms, so a long list drops its oldest rather than what is coming.
+  const assignments = [...canvas.map((item) => ({ ...item, notes: null })), ...own]
     .sort((left, right) => (left.due.kind === 'time' ? left.due.at : left.due.date).localeCompare(right.due.kind === 'time' ? right.due.at : right.due.date))
-    .slice(0, MAX_STUDY_ROWS)
+    .slice(-MAX_STUDY_ROWS)
     .map((item) => ({
-      id: item.id, title: item.title, course: item.course,
+      id: item.id, kind: item.kind, title: item.title, course: item.course,
       due: item.due.kind === 'time' ? item.due.at : item.due.date, dueIsWholeDay: item.due.kind === 'day',
-      done: item.doneAt !== null
+      done: item.doneAt !== null, addedByUser: item.addedByUser, notes: item.notes
     }))
-  return { data: { assignments, fetchedAt: result.data.fetchedAt }, trail: 'Read Canvas assignments' }
+  return {
+    data: { assignments, fetchedAt: result.ok ? result.data.fetchedAt : null, canvasError: result.ok ? null : result.message },
+    trail: own.length > 0 ? 'Read Canvas and added study items' : 'Read Canvas assignments'
+  }
 }
 
 export async function executeAssistantRead(ctx: ToolContext, call: AssistantCall): Promise<ReadOutcome> {
@@ -939,9 +955,64 @@ async function logGymSets(ctx: ToolContext, args: Record<string, unknown>, callI
   }
 }
 
-async function markStudy(ctx: ToolContext, args: Record<string, unknown>): Promise<WriteOutcome> {
+async function liveStudyEntry(db: D1Database, id: string): Promise<StudyEntryRow | null> {
+  const rows = await query<StudyEntryRow>(db, 'SELECT * FROM study_entries WHERE id = ? AND deleted_at IS NULL', [id])
+  return rows[0] ?? null
+}
+
+function studyEntryInputOf(row: StudyEntryRow): StudyEntryInput {
+  return { kind: row.kind, title: row.title, course: row.course, due: studyDueOf(row), notes: row.notes, doneAt: row.done_at }
+}
+
+const STUDY_ARTICLES: Record<StudyEntryKind, string> = { assignment: 'an assignment', exam: 'an exam', deadline: 'a deadline' }
+
+function studyKindOf(value: unknown): StudyEntryKind {
+  return STUDY_ENTRY_KINDS.find((kind) => kind === value) ?? 'assignment'
+}
+
+/** Courses Canvas lists and courses already added, so a new item can take their spelling. */
+async function knownCourses(ctx: ToolContext): Promise<string[]> {
+  const [feed, entries] = await Promise.all([loadStudyAssignments(ctx.env, ctx.device, ctx.now), readStudyEntries(ctx.env.DB)])
+  const canvas = feed.ok ? feed.data.assignments.map((item) => item.course) : []
+  return [...new Set([...canvas, ...entries.map((row) => row.course)].filter((course): course is string => course !== null))]
+}
+
+async function addStudyItem(ctx: ToolContext, args: Record<string, unknown>, callId: string): Promise<WriteOutcome> {
+  const date = String(args.date)
+  if (!isDateString(date)) throw new Error('That date does not exist')
+  const time = typeof args.time === 'string' ? args.time : null
+  const kind = studyKindOf(args.kind)
+  const input: StudyEntryInput = {
+    kind,
+    title: String(args.title).trim(),
+    course: typeof args.course === 'string' ? matchStudyCourse(args.course, await knownCourses(ctx)) : null,
+    due: time === null ? { kind: 'day', date } : { kind: 'time', at: userInstant(ctx, date, time) },
+    notes: typeof args.notes === 'string' ? args.notes.trim() : '',
+    doneAt: null
+  }
+  if (!isStudyEntryInput(input)) throw new Error('That study item is not valid')
+  const id = newId()
+  await apply(ctx, callId, id, null, { entity: 'studyEntry', type: 'create', payload: input })
+  return {
+    data: { added: true, id, kind, title: input.title, course: input.course, due: time ? `${date} ${time}` : date },
+    trail: `Added ${STUDY_ARTICLES[kind]}, "${input.title}"`,
+    failed: false
+  }
+}
+
+/** An item the user added keeps its check mark on its own record; a Canvas one keeps it in the server's marks. */
+async function markStudy(ctx: ToolContext, args: Record<string, unknown>, callId: string): Promise<WriteOutcome> {
   const assignmentId = String(args.assignmentId)
   const done = Boolean(args.done)
+  const entry = await liveStudyEntry(ctx.env.DB, assignmentId)
+  if (entry) {
+    if ((entry.done_at !== null) !== done) {
+      await apply(ctx, callId, entry.id, entry.revision, {
+        entity: 'studyEntry', type: 'update', payload: { ...studyEntryInputOf(entry), doneAt: done ? ctx.now : null }
+      })
+    }
+    return { data: { id: entry.id, done, title: entry.title }, trail: `${done ? 'Checked off' : 'Unchecked'} "${entry.title}"`, failed: false }
+  }
   const mark = await setStudyMark(ctx.env, ctx.device, assignmentId, done, ctx.now)
   const title = await assignmentTitle(ctx, assignmentId)
   return {
@@ -952,8 +1023,14 @@ async function markStudy(ctx: ToolContext, args: Record<string, unknown>): Promi
 }
 
 async function assignmentTitle(ctx: ToolContext, assignmentId: string): Promise<string | null> {
+  const entry = await liveStudyEntry(ctx.env.DB, assignmentId)
+  if (entry) return entry.title
   const feed = await loadStudyAssignments(ctx.env, ctx.device, ctx.now)
   return feed.ok ? feed.data.assignments.find((item) => item.id === assignmentId)?.title ?? null : null
+}
+
+async function studyKindFor(ctx: ToolContext, assignmentId: string): Promise<StudyEntryKind> {
+  return (await liveStudyEntry(ctx.env.DB, assignmentId))?.kind ?? 'assignment'
 }
 
 const MAX_FOOD_DAYS = 62
@@ -989,11 +1066,16 @@ function zoneOf(ctx: ToolContext): string {
   return ctx.timeZone && isValidTimeZone(ctx.timeZone) ? ctx.timeZone : 'UTC'
 }
 
-/** A time the user gave is on their own clock. With none, today's food is eaten now and an earlier day's at noon. */
+/** A day and an HH:MM time on the user's own clock, as an instant. */
+function userInstant(ctx: ToolContext, date: string, time: string): string {
+  const [hours, minutes] = time.split(':').map(Number)
+  return new Date(localInstant(date, hours * 60 + minutes, zoneOf(ctx))).toISOString()
+}
+
+/** With no time, today's food is eaten now and an earlier day's at noon. */
 function eatenAt(ctx: ToolContext, date: string, time: string | null): string {
   if (time === null && date === ctx.today) return ctx.now
-  const [hours, minutes] = (time ?? '12:00').split(':').map(Number)
-  return new Date(startOfLocalDay(date, zoneOf(ctx)) + (hours * 60 + minutes) * 60_000).toISOString()
+  return userInstant(ctx, date, time ?? '12:00')
 }
 
 function clockTime(iso: string, timeZone: string): string {
@@ -1141,7 +1223,8 @@ export async function executeAssistantWrite(ctx: ToolContext, call: AssistantCal
     case 'log_habit': return logHabit(ctx, call.args, call.callId)
     case 'unlog_habit': return unlogHabit(ctx, call.args, call.callId)
     case 'log_gym_sets': return logGymSets(ctx, call.args, call.callId)
-    case 'mark_study': return markStudy(ctx, call.args)
+    case 'mark_study': return markStudy(ctx, call.args, call.callId)
+    case 'add_study_item': return addStudyItem(ctx, call.args, call.callId)
     case 'add_task_card': return addTaskCard(ctx, call.args, call.callId)
     case 'update_task_card': return updateTaskCard(ctx, call.args, call.callId)
     case 'log_food': return logFood(ctx, call.args, call.callId)
@@ -1240,8 +1323,13 @@ export async function describeWrite(ctx: ToolContext, name: AssistantToolName, a
     }
     case 'log_gym_sets': return gymCard(ctx, args)
     case 'mark_study': {
-      const title = await assignmentTitle(ctx, String(args.assignmentId))
-      return { title: args.done ? 'Check off an assignment' : 'Uncheck an assignment', lines: [title ? `"${title}"` : 'An assignment'] }
+      const [title, kind] = await Promise.all([assignmentTitle(ctx, String(args.assignmentId)), studyKindFor(ctx, String(args.assignmentId))])
+      return { title: `${args.done ? 'Check off' : 'Uncheck'} ${STUDY_ARTICLES[kind]}`, lines: [title ? `"${title}"` : 'An assignment'] }
+    }
+    case 'add_study_item': {
+      const course = typeof args.course === 'string' && args.course.trim() !== '' ? ` · ${args.course.trim()}` : ''
+      const when = `${dayLabel(String(args.date), ctx.today)}${typeof args.time === 'string' ? ` at ${taskTimeLabel(args.time)}` : ''}`
+      return { title: `Add ${STUDY_ARTICLES[studyKindOf(args.kind)]}`, lines: [`"${String(args.title).trim()}"${course}`, when] }
     }
     case 'add_task_card': {
       const tasks = await readTaskRows(ctx.env.DB)

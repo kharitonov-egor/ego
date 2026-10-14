@@ -30,6 +30,7 @@ const ENTITY_LABELS: Record<SyncEntity, string> = {
   sheetRow: 'Sheet row',
   foodEntry: 'Food entry',
   fridgeItem: 'Fridge item',
+  studyEntry: 'Study item',
   foodGoal: 'Food targets'
 }
 

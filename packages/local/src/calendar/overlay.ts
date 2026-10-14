@@ -35,24 +35,38 @@ function item(source: OverlaySource, id: string, title: string, times: { allDay:
   }
 }
 
+interface StudyRow {
+  id: string
+  title: string
+  course: string | null
+  due_at: string | null
+  due_date: string | null
+  done_at: string | null
+  kind: string
+}
+
 function at(day: string, time: string): string {
   const [hours, minutes] = time.split(':').map(Number)
   return instantAt(day, hours * 60 + minutes)
 }
 
 /**
- * Task due dates, Canvas due dates, and logged workouts between two days, drawn on the calendar
+ * Task due dates, study due dates, and logged workouts between two days, drawn on the calendar
  * read-only. A done task or assignment comes back marked tentative, which the views strike through.
+ * An exam starts at its time; an assignment or deadline ends at it.
  */
 export async function overlayEvents(db: LocalDatabase, from: string, to: string): Promise<CalendarEvent[]> {
-  const [cards, assignments, workouts] = await Promise.all([
+  const window = [from, to, new Date(`${shiftIso(from, -1)}T00:00:00`).toISOString(), new Date(`${shiftIso(to, 2)}T00:00:00`).toISOString()]
+  const [cards, assignments, entries, workouts] = await Promise.all([
     db.all<{ id: string; title: string; due_date: string; due_time: string | null; done_at: string | null }>(
       `SELECT id, title, due_date, due_time, done_at FROM task_cards
         WHERE deleted_at IS NULL AND archived_at IS NULL AND due_date >= ? AND due_date <= ?`, [from, to]),
-    db.all<{ id: string; title: string; course: string | null; due_at: string | null; due_date: string | null; done_at: string | null }>(
-      `SELECT id, title, course, due_at, due_date, done_at FROM study_assignments
-        WHERE (due_date >= ? AND due_date <= ?) OR (due_at >= ? AND due_at < ?)`,
-      [from, to, new Date(`${shiftIso(from, -1)}T00:00:00`).toISOString(), new Date(`${shiftIso(to, 2)}T00:00:00`).toISOString()]),
+    db.all<StudyRow>(
+      `SELECT id, title, course, due_at, due_date, done_at, 'assignment' AS kind FROM study_assignments
+        WHERE (due_date >= ? AND due_date <= ?) OR (due_at >= ? AND due_at < ?)`, window),
+    db.all<StudyRow>(
+      `SELECT id, title, course, due_at, due_date, done_at, kind FROM study_entries
+        WHERE deleted_at IS NULL AND ((due_date >= ? AND due_date <= ?) OR (due_at >= ? AND due_at < ?))`, window),
     db.all<{ date: string; exercises: number }>(
       `SELECT date, COUNT(DISTINCT exercise_id) AS exercises FROM gym_sets
         WHERE deleted_at IS NULL AND date >= ? AND date <= ? GROUP BY date`, [from, to])
@@ -64,10 +78,13 @@ export async function overlayEvents(db: LocalDatabase, from: string, to: string)
       : { allDay: true, start: card.due_date, end: shiftIso(card.due_date, 1) }
     events.push(item('tasks', card.id, card.title, times, card.done_at !== null))
   }
-  for (const assignment of assignments) {
+  for (const assignment of [...assignments, ...entries]) {
     const title = assignment.course ? `${assignment.title} · ${assignment.course}` : assignment.title
-    const times = assignment.due_at
-      ? { allDay: false, start: new Date(Date.parse(assignment.due_at) - 30 * 60_000).toISOString(), end: assignment.due_at }
+    const due = assignment.due_at ? Date.parse(assignment.due_at) : null
+    const times = due !== null
+      ? assignment.kind === 'exam'
+        ? { allDay: false, start: new Date(due).toISOString(), end: new Date(due + 60 * 60_000).toISOString() }
+        : { allDay: false, start: new Date(due - 30 * 60_000).toISOString(), end: new Date(due).toISOString() }
       : assignment.due_date ? { allDay: true, start: assignment.due_date, end: shiftIso(assignment.due_date, 1) } : null
     if (times) events.push(item('study', assignment.id, title, times, assignment.done_at !== null))
   }

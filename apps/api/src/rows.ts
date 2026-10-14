@@ -3,13 +3,13 @@ import {
   parseSheetRowTypes, parseSheetView,
   type AccountKind, type FoodPart, type FoodPhoto, type FoodSource, type FridgeSource, type CategoryKind, type DiaryAttachment, type DiaryEntity, type DiarySource, type DistanceUnit,
   type ExerciseType, type ExerciseWeightUnit, type HabitEntryKind, type HabitKind, type HabitPeriod,
-  type MoneyPurchase, type MoodLevel, type ReceiptItem, type TaskActivity, type TaskAttachment, type TaskChecklist,
+  type CanvasDue, type MoneyPurchase, type StudyEntryKind, type MoodLevel, type ReceiptItem, type TaskActivity, type TaskAttachment, type TaskChecklist,
   type TaskGoalMilestone, type TaskLabelColor, type TaskPriority, type TransactionKind, type WeightUnit
 } from '@ego/core'
 import type {
   AccountRecord, BudgetRecord, CategoryRecord, DiaryMessageRecord, FeedTransaction, FoodEntryRecord, FoodGoalRecord,
   FridgeItemRecord, GymCategoryRecord, GymExerciseRecord, GymPlanRecord, GymSetRecord, GymWorkoutRecord,
-  HabitEntryRecord, HabitRecord, MoodRecord, PurchaseRecord, SheetRecord, SheetRowRecord, TaskBoardRecord,
+  HabitEntryRecord, HabitRecord, MoodRecord, PurchaseRecord, SheetRecord, SheetRowRecord, StudyEntryRecord, TaskBoardRecord,
   TaskCardRecord, TaskGoalRecord, TaskLabelRecord, TaskListRecord, TransactionRecord
 } from '@ego/api-contracts'
 
@@ -669,5 +669,31 @@ export function toFoodGoalRecord(row: FoodGoalRow): FoodGoalRecord {
     id: row.id, calories: row.calories, protein: row.protein, carbs: row.carbs, fat: row.fat,
     sodium: row.sodium, saturatedFatPercent: row.saturated_fat_percent, fiber: row.fiber,
     createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
+  }
+}
+
+export interface StudyEntryRow {
+  id: string
+  kind: StudyEntryKind
+  title: string
+  course: string | null
+  due_at: string | null
+  due_date: string | null
+  notes: string
+  done_at: string | null
+  created_at: string
+  updated_at: string
+  revision: number
+}
+
+/** The table's CHECK keeps exactly one of the two due columns set. */
+export function studyDueOf(row: Pick<StudyEntryRow, 'due_at' | 'due_date'>): CanvasDue {
+  return row.due_at !== null ? { kind: 'time', at: row.due_at } : { kind: 'day', date: row.due_date ?? '' }
+}
+
+export function toStudyEntryRecord(row: StudyEntryRow): StudyEntryRecord {
+  return {
+    id: row.id, kind: row.kind, title: row.title, course: row.course, due: studyDueOf(row), notes: row.notes,
+    doneAt: row.done_at, createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
   }
 }

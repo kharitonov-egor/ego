@@ -9,7 +9,7 @@ import {
   type GymCategoryRecord, type GymExerciseRecord, type GymPlanRecord, type GymSetRecord, type GymWorkoutRecord,
   type HabitEntryRecord, type HabitRecord, type MoodRecord, type TaskBoardRecord, type TaskCardRecord, type TaskGoalRecord,
   type TaskLabelRecord, type TaskListRecord, type SheetRecord, type SheetRowRecord, type FoodEntryRecord,
-  type FridgeItemRecord, type FoodGoalRecord, type PeriodSummary, type PurchaseRecord, type ReceiptDetail, type ReferenceData,
+  type FridgeItemRecord, type FoodGoalRecord, type StudyEntryRecord, type PeriodSummary, type PurchaseRecord, type ReceiptDetail, type ReferenceData,
   type TransactionDetail, type TransactionFilters, type TransactionPage, type TransactionRecord
 } from '@ego/api-contracts'
 import type { MoneySnapshot } from '@ego/core'
@@ -18,12 +18,12 @@ import {
   toGymExerciseRecord, toGymPlanRecord, toGymSetRecord, toGymWorkoutRecord, toHabitEntryRecord, toHabitRecord,
   toMoodRecord, toPurchaseRecord, toReceiptItem, toTaskBoardRecord, toTaskCardRecord, toTaskGoalRecord, toTaskLabelRecord,
   toTaskListRecord, toTransactionRecord, toSheetRecord, toSheetRowRecord, toFoodEntryRecord, toFridgeItemRecord,
-  toFoodGoalRecord,
+  toFoodGoalRecord, toStudyEntryRecord,
   type AccountRow, type BudgetAllocationRow, type BudgetRow, type CategoryRow, type DiaryMessageRow, type FeedRow,
   type GymCategoryRow, type GymExerciseRow, type GymPlanRow, type GymSetRow, type GymWorkoutRow, type HabitEntryRow,
   type HabitRow, type MoodRow, type PurchaseRow, type ReceiptItemRow, type TaskBoardRow, type TaskCardRow, type TaskGoalRow,
   type TaskLabelRow, type TaskListRow, type TransactionRow, type SheetRow, type SheetRowRow, type FoodEntryRow,
-  type FridgeItemRow, type FoodGoalRow
+  type FridgeItemRow, type FoodGoalRow, type StudyEntryRow
 } from './rows'
 
 export async function query<T>(db: D1Database, sql: string, params: unknown[] = []): Promise<T[]> {
@@ -193,6 +193,7 @@ function toChangePayload(entity: ChangeRow['entity'], record: unknown): ChangePa
     case 'foodEntry': return { entity, record: record as FoodEntryRecord | null }
     case 'fridgeItem': return { entity, record: record as FridgeItemRecord | null }
     case 'foodGoal': return { entity, record: record as FoodGoalRecord | null }
+    case 'studyEntry': return { entity, record: record as StudyEntryRecord | null }
   }
 }
 
@@ -329,6 +330,10 @@ export async function readFoodRows(db: D1Database): Promise<FoodRows> {
   return { entries, fridge, goals }
 }
 
+export function readStudyEntries(db: D1Database): Promise<StudyEntryRow[]> {
+  return query<StudyEntryRow>(db, 'SELECT * FROM study_entries WHERE deleted_at IS NULL ORDER BY COALESCE(due_at, due_date), id')
+}
+
 /**
  * The whole live ledger for a device's first download. The sequence is read first, so any
  * change committed while the tables are read is pulled again afterwards and applied by revision.
@@ -337,7 +342,7 @@ export async function readBootstrap(db: D1Database): Promise<BootstrapData> {
   const sequence = await serverSequence(db)
   const [
     records, gymCategories, gymExercises, gymSets, gymWorkouts, gymPlans, moods, habits, habitEntries, diaryMessages, tasks,
-    sheets, food, content
+    sheets, food, content, studyEntries
   ] = await Promise.all([
     readLiveRecords(db),
     query<GymCategoryRow>(db, 'SELECT * FROM gym_categories WHERE deleted_at IS NULL ORDER BY name COLLATE NOCASE'),
@@ -352,7 +357,8 @@ export async function readBootstrap(db: D1Database): Promise<BootstrapData> {
     readTaskRows(db),
     readSheetRows(db),
     readFoodRows(db),
-    readContent(db)
+    readContent(db),
+    readStudyEntries(db)
   ])
   return {
     ...content,
@@ -380,7 +386,8 @@ export async function readBootstrap(db: D1Database): Promise<BootstrapData> {
     sheetRows: sheets.rows.map(toSheetRowRecord),
     foodEntries: food.entries.map(toFoodEntryRecord),
     fridgeItems: food.fridge.map(toFridgeItemRecord),
-    foodGoals: food.goals.map(toFoodGoalRecord)
+    foodGoals: food.goals.map(toFoodGoalRecord),
+    studyEntries: studyEntries.map(toStudyEntryRecord)
   }
 }
 

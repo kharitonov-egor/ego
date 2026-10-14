@@ -1,15 +1,15 @@
 import type {
   AccountRecord, BudgetRecord, CategoryRecord, DiaryMessageRecord, FoodEntryRecord, FoodGoalRecord, FridgeItemRecord,
   GymCategoryRecord, GymExerciseRecord, GymPlanRecord, GymSetRecord, GymWorkoutRecord, HabitEntryRecord, HabitRecord,
-  MoodRecord, PurchaseRecord, SheetRecord, SheetRowRecord, TaskBoardRecord, TaskCardRecord, TaskGoalRecord, TaskLabelRecord,
+  MoodRecord, PurchaseRecord, SheetRecord, SheetRowRecord, StudyEntryRecord, TaskBoardRecord, TaskCardRecord, TaskGoalRecord, TaskLabelRecord,
   TaskListRecord, TransactionRecord
 } from '@ego/api-contracts'
 import {
-  FOOD_GOAL_ID,
+  FOOD_GOAL_ID, cleanStudyEntry,
   type AccountInput, type BudgetInput, type CategoryInput, type DiaryMessageInput, type FoodEntryInput, type FoodGoalInput,
   type FridgeItemInput, type GymCategoryInput, type GymExerciseInput, type GymPlanInput, type GymSetInput,
   type GymWorkoutInput, type HabitEntryInput, type HabitInput, type MoodInput, type PurchaseInput, type ReceiptItem,
-  type SheetInput, type SheetRowInput, type TaskBoardInput, type TaskCardInput, type TaskGoalInput, type TaskLabelInput,
+  type SheetInput, type SheetRowInput, type StudyEntryInput, type TaskBoardInput, type TaskCardInput, type TaskGoalInput, type TaskLabelInput,
   type TaskListInput, type TransactionInput
 } from '@ego/core'
 
@@ -338,4 +338,10 @@ export function fridgeItemRecordFrom(
 
 export function foodGoalRecordFrom(input: FoodGoalInput, createdAt: string, updatedAt: string, revision: number): FoodGoalRecord {
   return { id: FOOD_GOAL_ID, ...input, createdAt, updatedAt, revision }
+}
+
+export function studyEntryRecordFrom(
+  id: string, input: StudyEntryInput, createdAt: string, updatedAt: string, revision: number
+): StudyEntryRecord {
+  return { id, ...cleanStudyEntry(input), createdAt, updatedAt, revision }
 }

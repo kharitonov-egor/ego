@@ -3,12 +3,12 @@ import {
   FOOD_GOAL_ID, isAccountInput, isBudgetInput, isCategoryInput, isDateString, isDiaryMessageInput, isFoodEntryInput,
   isFoodGoalInput, isFridgeItemInput, isGymCategoryInput, isGymExerciseInput, isGymPlanInput, isGymSetInput,
   isGymWorkoutInput, isHabitEntryInput, isHabitInput, isMonthString, isMoodInput, isPurchaseInput, isSheetInput,
-  isSheetRowInput, isTaskBoardInput, isTaskCardInput, isTaskGoalInput, isTaskLabelInput, isTaskListInput,
+  isSheetRowInput, isStudyEntryInput, isTaskBoardInput, isTaskCardInput, isTaskGoalInput, isTaskLabelInput, isTaskListInput,
   isTransactionInput,
   type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type DiaryMessageInput,
   type FoodEntryInput, type FoodGoalInput, type FridgeItemInput, type GymCategoryInput, type GymExerciseInput,
   type GymPlanInput, type GymSetInput, type GymWorkoutInput, type HabitEntryInput, type HabitInput, type MoodInput,
-  type PurchaseInput, type SheetInput, type SheetRowInput, type TaskBoardInput, type TaskCardInput, type TaskGoalInput,
+  type PurchaseInput, type SheetInput, type SheetRowInput, type StudyEntryInput, type TaskBoardInput, type TaskCardInput, type TaskGoalInput,
   type TaskLabelInput, type TaskListInput, type TransactionInput
 } from '@ego/core'
 import type { ApiError } from './errors'
@@ -83,6 +83,9 @@ export type SyncCommand =
   | { entity: 'fridgeItem'; type: 'create'; payload: FridgeItemInput }
   | { entity: 'fridgeItem'; type: 'update'; payload: FridgeItemInput }
   | { entity: 'fridgeItem'; type: 'delete' }
+  | { entity: 'studyEntry'; type: 'create'; payload: StudyEntryInput }
+  | { entity: 'studyEntry'; type: 'update'; payload: StudyEntryInput }
+  | { entity: 'studyEntry'; type: 'delete' }
   | { entity: 'foodGoal'; type: 'create'; payload: FoodGoalInput }
   | { entity: 'foodGoal'; type: 'update'; payload: FoodGoalInput }
 
@@ -214,6 +217,9 @@ function isCommand(value: unknown): value is SyncCommand {
     case 'foodGoal.create':
     case 'foodGoal.update':
       return isFoodGoalInput(payload)
+    case 'studyEntry.create':
+    case 'studyEntry.update':
+      return isStudyEntryInput(payload)
     case 'transaction.delete':
     case 'purchase.delete':
     case 'budget.delete':
@@ -234,6 +240,7 @@ function isCommand(value: unknown): value is SyncCommand {
     case 'sheetRow.delete':
     case 'foodEntry.delete':
     case 'fridgeItem.delete':
+    case 'studyEntry.delete':
       return payload === undefined
     default:
       return false

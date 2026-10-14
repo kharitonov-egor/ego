@@ -22,6 +22,7 @@ export * from './goals'
 export * from './sheets'
 export * from './food'
 export * from './calendar'
+export * from './study'
 
 export * from './content'
 export * from './hotkeys'

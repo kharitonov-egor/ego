@@ -1,7 +1,7 @@
 import type {
   ContentItem, ContentCollection, DiaryMessage, FoodEntry, FoodGoal, FridgeItem, GymCategory, GymExercise, GymPlan, GymSet, GymWorkout, Habit, HabitEntry,
-  MoneyAccount, MoneyCategory, MoneyPurchase, MoneyTransaction, MonthlyBudget, MoodEntry, Sheet, SheetRow, TaskBoard,
-  TaskCard, TaskGoal, TaskLabel, TaskList, TransactionKind
+  MoneyAccount, MoneyCategory, MoneyPurchase, MoneyTransaction, MonthlyBudget, MoodEntry, Sheet, SheetRow, StudyEntry,
+  TaskBoard, TaskCard, TaskGoal, TaskLabel, TaskList, TransactionKind
 } from '@ego/core'
 
 export type ContentItemRecord = ContentItem & { revision: number }
@@ -36,6 +36,7 @@ export type SheetRowRecord = SheetRow & { revision: number }
 export type FoodEntryRecord = FoodEntry & { revision: number }
 export type FridgeItemRecord = FridgeItem & { revision: number }
 export type FoodGoalRecord = FoodGoal & { revision: number }
+export type StudyEntryRecord = StudyEntry & { revision: number }
 
 export interface ReferenceData {
   accounts: AccountRecord[]
@@ -95,6 +96,8 @@ export interface BootstrapData {
   foodGoals?: FoodGoalRecord[]
   contentItems?: ContentItemRecord[]
   contentCollections?: ContentCollectionRecord[]
+  /** Workers from before custom study entries leave this out. */
+  studyEntries?: StudyEntryRecord[]
 }
 
 export interface TransactionDetail {
@@ -136,8 +139,10 @@ export type DiaryEntity = 'diaryMessage'
 export type TaskEntity = 'taskBoard' | 'taskList' | 'taskLabel' | 'taskCard' | 'taskGoal'
 export type SheetEntity = 'sheet' | 'sheetRow'
 export type FoodEntity = 'foodEntry' | 'fridgeItem' | 'foodGoal'
+export type StudyEntity = 'studyEntry'
 export type SyncEntity =
-  | MoneyEntity | GymEntity | HealthEntity | HabitEntity | DiaryEntity | TaskEntity | SheetEntity | FoodEntity | 'contentItem' | 'contentCollection'
+  | MoneyEntity | GymEntity | HealthEntity | HabitEntity | DiaryEntity | TaskEntity | SheetEntity | FoodEntity | StudyEntity
+  | 'contentItem' | 'contentCollection'
 
 export const TASK_ENTITIES: readonly TaskEntity[] = ['taskBoard', 'taskList', 'taskLabel', 'taskCard', 'taskGoal']
 
@@ -169,6 +174,10 @@ export function isSheetEntity(entity: SyncEntity): entity is SheetEntity {
 
 export function isFoodEntity(entity: SyncEntity): entity is FoodEntity {
   return entity === 'foodEntry' || entity === 'fridgeItem' || entity === 'foodGoal'
+}
+
+export function isStudyEntity(entity: SyncEntity): entity is StudyEntity {
+  return entity === 'studyEntry'
 }
 
 interface ChangeBase {
@@ -206,6 +215,7 @@ export type ChangePayload =
   | { entity: 'sheetRow'; record: SheetRowRecord | null }
   | { entity: 'foodEntry'; record: FoodEntryRecord | null }
   | { entity: 'fridgeItem'; record: FridgeItemRecord | null }
+  | { entity: 'studyEntry'; record: StudyEntryRecord | null }
   | { entity: 'foodGoal'; record: FoodGoalRecord | null }
 
 export type ChangeRecord = ChangeBase & ChangePayload

@@ -2,13 +2,13 @@ import React, { useCallback, useMemo, useState } from 'react'
 import { ActivityIndicator, Pressable, Text, View } from 'react-native'
 import { Circle, CircleCheck, Clock, CloudUpload, RefreshCw, TriangleAlert } from 'lucide-react-native'
 import {
-  courseKey, courseList, dayHeading, dueClock, dueDay, dueWithin, isDone, isOverdue, localDay, overdueCount, shortDay,
+  courseKey, courseList, dayHeading, dueClock, dueDay, dueSentence, dueWithin, isDone, isOverdue, localDay, overdueCount, shortDay,
   studySections, type StudySection, type StudyView
 } from '@ego/local/study/schedule'
 import type { StudyItem } from '@ego/local/study/store'
 import { BottomSheet } from '../money/Common'
 import { color, tabular } from '../money/tokens'
-import { AssignmentDetail, useCourseColors } from '../study/Assignment'
+import { AssignmentDetail, KindTag, useCourseColors } from '../study/Assignment'
 import { Blurred } from '../../lib/blur'
 import { useStudy } from '../../lib/study/context'
 
@@ -117,16 +117,17 @@ function AssignmentCard({ item, tint, now, showDay, onToggle, onOpen }: {
   const tone = overdue ? color.expense : done ? color.textFaint : color.textMuted
   return <Pressable
     accessibilityRole="button"
-    accessibilityLabel={`${item.title}${item.course ? `, ${item.course}` : ''}, due ${when}${done ? ', done' : overdue ? ', overdue' : ''}`}
+    accessibilityLabel={`${item.title}${item.course ? `, ${item.course}` : ''}, ${dueSentence(item)}${done ? ', done' : overdue ? ', overdue' : ''}`}
     accessibilityHint="Opens the details"
     onPress={() => onOpen(item.id)}
     className="rounded-xl border border-surface-800 bg-card px-3 py-2.5 active:opacity-80"
   >
-    {item.course && <View className="mb-1.5 flex-row">
-      <View className="flex-row items-center rounded-full bg-surface-800 px-2 py-0.5">
+    {(item.course || item.kind !== 'assignment') && <View className="mb-1.5 flex-row items-center gap-1.5">
+      {item.course && <View className="flex-row items-center rounded-full bg-surface-800 px-2 py-0.5">
         <View className="mr-[5px] h-[7px] w-[7px] rounded-full" style={{ backgroundColor: tint }} />
         <Blurred tint="#e5e5e5"><Text numberOfLines={1} className="text-[12px] font-semibold text-surface-200">{item.course}</Text></Blurred>
-      </View>
+      </View>}
+      <KindTag item={item} />
     </View>}
     <View className="flex-row items-start">
       <Pressable
@@ -185,7 +186,7 @@ export function UsfAssignments({ filter, now }: { filter: UsfFilter; now: Date }
   } else if (sections.length === 0) {
     body = <ColumnNote>
       <Text className="text-center text-[13px] text-surface-400">{filter.view === 'upcoming'
-        ? filter.course ? `${filter.course} has nothing coming up in Canvas.` : 'Nothing due in Canvas.'
+        ? filter.course ? `${filter.course} has nothing coming up.` : 'Nothing due.'
         : 'Nothing earlier.'}</Text>
     </ColumnNote>
   } else {

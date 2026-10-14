@@ -546,7 +546,23 @@ export const LOCAL_MIGRATIONS: readonly string[][] = [
     'ALTER TABLE food_goals ADD COLUMN fiber REAL'
   ],
   ["ALTER TABLE gym_exercises ADD COLUMN machine_settings TEXT NOT NULL DEFAULT ''"],
-  ["ALTER TABLE task_boards ADD COLUMN label_style TEXT NOT NULL DEFAULT 'names'"]
+  ["ALTER TABLE task_boards ADD COLUMN label_style TEXT NOT NULL DEFAULT 'names'"],
+  [
+    `CREATE TABLE IF NOT EXISTS study_entries (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL,
+      title TEXT NOT NULL,
+      course TEXT,
+      due_at TEXT,
+      due_date TEXT,
+      notes TEXT NOT NULL DEFAULT '',
+      done_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 1,
+      deleted_at TEXT
+    )`
+  ]
 ]
 
 export async function migrate(db: LocalDatabase): Promise<number> {
