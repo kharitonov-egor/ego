@@ -4,6 +4,8 @@
  * whatever the keyboard layout types there.
  */
 
+import { TASK_PRIORITY_LABELS, type TaskPriority } from './tasks'
+
 export interface HotkeyAction {
   id: string
   label: string
@@ -14,12 +16,29 @@ export interface HotkeyAction {
 
 const LABEL_SLOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const
 
+/** Numbered like Linear: 1 is the most pressing and 0 clears it. */
+const PRIORITY_KEYS = [
+  { priority: 'urgent', key: 'Shift+Digit1' },
+  { priority: 'high', key: 'Shift+Digit2' },
+  { priority: 'medium', key: 'Shift+Digit3' },
+  { priority: 'low', key: 'Shift+Digit4' },
+  { priority: 'none', key: 'Shift+Digit0' }
+] as const satisfies ReadonlyArray<{ priority: TaskPriority; key: string }>
+
+const priorityActionId = (priority: TaskPriority): string => `card.priority.${priority}`
+
 export const HOTKEY_ACTIONS = [
   { id: 'card.archive', label: 'Archive card', group: 'Cards', key: 'KeyC' },
   { id: 'card.labels', label: 'Edit labels', group: 'Cards', key: 'KeyL' },
   { id: 'card.done', label: 'Mark done', group: 'Cards', key: 'Space' },
   { id: 'card.open', label: 'Open card', group: 'Cards', key: 'Enter' },
-  ...LABEL_SLOTS.map((slot) => ({ id: `card.label${slot}`, label: `Toggle label ${slot}`, group: 'Labels', key: null }))
+  ...LABEL_SLOTS.map((slot) => ({ id: `card.label${slot}`, label: `Toggle label ${slot}`, group: 'Labels', key: null })),
+  ...PRIORITY_KEYS.map(({ priority, key }) => ({
+    id: priorityActionId(priority),
+    label: priority === 'none' ? 'Clear priority' : `Set to ${TASK_PRIORITY_LABELS[priority]}`,
+    group: 'Priority',
+    key
+  }))
 ] as const satisfies readonly HotkeyAction[]
 
 export type HotkeyActionId = typeof HOTKEY_ACTIONS[number]['id']
@@ -46,6 +65,11 @@ export function isHotkeyBindings(value: unknown): value is HotkeyBindings {
   const entries = Object.entries(value)
   return entries.length <= BINDINGS_LIMIT &&
     entries.every(([id, combo]) => ACTION_ID.test(id) && (combo === null || isHotkeyCombo(combo)))
+}
+
+/** The priority an action gives the card, or null when the action is not about priority. */
+export function hotkeyPriority(id: HotkeyActionId): TaskPriority | null {
+  return PRIORITY_KEYS.find((item) => priorityActionId(item.priority) === id)?.priority ?? null
 }
 
 export function resolvedHotkeys(saved: HotkeyBindings): ResolvedHotkeys {
