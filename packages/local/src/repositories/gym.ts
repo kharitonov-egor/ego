@@ -20,6 +20,7 @@ export interface GymExerciseView {
   type: ExerciseType
   weightUnit: ExerciseWeightUnit
   notes: string
+  machineSettings: string
   revision: number
   setCount: number
 }
@@ -93,6 +94,7 @@ interface ExerciseRow {
   type: ExerciseType
   weight_unit: ExerciseWeightUnit
   notes: string
+  machine_settings: string
   revision: number
   set_count: number
 }
@@ -136,7 +138,7 @@ interface HistoryCache {
 const historyCaches = new WeakMap<LocalDatabase, HistoryCache>()
 
 const EXERCISE_COLUMNS = `e.id, e.name, e.category_id, c.name AS category_name, c.color AS category_color,
-  e.type, e.weight_unit, e.notes, e.revision,
+  e.type, e.weight_unit, e.notes, e.machine_settings, e.revision,
   (SELECT COUNT(*) FROM gym_sets s WHERE s.exercise_id = e.id AND s.deleted_at IS NULL) AS set_count`
 
 const EXERCISE_FROM = `FROM gym_exercises e
@@ -153,6 +155,7 @@ function toExercise(row: ExerciseRow): GymExerciseView {
     type: row.type,
     weightUnit: row.weight_unit,
     notes: row.notes,
+    machineSettings: row.machine_settings,
     revision: row.revision,
     setCount: row.set_count
   }

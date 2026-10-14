@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Pressable, TextInput, View } from 'react-native'
 import { Check } from 'lucide-react-native'
-import { GYM_CATEGORY_COLORS } from '@ego/core'
+import { GYM_CATEGORY_COLORS, MACHINE_SETTINGS_LIMIT, MACHINE_SETTINGS_PLACEHOLDER } from '@ego/core'
 import { useGym } from '../../lib/gym-context'
 import { planNameProblem } from '@ego/local/gym/plans'
 import type { GymCategoryView } from '@ego/local/repositories/gym'
@@ -157,31 +157,46 @@ export function PlanNameSheet({ visible, onClose, onSave }: {
   </BottomSheet>
 }
 
-export function CommentSheet({ visible, initial, onClose, onSave }: {
+interface TextSheetProps {
   visible: boolean
   initial: string
   onClose: () => void
-  onSave: (comment: string) => void
+  onSave: (text: string) => void
+}
+
+function TextSheet({ visible, initial, onClose, onSave, title, placeholder, maxLength, saveLabel }: TextSheetProps & {
+  title: string
+  placeholder: string
+  maxLength: number
+  saveLabel: string
 }): React.ReactElement {
   const [draft, setDraft] = useState(initial)
   useEffect(() => {
     if (visible) setDraft(initial)
   }, [visible, initial])
-  return <BottomSheet visible={visible} title="Set comment" onClose={onClose}>
+  return <BottomSheet visible={visible} title={title} onClose={onClose}>
     <TextInput
       value={draft}
       onChangeText={setDraft}
       autoFocus
       multiline
-      maxLength={500}
-      placeholder="Spotter helped with the last two"
+      maxLength={maxLength}
+      placeholder={placeholder}
       placeholderTextColor={color.textFaint}
       className={`${inputClass} min-h-[96px]`}
       textAlignVertical="top"
     />
     <View className="mt-5 flex-row gap-3">
       {initial !== '' && <Button variant="outline" size="lg" onPress={() => onSave('')} className="flex-1"><Text>Remove</Text></Button>}
-      <Button size="lg" onPress={() => onSave(draft.trim())} className="flex-1"><Text>Save comment</Text></Button>
+      <Button size="lg" onPress={() => onSave(draft.trim())} className="flex-1"><Text>{saveLabel}</Text></Button>
     </View>
   </BottomSheet>
+}
+
+export function CommentSheet(props: TextSheetProps): React.ReactElement {
+  return <TextSheet {...props} title="Set comment" placeholder="Spotter helped with the last two" maxLength={500} saveLabel="Save comment" />
+}
+
+export function MachineSettingsSheet(props: TextSheetProps): React.ReactElement {
+  return <TextSheet {...props} title="Machine settings" placeholder={MACHINE_SETTINGS_PLACEHOLDER} maxLength={MACHINE_SETTINGS_LIMIT} saveLabel="Save settings" />
 }

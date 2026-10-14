@@ -8,7 +8,7 @@ const plan = (overrides: Partial<GymPlanView> = {}): GymPlanView => ({
 
 const exercise = (id: string, name: string): GymExerciseView => ({
   id, name, categoryId: 'chest', categoryName: 'Chest', categoryColor: '#3987e5', type: 'weight_reps',
-  weightUnit: 'default', notes: '', revision: 1, setCount: 0
+  weightUnit: 'default', notes: '', machineSettings: '', revision: 1, setCount: 0
 })
 
 describe('plans', () => {

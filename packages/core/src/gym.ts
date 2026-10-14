@@ -77,7 +77,11 @@ export interface GymExerciseInput {
   type: ExerciseType
   weightUnit: ExerciseWeightUnit
   notes: string
+  machineSettings: string
 }
+
+export const MACHINE_SETTINGS_LIMIT = 200
+export const MACHINE_SETTINGS_PLACEHOLDER = 'Seat 4, back pad 2, handles on the lowest pin'
 
 export interface GymExercise extends GymExerciseInput {
   id: string
@@ -188,7 +192,9 @@ export function isGymExerciseInput(value: unknown): value is GymExerciseInput {
   return isRecord(value) && isName(value.name, 100) && isIdentifier(value.categoryId) &&
     isExerciseType(value.type) &&
     (value.weightUnit === 'default' || isWeightUnit(value.weightUnit)) &&
-    typeof value.notes === 'string' && value.notes.length <= 1000
+    typeof value.notes === 'string' && value.notes.length <= 1000 &&
+    (value.machineSettings === undefined ||
+      (typeof value.machineSettings === 'string' && value.machineSettings.length <= MACHINE_SETTINGS_LIMIT))
 }
 
 export function isGymSetInput(value: unknown): value is GymSetInput {

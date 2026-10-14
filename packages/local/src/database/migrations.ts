@@ -544,7 +544,8 @@ export const LOCAL_MIGRATIONS: readonly string[][] = [
     'ALTER TABLE food_goals ADD COLUMN sodium REAL',
     'ALTER TABLE food_goals ADD COLUMN saturated_fat_percent REAL',
     'ALTER TABLE food_goals ADD COLUMN fiber REAL'
-  ]
+  ],
+  ["ALTER TABLE gym_exercises ADD COLUMN machine_settings TEXT NOT NULL DEFAULT ''"]
 ]
 
 export async function migrate(db: LocalDatabase): Promise<number> {

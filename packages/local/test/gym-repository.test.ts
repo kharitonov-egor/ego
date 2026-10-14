@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import type { GymExerciseInput } from '@ego/core'
 import type { LocalDatabase } from '../src/database/types'
-import { exerciseSetsPage, exerciseSupersetPartners, exerciseTrackSets, gymDay } from '../src/repositories/gym'
+import { exerciseSetsPage, exerciseSupersetPartners, exerciseTrackSets, gymDay, gymExercise } from '../src/repositories/gym'
+import { createGymCategory, createGymExercise, updateGymExercise } from '../src/sync/commands'
 import { openTestLedger } from './local-db'
 
 let db: LocalDatabase | null = null
@@ -104,5 +106,21 @@ describe('gym repository', () => {
       ['2026-09-01', ['Bench Press', 'Dips']],
       ['2026-09-07', ['Incline Bench']]
     ])
+  })
+
+  it("keeps an exercise's machine settings when a change queued by an older build leaves them out", async () => {
+    db = await openTestLedger()
+    const now = '2026-10-14T09:00:00.000Z'
+    const press: GymExerciseInput = {
+      name: 'Leg Press', categoryId: 'legs', type: 'weight_reps', weightUnit: 'default', notes: '', machineSettings: ' Seat 4 '
+    }
+    await createGymCategory(db, { name: 'Legs', color: '#008300' }, now, 'legs')
+    await createGymExercise(db, press, now, 'press')
+    expect(await gymExercise(db, 'press')).toMatchObject({ machineSettings: 'Seat 4', revision: 1 })
+
+    const { machineSettings: _dropped, ...older } = { ...press, notes: 'Feet high' }
+    const legacy: unknown = older
+    await updateGymExercise(db, 'press', 1, legacy as GymExerciseInput, now)
+    expect(await gymExercise(db, 'press')).toMatchObject({ notes: 'Feet high', machineSettings: 'Seat 4', revision: 2 })
   })
 })

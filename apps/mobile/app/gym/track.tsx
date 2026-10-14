@@ -6,7 +6,7 @@ import {
 import { KeyboardScrollView } from '../../components/ui/keyboard'
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { ArrowLeft, ArrowRight, Info, Link2, Menu, MessageSquare, Minus, Plus, Trophy } from 'lucide-react-native'
+import { ArrowLeft, ArrowRight, Info, Link2, Menu, MessageSquare, Minus, Plus, SlidersHorizontal, Trophy } from 'lucide-react-native'
 import {
   DEFAULT_DISTANCE_UNIT, EXERCISE_TYPE_LABELS, exerciseRecords, fieldsFor, supersetOf,
   type DistanceUnit, type SetField
@@ -17,7 +17,7 @@ import { Confetti } from '../../components/gym/Confetti'
 import { ExerciseGraph } from '../../components/gym/ExerciseGraph'
 import { RecordsSheet } from '../../components/gym/RecordsSheet'
 import { RestTimerButton, RestTimerSheet } from '../../components/gym/RestTimer'
-import { CommentSheet } from '../../components/gym/sheets'
+import { CommentSheet, MachineSettingsSheet } from '../../components/gym/sheets'
 import { WorkoutDrawer } from '../../components/gym/WorkoutDrawer'
 import { Dot, GymGate, HeaderIcon, SectionLabel, SetMarks, SetValues } from '../../components/gym/ui'
 import { Button } from '../../components/ui/button'
@@ -99,6 +99,7 @@ function TrackPage({ exercise, date, history, lifetime, records, nextInSuperset,
   const [draft, setDraft] = useState<EntryDraft>(EMPTY_DRAFT)
   const [problem, setProblem] = useState<string | null>(null)
   const [commenting, setCommenting] = useState<GymSetView | null>(null)
+  const [editingSettings, setEditingSettings] = useState(false)
   const prefilledFor = useRef<string | null>(null)
   const selected = todays.find((set) => set.id === selectedId) ?? null
 
@@ -170,6 +171,11 @@ function TrackPage({ exercise, date, history, lifetime, records, nextInSuperset,
     })
   }
 
+  const saveMachineSettings = (machineSettings: string): void => {
+    setEditingSettings(false)
+    if (machineSettings !== exercise.machineSettings) void gym.saveMachineSettings(exercise.id, machineSettings)
+  }
+
   const labels: Record<SetField, string> = {
     weight: `WEIGHT (${unit})`,
     reps: 'REPS',
@@ -178,6 +184,17 @@ function TrackPage({ exercise, date, history, lifetime, records, nextInSuperset,
   }
 
   return <KeyboardScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 32 }}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={exercise.machineSettings ? `Machine settings: ${exercise.machineSettings}` : 'Add machine settings'}
+      onPress={() => setEditingSettings(true)}
+      className="mb-6 min-h-12 flex-row items-center gap-3 rounded-xl border border-input px-4 py-2.5 active:bg-surface-900"
+    >
+      <SlidersHorizontal color={exercise.machineSettings ? color.textSecondary : color.textFaint} size={18} />
+      {exercise.machineSettings
+        ? <Text numberOfLines={2} className="flex-1 text-[15px] leading-5">{exercise.machineSettings}</Text>
+        : <Text className="flex-1 text-[15px] text-surface-500">Add machine settings</Text>}
+    </Pressable>
     {fields.map((field) => <Stepper
       key={field}
       label={labels[field]}
@@ -214,6 +231,7 @@ function TrackPage({ exercise, date, history, lifetime, records, nextInSuperset,
       })}
     </View>
     <CommentSheet visible={commenting !== null} initial={commenting?.comment ?? ''} onClose={() => setCommenting(null)} onSave={saveComment} />
+    <MachineSettingsSheet visible={editingSettings} initial={exercise.machineSettings} onClose={() => setEditingSettings(false)} onSave={saveMachineSettings} />
   </KeyboardScrollView>
 }
 

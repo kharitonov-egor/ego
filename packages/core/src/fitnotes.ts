@@ -267,7 +267,7 @@ export function planFitNotesImport(rows: readonly FitNotesRow[], rules: FitNotes
     } else {
       exercises.set(name, {
         id: customExerciseId(first.exercise),
-        input: { name: first.exercise.trim(), categoryId: category.id, type, weightUnit: 'default', notes: '' }
+        input: { name: first.exercise.trim(), categoryId: category.id, type, weightUnit: 'default', notes: '', machineSettings: '' }
       })
     }
   }

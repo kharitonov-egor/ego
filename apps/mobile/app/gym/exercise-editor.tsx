@@ -5,7 +5,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Check, ChevronDown, Plus, Trash2 } from 'lucide-react-native'
 import {
-  DEFAULT_WEIGHT_UNIT, EXERCISE_TYPES, EXERCISE_TYPE_LABELS, usesWeight,
+  DEFAULT_WEIGHT_UNIT, EXERCISE_TYPES, EXERCISE_TYPE_LABELS, MACHINE_SETTINGS_LIMIT, MACHINE_SETTINGS_PLACEHOLDER, usesWeight,
   type ExerciseType, type ExerciseWeightUnit
 } from '@ego/core'
 import { ConfirmDialog, inputClass } from '../../components/money/Common'
@@ -51,6 +51,7 @@ export default function ExerciseEditor(): React.ReactElement {
   const existing = params.id ? gym.exercises.find((item) => item.id === params.id) ?? null : null
   const [name, setName] = useState(params.name ?? '')
   const [notes, setNotes] = useState('')
+  const [machineSettings, setMachineSettings] = useState('')
   const [categoryId, setCategoryId] = useState(params.categoryId ?? '')
   const [type, setType] = useState<ExerciseType>('weight_reps')
   const [weightUnit, setWeightUnit] = useState<ExerciseWeightUnit>('default')
@@ -66,6 +67,7 @@ export default function ExerciseEditor(): React.ReactElement {
     if (loaded || !existing) return
     setName(existing.name)
     setNotes(existing.notes)
+    setMachineSettings(existing.machineSettings)
     setCategoryId(existing.categoryId)
     setType(existing.type)
     setWeightUnit(existing.weightUnit)
@@ -80,7 +82,8 @@ export default function ExerciseEditor(): React.ReactElement {
     if (clash) return setProblem(`${clash.name} already exists in ${clash.categoryName}`)
     setProblem(null)
     const saved = await gym.saveExercise(existing?.id ?? null, {
-      name: trimmed, categoryId: category.id, type, weightUnit: usesWeight(type) ? weightUnit : 'default', notes: notes.trim()
+      name: trimmed, categoryId: category.id, type, weightUnit: usesWeight(type) ? weightUnit : 'default', notes: notes.trim(),
+      machineSettings: machineSettings.trim()
     })
     if (saved) router.back()
   }
@@ -101,7 +104,10 @@ export default function ExerciseEditor(): React.ReactElement {
           <TextInput value={name} onChangeText={setName} autoFocus={!params.id && !params.name} placeholder="Barbell Squat" placeholderTextColor={color.textFaint} className={inputClass} />
         </Field>
         <Field label="NOTES (OPTIONAL)">
-          <TextInput value={notes} onChangeText={setNotes} multiline maxLength={1000} placeholder="Seat height, grip, cues" placeholderTextColor={color.textFaint} className={`${inputClass} min-h-[80px]`} textAlignVertical="top" />
+          <TextInput value={notes} onChangeText={setNotes} multiline maxLength={1000} placeholder="Grip, form cues" placeholderTextColor={color.textFaint} className={`${inputClass} min-h-[80px]`} textAlignVertical="top" />
+        </Field>
+        <Field label="MACHINE SETTINGS (OPTIONAL)">
+          <TextInput value={machineSettings} onChangeText={setMachineSettings} multiline maxLength={MACHINE_SETTINGS_LIMIT} placeholder={MACHINE_SETTINGS_PLACEHOLDER} placeholderTextColor={color.textFaint} className={`${inputClass} min-h-[64px]`} textAlignVertical="top" />
         </Field>
         <Field label="CATEGORY">
           <View className="flex-row items-center gap-3">

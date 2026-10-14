@@ -122,5 +122,5 @@ const EXERCISES: Record<CategoryName, Array<[string, ExerciseType]>> = {
 export const GYM_LIBRARY_EXERCISES: readonly LibraryExercise[] = CATEGORY_NAMES.flatMap((category) =>
   EXERCISES[category].map(([name, type]) => ({
     id: libraryExerciseId(name),
-    input: { name, categoryId: libraryCategoryId(category), type, weightUnit: 'default', notes: '' }
+    input: { name, categoryId: libraryCategoryId(category), type, weightUnit: 'default', notes: '', machineSettings: '' }
   })))

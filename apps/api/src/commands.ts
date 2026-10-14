@@ -787,6 +787,11 @@ async function planGymCategory(
   }
 }
 
+/** A build from before machine settings sends exercises without them, and its edit keeps the stored text. */
+function machineSettingsFrom(input: string | undefined, stored: string): string {
+  return input === undefined ? stored : input.trim()
+}
+
 /** Deleting an exercise keeps its sets. Every read joins on live exercises, so they stop showing. */
 async function planGymExercise(
   db: D1Database, operation: SyncOperation, command: Extract<SyncCommand, { entity: 'gymExercise' }>, now: string
@@ -806,14 +811,16 @@ async function planGymExercise(
   if (command.type === 'create') {
     const row: GymExerciseRow = {
       id, name: input.name.trim(), category_id: input.categoryId, type: input.type, weight_unit: input.weightUnit,
-      notes: input.notes.trim(), created_at: now, updated_at: now, revision: 1
+      notes: input.notes.trim(), machine_settings: machineSettingsFrom(input.machineSettings, ''),
+      created_at: now, updated_at: now, revision: 1
     }
     return {
       ok: true,
       data: upsertPlan('gymExercise', id, 1, { entity: 'gymExercise', record: toGymExerciseRecord(row) }, guarded({
-        sql: `INSERT INTO gym_exercises (id, name, category_id, type, weight_unit, notes, created_at, updated_at, revision)
-          SELECT ?, ?, ?, ?, ?, ?, ?, ?, 1`,
-        params: [id, row.name, row.category_id, row.type, row.weight_unit, row.notes, now, now]
+        sql: `INSERT INTO gym_exercises (id, name, category_id, type, weight_unit, notes, machine_settings, created_at,
+          updated_at, revision)
+          SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, 1`,
+        params: [id, row.name, row.category_id, row.type, row.weight_unit, row.notes, row.machine_settings, now, now]
       }, category), category)
     }
   }
@@ -823,14 +830,15 @@ async function planGymExercise(
   const revision = expected + 1
   const row: GymExerciseRow = {
     ...current, name: input.name.trim(), category_id: input.categoryId, type: input.type,
-    weight_unit: input.weightUnit, notes: input.notes.trim(), updated_at: now, revision
+    weight_unit: input.weightUnit, notes: input.notes.trim(),
+    machine_settings: machineSettingsFrom(input.machineSettings, current.machine_settings), updated_at: now, revision
   }
   return {
     ok: true,
     data: upsertPlan('gymExercise', id, revision, { entity: 'gymExercise', record: toGymExerciseRecord(row) }, {
-      sql: `UPDATE gym_exercises SET name = ?, category_id = ?, type = ?, weight_unit = ?, notes = ?, updated_at = ?,
-        revision = revision + 1 WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
-      params: [row.name, row.category_id, row.type, row.weight_unit, row.notes, now, id, expected]
+      sql: `UPDATE gym_exercises SET name = ?, category_id = ?, type = ?, weight_unit = ?, notes = ?, machine_settings = ?,
+        updated_at = ?, revision = revision + 1 WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+      params: [row.name, row.category_id, row.type, row.weight_unit, row.notes, row.machine_settings, now, id, expected]
     }, both(guardFor('gymExercise', id, expected), category))
   }
 }

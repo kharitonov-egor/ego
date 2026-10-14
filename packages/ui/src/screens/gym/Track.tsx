@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router'
-import { ArrowRight, Info, Link2, Menu, MessageSquare, Minus, Plus, Trophy } from 'lucide-react'
+import { ArrowRight, Info, Link2, Menu, MessageSquare, Minus, Plus, SlidersHorizontal, Trophy } from 'lucide-react'
 import {
   DEFAULT_DISTANCE_UNIT, EXERCISE_TYPE_LABELS, exerciseRecords, fieldsFor, supersetOf,
   type DistanceUnit, type SetField
@@ -16,7 +16,7 @@ import { Confetti } from '../../components/gym/Confetti'
 import { ExerciseGraph } from '../../components/gym/ExerciseGraph'
 import { RecordsSheet } from '../../components/gym/RecordsSheet'
 import { RestTimerButton, RestTimerSheet } from '../../components/gym/RestTimer'
-import { CommentSheet } from '../../components/gym/sheets'
+import { CommentSheet, MachineSettingsSheet } from '../../components/gym/sheets'
 import { Dot, GymGate, SectionLabel, SetMarks, SetValues, trackPath, useWideWindow } from '../../components/gym/ui'
 import { WorkoutDrawer, WorkoutPanel } from '../../components/gym/WorkoutDrawer'
 import { CenteredMessage, Screen, ScreenHeader } from '../../components/screen'
@@ -105,6 +105,7 @@ function TrackPage({ exercise, date, history, lifetime, records, nextInSuperset,
   const [draft, setDraft] = useState<EntryDraft>(EMPTY_DRAFT)
   const [problem, setProblem] = useState<string | null>(null)
   const [commenting, setCommenting] = useState<GymSetView | null>(null)
+  const [editingSettings, setEditingSettings] = useState(false)
   const prefilledFor = useRef<string | null>(null)
   const selected = todays.find((set) => set.id === selectedId) ?? null
 
@@ -177,6 +178,11 @@ function TrackPage({ exercise, date, history, lifetime, records, nextInSuperset,
     })
   }
 
+  const saveMachineSettings = (machineSettings: string): void => {
+    setEditingSettings(false)
+    if (machineSettings !== exercise.machineSettings) void gym.saveMachineSettings(exercise.id, machineSettings)
+  }
+
   const labels: Record<SetField, string> = {
     weight: `WEIGHT (${unit})`,
     reps: 'REPS',
@@ -185,6 +191,18 @@ function TrackPage({ exercise, date, history, lifetime, records, nextInSuperset,
   }
 
   return <div className="mx-auto w-full max-w-xl px-6 pb-10 pt-6">
+    <button
+      type="button"
+      aria-label={exercise.machineSettings ? `Machine settings: ${exercise.machineSettings}` : 'Add machine settings'}
+      title={exercise.machineSettings ? 'Edit the machine settings' : 'Add machine settings'}
+      onClick={() => setEditingSettings(true)}
+      className="mb-6 flex min-h-12 w-full items-center gap-3 rounded-xl border border-input px-4 py-2.5 text-left transition-colors hover:bg-surface-900 active:bg-surface-900"
+    >
+      <SlidersHorizontal color={exercise.machineSettings ? color.textSecondary : color.textFaint} size={18} className="shrink-0" />
+      {exercise.machineSettings
+        ? <span className="line-clamp-2 flex-1 whitespace-pre-wrap break-words text-[15px] leading-5 text-foreground">{exercise.machineSettings}</span>
+        : <span className="flex-1 text-[15px] text-surface-500">Add machine settings</span>}
+    </button>
     {fields.map((field) => <Stepper
       key={field}
       label={labels[field]}
@@ -236,6 +254,7 @@ function TrackPage({ exercise, date, history, lifetime, records, nextInSuperset,
       })}
     </div>
     <CommentSheet visible={commenting !== null} initial={commenting?.comment ?? ''} onClose={() => setCommenting(null)} onSave={saveComment} />
+    <MachineSettingsSheet visible={editingSettings} initial={exercise.machineSettings} onClose={() => setEditingSettings(false)} onSave={saveMachineSettings} />
   </div>
 }
 
