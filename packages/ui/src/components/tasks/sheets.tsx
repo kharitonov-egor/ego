@@ -7,7 +7,7 @@ import {
   type TaskLabelColor, type TaskListColor, type TaskPriority, type TaskReminder
 } from '@ego/core'
 import { formatIso, isoToday, shiftIso } from '@ego/local/dates'
-import { EOD, boardLabels, boardLists, liveBoards, type CardFilter, type DueFilter, NO_FILTER } from '@ego/local/tasks/board'
+import { EOD, boardLabels, boardLists, listCards, liveBoards, type CardFilter, type DueFilter, NO_FILTER } from '@ego/local/tasks/board'
 import { useTasks } from '../../lib/tasks/context'
 import { useTaskNotifications } from '../../lib/tasks/notifications'
 import { color } from '../../lib/tokens'
@@ -668,6 +668,57 @@ export function MoveSheet({ visible, mode, card, onDone, onClose }: {
     </>}
     <Button size="lg" className="mt-6 w-full" disabled={!target || (mode === 'copy' && title.trim() === '')} onClick={() => void confirm()}>
       {mode === 'move' ? 'Move' : 'Create card'}
+    </Button>
+  </Sheet>
+}
+
+/** Moves every card in a list to another list on any board, starting on the list beside it. */
+export function MoveListSheet({ visible, list, onClose }: {
+  visible: boolean
+  list: TaskListRecord | null
+  onClose: () => void
+}): React.ReactElement {
+  const tasks = useTasks()
+  const [boardId, setBoardId] = useState<string | null>(null)
+  const [listId, setListId] = useState<string | null>(null)
+  const [place, setPlace] = useState<'top' | 'bottom'>('top')
+  const sourceId = list?.id ?? null
+  useEffect(() => {
+    if (!visible) return
+    setBoardId(null)
+    setListId(null)
+    setPlace('top')
+  }, [sourceId, visible])
+  const data = tasks.data
+  const shownBoard = boardId ?? list?.boardId ?? null
+  const boards = data ? liveBoards(data) : []
+  const all = data && shownBoard ? boardLists(data, shownBoard) : []
+  const from = all.findIndex((item) => item.id === sourceId)
+  const lists = all.filter((item) => item.id !== sourceId)
+  const target = lists.find((item) => item.id === listId) ?? (from === -1 ? lists[0] : all[from + 1] ?? all[from - 1]) ?? null
+  const count = data && sourceId ? listCards(data, sourceId).length : 0
+  const confirm = (): void => {
+    if (sourceId && target) void tasks.moveListCards(sourceId, target.id, place)
+    onClose()
+  }
+  return <Sheet visible={visible} title="Move all cards" onClose={onClose}>
+    <Heading>Board</Heading>
+    <div className="flex flex-wrap gap-2">
+      {boards.map((board) => <Option key={board.id} label={`${board.icon ? `${board.icon} ` : ''}${board.name}`} selected={board.id === shownBoard} onPress={() => setBoardId(board.id)} />)}
+    </div>
+    <Heading>List</Heading>
+    {lists.length === 0
+      ? <p className="text-[15px] text-muted-foreground">That board has no other lists. Add one first.</p>
+      : <div className="flex flex-wrap gap-2">
+        {lists.map((item) => <Option key={item.id} label={item.name} selected={item.id === target?.id} onPress={() => setListId(item.id)} />)}
+      </div>}
+    <Heading>Position</Heading>
+    <div className="flex gap-2">
+      <Option label="Top" selected={place === 'top'} onPress={() => setPlace('top')} />
+      <Option label="Bottom" selected={place === 'bottom'} onPress={() => setPlace('bottom')} />
+    </div>
+    <Button size="lg" className="mt-6 w-full" disabled={!target || count === 0} onClick={confirm}>
+      {count === 1 ? 'Move 1 card' : `Move ${count} cards`}
     </Button>
   </Sheet>
 }

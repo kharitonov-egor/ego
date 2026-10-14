@@ -1,7 +1,7 @@
 import type { TaskBoardRecord, TaskCardRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
 import {
-  checklistProgress, isTaskDoneList, isTaskLabelColor, positionBetween, positionsTooClose, taskDueAt, taskDueLabel, taskTimeLabel,
-  withTaskActivity,
+  TASK_POSITION_STEP, checklistProgress, isTaskDoneList, isTaskLabelColor, positionBetween, positionsTooClose, taskCardInput, taskDueAt,
+  taskDueLabel, taskTimeLabel, withTaskActivity,
   type TaskAttachment, type TaskCardInput, type TaskLabelColor, type TaskListColor, type TaskNames, type TaskPriority
 } from '@ego/core'
 import { isoFromParts } from '../dates'
@@ -265,6 +265,34 @@ export function carryLabels(labelIds: readonly string[], from: readonly TaskLabe
     if (match && !carried.includes(match.id)) carried.push(match.id)
   }
   return carried
+}
+
+export interface ListCardMove {
+  card: TaskCardRecord
+  input: TaskCardInput
+}
+
+/**
+ * Every card in `fromListId`, in its order, moved as a block to the top or bottom of another list,
+ * logged the way a single move is. Empty when there is nothing to move or nowhere to move it.
+ */
+export function listCardMoves(data: TaskData, fromListId: string, toListId: string, place: 'top' | 'bottom', at: string): ListCardMove[] {
+  const target = data.lists.find((list) => list.id === toListId)
+  if (!target || toListId === fromListId) return []
+  const moving = listCards(data, fromListId)
+  const ends = listCards(data, toListId).map((card) => card.position)
+  const start = ends.length === 0
+    ? 0
+    : place === 'bottom' ? Math.max(...ends) : Math.min(...ends) - (moving.length + 1) * TASK_POSITION_STEP
+  const names = taskNamesFor(data)
+  return moving.map((card, index) => {
+    const before = taskCardInput(card)
+    const labelIds = target.boardId === card.boardId
+      ? card.labelIds
+      : carryLabels(card.labelIds, boardLabels(data, card.boardId), boardLabels(data, target.boardId))
+    const position = start + (index + 1) * TASK_POSITION_STEP
+    return { card, input: withTaskActivity(before, { ...before, boardId: target.boardId, listId: target.id, position, labelIds }, names, at) }
+  })
 }
 
 export type UpcomingGroup = 'overdue' | 'today' | 'tomorrow' | 'week' | 'later'

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import {
-  Activity, Archive, ArchiveRestore, Briefcase, Ellipsis, Eye, EyeOff, Focus, GraduationCap, Inbox, LayoutGrid, ListChecks, ListFilter,
+  Activity, Archive, ArchiveRestore, ArrowRight, Briefcase, Ellipsis, Eye, EyeOff, Focus, GraduationCap, Inbox, LayoutGrid, ListChecks, ListFilter,
   Palette, Pencil, Plus, Tag, Trash2, X
 } from 'lucide-react'
 import type { TaskListRecord } from '@ego/api-contracts'
@@ -16,7 +16,7 @@ import { FocusView } from '../../components/tasks/FocusView'
 import { LabelPicker, anchorOf, toggledLabel, type PickerAnchor } from '../../components/tasks/LabelPicker'
 import { QuickEdit, type QuickEditTarget } from '../../components/tasks/QuickEdit'
 import { ResolveBadge, ResolveMode } from '../../components/tasks/ResolveMode'
-import { BoardSheet, FilterSheet, LabelSheet, ListStyleSheet, TextSheet } from '../../components/tasks/sheets'
+import { BoardSheet, FilterSheet, LabelSheet, ListStyleSheet, MoveListSheet, TextSheet } from '../../components/tasks/sheets'
 import { MenuSheet, TasksError, TasksGate, TasksMessage, type MenuItem } from '../../components/tasks/ui'
 import { NO_USF_FILTER, UsfAssignments, UsfControls, UsfRefresh, inCourse, type UsfFilter } from '../../components/tasks/UsfColumn'
 import { WorkProblem, WorkRefresh } from '../../components/tasks/WorkColumn'
@@ -61,6 +61,7 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
   const [renaming, setRenaming] = useState<TaskListRecord | null>(null)
   const [addingTop, setAddingTop] = useState<TaskListRecord | null>(null)
   const [deletingList, setDeletingList] = useState<TaskListRecord | null>(null)
+  const [movingCards, setMovingCards] = useState<TaskListRecord | null>(null)
   const [archiving, setArchiving] = useState(false)
   const [usfFilter, setUsfFilter] = useState<UsfFilter>(NO_USF_FILTER)
   const [styling, setStyling] = useState<TaskListRecord | null>(null)
@@ -295,6 +296,7 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
         { label: 'Color and emoji', Icon: Palette, onPress: () => setStyling(listMenu) },
         { label: 'Add a card to the top', Icon: Plus, onPress: () => setAddingTop(listMenu) },
         ...kindItems(listMenu),
+        { label: 'Move all cards in this list', Icon: ArrowRight, onPress: () => setMovingCards(listMenu) },
         { label: 'Archive all cards in this list', Icon: Archive, onPress: () => void tasks.archiveListCards(listMenu.id) },
         { label: 'Archive this list', Icon: Archive, onPress: () => void tasks.updateList(listMenu.id, { archivedAt: new Date().toISOString() }) },
         { label: 'Delete this list', Icon: Trash2, destructive: true, onPress: () => setDeletingList(listMenu) }
@@ -312,6 +314,7 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
         setRenaming(null)
       }}
     />
+    <MoveListSheet visible={movingCards !== null} list={movingCards} onClose={() => setMovingCards(null)} />
     <ListStyleSheet
       visible={styling !== null}
       list={styling}

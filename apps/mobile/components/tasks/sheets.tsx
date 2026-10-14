@@ -1,14 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Pressable, Switch, Text, TextInput, View } from 'react-native'
 import { BellRing, CalendarDays, Check, Pencil, Plus, Search, Trash2 } from 'lucide-react-native'
-import type { TaskCardRecord } from '@ego/api-contracts'
+import type { TaskCardRecord, TaskListRecord } from '@ego/api-contracts'
 import {
   TASK_DATE_ONLY_REMINDERS, TASK_LABEL_COLORS, TASK_PRIORITIES, TASK_PRIORITY_LABELS, TASK_REMINDERS,
   defaultTaskReminder, taskReminderLabel,
   type TaskLabelColor, type TaskPriority, type TaskReminder
 } from '@ego/core'
 import { formatIso, isoToday, shiftIso } from '@ego/local/dates'
-import { EOD, boardLabels, boardLists, liveBoards, type CardFilter, type DueFilter, NO_FILTER } from '@ego/local/tasks/board'
+import { EOD, boardLabels, boardLists, listCards, liveBoards, type CardFilter, type DueFilter, NO_FILTER } from '@ego/local/tasks/board'
 import { useTasks } from '../../lib/tasks/context'
 import { useTaskNotifications } from '../../lib/tasks/notifications'
 import { BottomSheet, inputClass } from '../money/Common'
@@ -510,6 +510,57 @@ export function MoveSheet({ visible, mode, card, onDone, onClose }: {
     </>}
     <Button size="lg" className="mt-6" disabled={!target || (mode === 'copy' && title.trim() === '')} onPress={() => void confirm()}>
       <UiText>{mode === 'move' ? 'Move' : 'Create card'}</UiText>
+    </Button>
+  </BottomSheet>
+}
+
+/** Moves every card in a list to another list on any board, starting on the list beside it. */
+export function MoveListSheet({ visible, list, onClose }: {
+  visible: boolean
+  list: TaskListRecord | null
+  onClose: () => void
+}): React.ReactElement {
+  const tasks = useTasks()
+  const [boardId, setBoardId] = useState<string | null>(null)
+  const [listId, setListId] = useState<string | null>(null)
+  const [place, setPlace] = useState<'top' | 'bottom'>('top')
+  const sourceId = list?.id ?? null
+  useEffect(() => {
+    if (!visible) return
+    setBoardId(null)
+    setListId(null)
+    setPlace('top')
+  }, [sourceId, visible])
+  const data = tasks.data
+  const shownBoard = boardId ?? list?.boardId ?? null
+  const boards = data ? liveBoards(data) : []
+  const all = data && shownBoard ? boardLists(data, shownBoard) : []
+  const from = all.findIndex((item) => item.id === sourceId)
+  const lists = all.filter((item) => item.id !== sourceId)
+  const target = lists.find((item) => item.id === listId) ?? (from === -1 ? lists[0] : all[from + 1] ?? all[from - 1]) ?? null
+  const count = data && sourceId ? listCards(data, sourceId).length : 0
+  const confirm = (): void => {
+    if (sourceId && target) void tasks.moveListCards(sourceId, target.id, place)
+    onClose()
+  }
+  return <BottomSheet visible={visible} title="Move all cards" onClose={onClose}>
+    <Heading>Board</Heading>
+    <View className="flex-row flex-wrap gap-2">
+      {boards.map((board) => <Option key={board.id} label={`${board.icon ? `${board.icon} ` : ''}${board.name}`} selected={board.id === shownBoard} onPress={() => setBoardId(board.id)} />)}
+    </View>
+    <Heading>List</Heading>
+    {lists.length === 0
+      ? <Text className="text-[15px] text-muted-foreground">That board has no other lists. Add one first.</Text>
+      : <View className="flex-row flex-wrap gap-2">
+        {lists.map((item) => <Option key={item.id} label={item.name} selected={item.id === target?.id} onPress={() => setListId(item.id)} />)}
+      </View>}
+    <Heading>Position</Heading>
+    <View className="flex-row gap-2">
+      <Option label="Top" selected={place === 'top'} onPress={() => setPlace('top')} />
+      <Option label="Bottom" selected={place === 'bottom'} onPress={() => setPlace('bottom')} />
+    </View>
+    <Button size="lg" className="mt-6" disabled={!target || count === 0} onPress={confirm}>
+      <UiText>{count === 1 ? 'Move 1 card' : `Move ${count} cards`}</UiText>
     </Button>
   </BottomSheet>
 }
