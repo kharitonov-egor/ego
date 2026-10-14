@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   addPlan, convertWeight, estimatedOneRepMax, exerciseRecords, formatSetDuration, formatWeight, gatherSupersets,
   graphMetricsFor, graphPoints, isGymExerciseInput, isGymPlanInput, isGymSetInput, isGymWorkoutInput, joinSuperset,
-  linkSuperset, parseDuration, withoutSuperset, type GymSetInput, type GymSetLike
+  linkSuperset, MACHINE_SETTINGS_LIMIT, parseDuration, withoutSuperset, type GymSetInput, type GymSetLike
 } from '../src/gym'
 import {
   GYM_LIBRARY_CATEGORIES, GYM_LIBRARY_EXERCISES, customExerciseId, libraryExerciseId, slugify
@@ -42,6 +42,15 @@ describe('gym input validation', () => {
     expect(isGymExerciseInput({ ...exercise, type: 'cardio' })).toBe(false)
     expect(isGymExerciseInput({ ...exercise, weightUnit: 'stone' })).toBe(false)
     expect(isGymExerciseInput({ ...exercise, name: '  ' })).toBe(false)
+  })
+
+  it('takes machine settings up to the limit, and exercises from builds that predate them', () => {
+    const exercise = { name: 'Leg Press', categoryId: 'gc-legs', type: 'weight_reps', weightUnit: 'default', notes: '' }
+    expect(isGymExerciseInput(exercise)).toBe(true)
+    expect(isGymExerciseInput({ ...exercise, machineSettings: 'Seat 4, pad 2' })).toBe(true)
+    expect(isGymExerciseInput({ ...exercise, machineSettings: 'x'.repeat(MACHINE_SETTINGS_LIMIT) })).toBe(true)
+    expect(isGymExerciseInput({ ...exercise, machineSettings: 'x'.repeat(MACHINE_SETTINGS_LIMIT + 1) })).toBe(false)
+    expect(isGymExerciseInput({ ...exercise, machineSettings: null })).toBe(false)
   })
 
   it('keeps an exercise in one superset at most', () => {

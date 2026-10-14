@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Check } from 'lucide-react'
-import { GYM_CATEGORY_COLORS } from '@ego/core'
+import { GYM_CATEGORY_COLORS, MACHINE_SETTINGS_LIMIT, MACHINE_SETTINGS_PLACEHOLDER } from '@ego/core'
 import { planNameProblem } from '@ego/local/gym/plans'
 import type { GymCategoryView } from '@ego/local/repositories/gym'
 import { useGym } from '../../lib/gym/context'
@@ -167,20 +167,27 @@ export function PlanNameSheet({ visible, onClose, onSave }: {
   </Sheet>
 }
 
-/** Enter saves the comment; Shift+Enter starts a new line. */
-export function CommentSheet({ visible, initial, onClose, onSave }: {
+interface TextSheetProps {
   visible: boolean
   initial: string
   onClose: () => void
-  onSave: (comment: string) => void
+  onSave: (text: string) => void
+}
+
+/** Enter saves the text; Shift+Enter starts a new line. */
+function TextSheet({ visible, initial, onClose, onSave, title, placeholder, maxLength, saveLabel }: TextSheetProps & {
+  title: string
+  placeholder: string
+  maxLength: number
+  saveLabel: string
 }): React.ReactElement | null {
   const [draft, setDraft] = useState(initial)
   useEffect(() => {
     if (visible) setDraft(initial)
   }, [visible, initial])
-  return <Sheet visible={visible} title="Set comment" onClose={onClose}>
+  return <Sheet visible={visible} title={title} onClose={onClose}>
     <textarea
-      aria-label="Set comment"
+      aria-label={title}
       value={draft}
       onChange={(event) => setDraft(event.target.value)}
       onKeyDown={(event) => {
@@ -189,13 +196,21 @@ export function CommentSheet({ visible, initial, onClose, onSave }: {
         onSave(draft.trim())
       }}
       autoFocus
-      maxLength={500}
-      placeholder="Spotter helped with the last two"
+      maxLength={maxLength}
+      placeholder={placeholder}
       className={cn(inputClass, 'min-h-[96px] resize-y')}
     />
     <div className="mt-5 flex gap-3">
       {initial !== '' && <Button variant="outline" size="lg" onClick={() => onSave('')} className="flex-1">Remove</Button>}
-      <Button size="lg" onClick={() => onSave(draft.trim())} className="flex-1">Save comment</Button>
+      <Button size="lg" onClick={() => onSave(draft.trim())} className="flex-1">{saveLabel}</Button>
     </div>
   </Sheet>
+}
+
+export function CommentSheet(props: TextSheetProps): React.ReactElement | null {
+  return <TextSheet {...props} title="Set comment" placeholder="Spotter helped with the last two" maxLength={500} saveLabel="Save comment" />
+}
+
+export function MachineSettingsSheet(props: TextSheetProps): React.ReactElement | null {
+  return <TextSheet {...props} title="Machine settings" placeholder={MACHINE_SETTINGS_PLACEHOLDER} maxLength={MACHINE_SETTINGS_LIMIT} saveLabel="Save settings" />
 }

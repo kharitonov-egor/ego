@@ -22,6 +22,12 @@ async function existing(tx: LocalDatabase, table: string, column: string, key: s
   return rows[0] ?? null
 }
 
+/** A change queued by a build from before machine settings keeps the stored text, as the Worker does. */
+async function storedMachineSettings(tx: LocalDatabase, id: string): Promise<string> {
+  const rows = await tx.all<{ machine_settings: string }>('SELECT machine_settings FROM gym_exercises WHERE id = ?', [id])
+  return rows[0]?.machine_settings ?? ''
+}
+
 /**
  * Applies the command to the phone's own tables with the revision the server is expected to
  * assign. The row reads as saved straight away and the outbox carries the same command.
@@ -120,7 +126,10 @@ export async function applyCommandLocally(
     if (command.entity === 'gymCategory') {
       await writeRecord(tx, { entity: 'gymCategory', record: gymCategoryRecordFrom(entityId, command.payload, createdAt, now, nextRevision) })
     } else if (command.entity === 'gymExercise') {
-      await writeRecord(tx, { entity: 'gymExercise', record: gymExerciseRecordFrom(entityId, command.payload, createdAt, now, nextRevision) })
+      const input = command.payload.machineSettings === undefined
+        ? { ...command.payload, machineSettings: await storedMachineSettings(tx, entityId) }
+        : command.payload
+      await writeRecord(tx, { entity: 'gymExercise', record: gymExerciseRecordFrom(entityId, input, createdAt, now, nextRevision) })
     } else if (command.entity === 'gymPlan') {
       await writeRecord(tx, { entity: 'gymPlan', record: gymPlanRecordFrom(entityId, command.payload, createdAt, now, nextRevision) })
     } else {

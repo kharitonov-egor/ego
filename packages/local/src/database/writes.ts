@@ -140,16 +140,16 @@ async function writeGymCategory(tx: LocalDatabase, record: GymCategoryRecord): P
 }
 
 async function writeGymExercise(tx: LocalDatabase, record: GymExerciseRecord): Promise<void> {
-  await tx.run(`INSERT INTO gym_exercises (id, name, category_id, type, weight_unit, notes, created_at,
-    updated_at, revision, deleted_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+  await tx.run(`INSERT INTO gym_exercises (id, name, category_id, type, weight_unit, notes, machine_settings,
+    created_at, updated_at, revision, deleted_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
     ON CONFLICT(id) DO UPDATE SET name = excluded.name, category_id = excluded.category_id,
       type = excluded.type, weight_unit = excluded.weight_unit, notes = excluded.notes,
-      created_at = excluded.created_at, updated_at = excluded.updated_at,
+      machine_settings = excluded.machine_settings, created_at = excluded.created_at, updated_at = excluded.updated_at,
       revision = excluded.revision, deleted_at = NULL
     WHERE excluded.revision >= gym_exercises.revision`,
   [record.id, record.name, record.categoryId, record.type, record.weightUnit, record.notes,
-    record.createdAt, record.updatedAt, record.revision])
+    record.machineSettings ?? '', record.createdAt, record.updatedAt, record.revision])
 }
 
 async function writeGymSet(tx: LocalDatabase, record: GymSetRecord): Promise<void> {

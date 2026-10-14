@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router'
 import { Check, ChevronDown, Plus, Trash2 } from 'lucide-react'
 import {
-  DEFAULT_WEIGHT_UNIT, EXERCISE_TYPES, EXERCISE_TYPE_LABELS, usesWeight,
+  DEFAULT_WEIGHT_UNIT, EXERCISE_TYPES, EXERCISE_TYPE_LABELS, MACHINE_SETTINGS_LIMIT, MACHINE_SETTINGS_PLACEHOLDER, usesWeight,
   type ExerciseType, type ExerciseWeightUnit
 } from '@ego/core'
 import { CategorySheet, PickerSheet } from '../../components/gym/sheets'
@@ -52,6 +52,7 @@ export default function ExerciseEditor(): React.ReactElement {
   const existing = id ? gym.exercises.find((item) => item.id === id) ?? null : null
   const [name, setName] = useState(params.get('name') ?? '')
   const [notes, setNotes] = useState('')
+  const [machineSettings, setMachineSettings] = useState('')
   const [categoryId, setCategoryId] = useState(params.get('categoryId') ?? '')
   const [type, setType] = useState<ExerciseType>('weight_reps')
   const [weightUnit, setWeightUnit] = useState<ExerciseWeightUnit>('default')
@@ -67,6 +68,7 @@ export default function ExerciseEditor(): React.ReactElement {
     if (loaded || !existing) return
     setName(existing.name)
     setNotes(existing.notes)
+    setMachineSettings(existing.machineSettings)
     setCategoryId(existing.categoryId)
     setType(existing.type)
     setWeightUnit(existing.weightUnit)
@@ -81,7 +83,8 @@ export default function ExerciseEditor(): React.ReactElement {
     if (clash) return setProblem(`${clash.name} already exists in ${clash.categoryName}`)
     setProblem(null)
     const saved = await gym.saveExercise(existing?.id ?? null, {
-      name: trimmed, categoryId: category.id, type, weightUnit: usesWeight(type) ? weightUnit : 'default', notes: notes.trim()
+      name: trimmed, categoryId: category.id, type, weightUnit: usesWeight(type) ? weightUnit : 'default', notes: notes.trim(),
+      machineSettings: machineSettings.trim()
     })
     if (saved) navigate(back)
   }
@@ -105,7 +108,10 @@ export default function ExerciseEditor(): React.ReactElement {
             <input aria-label="Name" value={name} onChange={(event) => setName(event.target.value)} autoFocus={!id && !params.get('name')} placeholder="Barbell Squat" className={inputClass} />
           </Field>
           <Field label="NOTES (OPTIONAL)">
-            <textarea aria-label="Notes" value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={1000} placeholder="Seat height, grip, cues" className={cn(inputClass, 'min-h-[80px] resize-y')} />
+            <textarea aria-label="Notes" value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={1000} placeholder="Grip, form cues" className={cn(inputClass, 'min-h-[80px] resize-y')} />
+          </Field>
+          <Field label="MACHINE SETTINGS (OPTIONAL)">
+            <textarea aria-label="Machine settings" value={machineSettings} onChange={(event) => setMachineSettings(event.target.value)} maxLength={MACHINE_SETTINGS_LIMIT} placeholder={MACHINE_SETTINGS_PLACEHOLDER} className={cn(inputClass, 'min-h-[64px] resize-y')} />
           </Field>
           <Field label="CATEGORY">
             <div className="flex items-center gap-3">

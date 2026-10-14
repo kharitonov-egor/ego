@@ -160,6 +160,7 @@ export function gymExerciseRecordFrom(
     type: input.type,
     weightUnit: input.weightUnit,
     notes: input.notes.trim(),
+    machineSettings: input.machineSettings.trim(),
     createdAt,
     updatedAt,
     revision

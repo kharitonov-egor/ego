@@ -9,7 +9,7 @@ import type { LocalDatabase } from '../../../packages/local/src/database/types'
 import { exerciseSets, gymCalendar, gymCategories, gymDay, gymExercises, gymPlans } from '../../../packages/local/src/repositories/gym'
 import {
   createGymCategory, createGymExercise, createGymPlan, createGymSet, deleteGymCategory, deleteGymExercise,
-  deleteGymPlan, deleteGymSet, saveGymWorkout, updateGymPlan, updateGymSet
+  deleteGymPlan, deleteGymSet, saveGymWorkout, updateGymExercise, updateGymPlan, updateGymSet
 } from '../../../packages/local/src/sync/commands'
 import { createSyncCoordinator } from '../../../packages/local/src/sync/coordinator'
 import { allOperations } from '../../../packages/local/src/sync/outbox'
@@ -83,7 +83,8 @@ async function serverRows<T>(sql: string, params: unknown[] = []): Promise<T[]> 
 
 const legs = { name: 'Legs', color: '#008300' }
 const squat = (overrides: Partial<GymExerciseInput> = {}): GymExerciseInput => ({
-  name: 'Barbell Squat', categoryId: 'gc-legs', type: 'weight_reps', weightUnit: 'default', notes: '', ...overrides
+  name: 'Barbell Squat', categoryId: 'gc-legs', type: 'weight_reps', weightUnit: 'default', notes: '', machineSettings: '',
+  ...overrides
 })
 const set = (overrides: Partial<GymSetInput> = {}): GymSetInput => ({
   exerciseId: 'ge-squat', date: '2026-09-27', position: 0, weight: 25, weightUnit: 'lbs', reps: 12,
@@ -110,6 +111,34 @@ describe('gym log between the phone and the Worker', () => {
     expect(sets).toEqual([{ id: 'gs-1', weight: 25, revision: 1 }, { id: 'gs-2', weight: 30, revision: 1 }])
     const changes = await readChanges(server!.db, 0, 10)
     expect(changes.changes.map((change) => change.entity)).toEqual(['gymCategory', 'gymExercise', 'gymSet', 'gymSet'])
+  })
+
+  it("keeps an exercise's machine settings, even through an edit from a build that predates them", async () => {
+    const coordinator = await pair()
+    await coordinator.sync()
+    await createGymCategory(device!, legs, NOW, 'gc-legs')
+    await createGymExercise(device!, squat({ name: 'Leg Press', machineSettings: '  Seat 4, pad 2  ' }), NOW, 'ge-press')
+    expect((await gymExercises(device!)).find((item) => item.id === 'ge-press')?.machineSettings).toBe('Seat 4, pad 2')
+    await coordinator.sync()
+    expect(await serverRows('SELECT machine_settings FROM gym_exercises WHERE id = ?', ['ge-press'])).toEqual([{ machine_settings: 'Seat 4, pad 2' }])
+
+    const { machineSettings: _dropped, ...older } = squat({ name: 'Leg Press', notes: 'Feet high' })
+    const legacy: unknown = older
+    const remote = await post(server!.db, [{
+      operationId: 'older-1', entityId: 'ge-press', expectedRevision: 1, createdAt: NOW,
+      command: { entity: 'gymExercise', type: 'update', payload: legacy as GymExerciseInput }
+    }])
+    expect(remote.failed).toBeNull()
+    expect(await serverRows('SELECT notes, machine_settings, revision FROM gym_exercises WHERE id = ?', ['ge-press']))
+      .toEqual([{ notes: 'Feet high', machine_settings: 'Seat 4, pad 2', revision: 2 }])
+    await coordinator.sync()
+    expect((await gymExercises(device!)).find((item) => item.id === 'ge-press'))
+      .toMatchObject({ notes: 'Feet high', machineSettings: 'Seat 4, pad 2', revision: 2 })
+
+    await updateGymExercise(device!, 'ge-press', 2, squat({ name: 'Leg Press', notes: 'Feet high' }), NOW)
+    await coordinator.sync()
+    expect(await serverRows('SELECT machine_settings, revision FROM gym_exercises WHERE id = ?', ['ge-press']))
+      .toEqual([{ machine_settings: '', revision: 3 }])
   })
 
   it("brings another device's set down and applies edits and deletes", async () => {

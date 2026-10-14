@@ -233,6 +233,7 @@ export interface GymExerciseRow {
   type: ExerciseType
   weight_unit: ExerciseWeightUnit
   notes: string
+  machine_settings: string
   created_at: string
   updated_at: string
   revision: number
@@ -285,7 +286,8 @@ export function toGymCategoryRecord(row: GymCategoryRow): GymCategoryRecord {
 export function toGymExerciseRecord(row: GymExerciseRow): GymExerciseRecord {
   return {
     id: row.id, name: row.name, categoryId: row.category_id, type: row.type, weightUnit: row.weight_unit,
-    notes: row.notes, createdAt: row.created_at, updatedAt: row.updated_at, revision: row.revision
+    notes: row.notes, machineSettings: row.machine_settings, createdAt: row.created_at, updatedAt: row.updated_at,
+    revision: row.revision
   }
 }
 

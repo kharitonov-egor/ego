@@ -7,7 +7,7 @@ import { isoToday } from '@ego/local/dates'
 import type { LocalDatabase } from '@ego/local/database/types'
 import { useLedger, type LocalWrite } from './ledger-context'
 import {
-  gymCategories, gymDay, gymExercises, gymPlans, gymRevision, gymWorkout, nextSetPosition,
+  gymCategories, gymDay, gymExercise, gymExercises, gymPlans, gymRevision, gymWorkout, nextSetPosition,
   type GymCategoryView, type GymExerciseView, type GymPlanView
 } from '@ego/local/repositories/gym'
 import {
@@ -35,6 +35,8 @@ interface GymContextValue {
   updateSet: (id: string, input: GymSetInput) => Promise<boolean>
   deleteSets: (ids: string[]) => Promise<boolean>
   saveExercise: (id: string | null, input: GymExerciseInput) => Promise<string | null>
+  /** Changes only the machine settings, keeping the rest of the exercise as stored at save time. */
+  saveMachineSettings: (id: string, machineSettings: string) => Promise<boolean>
   deleteExercise: (id: string) => Promise<boolean>
   saveCategory: (id: string | null, input: GymCategoryInput) => Promise<string | null>
   deleteCategory: (id: string) => Promise<boolean>
@@ -129,6 +131,15 @@ export function GymProvider({ children }: { children: React.ReactNode }): React.
     return saved ? target : null
   }, [run])
 
+  const saveMachineSettings = useCallback((id: string, machineSettings: string) => run(async (database, now) => {
+    const exercise = await gymExercise(database, id)
+    if (!exercise) throw new RejectedWrite('That exercise was deleted on another device.')
+    await updateGymExercise(database, id, exercise.revision, {
+      name: exercise.name, categoryId: exercise.categoryId, type: exercise.type, weightUnit: exercise.weightUnit,
+      notes: exercise.notes, machineSettings
+    }, now)
+  }), [run])
+
   const deleteExercise = useCallback((id: string) => run(async (database, now) => {
     await deleteGymExercise(database, id, await revisionOf(database, 'gym_exercises', id, 'That exercise'), now)
   }), [run])
@@ -204,6 +215,7 @@ export function GymProvider({ children }: { children: React.ReactNode }): React.
     updateSet,
     deleteSets,
     saveExercise,
+    saveMachineSettings,
     deleteExercise,
     saveCategory,
     deleteCategory,
@@ -213,7 +225,7 @@ export function GymProvider({ children }: { children: React.ReactNode }): React.
     startPlan,
     addLibrary
   }), [addLibrary, arrange, categories, date, db, deleteCategory, deleteExercise, deletePlan, deleteSets, error,
-    exercises, gymVersion, ledger.writing, logSet, plans, ready, saveCategory, saveExercise, savePlan, startPlan,
+    exercises, gymVersion, ledger.writing, logSet, plans, ready, saveCategory, saveExercise, saveMachineSettings, savePlan, startPlan,
     updateSet])
 
   return <GymContext.Provider value={value}>{children}</GymContext.Provider>
