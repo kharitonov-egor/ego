@@ -413,14 +413,17 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
         ? <View className="px-2 pb-2">
           <TextInput
             value={draft}
-            onChangeText={setDraft}
+            onChangeText={(text) => setDraft(text.replace(/\n/g, ' '))}
             placeholder="Card title"
             placeholderTextColor="#737373"
             autoFocus
-            blurOnSubmit={false}
+            multiline
+            submitBehavior="submit"
             onSubmitEditing={() => void submitCard(list.id)}
             returnKeyType="done"
-            className="min-h-12 rounded-xl bg-card px-3 text-[16px] text-foreground"
+            maxLength={500}
+            textAlignVertical="center"
+            className="min-h-12 rounded-xl bg-card px-3 py-3.5 text-[16px] text-foreground"
           />
           <View className="mt-2 flex-row items-center gap-2">
             <Pressable accessibilityRole="button" onPress={() => void submitCard(list.id)} className="min-h-11 flex-1 items-center justify-center rounded-xl bg-primary active:opacity-80">
