@@ -8,6 +8,7 @@ import {
   createHabit, createHabitEntry, deleteHabit, deleteHabitEntry, newId, updateHabit
 } from '@ego/local/sync/commands'
 import { buildLog, type HabitLog } from '@ego/local/habits/stats'
+import { chime } from '../beep'
 import { useLedger, type LocalWrite } from '../ledger'
 import { useToday } from '../today'
 
@@ -36,8 +37,8 @@ interface HabitsContextValue {
   remove: (habit: HabitRecord) => Promise<boolean>
   move: (habit: HabitRecord, delta: -1 | 1) => Promise<boolean>
   /**
-   * Adds a check-off. A habit done once a day, or a weekly one, toggles instead. A habit that has
-   * met a larger daily target stays as it is.
+   * Adds a check-off and chimes. A habit done once a day, or a weekly one, toggles instead, and
+   * unchecking makes no sound. A habit that has met a larger daily target stays as it is.
    */
   tap: (habit: HabitRecord, date: string) => Promise<boolean>
   /** Removes the day's latest check-off. */
@@ -155,6 +156,7 @@ export function HabitsProvider({ children }: { children: React.ReactNode }): Rea
         'This computer could not uncheck that habit')
     }
     if (!toggles && existing.length >= habit.target) return true
+    chime()
     return add(habit, date, 'done', 'This computer could not check off that habit')
   }, [add, optimistic])
 

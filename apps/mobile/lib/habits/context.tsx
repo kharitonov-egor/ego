@@ -10,6 +10,7 @@ import {
   createHabit, createHabitEntry, deleteHabit, deleteHabitEntry, newId, updateHabit
 } from '@ego/local/sync/commands'
 import { buildLog, type HabitLog } from '@ego/local/habits/stats'
+import { useChime } from './chime'
 
 export interface EditorTarget {
   kind: HabitKind
@@ -36,8 +37,8 @@ interface HabitsContextValue {
   remove: (habit: HabitRecord) => Promise<boolean>
   move: (habit: HabitRecord, delta: -1 | 1) => Promise<boolean>
   /**
-   * Adds a check-off. A habit done once a day, or a weekly one, toggles instead. A habit that has
-   * met a larger daily target stays as it is.
+   * Adds a check-off and chimes. A habit done once a day, or a weekly one, toggles instead, and
+   * unchecking makes no sound. A habit that has met a larger daily target stays as it is.
    */
   tap: (habit: HabitRecord, date: string) => Promise<boolean>
   /** Removes the day's latest check-off. */
@@ -74,6 +75,7 @@ async function removeEntries(db: LocalDatabase, ids: readonly string[], now: str
 
 export function HabitsProvider({ children }: { children: React.ReactNode }): React.ReactElement {
   const { db, ready, enabled, habitsVersion, write, writing } = useLedger()
+  const chime = useChime()
   const [habits, setHabits] = useState<HabitRecord[] | null>(null)
   const [entries, setEntries] = useState<HabitEntryRecord[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -162,8 +164,9 @@ export function HabitsProvider({ children }: { children: React.ReactNode }): Rea
         'This phone could not uncheck that habit')
     }
     if (!toggles && existing.length >= habit.target) return true
+    chime()
     return add(habit, date, 'done', 'This phone could not check off that habit')
-  }, [add, optimistic])
+  }, [add, chime, optimistic])
 
   const takeBack = useCallback(async (habit: HabitRecord, date: string): Promise<boolean> => {
     const existing = checkOffs(entriesRef.current, habit.id, date)

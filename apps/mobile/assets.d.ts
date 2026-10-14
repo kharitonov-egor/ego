@@ -3,3 +3,8 @@ declare module '*.png' {
   const source: ImageSourcePropType
   export default source
 }
+
+declare module '*.wav' {
+  const asset: number
+  export default asset
+}
