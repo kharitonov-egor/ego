@@ -91,6 +91,7 @@ export function QuickEdit({ target, onOpen, onClose }: {
         <CardFace
           card={card}
           labels={boardLabels(tasks.data, card.boardId)}
+          labelStyle={tasks.data.boards.find((board) => board.id === card.boardId)?.labelStyle}
           now={tasks.now}
           upload={tasks.data.uploads.get(card.id)}
           onToggleDone={() => void update((input) => ({ ...input, doneAt: input.doneAt ? null : new Date().toISOString() }))}

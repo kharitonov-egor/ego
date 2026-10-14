@@ -1,6 +1,7 @@
 import React, { useLayoutEffect, useRef, useState } from 'react'
 import { Ellipsis, Plus, X } from 'lucide-react'
 import type { TaskAgentRun, TaskCardRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
+import type { TaskLabelStyle } from '@ego/core'
 import { Blurred } from '../../lib/blur'
 import { columnAt, dropIndex, edgeScroll, usePointerDrag } from '../../lib/tasks/drag'
 import { color } from '../../lib/tokens'
@@ -45,6 +46,7 @@ export interface DragBoardProps {
   /** The cards each list shows, in order, after the board's filters. */
   cards: ReadonlyMap<string, readonly TaskCardRecord[]>
   labels: readonly TaskLabelRecord[]
+  labelStyle: TaskLabelStyle
   now: Date
   uploads: ReadonlyMap<string, 'sending' | 'failed'>
   onOpenCard: (cardId: string) => void
@@ -317,6 +319,7 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
             <CardFace
               card={item}
               labels={labels}
+              labelStyle={props.labelStyle}
               now={now}
               upload={uploads.get(item.id)}
               synced={props.linked?.has(item.id)}
@@ -431,7 +434,7 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
         style={{ width: drag.width }}
       >
         {drag.kind === 'card'
-          ? <CardFace card={drag.card} labels={labels} now={now} lifted />
+          ? <CardFace card={drag.card} labels={labels} labelStyle={props.labelStyle} now={now} lifted />
           : <div className="rounded-2xl border border-surface-600 bg-surface-800 px-4 pb-3" style={{ minHeight: HEADER }}>
             <div style={{ height: HEADER }} className="flex items-center">
               <Blurred><span className="min-w-0 flex-1 truncate text-[16px] font-bold text-surface-100">{drag.list.name}</span></Blurred>

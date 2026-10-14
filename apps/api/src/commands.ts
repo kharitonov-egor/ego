@@ -6,12 +6,12 @@ import {
   type SyncCommand, type SyncEntity, type SyncOperation
 } from '@ego/api-contracts'
 import {
-  FOOD_GOAL_ID, HABIT_TARGET_LIMIT, NO_NUTRIENTS, diaryMediaIds, entryKindFits, foodMediaIds, isTaskListKind, nutrientsOf,
-  taskMediaIds,
+  FOOD_GOAL_ID, HABIT_TARGET_LIMIT, NO_NUTRIENTS, diaryMediaIds, entryKindFits, foodMediaIds, isTaskLabelStyle, isTaskListKind,
+  nutrientsOf, taskMediaIds,
   type AccountInput, type ArchiveInput, type BudgetInput, type CategoryInput, type DiaryMessageInput,
   type FoodEntryInput, type FoodGoalInput, type FridgeItemInput, type GymPlanInput, type GymSetInput, type HabitInput,
   type MoodInput, type PurchaseInput, type SheetInput, type SheetRowInput, type TaskBoardInput, type TaskCardInput,
-  type TaskGoalInput, type TaskLabelInput, type TaskListInput, type TaskListKind, type TransactionInput
+  type TaskGoalInput, type TaskLabelInput, type TaskLabelStyle, type TaskListInput, type TaskListKind, type TransactionInput
 } from '@ego/core'
 import { query, readLatestChange, serverSequence } from './reads'
 import {
@@ -1191,12 +1191,17 @@ async function planDiaryMessage(
   }
 }
 
+interface TaskBoardSettings {
+  move_done: number
+  label_style: TaskLabelStyle
+}
+
 function taskBoardRowFrom(
-  id: string, input: TaskBoardInput, moveDone: boolean, createdAt: string, updatedAt: string, revision: number
+  id: string, input: TaskBoardInput, settings: TaskBoardSettings, createdAt: string, updatedAt: string, revision: number
 ): TaskBoardRow {
   return {
     id, name: input.name.trim(), icon: input.icon.trim(), position: input.position, hide_done: input.hideDone ? 1 : 0,
-    move_done: moveDone ? 1 : 0, archived_at: input.archivedAt, created_at: createdAt, updated_at: updatedAt, revision
+    ...settings, archived_at: input.archivedAt, created_at: createdAt, updated_at: updatedAt, revision
   }
 }
 
@@ -1205,13 +1210,15 @@ async function planTaskBoard(
 ): Promise<ApiResult<Plan>> {
   const id = operation.entityId
   if (command.type === 'create') {
-    const row = taskBoardRowFrom(id, command.payload, command.payload.moveDone ?? false, now, now, 1)
+    const input = command.payload
+    const row = taskBoardRowFrom(id, input, { move_done: input.moveDone ? 1 : 0, label_style: input.labelStyle ?? 'names' }, now, now, 1)
     return {
       ok: true,
       data: upsertPlan('taskBoard', id, 1, { entity: 'taskBoard', record: toTaskBoardRecord(row) }, {
-        sql: `INSERT INTO task_boards (id, name, icon, position, hide_done, move_done, archived_at, created_at, updated_at, revision)
-          SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, 1`,
-        params: [id, row.name, row.icon, row.position, row.hide_done, row.move_done, row.archived_at, now, now]
+        sql: `INSERT INTO task_boards (id, name, icon, position, hide_done, move_done, label_style, archived_at, created_at,
+          updated_at, revision)
+          SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1`,
+        params: [id, row.name, row.icon, row.position, row.hide_done, row.move_done, row.label_style, row.archived_at, now, now]
       }, null)
     }
   }
@@ -1223,14 +1230,18 @@ async function planTaskBoard(
     return { ok: true, data: deletePlan('taskBoard', id, expected, now, guard, { entity: 'taskBoard', record: null }) }
   }
   const revision = expected + 1
-  const moveDone = command.payload.moveDone ?? current.move_done === 1
-  const row = taskBoardRowFrom(id, command.payload, moveDone, current.created_at, now, revision)
+  const input = command.payload
+  const settings = {
+    move_done: input.moveDone === undefined ? current.move_done : input.moveDone ? 1 : 0,
+    label_style: input.labelStyle ?? (isTaskLabelStyle(current.label_style) ? current.label_style : 'names')
+  }
+  const row = taskBoardRowFrom(id, input, settings, current.created_at, now, revision)
   return {
     ok: true,
     data: upsertPlan('taskBoard', id, revision, { entity: 'taskBoard', record: toTaskBoardRecord(row) }, {
-      sql: `UPDATE task_boards SET name = ?, icon = ?, position = ?, hide_done = ?, move_done = ?, archived_at = ?,
-        updated_at = ?, revision = revision + 1 WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
-      params: [row.name, row.icon, row.position, row.hide_done, row.move_done, row.archived_at, now, id, expected]
+      sql: `UPDATE task_boards SET name = ?, icon = ?, position = ?, hide_done = ?, move_done = ?, label_style = ?,
+        archived_at = ?, updated_at = ?, revision = revision + 1 WHERE id = ? AND revision = ? AND deleted_at IS NULL`,
+      params: [row.name, row.icon, row.position, row.hide_done, row.move_done, row.label_style, row.archived_at, now, id, expected]
     }, guard)
   }
 }

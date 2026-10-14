@@ -488,6 +488,50 @@ describe('the move-done setting', () => {
   })
 })
 
+describe('the label style', () => {
+  it('syncs to other devices and stays when a build without it saves the board', async () => {
+    const env = await setup()
+    const first = await phone(env)
+    await createTaskBoard(first.db, {
+      name: 'GTD', icon: '', position: 1024, hideDone: false, moveDone: false, labelStyle: 'lines', archivedAt: null
+    }, NOW, 'b-gtd')
+    await first.sync()
+    const saved = (await localTasks(first.db)).boards.find((board) => board.id === 'b-gtd')
+    expect(saved?.labelStyle).toBe('lines')
+    const result = await over<OperationResponse>(env, '/v1/operations', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ operations: [operation({
+        operationId: 'op-rename', entityId: 'b-gtd', expectedRevision: saved?.revision ?? 1,
+        command: { entity: 'taskBoard', type: 'update', payload: { name: 'Life', icon: '', position: 1024, hideDone: false, archivedAt: null } }
+      })] })
+    })
+    expect(result.ok && result.data.failed).toBeNull()
+    const second = await phone(env)
+    await second.sync()
+    expect((await localTasks(second.db)).boards.find((board) => board.id === 'b-gtd')).toMatchObject({ name: 'Life', labelStyle: 'lines' })
+  })
+
+  it('starts as names and refuses a style it does not know', async () => {
+    const env = await setup()
+    const first = await phone(env)
+    await createTaskBoard(first.db, { name: 'GTD', icon: '', position: 1024, hideDone: false, archivedAt: null }, NOW, 'b-gtd')
+    await first.sync()
+    const saved = (await localTasks(first.db)).boards.find((board) => board.id === 'b-gtd')
+    expect(saved?.labelStyle).toBe('names')
+    const payload = { name: 'GTD', icon: '', position: 1024, hideDone: false, labelStyle: 'stripes', archivedAt: null }
+    const result = await over<OperationResponse>(env, '/v1/operations', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ operations: [{
+        ...operation({ operationId: 'op-style', entityId: 'b-gtd', expectedRevision: saved?.revision ?? 1 }),
+        command: { entity: 'taskBoard', type: 'update', payload }
+      }] })
+    })
+    expect(result.ok).toBe(false)
+  })
+})
+
 describe('a column style', () => {
   it('syncs a color, emoji, and outline, and keeps them when a build without them saves the list', async () => {
     const env = await setup()

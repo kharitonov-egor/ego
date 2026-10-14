@@ -5,7 +5,7 @@ import {
   type LucideIcon
 } from 'lucide-react'
 import type { TaskAgentRun, TaskCardRecord, TaskLabelRecord } from '@ego/api-contracts'
-import { TASK_PRIORITY_LABELS, type TaskLabelColor, type TaskPriority } from '@ego/core'
+import { TASK_PRIORITY_LABELS, type TaskLabelColor, type TaskLabelStyle, type TaskPriority } from '@ego/core'
 import { agentChip, type AgentChip, type AgentTone } from '@ego/local/tasks/agent'
 import { cardBadges, coverOf, type DueBadge } from '@ego/local/tasks/board'
 import { mediaUrl } from '../../lib/platform'
@@ -58,6 +58,13 @@ export function LabelChip({ label, size = 'small' }: { label: TaskLabelRecord; s
     <span className="shrink-0" style={{ width: look.dot, height: look.dot, borderRadius: 5, backgroundColor: tint, marginRight: look.gap }} />
     <Blurred><span className={cn('truncate font-semibold text-surface-200', look.text)}>{label.name}</span></Blurred>
   </span>
+}
+
+/** A label as a bare color line, a third of the card wide. Hovering it names the label unless Blur is on. */
+function LabelLine({ label }: { label: TaskLabelRecord }): React.ReactElement {
+  const { blurred } = useBlur()
+  const name = !blurred && label.name ? label.name : `${LABEL_COLOR_NAMES[label.color]} label`
+  return <span role="img" aria-label={name} title={name} className="h-1.5 rounded-full" style={{ backgroundColor: LABEL_COLORS[label.color] }} />
 }
 
 const PRIORITY_BARS: Record<TaskPriority, number> = { none: 0, low: 1, medium: 2, high: 3, urgent: 4 }
@@ -193,10 +200,11 @@ export function AgentStatusChip({ chip }: { chip: AgentChip }): React.ReactEleme
  * Jarvis's status from `agentRun`.
  */
 export const CardFace = memo(function CardFace({
-  card, labels, now, upload, onToggleDone, lifted = false, title, synced = false, inAgentList = false, agentRun
+  card, labels, labelStyle = 'names', now, upload, onToggleDone, lifted = false, title, synced = false, inAgentList = false, agentRun
 }: {
   card: TaskCardRecord
   labels: readonly TaskLabelRecord[]
+  labelStyle?: TaskLabelStyle
   now: Date
   upload?: 'sending' | 'failed'
   onToggleDone?: () => void
@@ -216,9 +224,9 @@ export const CardFace = memo(function CardFace({
   return <div className={cn('overflow-hidden rounded-xl border', lifted ? 'border-surface-500 bg-surface-800' : 'border-surface-800 bg-card')}>
     {cover && !blurred && <TaskImage mediaId={cover.mediaId} version={imageVersion(card, upload)} className="w-full bg-popover" style={{ height: coverHeight }} />}
     <div className="px-3 py-2.5">
-      {shown.length > 0 && <div className="mb-1.5 flex flex-wrap gap-1">
-        {shown.map((label) => <LabelChip key={label.id} label={label} />)}
-      </div>}
+      {shown.length > 0 && (labelStyle === 'lines'
+        ? <div className="mb-1.5 grid grid-cols-3 gap-1">{shown.map((label) => <LabelLine key={label.id} label={label} />)}</div>
+        : <div className="mb-1.5 flex flex-wrap gap-1">{shown.map((label) => <LabelChip key={label.id} label={label} />)}</div>)}
       <div className="flex items-start">
         {onToggleDone && <button
           type="button"

@@ -277,8 +277,8 @@ export function taskBoardRecordFrom(
   id: string, input: TaskBoardInput, createdAt: string, updatedAt: string, revision: number
 ): TaskBoardRecord {
   return {
-    id, ...input, name: input.name.trim(), icon: input.icon.trim(), moveDone: input.moveDone ?? false, createdAt, updatedAt,
-    revision
+    id, ...input, name: input.name.trim(), icon: input.icon.trim(), moveDone: input.moveDone ?? false,
+    labelStyle: input.labelStyle ?? 'names', createdAt, updatedAt, revision
   }
 }
 

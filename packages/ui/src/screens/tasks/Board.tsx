@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import {
   Activity, Archive, ArchiveRestore, ArrowRight, Bot, Briefcase, Ellipsis, Eye, EyeOff, Focus, GraduationCap, Inbox, LayoutGrid, ListChecks, ListFilter,
-  Palette, Pencil, Plus, Tag, Trash2, X
+  Minus, Palette, Pencil, Plus, Tag, Trash2, X
 } from 'lucide-react'
 import type { TaskListRecord } from '@ego/api-contracts'
 import type { HotkeyActionId } from '@ego/core'
@@ -250,6 +250,7 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
       lists={lists}
       cards={cards.get(focusList.id) ?? []}
       labels={labels}
+      labelStyle={board.labelStyle}
       now={tasks.now}
       uploads={data.uploads}
       linked={trelloWork.linked}
@@ -265,6 +266,7 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
       lists={lists}
       cards={cards}
       labels={labels}
+      labelStyle={board.labelStyle}
       now={tasks.now}
       uploads={data.uploads}
       onOpenCard={openCard}
@@ -296,6 +298,12 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
           onPress: () => void tasks.updateBoard(board.id, { hideDone: !board.hideDone })
         },
         { label: 'Move done cards to Done', Icon: ListChecks, checked: board.moveDone, onPress: toggleMoveDone },
+        {
+          label: 'Show labels as color lines',
+          Icon: Minus,
+          checked: board.labelStyle === 'lines',
+          onPress: () => void tasks.updateBoard(board.id, { labelStyle: board.labelStyle === 'lines' ? 'names' : 'lines' })
+        },
         { label: 'Activity', Icon: Activity, onPress: () => navigate(activityPath(board.id)) },
         { label: 'Archived items', Icon: ArchiveRestore, onPress: () => navigate(archivePath(board.id)) },
         board.archivedAt === null

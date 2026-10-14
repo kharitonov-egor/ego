@@ -1,17 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import type { TaskBoardRecord, TaskCardRecord, TaskListRecord } from '@ego/api-contracts'
+import { writeRecord } from '../src/database/writes'
 import {
   NO_FILTER, cardInput, carryLabels, columnHex, doneList, doneMove, dueBadge, focusListOf, hexWithAlpha, homeBoardId, inboxCardInput,
   inboxList, listCardMoves, marksDone, matchesFilter, placeAt, upcomingSections
 } from '../src/tasks/board'
 import { parseInline, parseMarkdown, prefixLines, toggleTaskLine, wrapSelection } from '../src/tasks/markdown'
 import { cardIdFromNotification, taskNotificationPlan } from '../src/tasks/reminders'
-import type { TaskData } from '../src/tasks/repository'
+import { localTasks, type TaskData } from '../src/tasks/repository'
+import { openTestLedger } from './local-db'
 
 const STAMP = '2026-09-01T00:00:00.000Z'
 
 const board = (overrides: Partial<TaskBoardRecord> = {}): TaskBoardRecord => ({
-  id: 'b-1', name: 'Life', icon: '', position: 1024, hideDone: false, moveDone: false, archivedAt: null,
+  id: 'b-1', name: 'Life', icon: '', position: 1024, hideDone: false, moveDone: false, labelStyle: 'names', archivedAt: null,
   createdAt: STAMP, updatedAt: STAMP, revision: 1, ...overrides
 })
 
@@ -293,5 +295,17 @@ describe('column looks and focus mode', () => {
     expect(focusListOf(lists, null)?.id).toBe('inbox')
     expect(focusListOf([list({ id: 'only' })], null)?.id).toBe('only')
     expect(focusListOf([], null)).toBeNull()
+  })
+})
+
+describe('a board from before label styles', () => {
+  it('stores a pulled board without a style as names', async () => {
+    const db = await openTestLedger()
+    const legacy: Record<string, unknown> = { ...board({ id: 'b-old' }) }
+    delete legacy.labelStyle
+    const record: unknown = legacy
+    await writeRecord(db, { entity: 'taskBoard', record: record as TaskBoardRecord })
+    expect((await localTasks(db)).boards.find((item) => item.id === 'b-old')?.labelStyle).toBe('names')
+    await db.close()
   })
 })

@@ -1,7 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { ChevronDown, X } from 'lucide-react'
 import type { TaskAgentRun, TaskCardRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
-import { HOTKEY_ACTIONS, type HotkeyActionId } from '@ego/core'
+import { HOTKEY_ACTIONS, type HotkeyActionId, type TaskLabelStyle } from '@ego/core'
 import { Blurred } from '../../lib/blur'
 import { useHotkeys } from '../../lib/hotkeys'
 import { color } from '../../lib/tokens'
@@ -30,6 +30,7 @@ export interface FocusViewProps {
   /** The list's cards after the board's filters, in order. */
   cards: readonly TaskCardRecord[]
   labels: readonly TaskLabelRecord[]
+  labelStyle: TaskLabelStyle
   now: Date
   uploads: ReadonlyMap<string, 'sending' | 'failed'>
   linked?: ReadonlySet<string>
@@ -225,6 +226,7 @@ export function FocusView(props: FocusViewProps): React.ReactElement {
             <CardFace
               card={card}
               labels={props.labels}
+              labelStyle={props.labelStyle}
               now={props.now}
               upload={props.uploads.get(card.id)}
               synced={props.linked?.has(card.id)}

@@ -93,7 +93,7 @@ export function namesFor(data: TaskData): TaskNames {
 function boardInput(board: TaskBoardRecord): TaskBoardInput {
   return {
     name: board.name, icon: board.icon, position: board.position, hideDone: board.hideDone, moveDone: board.moveDone,
-    archivedAt: board.archivedAt
+    labelStyle: board.labelStyle, archivedAt: board.archivedAt
   }
 }
 
@@ -192,7 +192,8 @@ export function TasksProvider({ children }: { children: React.ReactNode }): Reac
     const at = new Date().toISOString()
     const id = newId()
     const board = {
-      name: name.trim(), icon: icon.trim(), position: endPosition(liveBoards(current)), hideDone: false, moveDone: false, archivedAt: null
+      name: name.trim(), icon: icon.trim(), position: endPosition(liveBoards(current)), hideDone: false, moveDone: false,
+      labelStyle: 'names', archivedAt: null
     } satisfies TaskBoardInput
     if (!isTaskBoardInput(board)) {
       setError('Give the board a name')
