@@ -1,8 +1,8 @@
 # Jarvis agent
 
 A card dragged into a Jarvis list in Tasks (any list of kind `agent`) reaches a T3 thread on
-Jarvis. The thread moves into its own worktree on a `jarvis/` branch from origin/main and works on
-the card up to a pull request. Egor decides what ships.
+Jarvis. T3 opens the thread in a new worktree, the thread renames its branch to the `jarvis/` name
+the Worker picked, and it works on the card up to a pull request. Egor decides what ships.
 
 The first part of this file is what that thread follows. The second part is how the pieces are set
 up. [apps/api/README.md](../apps/api/README.md#jarvis) covers the Worker side.
@@ -100,10 +100,15 @@ Link: {{body.link}}
 
 {{body.description}}
 
-Do two things in this turn and nothing else:
 1. Rename this thread to "Jarvis: {{body.title}}" with t3_thread_update.
-2. Call t3_worktree_handoff with branch "{{body.branch}}", baseRef "main", startFromOrigin true, and continuationPrompt "Work on Ego card {{body.cardId}}. Follow docs/jarvis-agent.md, starting at The run, step 1."
+2. Run `git rev-parse --show-toplevel`.
+   - If it prints the project's own checkout, ~/git/ego, call t3_worktree_handoff with branch "{{body.branch}}", baseRef "main", startFromOrigin true, and continuationPrompt "Work on Ego card {{body.cardId}}. Follow docs/jarvis-agent.md, starting at The run, step 1." Then end the turn. Change nothing in ~/git/ego.
+   - Otherwise T3 already gave you a new worktree. Run `git branch -m "{{body.branch}}" && git fetch -q origin && git merge -q --ff-only origin/main`. The jarvis/ name matters: Jarvis's guard hook only checks branches that start with it. Then work on Ego card {{body.cardId}}, following docs/jarvis-agent.md from The run, step 1.
 ```
+
+T3 opens each webhook run in a new worktree on a `t3/` branch, so a run normally takes the second
+path. The first is there in case a run starts in the project checkout. To change the prompt later,
+ask a thread in Jarvis's `ego` project to call `update_scheduled_task` on the "Jarvis list" task.
 
 A new worktree gets hardlinked `node_modules` only while its lockfile matches the one in Jarvis's
 `~/git/ego`. After a dependency change lands, fast-forward that checkout and run
