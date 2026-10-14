@@ -1,16 +1,17 @@
 import React, { memo, useState } from 'react'
-import { ActivityIndicator, Pressable, Text, View } from 'react-native'
+import { ActivityIndicator, Alert, Linking, Pressable, Text, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Image } from 'expo-image'
 import {
-  AlignLeft, CircleCheck, Circle, Clock, CloudUpload, Paperclip, SquareCheckBig, SquareKanban, TriangleAlert, X,
+  AlignLeft, Bot, CircleCheck, Circle, Clock, CloudUpload, Paperclip, SquareCheckBig, SquareKanban, TriangleAlert, X,
   type LucideIcon
 } from 'lucide-react-native'
-import type { TaskCardRecord, TaskLabelRecord } from '@ego/api-contracts'
+import type { TaskAgentRun, TaskCardRecord, TaskLabelRecord } from '@ego/api-contracts'
 import { TASK_PRIORITY_LABELS, type TaskLabelColor, type TaskPriority } from '@ego/core'
 import { useLedger } from '../../lib/ledger-context'
 import { BlurBlob, Blurred, useBlur } from '../../lib/blur'
 import { mediaSource } from '../../lib/diary/media'
+import { agentChip, type AgentChip, type AgentTone } from '@ego/local/tasks/agent'
 import { cardBadges, coverOf, type DueBadge } from '@ego/local/tasks/board'
 import { useTasks } from '../../lib/tasks/context'
 import { ConflictEntries } from '../ConflictEntries'
@@ -96,13 +97,40 @@ function Badge({ Icon, text }: { Icon: LucideIcon; text?: string }): React.React
 }
 
 /** A card as a column shows it. `onToggleDone` draws the round done button before the title. */
-export const CardFace = memo(function CardFace({ card, labels, now, upload, onToggleDone, lifted = false }: {
+const AGENT_TONES: Record<AgentTone, { background: string; text: string }> = {
+  muted: { background: 'rgba(250, 250, 250, 0.08)', text: color.textMuted },
+  active: { background: 'rgba(56, 189, 248, 0.16)', text: '#7dd3fc' },
+  attention: { background: 'rgba(251, 191, 36, 0.16)', text: color.attention },
+  positive: { background: 'rgba(52, 211, 153, 0.16)', text: color.positive },
+  danger: { background: 'rgba(251, 113, 133, 0.16)', text: color.destructive }
+}
+
+/** Where Jarvis is with a card. A tap opens the pull request, or tells what the status means. */
+export function AgentStatusChip({ chip }: { chip: AgentChip }): React.ReactElement {
+  const tone = AGENT_TONES[chip.tone]
+  const url = chip.url
+  return <Pressable
+    accessibilityRole={url ? 'link' : 'button'}
+    accessibilityLabel={`Jarvis: ${chip.label}. ${chip.detail}`}
+    onPress={() => url ? void Linking.openURL(url).catch(() => undefined) : Alert.alert(`Jarvis: ${chip.label}`, chip.detail)}
+    hitSlop={6}
+    style={{ backgroundColor: tone.background }}
+    className="flex-row items-center rounded-md px-1.5 py-0.5 active:opacity-70"
+  >
+    <Bot color={tone.text} size={13} />
+    <Text style={{ color: tone.text }} className="ml-1 text-[12px] font-semibold">{chip.label}</Text>
+  </Pressable>
+}
+
+export const CardFace = memo(function CardFace({ card, labels, now, upload, onToggleDone, lifted = false, inAgentList = false, agentRun }: {
   card: TaskCardRecord
   labels: readonly TaskLabelRecord[]
   now: Date
   upload?: 'sending' | 'failed'
   onToggleDone?: () => void
   lifted?: boolean
+  inAgentList?: boolean
+  agentRun?: TaskAgentRun
 }): React.ReactElement {
   const { api } = useLedger()
   const { localFiles } = useTasks()
@@ -111,6 +139,7 @@ export const CardFace = memo(function CardFace({ card, labels, now, upload, onTo
   const cover = coverOf(card)
   const shown = card.labelIds.flatMap((id) => labels.filter((label) => label.id === id))
   const done = card.doneAt !== null
+  const agent = inAgentList ? agentChip(agentRun, done) : null
   const coverHeight = cover?.width && cover.height ? Math.min(160, Math.max(90, 280 * cover.height / cover.width)) : 120
   return <View className={`overflow-hidden rounded-xl border ${lifted ? 'border-surface-500 bg-surface-800' : 'border-surface-800 bg-card'}`}>
     {cover && !blurred && <Image
@@ -136,8 +165,9 @@ export const CardFace = memo(function CardFace({ card, labels, now, upload, onTo
           <Text className={`flex-1 text-[15px] leading-5 ${done ? 'text-surface-500' : 'text-surface-100'}`}>{card.title}</Text>
         </Blurred>
       </View>
-      {(card.priority !== 'none' || badges.due || badges.description || badges.checklist || badges.attachments > 0 || upload) &&
+      {(card.priority !== 'none' || badges.due || badges.description || badges.checklist || badges.attachments > 0 || upload || agent) &&
         <View className="mt-2 flex-row flex-wrap items-center gap-x-3 gap-y-1.5">
+          {agent && <AgentStatusChip chip={agent} />}
           <PriorityIcon priority={card.priority} />
           {badges.due && <DueChip due={badges.due} />}
           {badges.description && <Badge Icon={AlignLeft} />}

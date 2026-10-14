@@ -3,8 +3,8 @@ import {
   Animated, PanResponder, Pressable, ScrollView, Text, TextInput, Vibration, View, useWindowDimensions,
   type GestureResponderEvent, type LayoutChangeEvent
 } from 'react-native'
-import { Briefcase, Ellipsis, GraduationCap, Inbox, Plus, X } from 'lucide-react-native'
-import type { TaskCardRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
+import { Bot, Briefcase, Ellipsis, GraduationCap, Inbox, Plus, X } from 'lucide-react-native'
+import type { TaskAgentRun, TaskCardRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
 import { columnHex, hexWithAlpha } from '@ego/local/tasks/board'
 import { Blurred } from '../../lib/blur'
 import { color } from '../money/tokens'
@@ -53,6 +53,8 @@ export interface DragBoardProps {
   onListMenu: (list: TaskListRecord) => void
   onAddList: (name: string) => Promise<boolean>
   listExtras?: (list: TaskListRecord) => ListExtras | null
+  /** Jarvis's runs by card, for the status chip on cards in an agent list. */
+  agentRuns?: ReadonlyMap<string, TaskAgentRun>
 }
 
 function Placeholder({ height, width }: { height: number; width?: number }): React.ReactElement {
@@ -330,7 +332,8 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
     >
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${list.name}${list.kind === 'inbox' ? ', the Inbox' : usf ? ', with Canvas assignments' : list.kind === 'work' ? ', synced with work Trello' : ''}, ${all.length} cards. Hold to move the list.`}
+        accessibilityLabel={`${list.name}${list.kind === 'inbox' ? ', the Inbox' : usf ? ', with Canvas assignments'
+          : list.kind === 'work' ? ', synced with work Trello' : list.kind === 'agent' ? ', sent to Jarvis' : ''}, ${all.length} cards. Hold to move the list.`}
         onPress={() => props.onListMenu(list)}
         onLongPress={(event) => liftList(list, event)}
         onPressOut={releasedInPlace}
@@ -349,6 +352,7 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
             {list.kind === 'inbox' && <Inbox color={iconColor} size={17} style={{ marginRight: 8 }} />}
             {usf && <GraduationCap color={iconColor} size={18} style={{ marginRight: 8 }} />}
             {list.kind === 'work' && <Briefcase color={iconColor} size={17} style={{ marginRight: 8 }} />}
+            {list.kind === 'agent' && <Bot color={iconColor} size={17} style={{ marginRight: 8 }} />}
           </>}
         <Blurred tint="#fafafa"><Text numberOfLines={1} className="flex-1 text-[16px] font-bold text-surface-100">{list.name}</Text></Blurred>
         <Text className={`ml-2 text-[14px] font-semibold ${hex ? 'text-surface-300' : 'text-surface-500'}`}>{all.length}</Text>
@@ -390,7 +394,15 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
             onPressOut={releasedInPlace}
             delayLongPress={300}
           >
-            <CardFace card={item} labels={labels} now={now} upload={uploads.get(item.id)} onToggleDone={() => props.onToggleDone(item.id)} />
+            <CardFace
+              card={item}
+              labels={labels}
+              now={now}
+              upload={uploads.get(item.id)}
+              inAgentList={list.kind === 'agent'}
+              agentRun={props.agentRuns?.get(item.id)}
+              onToggleDone={() => props.onToggleDone(item.id)}
+            />
           </Pressable>)}
         {extras?.bottom}
       </ScrollView>

@@ -38,6 +38,12 @@ export interface Env {
   /** The work Trello account, which the Work list mirrors. The token needs read and write. */
   TRELLO_WORK_API_KEY?: string
   TRELLO_WORK_TOKEN?: string
+  /** The webhook of the T3 scheduled task on Jarvis that opens a thread for each card in an agent list. */
+  T3_AGENT_WEBHOOK_URL?: string
+  /** Signs each webhook body with HMAC-SHA256. T3 holds the same secret and rejects anything unsigned. */
+  T3_AGENT_WEBHOOK_SECRET?: string
+  /** The bearer Jarvis sends to read its cards and report on them, and nothing else. */
+  TASKS_AGENT_TOKEN?: string
   /** The Canvas calendar feed link. Anyone holding it can read the calendar. */
   CANVAS_CALENDAR_URL?: string
   /** The secret given to `eas webhook:create`. EAS signs each build report with it. */

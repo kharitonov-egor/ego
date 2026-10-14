@@ -1,6 +1,7 @@
 import { contentRoute } from './content'
 import { telegramRoute } from './telegram'
 import { syncTrelloWorkAfterWrites, trelloWorkRoute } from './trello-work'
+import { readTaskAgentRuns, runTaskAgent, taskAgentRoute } from './task-agent'
 import { PREVIEW_PATH, previewBase, renderContentPreviews, servePreview } from './content-previews'
 import {
   API_VERSION, HTTP_STATUS, MAX_CHANGE_PAGE_SIZE, decodeCursor, invalid, isOperationRequest,
@@ -119,6 +120,8 @@ export async function handle(request: Request, env: Env, work?: Pick<ExecutionCo
   if (request.method === 'POST' && path === '/v1/telegram/webhook') return telegramRoute(request, env, new Date().toISOString())
   const docket = docketRoute(request, env, path, new Date().toISOString())
   if (docket) return docket
+  const agent = taskAgentRoute(request, env, path, new Date().toISOString(), work)
+  if (agent) return agent
 
   const device = await authorize(request, env.DB)
   if (!device.ok) return failure(device.error)
@@ -150,6 +153,7 @@ export async function handle(request: Request, env: Env, work?: Pick<ExecutionCo
     return trelloAddAttachment(request, env, decodeURIComponent(path.slice('/v1/trello/cards/'.length, -'/attachments'.length)))
   }
   if (request.method === 'POST' && path === '/v1/tasks/work/sync') return trelloWorkRoute(request, env)
+  if (request.method === 'GET' && path === '/v1/tasks/agent/runs') return ok(await readTaskAgentRuns(env.DB))
   if (path.startsWith('/v1/settings/')) {
     return respond(await settingsRoute(request, env.DB, decodeURIComponent(path.slice('/v1/settings/'.length))))
   }
@@ -221,6 +225,7 @@ export async function handle(request: Request, env: Env, work?: Pick<ExecutionCo
     const response = await operationsRequest(env.DB, request, now)
     work?.waitUntil(renderContentPreviews(env, previewBase(env, request), 1).catch(() => undefined))
     work?.waitUntil(syncTrelloWorkAfterWrites(env, now).catch(() => undefined))
+    work?.waitUntil(runTaskAgent(env).catch(() => undefined))
     return response
   }
   return failure({ code: 'NOT_FOUND', message: 'That endpoint does not exist' })

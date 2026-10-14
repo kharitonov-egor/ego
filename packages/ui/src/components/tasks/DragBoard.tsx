@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useRef, useState } from 'react'
 import { Ellipsis, Plus, X } from 'lucide-react'
-import type { TaskCardRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
+import type { TaskAgentRun, TaskCardRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
 import { Blurred } from '../../lib/blur'
 import { columnAt, dropIndex, edgeScroll, usePointerDrag } from '../../lib/tasks/drag'
 import { color } from '../../lib/tokens'
@@ -61,6 +61,8 @@ export interface DragBoardProps {
   onHoverCard?: (cardId: string | null, element: HTMLElement | null) => void
   /** Cards that sync with the work Trello board, which get a small Trello mark. */
   linked?: ReadonlySet<string>
+  /** Jarvis's runs by card, for the status chip on cards in an agent list. */
+  agentRuns?: ReadonlyMap<string, TaskAgentRun>
 }
 
 function Placeholder({ height, width }: { height: number; width?: number }): React.ReactElement {
@@ -250,7 +252,8 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
     const items: Array<TaskCardRecord | 'placeholder'> = [...shown]
     if (drag?.kind === 'card' && hover?.listId === list.id) items.splice(Math.min(hover.index, items.length), 0, 'placeholder')
     const extras = props.listExtras?.(list) ?? null
-    const kindName = list.kind === 'inbox' ? ', the Inbox' : list.kind === 'usf' ? ', with Canvas assignments' : list.kind === 'work' ? ', synced with work Trello' : ''
+    const kindName = list.kind === 'inbox' ? ', the Inbox' : list.kind === 'usf' ? ', with Canvas assignments'
+      : list.kind === 'work' ? ', synced with work Trello' : list.kind === 'agent' ? ', sent to Jarvis' : ''
     return <section
       key={list.id}
       data-column
@@ -317,6 +320,8 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
               now={now}
               upload={uploads.get(item.id)}
               synced={props.linked?.has(item.id)}
+              inAgentList={list.kind === 'agent'}
+              agentRun={props.agentRuns?.get(item.id)}
               onToggleDone={() => props.onToggleDone(item.id)}
             />
           </div>)}

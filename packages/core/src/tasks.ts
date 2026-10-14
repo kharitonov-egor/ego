@@ -12,9 +12,10 @@ export type TaskLabelColor = typeof TASK_LABEL_COLORS[number]
 /**
  * A regular list holds cards. The Inbox is where quick add and the inbox endpoint drop new cards,
  * and its board is the one Tasks opens on. A USF list also shows the Canvas assignments. A Work list
- * mirrors the active lists of the work Trello board, both ways.
+ * mirrors the active lists of the work Trello board, both ways. An agent list hands each card to a
+ * T3 thread on Jarvis, which works on it up to a pull request.
  */
-export const TASK_LIST_KINDS = ['cards', 'inbox', 'usf', 'work'] as const
+export const TASK_LIST_KINDS = ['cards', 'inbox', 'usf', 'work', 'agent'] as const
 export type TaskListKind = typeof TASK_LIST_KINDS[number]
 
 /** A column's color is one of the label colors or any `#rrggbb`. */

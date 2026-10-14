@@ -34,6 +34,10 @@ and the docket pages under `/docket/` check a cookie instead.
 | `POST /v1/trello/cards/:id/attachments` | Forwards one file up to 10 MB to a card |
 | `POST /v1/telegram/webhook` | Turns a message to the Telegram bot into an Inbox card. Telegram calls it with the webhook secret |
 | `POST /v1/tasks/work/sync` | Syncs the Work list with the work Trello board and says whether anything changed in Ego |
+| `GET /v1/tasks/agent/runs` | Where Jarvis is with each card in an agent list |
+| `GET /v1/tasks/agent/cards/:id` | Jarvis only (`TASKS_AGENT_TOKEN`): one card in an agent list, with label names, its link, and its run |
+| `GET /v1/tasks/agent/cards/:id/media/:mediaId` | Jarvis only: a file attached to that card |
+| `POST /v1/tasks/agent/cards/:id/report` | Jarvis only: `working`, `asking`, `pr` with `prUrl`, or `failed`, plus an optional `note` |
 | `GET /v1/health/data` | Google Health rows in D1 that changed after `since`, plus the connection state |
 | `POST /v1/health/sync` | Pulls from Google Health unless a pull just ran, then answers like `/v1/health/data` |
 | `POST /v1/health/connect` | Starts Google OAuth with the read-only Google Health scopes |
@@ -251,6 +255,23 @@ A sync runs when a board holding the Work list opens, after a device's write tou
 twice. A request that finds the lock taken asks the running sync to go once more. Trello's due
 times are read on the time zone the last device sent. Migration `0029_trello_work.sql` adds both
 tables and lets `task_lists.kind` hold `work`.
+
+## Jarvis
+
+A list of kind `agent` hands each open card to a T3 thread on Jarvis, which works on it up to a pull
+request. [docs/jarvis-agent.md](../../docs/jarvis-agent.md) is what that thread follows and how the
+T3 side is set up.
+
+`task_agent_runs` holds one row per card in an agent list. After a device's writes and on the
+15-minute cron, the Worker drops rows whose card left, queues cards that arrived, and calls a run
+failed when Jarvis has not reported for 3 hours. While fewer than two runs are `sent` or `working`,
+it posts the oldest queued card to `T3_AGENT_WEBHOOK_URL`, signed with HMAC-SHA256 of the body in
+`X-Ego-Signature: sha256=<hex>` using `T3_AGENT_WEBHOOK_SECRET`. A failed post goes back in the
+queue and fails the run after five tries. Dragging a card out and back in starts a new run.
+
+Jarvis reads the card and reports back with `TASKS_AGENT_TOKEN` through `scripts/jarvis-card.mjs`.
+That token reaches only cards with a run. Migration `0034_task_agent.sql` adds the table and lets
+`task_lists.kind` hold `agent`.
 
 ## Telegram inbox
 

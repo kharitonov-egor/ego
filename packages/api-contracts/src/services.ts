@@ -19,6 +19,23 @@ export interface TrelloWorkSyncResult {
   linked?: string[]
 }
 
+/**
+ * Where Jarvis is with a card in an agent list. `queued` waits for a free slot, `sent` waits for the
+ * T3 thread to start, and `asking` waits for an answer in that thread.
+ */
+export const TASK_AGENT_STATUSES = ['queued', 'sent', 'working', 'asking', 'pr', 'failed'] as const
+export type TaskAgentStatus = typeof TASK_AGENT_STATUSES[number]
+
+export interface TaskAgentRun {
+  cardId: string
+  status: TaskAgentStatus
+  branch: string
+  prUrl: string | null
+  /** Jarvis's last word on the card, such as what it asked or why it stopped. */
+  note: string | null
+  updatedAt: string
+}
+
 /** Settings every device shares. Each key has its own shape, checked by the Worker. */
 export const SHARED_SETTING_KEYS = ['hotkeys', 'resolve-runs'] as const
 export type SharedSettingKey = typeof SHARED_SETTING_KEYS[number]

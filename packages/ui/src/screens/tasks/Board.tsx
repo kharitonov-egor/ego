@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router'
 import {
-  Activity, Archive, ArchiveRestore, ArrowRight, Briefcase, Ellipsis, Eye, EyeOff, Focus, GraduationCap, Inbox, LayoutGrid, ListChecks, ListFilter,
+  Activity, Archive, ArchiveRestore, ArrowRight, Bot, Briefcase, Ellipsis, Eye, EyeOff, Focus, GraduationCap, Inbox, LayoutGrid, ListChecks, ListFilter,
   Palette, Pencil, Plus, Tag, Trash2, X
 } from 'lucide-react'
 import type { TaskListRecord } from '@ego/api-contracts'
@@ -24,6 +24,7 @@ import { Button, IconButton } from '../../components/ui/button'
 import { ConfirmDialog, hasOpenLayer } from '../../components/ui/dialog'
 import { useHotkeys } from '../../lib/hotkeys'
 import { StudyProvider } from '../../lib/study/context'
+import { useAgentRuns } from '../../lib/tasks/agent-runs'
 import { useTasks } from '../../lib/tasks/context'
 import { useTrelloWork } from '../../lib/tasks/trello-work'
 import { color } from '../../lib/tokens'
@@ -61,6 +62,7 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
   const [renaming, setRenaming] = useState<TaskListRecord | null>(null)
   const [addingTop, setAddingTop] = useState<TaskListRecord | null>(null)
   const [deletingList, setDeletingList] = useState<TaskListRecord | null>(null)
+  const [handingOver, setHandingOver] = useState<TaskListRecord | null>(null)
   const [movingCards, setMovingCards] = useState<TaskListRecord | null>(null)
   const [archiving, setArchiving] = useState(false)
   const [usfFilter, setUsfFilter] = useState<UsfFilter>(NO_USF_FILTER)
@@ -79,6 +81,10 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
   const labels = useMemo(() => data ? boardLabels(data, boardId) : [], [boardId, data])
   const hasUsf = lists.some((list) => list.kind === 'usf')
   const trelloWork = useTrelloWork(lists.some((list) => list.kind === 'work'))
+  const agentCardIds = useMemo(() => data
+    ? lists.filter((list) => list.kind === 'agent').flatMap((list) => listCards(data, list.id).map((card) => card.id))
+    : [], [data, lists])
+  const agentRuns = useAgentRuns(agentCardIds)
   const cards = useMemo(() => {
     const shown = new Map<string, ReturnType<typeof listCards>>()
     if (!data || !board) return shown
@@ -111,8 +117,16 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
       : { label: 'Show Canvas assignments here', Icon: GraduationCap, onPress: () => void tasks.setListKind(list.id, 'usf') },
     list.kind === 'work'
       ? { label: 'Stop syncing with work Trello', Icon: Briefcase, onPress: () => void tasks.setListKind(list.id, 'cards') }
-      : { label: 'Sync with work Trello', Icon: Briefcase, onPress: () => void tasks.setListKind(list.id, 'work') }
+      : { label: 'Sync with work Trello', Icon: Briefcase, onPress: () => void tasks.setListKind(list.id, 'work') },
+    list.kind === 'agent'
+      ? { label: 'Stop sending cards to Jarvis', Icon: Bot, onPress: () => void tasks.setListKind(list.id, 'cards') }
+      : { label: 'Send cards to Jarvis', Icon: Bot, onPress: () => sendToJarvis(list) }
   ]
+  /** Every open card in the list becomes a run, so a list that has some asks first. */
+  const sendToJarvis = (list: TaskListRecord): void => {
+    if (data && listCards(data, list.id).some((card) => card.doneAt === null)) setHandingOver(list)
+    else void tasks.setListKind(list.id, 'agent')
+  }
   const matching = useMemo(() => [...cards.values()].reduce((total, list) => total + list.length, 0), [cards])
 
   const panelCardId = params.get('card')
@@ -239,6 +253,7 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
       now={tasks.now}
       uploads={data.uploads}
       linked={trelloWork.linked}
+      agentRuns={agentRuns}
       onPickList={(listId) => setFocus(listId)}
       onExit={() => setFocus(null)}
       onOpenCard={openCard}
@@ -262,6 +277,7 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
       onAddList={async (name) => (await tasks.createList(boardId, name)) !== null}
       listExtras={listExtras}
       linked={trelloWork.linked}
+      agentRuns={agentRuns}
       onHoverCard={(cardId, element) => { hovered.current = cardId ? { id: cardId, element } : null }}
     />}</MaybeStudy>
     {quick && <QuickEdit target={quick} onOpen={openCard} onClose={closeQuick} />}
@@ -360,6 +376,17 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
       onConfirm={() => {
         if (deletingList) void tasks.deleteList(deletingList.id)
         setDeletingList(null)
+      }}
+    />
+    <ConfirmDialog
+      visible={handingOver !== null}
+      title="Send this list to Jarvis?"
+      detail={`Jarvis starts on every open card in ${handingOver?.name ?? 'this list'}, two at a time, and opens a pull request for each one it can fix.`}
+      confirmLabel="Send"
+      onCancel={() => setHandingOver(null)}
+      onConfirm={() => {
+        if (handingOver) void tasks.setListKind(handingOver.id, 'agent')
+        setHandingOver(null)
       }}
     />
     <ConfirmDialog

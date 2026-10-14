@@ -1,5 +1,5 @@
 import React from 'react'
-import { Briefcase, GraduationCap, Inbox, type LucideIcon } from 'lucide-react'
+import { Bot, Briefcase, GraduationCap, Inbox, type LucideIcon } from 'lucide-react'
 import type { TaskListRecord } from '@ego/api-contracts'
 import type { TaskListColor, TaskListKind } from '@ego/core'
 import { columnHex, hexWithAlpha } from '@ego/local/tasks/board'
@@ -11,7 +11,7 @@ import { LABEL_COLORS } from './ui'
 export const COLUMN_HEADER = 52
 const TINT = 0.24
 
-const KIND_ICONS: Partial<Record<TaskListKind, LucideIcon>> = { inbox: Inbox, usf: GraduationCap, work: Briefcase }
+const KIND_ICONS: Partial<Record<TaskListKind, LucideIcon>> = { inbox: Inbox, usf: GraduationCap, work: Briefcase, agent: Bot }
 
 export function listHex(list: Pick<TaskListRecord, 'color'>): string | null {
   return columnHex(list.color, LABEL_COLORS)

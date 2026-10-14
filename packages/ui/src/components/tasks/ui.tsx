@@ -1,11 +1,12 @@
 import React, { memo, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import {
-  AlignLeft, CircleCheck, Circle, Clock, CloudUpload, Paperclip, SquareCheckBig, SquareKanban, TriangleAlert, X,
+  AlignLeft, Bot, CircleCheck, Circle, Clock, CloudUpload, Paperclip, SquareCheckBig, SquareKanban, TriangleAlert, X,
   type LucideIcon
 } from 'lucide-react'
-import type { TaskCardRecord, TaskLabelRecord } from '@ego/api-contracts'
+import type { TaskAgentRun, TaskCardRecord, TaskLabelRecord } from '@ego/api-contracts'
 import { TASK_PRIORITY_LABELS, type TaskLabelColor, type TaskPriority } from '@ego/core'
+import { agentChip, type AgentChip, type AgentTone } from '@ego/local/tasks/agent'
 import { cardBadges, coverOf, type DueBadge } from '@ego/local/tasks/board'
 import { mediaUrl } from '../../lib/platform'
 import { BlurBlob, Blurred, useBlur } from '../../lib/blur'
@@ -149,11 +150,51 @@ export function TrelloMark({ size = 13 }: { size?: number }): React.ReactElement
   </svg>
 }
 
+const AGENT_TONES: Record<AgentTone, { background: string; text: string }> = {
+  muted: { background: 'rgba(250, 250, 250, 0.08)', text: color.textMuted },
+  active: { background: 'rgba(56, 189, 248, 0.16)', text: '#7dd3fc' },
+  attention: { background: 'rgba(251, 191, 36, 0.16)', text: color.attention },
+  positive: { background: 'rgba(52, 211, 153, 0.16)', text: color.positive },
+  danger: { background: 'rgba(251, 113, 133, 0.16)', text: color.destructive }
+}
+
+/** Where Jarvis is with a card. The pull request chip opens it; the card under it keeps the press away. */
+export function AgentStatusChip({ chip }: { chip: AgentChip }): React.ReactElement {
+  const tone = AGENT_TONES[chip.tone]
+  const className = 'inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5'
+  const body = <>
+    <Bot color={tone.text} size={13} />
+    <span className="ml-1 text-[12px] font-semibold">{chip.label}</span>
+  </>
+  const url = chip.url
+  if (!url) {
+    return <span role="img" title={chip.detail} aria-label={`Jarvis: ${chip.label}. ${chip.detail}`} className={className} style={{ backgroundColor: tone.background, color: tone.text }}>
+      {body}
+    </span>
+  }
+  return <button
+    type="button"
+    title={`${chip.detail}. Opens ${url}`}
+    aria-label={`Jarvis: ${chip.label}. Open the pull request`}
+    onPointerDown={(event) => event.stopPropagation()}
+    onKeyDown={(event) => event.stopPropagation()}
+    onClick={(event) => {
+      event.stopPropagation()
+      void window.api.openExternalUrl(url).catch(() => undefined)
+    }}
+    className={cn(className, 'hover:brightness-125')}
+    style={{ backgroundColor: tone.background, color: tone.text }}
+  >{body}</button>
+}
+
 /**
  * A card as a column shows it. `onToggleDone` draws the round done button before the title, and
- * `title` replaces the title, as the quick editor's text box does.
+ * `title` replaces the title, as the quick editor's text box does. A card in an agent list shows
+ * Jarvis's status from `agentRun`.
  */
-export const CardFace = memo(function CardFace({ card, labels, now, upload, onToggleDone, lifted = false, title, synced = false }: {
+export const CardFace = memo(function CardFace({
+  card, labels, now, upload, onToggleDone, lifted = false, title, synced = false, inAgentList = false, agentRun
+}: {
   card: TaskCardRecord
   labels: readonly TaskLabelRecord[]
   now: Date
@@ -162,12 +203,15 @@ export const CardFace = memo(function CardFace({ card, labels, now, upload, onTo
   lifted?: boolean
   title?: React.ReactNode
   synced?: boolean
+  inAgentList?: boolean
+  agentRun?: TaskAgentRun
 }): React.ReactElement {
   const { blurred } = useBlur()
   const badges = cardBadges(card, now)
   const cover = coverOf(card)
   const shown = card.labelIds.flatMap((id) => labels.filter((label) => label.id === id))
   const done = card.doneAt !== null
+  const agent = inAgentList ? agentChip(agentRun, done) : null
   const coverHeight = cover?.width && cover.height ? Math.min(160, Math.max(90, 280 * cover.height / cover.width)) : 120
   return <div className={cn('overflow-hidden rounded-xl border', lifted ? 'border-surface-500 bg-surface-800' : 'border-surface-800 bg-card')}>
     {cover && !blurred && <TaskImage mediaId={cover.mediaId} version={imageVersion(card, upload)} className="w-full bg-popover" style={{ height: coverHeight }} />}
@@ -193,8 +237,9 @@ export const CardFace = memo(function CardFace({ card, labels, now, upload, onTo
           <span className={cn('min-w-0 flex-1 break-words text-[15px] leading-5', done ? 'text-surface-500' : 'text-surface-100')}>{card.title}</span>
         </Blurred>}
       </div>
-      {(card.priority !== 'none' || badges.due || badges.description || badges.checklist || badges.attachments > 0 || upload || synced) &&
+      {(card.priority !== 'none' || badges.due || badges.description || badges.checklist || badges.attachments > 0 || upload || synced || agent) &&
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          {agent && <AgentStatusChip chip={agent} />}
           <PriorityIcon priority={card.priority} />
           {badges.due && <DueChip due={badges.due} />}
           {badges.description && <Badge Icon={AlignLeft} />}
