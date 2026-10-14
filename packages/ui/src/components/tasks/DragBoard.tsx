@@ -72,6 +72,7 @@ function Placeholder({ height, width }: { height: number; width?: number }): Rea
 }
 
 const COMPOSER_INPUT = 'min-h-12 w-full rounded-xl border border-transparent bg-card px-3 text-[16px] text-foreground outline-none focus:border-surface-600'
+const COMPOSER_TITLE = `${COMPOSER_INPUT} block resize-none py-[11px] leading-6 [field-sizing:content]`
 const COMPOSER_ADD = 'min-h-11 flex-1 rounded-xl bg-primary text-[15px] font-semibold text-primary-foreground hover:bg-primary/90 active:opacity-80'
 const COMPOSER_CLOSE = 'flex h-11 w-11 items-center justify-center rounded-xl hover:bg-surface-800'
 
@@ -332,9 +333,9 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
       </div>
       {adding === list.id
         ? <div className="shrink-0 px-2 pb-2">
-          <input
+          <textarea
             value={draft}
-            onChange={(event) => setDraft(event.target.value)}
+            onChange={(event) => setDraft(event.target.value.replace(/\n/g, ' '))}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
                 event.preventDefault()
@@ -347,8 +348,9 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
             placeholder="Card title"
             aria-label="Card title"
             autoFocus
+            rows={1}
             maxLength={500}
-            className={COMPOSER_INPUT}
+            className={COMPOSER_TITLE}
           />
           <div className="mt-2 flex items-center gap-2">
             <button type="button" onClick={() => void submitCard(list.id)} className={COMPOSER_ADD}>Add card</button>
