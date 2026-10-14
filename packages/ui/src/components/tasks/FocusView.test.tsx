@@ -29,7 +29,7 @@ let handlers: Pick<FocusViewProps, 'onExit' | 'onOpenCard' | 'onCurrent' | 'onTo
 
 function view(shown: readonly TaskCardRecord[]): React.ReactElement {
   return <BlurProvider>
-    <FocusView list={inbox} lists={[inbox]} cards={shown} labels={[]} now={new Date(2026, 9, 10, 8)} uploads={new Map()} {...handlers} />
+    <FocusView list={inbox} lists={[inbox]} cards={shown} labels={[]} labelStyle="names" now={new Date(2026, 9, 10, 8)} uploads={new Map()} {...handlers} />
   </BlurProvider>
 }
 

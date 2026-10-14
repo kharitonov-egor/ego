@@ -18,6 +18,10 @@ export type TaskLabelColor = typeof TASK_LABEL_COLORS[number]
 export const TASK_LIST_KINDS = ['cards', 'inbox', 'usf', 'work', 'agent'] as const
 export type TaskListKind = typeof TASK_LIST_KINDS[number]
 
+/** How a board's cards show their labels: a chip with a dot and the name, or a bare color line. */
+export const TASK_LABEL_STYLES = ['names', 'lines'] as const
+export type TaskLabelStyle = typeof TASK_LABEL_STYLES[number]
+
 /** A column's color is one of the label colors or any `#rrggbb`. */
 export type TaskListColor = TaskLabelColor | `#${string}`
 
@@ -55,11 +59,14 @@ export interface TaskBoardInput {
    * leave it out, and the server then keeps the value it has.
    */
   moveDone?: boolean
+  /** Builds from before label styles leave this out, and the server then keeps the style it has. */
+  labelStyle?: TaskLabelStyle
   archivedAt: string | null
 }
 
 export interface TaskBoard extends TaskBoardInput {
   moveDone: boolean
+  labelStyle: TaskLabelStyle
   id: string
   createdAt: string
   updatedAt: string
@@ -237,6 +244,10 @@ export function isTaskReminder(value: unknown): value is TaskReminder {
   return (TASK_REMINDERS as readonly unknown[]).includes(value)
 }
 
+export function isTaskLabelStyle(value: unknown): value is TaskLabelStyle {
+  return (TASK_LABEL_STYLES as readonly unknown[]).includes(value)
+}
+
 export function isTaskBoardInput(value: unknown): value is TaskBoardInput {
   return isRecord(value) &&
     isText(value.name, 1, TASK_NAME_LIMIT) &&
@@ -244,6 +255,7 @@ export function isTaskBoardInput(value: unknown): value is TaskBoardInput {
     isTaskPosition(value.position) &&
     typeof value.hideDone === 'boolean' &&
     (value.moveDone === undefined || typeof value.moveDone === 'boolean') &&
+    (value.labelStyle === undefined || isTaskLabelStyle(value.labelStyle)) &&
     isOptionalTimestamp(value.archivedAt)
 }
 

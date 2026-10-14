@@ -5,6 +5,7 @@ import {
 } from 'react-native'
 import { Bot, Briefcase, Ellipsis, GraduationCap, Inbox, Plus, X } from 'lucide-react-native'
 import type { TaskAgentRun, TaskCardRecord, TaskLabelRecord, TaskListRecord } from '@ego/api-contracts'
+import type { TaskLabelStyle } from '@ego/core'
 import { columnHex, hexWithAlpha } from '@ego/local/tasks/board'
 import { Blurred } from '../../lib/blur'
 import { color } from '../money/tokens'
@@ -43,6 +44,7 @@ export interface DragBoardProps {
   /** The cards each list shows, in order, after the board's filters. */
   cards: ReadonlyMap<string, readonly TaskCardRecord[]>
   labels: readonly TaskLabelRecord[]
+  labelStyle: TaskLabelStyle
   now: Date
   uploads: ReadonlyMap<string, 'sending' | 'failed'>
   onOpenCard: (cardId: string) => void
@@ -397,6 +399,7 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
             <CardFace
               card={item}
               labels={labels}
+              labelStyle={props.labelStyle}
               now={now}
               upload={uploads.get(item.id)}
               inAgentList={list.kind === 'agent'}
@@ -512,7 +515,7 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
       }}
     >
       {drag.kind === 'card'
-        ? <CardFace card={drag.card} labels={labels} now={now} lifted />
+        ? <CardFace card={drag.card} labels={labels} labelStyle={props.labelStyle} now={now} lifted />
         : <View className="rounded-2xl border border-surface-600 bg-surface-800 px-4 pb-3" style={{ minHeight: HEADER }}>
           <View style={{ height: HEADER }} className="flex-row items-center">
             <Text numberOfLines={1} className="flex-1 text-[16px] font-bold text-surface-100">{drag.list.name}</Text>

@@ -2,7 +2,7 @@ import React, { useLayoutEffect, useMemo, useState } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router'
 import {
-  Activity, Archive, ArchiveRestore, ArrowRight, Bot, Briefcase, Ellipsis, Eye, EyeOff, GraduationCap, Inbox, ListChecks, ListFilter, Pencil,
+  Activity, Archive, ArchiveRestore, ArrowRight, Bot, Briefcase, Ellipsis, Eye, EyeOff, GraduationCap, Inbox, ListChecks, ListFilter, Minus, Pencil,
   Plus, SquareKanban, Tag, Trash2, X
 } from 'lucide-react-native'
 import type { TaskListRecord } from '@ego/api-contracts'
@@ -151,6 +151,7 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
       lists={lists}
       cards={cards}
       labels={labels}
+      labelStyle={board.labelStyle}
       now={tasks.now}
       uploads={data.uploads}
       onOpenCard={(id) => router.push({ pathname: '/tasks/card/[id]', params: { id } })}
@@ -176,6 +177,12 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
           onPress: () => void tasks.updateBoard(board.id, { hideDone: !board.hideDone })
         },
         { label: 'Move done cards to Done', Icon: ListChecks, checked: board.moveDone, onPress: toggleMoveDone },
+        {
+          label: 'Show labels as color lines',
+          Icon: Minus,
+          checked: board.labelStyle === 'lines',
+          onPress: () => void tasks.updateBoard(board.id, { labelStyle: board.labelStyle === 'lines' ? 'names' : 'lines' })
+        },
         { label: 'Activity', Icon: Activity, onPress: () => router.push({ pathname: '/tasks/activity/[id]', params: { id: board.id } }) },
         { label: 'Archived items', Icon: ArchiveRestore, onPress: () => router.push({ pathname: '/tasks/archive/[id]', params: { id: board.id } }) },
         board.archivedAt === null

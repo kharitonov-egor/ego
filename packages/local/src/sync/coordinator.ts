@@ -85,9 +85,9 @@ interface SyncStateRow {
  * Version 10 brings each list's kind, which earlier builds dropped. Version 11 does the same for
  * each board's move-done setting, and version 12 for each list's color, emoji, and outline. Version 13
  * brings each food entry's saturated fat, fiber, and sodium and the targets for them, and version 14
- * each exercise's machine settings.
+ * each exercise's machine settings. Version 15 brings each board's label style.
  */
-export const BOOTSTRAP_VERSION = 14
+export const BOOTSTRAP_VERSION = 15
 
 async function syncStateRow(db: LocalDatabase): Promise<SyncStateRow> {
   const rows = await db.all<SyncStateRow>(
