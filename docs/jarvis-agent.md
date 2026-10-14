@@ -47,7 +47,8 @@ every device.
    `node scripts/jarvis-card.mjs report <card> pr --pr <url>`.
 8. Copilot reviews every pull request to main. Call `watch_pull_request`. When Copilot's review
    arrives, fix what it got right, push, and answer each comment in one line. Then call
-   `unwatch_pull_request` and end. One round only.
+   `unwatch_pull_request` and end. One round only. If Copilot comments that it could not review
+   (its monthly quota runs out), unwatch and end without waiting.
 
 If you get stuck, report `failed` with a one-line `--note` and explain here. If a report answers
 "That card is not in a Jarvis list", Egor took the card out. Stop.
