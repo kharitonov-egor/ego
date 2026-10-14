@@ -2,9 +2,9 @@ import React, { useState } from 'react'
 import { ActivityIndicator, Pressable, View } from 'react-native'
 import { useRouter } from 'expo-router'
 import { Image } from 'expo-image'
-import { Barcode, Refrigerator, TriangleAlert, UtensilsCrossed, X, type LucideIcon } from 'lucide-react-native'
+import { Barcode, Droplet, Plus, Refrigerator, TriangleAlert, UtensilsCrossed, X, type LucideIcon } from 'lucide-react-native'
 import {
-  formatCalories, formatGrams, formatNutrient, isOverLimit, nutrientReadings,
+  WATER_BOTTLE_ML, formatCalories, formatGrams, formatNutrient, formatWater, isOverLimit, isWaterEntry, nutrientReadings,
   type FoodEntryInput, type FoodGoalInput, type FoodMacros, type FoodPhoto, type NutrientReading
 } from '@ego/core'
 import { useBlur } from '../../lib/blur'
@@ -116,10 +116,10 @@ export function FoodPhotoView({ photo, uri, size = 'small', style }: {
   return <Image source={source} style={style} contentFit="cover" transition={120} recyclingKey={uri ?? id ?? undefined} accessibilityIgnoresInvertColors />
 }
 
-export function FoodThumb({ entry, size = 56 }: { entry: Pick<FoodEntryInput, 'photo' | 'source'>; size?: number }): React.ReactElement {
+export function FoodThumb({ entry, size = 56 }: { entry: Pick<FoodEntryInput, 'name' | 'photo' | 'source'>; size?: number }): React.ReactElement {
   const style = { width: size, height: size, borderRadius: 14 }
   if (entry.photo) return <FoodPhotoView photo={entry.photo} style={style} />
-  const Icon = entry.source === 'barcode' ? Barcode : UtensilsCrossed
+  const Icon = isWaterEntry(entry) ? Droplet : entry.source === 'barcode' ? Barcode : UtensilsCrossed
   return <View style={style} className="items-center justify-center bg-surface-900"><Icon color={color.textFaint} size={size * 0.4} /></View>
 }
 
@@ -162,14 +162,16 @@ function NutrientColumn({ reading }: { reading: NutrientReading }): React.ReactE
   </View>
 }
 
-/** A day's sodium, saturated fat, and fiber on one line, with a limit that was passed in the attention color. */
-export function DayNutrients({ totals, goal, className = '' }: {
+/** A day's sodium, saturated fat, fiber, and water on one line, with a limit that was passed in the attention color. */
+export function DayNutrients({ totals, goal, water = 0, className = '' }: {
   totals: FoodMacros
   goal: FoodGoalInput
+  /** Millilitres. */
+  water?: number
   className?: string
 }): React.ReactElement | null {
   const readings = nutrientReadings(totals, goal).filter((reading) => reading.value !== null)
-  if (readings.length === 0) return null
+  if (readings.length === 0 && water === 0) return null
   return <Text className={`text-[13px] text-muted-foreground ${className}`} style={tabular}>
     {readings.map((reading, index) => <React.Fragment key={reading.key}>
       {index > 0 && ' · '}
@@ -177,7 +179,29 @@ export function DayNutrients({ totals, goal, className = '' }: {
         {reading.label} {formatNutrient(reading.value, reading.unit)} {reading.unit}
       </Text>
     </React.Fragment>)}
+    {water > 0 && `${readings.length > 0 ? ' · ' : ''}Water ${formatWater(water)}`}
   </Text>
+}
+
+/** Today's water, and the button that logs one more bottle. */
+export function WaterRow({ millilitres, disabled, onAdd }: {
+  millilitres: number
+  /** A photo or a description is being read or waits on Try again, and a new card would throw it away. */
+  disabled: boolean
+  onAdd: () => void
+}): React.ReactElement {
+  return <View className="mt-3 flex-row items-center rounded-3xl border border-border bg-card py-3 pl-4 pr-3">
+    <Droplet color={color.textSecondary} size={20} />
+    <View className="ml-3 flex-1 flex-row items-baseline">
+      <Text className="text-[15px] font-semibold">Water</Text>
+      <Text numberOfLines={1} className="ml-2 flex-shrink text-[14px] text-muted-foreground" style={tabular}>
+        {millilitres > 0 ? `${formatWater(millilitres)} today` : 'None today'}
+      </Text>
+    </View>
+    <Button variant="secondary" size="sm" disabled={disabled} onPress={onAdd} accessibilityLabel={`Log ${WATER_BOTTLE_ML} ml of water`}>
+      <Plus color={color.text} size={16} /><Text>{WATER_BOTTLE_ML} ml</Text>
+    </Button>
+  </View>
 }
 
 /** Today against the daily targets. Tapping it opens the targets. */

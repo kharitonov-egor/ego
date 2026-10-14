@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
-  NO_FOOD_GOAL, analyzeFood, barcodeKey, caloriesFromMacros, carriesNutrients, estimateNutrients, foodDays, foodMediaIds,
-  formatNutrient, fridgeDraftFrom, isFoodEntryInput, isFoodGoalInput, isFridgeItemInput, isOverLimit, mealDraftFrom,
+  NO_FOOD_GOAL, analyzeFood, barcodeKey, caloriesFromMacros, carriesNutrients, dayWater, estimateNutrients, foodDays, foodMediaIds,
+  formatNutrient, formatWater, fridgeDraftFrom, isFoodEntryInput, isFoodGoalInput, isFridgeItemInput, isOverLimit, mealDraftFrom,
   mergeProducts, nutrientReadings, nutrientsOf, parseOpenFoodFacts, parseUsdaSearch, readableName, saturatedFatLimit,
-  scaleMacros, sumMacros, validateAssistantArguments,
+  scaleMacros, sumMacros, validateAssistantArguments, waterMillilitres,
   type FoodEntryInput
 } from '../src'
 
@@ -68,6 +68,23 @@ describe('food records', () => {
     expect(days[0].totals).toEqual({ calories: 800, protein: 12.3, carbs: 108, fat: 12, saturatedFat: 2.2, fiber: 16, sodium: 230 })
     expect(days[1].totals.calories).toBe(400)
     expect(sumMacros([])).toEqual({ calories: 0, protein: 0, carbs: 0, fat: 0, saturatedFat: 0, fiber: 0, sodium: 0 })
+  })
+
+  it('reads water from entries named Water and adds up a day of it', () => {
+    expect(waterMillilitres(entry({ name: 'Water', serving: '700 ml' }))).toBe(700)
+    expect(waterMillilitres(entry({ name: ' water ', serving: '1 glass (250 mL)' }))).toBe(250)
+    expect(waterMillilitres(entry({ name: 'Water', serving: '1.5 L' }))).toBe(1500)
+    expect(waterMillilitres(entry({ name: 'Water', serving: '1,000 ml' }))).toBe(1000)
+    expect(waterMillilitres(entry({ name: 'Water', serving: '0,5 l' }))).toBe(500)
+    expect(waterMillilitres(entry({ name: 'Water', serving: '.5 L' }))).toBe(500)
+    expect(waterMillilitres(entry({ name: 'Water', serving: '1 litre' }))).toBe(1000)
+    expect(waterMillilitres(entry({ name: 'Water', serving: '1.5 liters' }))).toBe(1500)
+    expect(waterMillilitres(entry({ name: 'Water', serving: '500 millilitres' }))).toBe(500)
+    expect(waterMillilitres(entry({ name: 'Water', serving: '1 large bottle' }))).toBe(0)
+    expect(waterMillilitres(entry({ name: 'Water', serving: '1 large glass' }))).toBe(0)
+    expect(waterMillilitres(entry({ name: 'Coconut water', serving: '330 ml' }))).toBe(0)
+    expect(dayWater([entry({ name: 'Water', serving: '700 ml' }), entry(), entry({ name: 'Water', serving: '700 ml' })])).toBe(1400)
+    expect([formatWater(700), formatWater(1400), formatWater(2000), formatWater(2450)]).toEqual(['700 ml', '1.4 L', '2 L', '2.5 L'])
   })
 
   it('adds up the numbers it knows and leaves a day unknown only when nothing was known', () => {

@@ -2,17 +2,17 @@ import React, { memo, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { ImagePlus, Plus, Target } from 'lucide-react'
 import type { FoodEntryRecord } from '@ego/api-contracts'
-import { NO_FOOD_GOAL, NO_MACROS, formatCalories, type FoodDay, type FoodEntryInput, type FoodGoalInput } from '@ego/core'
+import { NO_FOOD_GOAL, NO_MACROS, dayWater, formatCalories, type FoodDay, type FoodEntryInput, type FoodGoalInput } from '@ego/core'
 import { dayTitle, timeLabel } from '@ego/local/food/drafts'
 import { DraftCard } from '../../components/food/DraftCard'
 import { PhotoDropZone } from '../../components/food/PhotoDrop'
 import { AddSheet, BarcodeSheet, DescribeSheet, TargetsSheet, type AddChoice } from '../../components/food/sheets'
-import { DayNutrients, FoodError, FoodGate, FoodHeader, FoodThumb, TodayCard, macroText } from '../../components/food/ui'
+import { DayNutrients, FoodError, FoodGate, FoodHeader, FoodThumb, TodayCard, WaterRow, macroText } from '../../components/food/ui'
 import { Screen } from '../../components/screen'
 import { IconButton } from '../../components/ui/button'
 import { Checkbox } from '../../components/ui/checkbox'
 import { Blurred } from '../../lib/blur'
-import { useFood } from '../../lib/food/context'
+import { pendingRead, useFood } from '../../lib/food/context'
 import { chooseFoodPhoto, photoFromFile } from '../../lib/food/photo'
 import { color } from '../../lib/tokens'
 import { cn } from '../../lib/utils'
@@ -62,7 +62,7 @@ function DayHeader({ day, today, goal }: { day: FoodDay<FoodEntryRecord>; today:
       <h2 className="text-[15px] font-bold">{dayTitle(day.date, today)}</h2>
       <span className="tabular text-[13px] text-muted-foreground">{formatCalories(day.totals.calories)} kcal</span>
     </div>
-    <DayNutrients totals={day.totals} goal={goal} className="mt-0.5" />
+    <DayNutrients totals={day.totals} goal={goal} water={dayWater(day.entries)} className="mt-0.5" />
   </div>
 }
 
@@ -131,6 +131,10 @@ export default function FoodLog(): React.ReactElement {
           void food.logPhoto(chooseFoodPhoto, LABEL_HINT)
         }}
         onDescribe={() => setDescribing(true)}
+        onWater={() => {
+          leaveEditor()
+          void food.logWater()
+        }}
       />
     </FoodGate>
     <AddSheet visible={adding} mode="log" onPick={pick} onClose={() => setAdding(false)} />
@@ -151,7 +155,7 @@ export default function FoodLog(): React.ReactElement {
   </Screen>
 }
 
-function LogBody({ entryId, onDraftEdit, onTargets, onPhoto, onChoosePhoto, onLabelPhoto, onDescribe }: {
+function LogBody({ entryId, onDraftEdit, onTargets, onPhoto, onChoosePhoto, onLabelPhoto, onDescribe, onWater }: {
   entryId: string | null
   onDraftEdit: (entry: FoodEntryInput | null) => void
   onTargets: () => void
@@ -159,6 +163,7 @@ function LogBody({ entryId, onDraftEdit, onTargets, onPhoto, onChoosePhoto, onLa
   onChoosePhoto: () => void
   onLabelPhoto: () => void
   onDescribe: () => void
+  onWater: () => void
 }): React.ReactElement {
   const food = useFood()
   const navigate = useNavigate()
@@ -166,7 +171,8 @@ function LogBody({ entryId, onDraftEdit, onTargets, onPhoto, onChoosePhoto, onLa
   const scroller = useRef<HTMLDivElement>(null)
   const sentinel = useRef<HTMLDivElement>(null)
   const goal = food.data?.goal ?? NO_FOOD_GOAL
-  const todayTotals = food.days.find((day) => day.date === food.today)?.totals ?? NO_MACROS
+  const todayLog = food.days.find((day) => day.date === food.today)
+  const todayTotals = todayLog?.totals ?? NO_MACROS
   const draft = food.draft?.kind === 'meal' ? food.draft : null
   const editing = entryId !== null
   const days = food.days.slice(0, shown)
@@ -191,6 +197,7 @@ function LogBody({ entryId, onDraftEdit, onTargets, onPhoto, onChoosePhoto, onLa
         <div className="mx-auto w-full max-w-2xl px-6 pb-28 pt-5">
           <FoodError />
           <TodayCard totals={todayTotals} goal={goal} onPress={onTargets} />
+          <WaterRow millilitres={dayWater(todayLog?.entries ?? [])} disabled={pendingRead(food.draft)} onAdd={onWater} />
           <div className="mt-3">
             {draft && <DraftCard
               draft={draft}

@@ -4,16 +4,16 @@ import { useNavigation, useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Camera, Plus, Target } from 'lucide-react-native'
 import type { FoodEntryRecord } from '@ego/api-contracts'
-import { NO_FOOD_GOAL, NO_MACROS, formatCalories, type FoodDay, type FoodGoalInput } from '@ego/core'
+import { NO_FOOD_GOAL, NO_MACROS, dayWater, formatCalories, type FoodDay, type FoodGoalInput } from '@ego/core'
 import { DraftCard } from '../../../components/food/DraftCard'
 import { AddSheet, DescribeSheet, TargetsSheet, type AddChoice } from '../../../components/food/sheets'
-import { DayNutrients, FoodError, FoodGate, FoodHeaderRight, FoodThumb, TodayCard, macroText } from '../../../components/food/ui'
+import { DayNutrients, FoodError, FoodGate, FoodHeaderRight, FoodThumb, TodayCard, WaterRow, macroText } from '../../../components/food/ui'
 import { HeaderIcon } from '../../../components/gym/ui'
 import { color, tabular } from '../../../components/money/tokens'
 import { Checkbox } from '../../../components/ui/checkbox'
 import { Text } from '../../../components/ui/text'
 import { Blurred } from '../../../lib/blur'
-import { useFood } from '../../../lib/food/context'
+import { pendingRead, useFood } from '../../../lib/food/context'
 import { dayTitle, timeLabel } from '@ego/local/food/drafts'
 import { chooseFoodPhoto, takeFoodPhoto } from '../../../lib/food/photo'
 
@@ -56,7 +56,7 @@ function DayHeader({ section, today, goal }: { section: Section; today: string; 
       <Text accessibilityRole="header" className="text-[15px] font-bold">{dayTitle(section.date, today)}</Text>
       <Text className="text-[13px] text-muted-foreground" style={tabular}>{formatCalories(section.totals.calories)} kcal</Text>
     </View>
-    <DayNutrients totals={section.totals} goal={goal} className="mt-0.5" />
+    <DayNutrients totals={section.totals} goal={goal} water={dayWater(section.entries)} className="mt-0.5" />
   </View>
 }
 
@@ -74,7 +74,8 @@ function Log(): React.ReactElement {
   const [targets, setTargets] = useState(false)
   const goal = food.data?.goal ?? NO_FOOD_GOAL
   const sections = useMemo<Section[]>(() => food.days.map((day) => ({ ...day, data: day.entries })), [food.days])
-  const todayTotals = food.days.find((day) => day.date === food.today)?.totals ?? NO_MACROS
+  const todayLog = food.days.find((day) => day.date === food.today)
+  const todayTotals = todayLog?.totals ?? NO_MACROS
   const draft = food.draft?.kind === 'meal' ? food.draft : null
 
   React.useLayoutEffect(() => {
@@ -97,6 +98,7 @@ function Log(): React.ReactElement {
   const header = <View className="px-4 pt-4">
     <FoodError />
     <TodayCard totals={todayTotals} goal={goal} onPress={() => setTargets(true)} />
+    <WaterRow millilitres={dayWater(todayLog?.entries ?? [])} disabled={pendingRead(food.draft)} onAdd={() => void food.logWater()} />
     <View className="mt-3">
       {draft && <DraftCard
         draft={draft}

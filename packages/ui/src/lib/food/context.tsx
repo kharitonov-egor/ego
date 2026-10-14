@@ -9,7 +9,7 @@ import {
   createFridgeItem, deleteFoodEntry, deleteFridgeItem, newId, saveFoodEntry, saveFoodGoal
 } from '@ego/local/sync/commands'
 import {
-  cleanEntry, entryFromMeal, entryFromProduct, fridgeItemFromProduct, fridgeItemsFrom
+  cleanEntry, entryFromMeal, entryFromProduct, fridgeItemFromProduct, fridgeItemsFrom, waterEntry
 } from '@ego/local/food/drafts'
 import { failedFoodUploads, localFood, localFoodRevision, type FoodData } from '@ego/local/food/repository'
 import { deleteLocalFiles } from '../diary/media'
@@ -71,6 +71,8 @@ interface FoodContextValue {
   logPhoto: (pick: () => Promise<PhotoPick>, hint?: string) => Promise<void>
   logText: (text: string) => Promise<void>
   logBarcode: (barcode: string, photo: PreparedPhoto | null) => Promise<void>
+  /** One bottle of water, on the same countdown card as any other food. */
+  logWater: () => Promise<void>
   stockPhoto: (pick: () => Promise<PhotoPick>) => Promise<void>
   stockBarcode: (barcode: string) => Promise<void>
   stockByName: (name: string) => Promise<boolean>
@@ -95,6 +97,15 @@ function run(): Pick<DraftBase, 'key' | 'startedAt'> {
 
 function failed<T extends FoodDraft>(draft: T, message: string, unknownBarcode: string | null = null): T {
   return { ...draft, state: 'failed', message, unknownBarcode }
+}
+
+/**
+ * A read in progress, or a failed one that Try again can still run. Starting another card throws
+ * either away with its photo or words.
+ */
+export function pendingRead(draft: FoodDraft | null): boolean {
+  if (draft?.state === 'reading') return true
+  return draft?.state === 'failed' && (draft.photo !== null || (draft.kind === 'meal' && draft.hint !== ''))
 }
 
 export function FoodProvider({ children }: { children: React.ReactNode }): React.ReactElement {
@@ -249,6 +260,13 @@ export function FoodProvider({ children }: { children: React.ReactNode }): React
       return { ...current, state: 'ready', ...run(), entry: entryFromProduct(result.data.product, photo?.photo ?? null, new Date()) }
     })
   }, [api, begin, settle])
+
+  const logWater = useCallback(async (): Promise<void> => {
+    await begin({
+      kind: 'meal', ...run(), state: 'ready', message: null, paused: false, unknownBarcode: null,
+      entry: waterEntry(new Date()), photo: null, hint: ''
+    })
+  }, [begin])
 
   const readFridge = useCallback(async (photo: PreparedPhoto): Promise<void> => {
     const { key, startedAt } = run()
@@ -412,11 +430,11 @@ export function FoodProvider({ children }: { children: React.ReactNode }): React
   const value = useMemo<FoodContextValue>(() => ({
     enabled, data, days, today, failedUploads, retryUpload, picturesOn, setPicturesOn, draft, error,
     dismissError: () => setError(null),
-    logPhoto, logText, logBarcode, stockPhoto, stockBarcode, stockByName, saveDraft, undoDraft, retryDraft, pauseDraft,
+    logPhoto, logText, logBarcode, logWater, stockPhoto, stockBarcode, stockByName, saveDraft, undoDraft, retryDraft, pauseDraft,
     editDraftEntry, editDraftItems, saveEntry, removeEntry, removeFridgeItems, saveGoal
   }), [
     data, days, draft, editDraftEntry, editDraftItems, enabled, error, failedUploads, logBarcode, logPhoto, logText,
-    pauseDraft, retryUpload,
+    logWater, pauseDraft, retryUpload,
     picturesOn, removeEntry, removeFridgeItems, retryDraft, saveDraft, saveEntry, saveGoal, setPicturesOn, stockBarcode,
     stockByName, stockPhoto, today, undoDraft
   ])

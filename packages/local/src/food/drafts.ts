@@ -1,5 +1,5 @@
 import {
-  FOOD_NAME_LIMIT, FRIDGE_NAME_LIMIT, isFoodEntryInput,
+  FOOD_NAME_LIMIT, FRIDGE_NAME_LIMIT, NO_MACROS, WATER_BOTTLE_ML, WATER_NAME, isFoodEntryInput,
   type FoodEntryInput, type FoodMealDraft, type FoodPhoto, type FoodProduct, type FoodSource, type FridgeDraftItem,
   type FridgeItemInput, type FridgeSource
 } from '@ego/core'
@@ -15,6 +15,13 @@ export function entryFromMeal(meal: FoodMealDraft, source: FoodSource, photo: Fo
     name: meal.name, date: localDay(at), eatenAt: at.toISOString(), serving: meal.serving,
     calories: meal.calories, protein: meal.protein, carbs: meal.carbs, fat: meal.fat,
     saturatedFat: meal.saturatedFat, fiber: meal.fiber, sodium: meal.sodium, parts: meal.parts, source, barcode: null, photo, note: meal.note
+  }
+}
+
+export function waterEntry(at: Date): FoodEntryInput {
+  return {
+    name: WATER_NAME, date: localDay(at), eatenAt: at.toISOString(), serving: `${WATER_BOTTLE_ML} ml`,
+    ...NO_MACROS, parts: [], source: 'manual', barcode: null, photo: null, note: ''
   }
 }
 
