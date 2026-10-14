@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { hotkeyOf, hotkeyParts, isHotkeyBindings, isHotkeyCombo, resolvedHotkeys } from '../src/hotkeys'
+import { HOTKEY_ACTIONS, hotkeyOf, hotkeyParts, hotkeyPriority, isHotkeyBindings, isHotkeyCombo, resolvedHotkeys } from '../src/hotkeys'
 
 const press = (code: string, held: Partial<Record<'ctrlKey' | 'altKey' | 'shiftKey' | 'metaKey', boolean>> = {}) => ({
   code, ctrlKey: false, altKey: false, shiftKey: false, metaKey: false, ...held
@@ -27,6 +27,18 @@ describe('keyboard shortcuts', () => {
     expect(keys['card.label1']).toBe('Digit1')
     expect(keys['card.label2']).toBeNull()
     expect(keys['card.done']).toBe('Space')
+  })
+
+  it('gives each priority its own shortcut, Shift with 1 for urgent through 4 for low and 0 to clear', () => {
+    const keys = resolvedHotkeys({})
+    expect(keys['card.priority.urgent']).toBe('Shift+Digit1')
+    expect(keys['card.priority.low']).toBe('Shift+Digit4')
+    expect(keys['card.priority.none']).toBe('Shift+Digit0')
+    expect(hotkeyPriority('card.priority.high')).toBe('high')
+    expect(hotkeyPriority('card.priority.none')).toBe('none')
+    expect(hotkeyPriority('card.archive')).toBeNull()
+    const defaults = HOTKEY_ACTIONS.flatMap((action) => action.key ? [action.key] : [])
+    expect(new Set(defaults).size).toBe(defaults.length)
   })
 
   it('accepts saved shortcuts from a newer build and refuses malformed ones', () => {

@@ -5,7 +5,7 @@ import {
   Minus, Palette, Pencil, Plus, Tag, Trash2, X
 } from 'lucide-react'
 import type { TaskListRecord } from '@ego/api-contracts'
-import type { HotkeyActionId } from '@ego/core'
+import { hotkeyPriority, type HotkeyActionId } from '@ego/core'
 import {
   boardLabels, boardLists, doneList, focusListOf, homeBoardId, isFiltering, listCards, matchesFilter, NO_FILTER, type CardFilter
 } from '@ego/local/tasks/board'
@@ -160,7 +160,10 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
   }, [])
 
   const runAction = (action: HotkeyActionId, card: PointedCard): void => {
-    if (action === 'card.archive') {
+    const priority = hotkeyPriority(action)
+    if (priority !== null) {
+      void tasks.updateCard(card.id, (input) => ({ ...input, priority }))
+    } else if (action === 'card.archive') {
       if (hovered.current?.id === card.id) hovered.current = null
       void tasks.updateCard(card.id, (input) => ({ ...input, archivedAt: new Date().toISOString() }))
     } else if (action === 'card.labels') {
