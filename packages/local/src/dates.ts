@@ -1,4 +1,5 @@
-const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+/** Ego starts every week on Monday. Calendars, week strips, and week ranges all take their order from here. */
+const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 
 export { WEEKDAYS }
 
@@ -24,6 +25,15 @@ export function shiftIso(iso: string, days: number): string {
 export function parseIso(iso: string): Date {
   const [year, month, day] = iso.split('-').map(Number)
   return new Date(year, (month ?? 1) - 1, day ?? 1)
+}
+
+/** Monday is 0, Sunday is 6. */
+export function weekdayIndex(date: Date): number {
+  return (date.getDay() + 6) % 7
+}
+
+export function weekStartOf(iso: string): string {
+  return shiftIso(iso, -weekdayIndex(parseIso(iso)))
 }
 
 export function formatIso(iso: string, style: 'short' | 'long' = 'short'): string {
@@ -64,7 +74,7 @@ export function formatMonth(month: string, style: 'long' | 'short' = 'long'): st
 }
 
 export function monthGrid(year: number, month: number): (number | null)[][] {
-  const leading = new Date(year, month, 1).getDay()
+  const leading = weekdayIndex(new Date(year, month, 1))
   const days = new Date(year, month + 1, 0).getDate()
   const cells: (number | null)[] = [
     ...Array.from({ length: leading }, () => null),

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { ChevronRight } from 'lucide-react'
 import type { MoneyTransaction } from '@ego/core'
 import { heatLevels } from '@ego/local/cash-flow'
-import { WEEKDAYS, parseIso, shiftIso } from '@ego/local/dates'
+import { WEEKDAYS, parseIso, shiftIso, weekdayIndex } from '@ego/local/dates'
 import { daysBetween, type Span } from '@ego/local/periods'
 import { BlurSpan } from '../../lib/blur'
 import { cn } from '../../lib/utils'
@@ -13,7 +13,6 @@ import { money } from './Common'
 
 /** One hue, darker to brighter, on the card surface: a sequential scale, not five categories. */
 const SHADES = ['#1c1c1c', `${SERIES_COLOR.expense}40`, `${SERIES_COLOR.expense}73`, `${SERIES_COLOR.expense}b3`, SERIES_COLOR.expense]
-const MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0]
 const DAY_TITLE = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 
 interface Day {
@@ -49,7 +48,7 @@ export function SpendingCalendar({ month, transactions, today, onOpenDay }: {
   }, [month.from, month.to, transactions])
   const levels = useMemo(() => heatLevels(days.map((day) => day.cents)), [days])
 
-  const leading = (parseIso(month.from).getDay() + 6) % 7
+  const leading = weekdayIndex(parseIso(month.from))
   const cells: (number | null)[] = [...Array.from({ length: leading }, () => null), ...days.map((_, index) => index)]
   while (cells.length % 7 !== 0) cells.push(null)
   const weeks = Array.from({ length: cells.length / 7 }, (_, row) => cells.slice(row * 7, row * 7 + 7))
@@ -61,7 +60,7 @@ export function SpendingCalendar({ month, transactions, today, onOpenDay }: {
       <CardDescription>Brighter days cost more. Click one to see it.</CardDescription>
     </CardHeader>
     <CardContent className="pt-4">
-      <div className="grid grid-cols-7">{MONDAY_FIRST.map((weekday) => <span key={weekday} className="text-center text-[13px] font-medium text-muted-foreground">{WEEKDAYS[weekday]}</span>)}</div>
+      <div className="grid grid-cols-7">{WEEKDAYS.map((weekday, index) => <span key={index} className="text-center text-[13px] font-medium text-muted-foreground">{weekday}</span>)}</div>
       <div className="mt-1.5 flex flex-col gap-1.5">{weeks.map((week, row) => <div key={row} className="grid grid-cols-7 gap-1.5">{week.map((cell, column) => {
         if (cell === null) return <span key={column} className="aspect-square" />
         const day = days[cell]

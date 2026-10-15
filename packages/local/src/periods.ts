@@ -1,5 +1,5 @@
 import type { DateRange, PeriodPreset } from '@ego/core'
-import { WEEKDAYS, formatIso, isoFromParts, isoToday, parseIso, shiftIso } from './dates'
+import { WEEKDAYS, formatIso, isoFromParts, isoToday, parseIso, shiftIso, weekStartOf, weekdayIndex } from './dates'
 
 export const PERIOD_PRESETS: PeriodPreset[] = ['today', 'week', 'month', 'year', 'all', 'custom']
 
@@ -30,7 +30,7 @@ export function periodSpan(period: SteppedPeriod, anchor: string): Span {
   const month = date.getMonth()
   if (period === 'today') return { from: anchor, to: anchor }
   if (period === 'week') {
-    const from = shiftIso(anchor, -((date.getDay() + 6) % 7))
+    const from = weekStartOf(anchor)
     return { from, to: shiftIso(from, 6) }
   }
   if (period === 'month') return { from: isoFromParts(year, month, 1), to: isoOf(new Date(year, month + 1, 0)) }
@@ -202,7 +202,7 @@ export function chartBuckets(span: Span): ChartBucket[] {
     for (let index = 0; index < count; index += 1) {
       const day = shiftIso(span.from, index)
       const date = parseIso(day)
-      const tick = count <= 7 ? WEEKDAYS[date.getDay()]
+      const tick = count <= 7 ? WEEKDAYS[weekdayIndex(date)]
         : index % every === 0 ? (index === 0 || date.getDate() === 1 ? MONTH_DAY_FORMAT.format(date) : String(date.getDate())) : ''
       buckets.push({ key: day, from: day, to: day, tick, title: SHORT_DAY_FORMAT.format(date), drill: { period: 'today', anchor: day } })
     }

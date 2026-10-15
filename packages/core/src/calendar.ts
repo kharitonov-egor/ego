@@ -86,6 +86,8 @@ export type Weekday = 'MO' | 'TU' | 'WE' | 'TH' | 'FR' | 'SA' | 'SU'
 
 /** Sunday first, matching `Date.getDay()`. */
 export const WEEKDAY_CODES: readonly Weekday[] = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA']
+/** Monday first, the order Ego shows weekdays in. */
+export const WEEK_ORDER: readonly Weekday[] = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU']
 export const WEEKDAY_NAMES: Readonly<Record<Weekday, string>> = {
   MO: 'Monday', TU: 'Tuesday', WE: 'Wednesday', TH: 'Thursday', FR: 'Friday', SA: 'Saturday', SU: 'Sunday'
 }
@@ -189,7 +191,7 @@ export function formatRecurrenceRule(rule: RecurrenceRule): string {
 }
 
 function weekdayOrder(day: Weekday): number {
-  return (WEEKDAY_CODES.indexOf(day) + 6) % 7
+  return WEEK_ORDER.indexOf(day)
 }
 
 function dateParts(date: string): { year: number; month: number; day: number; weekday: Weekday } {

@@ -1,5 +1,5 @@
 import type { CalendarEvent } from '@ego/api-contracts'
-import { isoFromParts, parseIso, shiftIso } from '../dates'
+import { isoFromParts, parseIso, shiftIso, weekStartOf } from '../dates'
 
 export type CalendarView = 'day' | '3day' | 'week' | 'month' | 'schedule'
 
@@ -23,10 +23,7 @@ export function isCalendarView(value: unknown): value is CalendarView {
   return value === 'day' || value === '3day' || value === 'week' || value === 'month' || value === 'schedule'
 }
 
-/** Monday of the week holding `date`, as everywhere else in Ego. */
-export function weekStartOf(date: string): string {
-  return shiftIso(date, -((parseIso(date).getDay() + 6) % 7))
-}
+export { weekStartOf }
 
 export function monthStartOf(date: string): string {
   return `${date.slice(0, 7)}-01`
