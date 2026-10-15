@@ -324,7 +324,9 @@ Canvas sends deadlines in UTC. The phone places each one on its own calendar, so
 10:59 PM Eastern (02:59 UTC) shows on the evening it is due, not the next morning.
 
 Canvas misses things, so Study also takes assignments, exams, and deadlines added by hand: the Add
-button on the phone's Assignments tab, or the plus in the desktop header. Each has a title, an
+button on the phone's Assignments tab, the plus in the desktop header, or "Add an assignment or
+exam" at the foot of the Tasks USF column, which starts in the course its chips have picked (a
+plain card there comes from the list menu's "Add a card to the top"). Each has a title, an
 optional course (a typed code that matches a Canvas course takes its spelling), a day, an optional
 time, and notes. With no time an assignment or deadline is due at 11:59 PM, like Canvas's all-day
 items, and an exam takes the whole day. Exams and deadlines carry a tag on the row, and an exam reads

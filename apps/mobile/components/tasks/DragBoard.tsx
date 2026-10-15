@@ -37,6 +37,8 @@ export interface ListExtras {
   action?: React.ReactNode
   top?: React.ReactNode
   bottom?: React.ReactNode
+  /** Takes the place of "Add a card" at the foot of the list. */
+  add?: { label: string; onPress: () => void }
 }
 
 export interface DragBoardProps {
@@ -436,11 +438,18 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
         </View>
         : <Pressable
           accessibilityRole="button"
-          onPress={() => { setAdding(list.id); setDraft('') }}
+          onPress={() => {
+            if (extras?.add) {
+              extras.add.onPress()
+              return
+            }
+            setAdding(list.id)
+            setDraft('')
+          }}
           className="min-h-12 flex-row items-center rounded-b-2xl px-4 active:bg-surface-800"
         >
           <Plus color={color.textMuted} size={18} />
-          <Text className="ml-2 text-[15px] font-semibold text-surface-400">Add a card</Text>
+          <Text className="ml-2 text-[15px] font-semibold text-surface-400">{extras?.add?.label ?? 'Add a card'}</Text>
         </Pressable>}
     </View>
   }

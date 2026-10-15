@@ -1,14 +1,16 @@
 import React, { useCallback, useMemo, useState } from 'react'
 import { ActivityIndicator, Pressable, Text, View } from 'react-native'
 import { Circle, CircleCheck, Clock, CloudUpload, RefreshCw, TriangleAlert } from 'lucide-react-native'
+import type { StudyEntryRecord } from '@ego/api-contracts'
 import {
   courseKey, courseList, dayHeading, dueClock, dueDay, dueSentence, dueWithin, isDone, isOverdue, localDay, overdueCount, shortDay,
   studySections, type StudySection, type StudyView
 } from '@ego/local/study/schedule'
 import type { StudyItem } from '@ego/local/study/store'
-import { BottomSheet } from '../money/Common'
+import { BottomSheet, ConfirmDialog } from '../money/Common'
 import { color, tabular } from '../money/tokens'
 import { AssignmentDetail, KindTag, useCourseColors } from '../study/Assignment'
+import { StudyEntrySheet } from '../study/EntrySheet'
 import { Blurred } from '../../lib/blur'
 import { useStudy } from '../../lib/study/context'
 
@@ -18,6 +20,13 @@ export interface UsfFilter {
 }
 
 export const NO_USF_FILTER: UsfFilter = { course: null, view: 'upcoming' }
+
+/** An assignment, exam, or deadline open in the editor. A null entry is a new one. */
+export interface UsfEditing {
+  entry: StudyEntryRecord | null
+}
+
+export const USF_ADD_LABEL = 'Add an assignment or exam'
 
 /** A card of your own joins a course when one of its labels is named after the course code. */
 export function inCourse(labelNames: readonly string[], course: string): boolean {
@@ -155,16 +164,22 @@ function ColumnNote({ children }: { children: React.ReactNode }): React.ReactEle
 }
 
 /** The Canvas assignments, after the column's own cards, grouped by day the way Study groups them. */
-export function UsfAssignments({ filter, now }: { filter: UsfFilter; now: Date }): React.ReactElement {
+export function UsfAssignments({ filter, now, onEdit }: {
+  filter: UsfFilter
+  now: Date
+  onEdit: (entry: StudyEntryRecord) => void
+}): React.ReactElement {
   const study = useStudy()
   const tintOf = useCourseColors(study.items)
   const [openId, setOpenId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const { hideOverdue, setDone } = study
   const sections = useMemo(
     () => studySections(study.items, filter.view, now, { course: filter.course, hideOverdue }),
     [filter.course, filter.view, hideOverdue, now, study.items])
   const toggle = useCallback((id: string, done: boolean) => void setDone(id, done), [setDone])
   const open = study.items.find((item) => item.id === openId) ?? null
+  const deleting = study.items.find((item) => item.id === deletingId) ?? null
   const today = localDay(now)
   const heading = (section: StudySection): string => section.day === null ? 'Overdue' : dayHeading(section.day, today)
 
@@ -210,7 +225,51 @@ export function UsfAssignments({ filter, now }: { filter: UsfFilter; now: Date }
   return <>
     {body}
     <BottomSheet visible={open !== null} title={open?.title ?? ''} onClose={() => setOpenId(null)} dismissOnBackdrop privateTitle>
-      {open && <AssignmentDetail item={open} tint={tintOf(open.course)} overdue={isOverdue(open, now)} onToggle={(done) => void setDone(open.id, done)} />}
+      {open && <AssignmentDetail
+        item={open}
+        tint={tintOf(open.course)}
+        overdue={isOverdue(open, now)}
+        onToggle={(done) => void setDone(open.id, done)}
+        onEdit={() => {
+          if (!open.entry) return
+          setOpenId(null)
+          onEdit(open.entry)
+        }}
+        onDelete={() => {
+          setOpenId(null)
+          setDeletingId(open.id)
+        }}
+      />}
     </BottomSheet>
+    <ConfirmDialog
+      visible={deleting !== null}
+      title={`Delete this ${deleting?.kind ?? 'item'}?`}
+      detail={`"${deleting?.title ?? ''}" goes from Study on every device.`}
+      confirmLabel="Delete"
+      destructive
+      onCancel={() => setDeletingId(null)}
+      onConfirm={() => {
+        if (deleting) void study.deleteEntry(deleting.id)
+        setDeletingId(null)
+      }}
+    />
   </>
+}
+
+/** Adds to Study from the column, in the course its chips have picked, or edits one added before. */
+export function UsfEntrySheet({ editing, course, onClose }: {
+  editing: UsfEditing | null
+  course: string | null
+  onClose: () => void
+}): React.ReactElement {
+  const study = useStudy()
+  const courses = useMemo(() => courseList(study.items), [study.items])
+  return <StudyEntrySheet
+    visible={editing !== null}
+    entry={editing?.entry ?? null}
+    course={course ?? ''}
+    courses={courses}
+    onSave={(input) => study.saveEntry(editing?.entry?.id ?? null, input)}
+    onClose={onClose}
+  />
 }

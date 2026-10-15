@@ -17,8 +17,9 @@ function clockOf(instant: Date): string {
   return `${String(instant.getHours()).padStart(2, '0')}:${String(instant.getMinutes()).padStart(2, '0')}`
 }
 
-export function studyDraft(entry: StudyEntryRecord | null, today: string): StudyEntryDraft {
-  if (!entry) return { kind: 'assignment', title: '', course: '', date: today, time: null, notes: '' }
+/** `course` starts a new entry in that course. An entry being edited keeps its own. */
+export function studyDraft(entry: StudyEntryRecord | null, today: string, course = ''): StudyEntryDraft {
+  if (!entry) return { kind: 'assignment', title: '', course, date: today, time: null, notes: '' }
   const due = entry.due
   const at = due.kind === 'time' ? new Date(due.at) : null
   return {

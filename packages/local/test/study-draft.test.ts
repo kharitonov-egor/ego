@@ -13,6 +13,11 @@ describe('study entry drafts', () => {
     expect(studyDraft(null, '2026-10-14')).toEqual({ kind: 'assignment', title: '', course: '', date: '2026-10-14', time: null, notes: '' })
   })
 
+  it('starts a new entry in the course given, and an edit keeps its own course', () => {
+    expect(studyDraft(null, '2026-10-14', 'CDA4205L').course).toBe('CDA4205L')
+    expect(studyDraft(entry(), '2026-10-14', 'CDA4205L').course).toBe('COP4530')
+  })
+
   it('opens a timed entry on this device\'s clock and saves it back unchanged', () => {
     const draft = studyDraft(entry(), '2026-10-14')
     expect(draft).toMatchObject({ date: '2026-10-20', time: '14:30', course: 'COP4530' })

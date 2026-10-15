@@ -18,7 +18,9 @@ import { QuickEdit, type QuickEditTarget } from '../../components/tasks/QuickEdi
 import { ResolveBadge, ResolveMode } from '../../components/tasks/ResolveMode'
 import { BoardSheet, FilterSheet, LabelSheet, ListStyleSheet, MoveListSheet, TextSheet } from '../../components/tasks/sheets'
 import { MenuSheet, TasksError, TasksGate, TasksMessage, type MenuItem } from '../../components/tasks/ui'
-import { NO_USF_FILTER, UsfAssignments, UsfControls, UsfRefresh, inCourse, type UsfFilter } from '../../components/tasks/UsfColumn'
+import {
+  NO_USF_FILTER, USF_ADD_LABEL, UsfAssignments, UsfControls, UsfEntrySheet, UsfRefresh, inCourse, type UsfEditing, type UsfFilter
+} from '../../components/tasks/UsfColumn'
 import { WorkProblem, WorkRefresh } from '../../components/tasks/WorkColumn'
 import { Button, IconButton } from '../../components/ui/button'
 import { ConfirmDialog, hasOpenLayer } from '../../components/ui/dialog'
@@ -66,6 +68,7 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
   const [movingCards, setMovingCards] = useState<TaskListRecord | null>(null)
   const [archiving, setArchiving] = useState(false)
   const [usfFilter, setUsfFilter] = useState<UsfFilter>(NO_USF_FILTER)
+  const [usfEditing, setUsfEditing] = useState<UsfEditing | null>(null)
   const [styling, setStyling] = useState<TaskListRecord | null>(null)
   const [labelsFor, setLabelsFor] = useState<{ cardId: string; anchor: PickerAnchor } | null>(null)
   const hotkeys = useHotkeys()
@@ -102,7 +105,8 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
       return {
         action: <UsfRefresh />,
         top: <UsfControls filter={usfFilter} onChange={setUsfFilter} now={tasks.now} />,
-        bottom: <UsfAssignments filter={usfFilter} now={tasks.now} />
+        bottom: <UsfAssignments filter={usfFilter} now={tasks.now} onEdit={(entry) => setUsfEditing({ entry })} />,
+        add: { label: USF_ADD_LABEL, onPress: () => setUsfEditing({ entry: null }) }
       }
     }
     if (list.kind === 'work') {
@@ -284,7 +288,7 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
       linked={trelloWork.linked}
       agentRuns={agentRuns}
       onHoverCard={(cardId, element) => { hovered.current = cardId ? { id: cardId, element } : null }}
-    />}</MaybeStudy>
+    />}{hasUsf && <UsfEntrySheet editing={usfEditing} course={usfFilter.course} onClose={() => setUsfEditing(null)} />}</MaybeStudy>
     {quick && <QuickEdit target={quick} onOpen={openCard} onClose={closeQuick} />}
     {labelsFor && <LabelPicker cardId={labelsFor.cardId} anchor={labelsFor.anchor} onClose={() => setLabelsFor(null)} />}
     {panelCardId && <CardPanel cardId={panelCardId} onClose={closePanel} onOpenCard={switchCard} />}

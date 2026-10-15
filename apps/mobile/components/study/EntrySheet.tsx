@@ -24,15 +24,17 @@ const PLACEHOLDERS: Record<StudyEntryKind, string> = {
 }
 
 /** Adds an assignment, exam, or deadline beside Canvas's, or edits one added before. */
-export function StudyEntrySheet({ visible, entry, courses, onSave, onClose }: {
+export function StudyEntrySheet({ visible, entry, course = '', courses, onSave, onClose }: {
   visible: boolean
   /** Null adds a new one. */
   entry: StudyEntryRecord | null
+  /** The course a new one starts in. */
+  course?: string
   courses: readonly string[]
   onSave: (input: StudyEntryInput) => Promise<boolean>
   onClose: () => void
 }): React.ReactElement {
-  const [draft, setDraft] = useState<StudyEntryDraft>(() => studyDraft(entry, isoToday()))
+  const [draft, setDraft] = useState<StudyEntryDraft>(() => studyDraft(entry, isoToday(), course))
   const [timed, setTimed] = useState(draft.time !== null)
   const [clock, setClock] = useState<ClockDraft>(() => draftOf(draft.time))
   const [calendar, setCalendar] = useState(false)
@@ -40,13 +42,13 @@ export function StudyEntrySheet({ visible, entry, courses, onSave, onClose }: {
   const [failed, setFailed] = useState(false)
   useEffect(() => {
     if (!visible) return
-    const next = studyDraft(entry, isoToday())
+    const next = studyDraft(entry, isoToday(), course)
     setDraft(next)
     setTimed(next.time !== null)
     setClock(draftOf(next.time))
     setSaving(false)
     setFailed(false)
-  }, [entry, visible])
+  }, [course, entry, visible])
 
   const today = isoToday()
   const time = timed ? timeOf(clock) : null
