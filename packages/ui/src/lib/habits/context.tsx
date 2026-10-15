@@ -7,6 +7,7 @@ import { localHabitEntries, localHabits, localRevision } from '@ego/local/reposi
 import {
   createHabit, createHabitEntry, deleteHabit, deleteHabitEntry, newId, updateHabit
 } from '@ego/local/sync/commands'
+import { moveHabit } from '@ego/local/habits/order'
 import { buildLog, type HabitLog } from '@ego/local/habits/stats'
 import { useLedger, type LocalWrite } from '../ledger'
 import { useToday } from '../today'
@@ -34,7 +35,8 @@ interface HabitsContextValue {
   closeEditor: () => void
   save: (input: HabitInput, habit: HabitRecord | null) => Promise<boolean>
   remove: (habit: HabitRecord) => Promise<boolean>
-  move: (habit: HabitRecord, delta: -1 | 1) => Promise<boolean>
+  /** Puts a habit at `to` among the habits of its kind. */
+  move: (habit: HabitRecord, to: number) => Promise<boolean>
   /**
    * Adds a check-off. A habit done once a day, or a weekly one, toggles instead. A habit that has
    * met a larger daily target stays as it is.
@@ -194,24 +196,21 @@ export function HabitsProvider({ children }: { children: React.ReactNode }): Rea
     return saved
   }, [queued])
 
-  /** Renumbers the whole list, so two habits that share a position still end up in order. */
-  const move = useCallback(async (habit: HabitRecord, delta: -1 | 1): Promise<boolean> => {
-    const list = (habitsRef.current ?? []).filter((item) => item.kind === habit.kind)
-    const from = list.findIndex((item) => item.id === habit.id)
-    const to = from + delta
-    if (from < 0 || to < 0 || to >= list.length) return false
-    const order = [...list]
-    order.splice(to, 0, ...order.splice(from, 1))
-    const changed = order
-      .map((item, position) => ({ item, position }))
-      .filter(({ item, position }) => item.position !== position)
+  const move = useCallback(async (habit: HabitRecord, to: number): Promise<boolean> => {
+    const moved = moveHabit(habitsRef.current ?? [], habit.id, to)
+    if (!moved) return false
+    pending.current += 1
+    habitsRef.current = moved.habits
+    setHabits(moved.habits)
     const saved = await queued((database, now) => database.transaction(async (tx) => {
-      for (const { item, position } of changed) {
+      for (const item of moved.changed) {
         const revision = await localRevision(tx, 'habits', item.id)
-        if (revision !== null) await updateHabit(tx, item.id, revision, habitInput(item, { position }), now)
+        if (revision !== null) await updateHabit(tx, item.id, revision, habitInput(item), now)
       }
-    }))
+    })).catch(() => false)
+    pending.current -= 1
     if (!saved) setError('This computer could not reorder your habits')
+    if (pending.current === 0) setReloads((count) => count + 1)
     return saved
   }, [queued])
 

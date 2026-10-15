@@ -5,30 +5,53 @@ const GAP = 12
 const EDGE = 64
 const SCROLL_STEP = 12
 const DEFAULT_HEIGHT = 76
+const HOLD_DELAY = 300
+/** How far a held row moves before it counts as a drag rather than a hold. */
+const SLOP = 8
 
 interface Lifted {
   id: string
   fromIndex: number
   offsetY: number
+  x: number
+  y: number
 }
+
+/** Goes on the row's own Pressable when the list has no `onPress`. */
+export interface RowHold {
+  onLongPress: (event: GestureResponderEvent) => void
+  onPressOut: () => void
+  delayLongPress: number
+}
+
+const GHOST_HOLD: RowHold = { onLongPress: () => undefined, onPressOut: () => undefined, delayLongPress: HOLD_DELAY }
+
+type Press<T> =
+  | { onPress: (item: T) => void; label: (item: T) => string }
+  /** The rows bring their own Pressable and spread `hold` onto it. */
+  | { onPress?: undefined; label?: undefined }
 
 /**
  * A vertical list that reorders by holding a row and dragging it, the way boards are ordered. The
  * rows are measured as they lay out, so the drop index comes straight from the finger's height.
  */
-export function ReorderList<T extends { id: string }>({ items, renderItem, onPress, onMove, header, footer, label }: {
+export function ReorderList<T extends { id: string }>({
+  items, renderItem, onPress, onMove, onHold, header, footer, label, gap = GAP, radius = 24
+}: {
   items: readonly T[]
-  renderItem: (item: T, lifted: boolean) => React.ReactElement
-  onPress: (item: T) => void
+  renderItem: (item: T, lifted: boolean, hold: RowHold) => React.ReactElement
   onMove: (id: string, index: number) => void
+  /** A row was held and let go without being dragged. */
+  onHold?: (item: T) => void
   header?: React.ReactNode
   footer?: React.ReactNode
-  label: (item: T) => string
-}): React.ReactElement {
+  gap?: number
+  radius?: number
+} & Press<T>): React.ReactElement {
   const [lifted, setLifted] = useState<Lifted | null>(null)
   const [hover, setHover] = useState<number | null>(null)
-  const latest = useRef({ items, onMove })
-  latest.current = { items, onMove }
+  const latest = useRef({ items, onMove, onHold, gap })
+  latest.current = { items, onMove, onHold, gap }
   const liftedRef = useRef<Lifted | null>(null)
   const hoverRef = useRef<number | null>(null)
   const rootActive = useRef(false)
@@ -49,7 +72,7 @@ export function ReorderList<T extends { id: string }>({ items, renderItem, onPre
     let y = 0
     const rows = latest.current.items.filter((item) => item.id !== skip)
     for (let position = 0; position < index && position < rows.length; position += 1) {
-      y += (heights.current.get(rows[position].id) ?? DEFAULT_HEIGHT) + GAP
+      y += (heights.current.get(rows[position].id) ?? DEFAULT_HEIGHT) + latest.current.gap
     }
     return y
   }, [])
@@ -67,7 +90,7 @@ export function ReorderList<T extends { id: string }>({ items, renderItem, onPre
         index = position
         break
       }
-      top += height + GAP
+      top += height + latest.current.gap
     }
     if (hoverRef.current === index) return
     hoverRef.current = index
@@ -114,7 +137,10 @@ export function ReorderList<T extends { id: string }>({ items, renderItem, onPre
   }, [ghost, stop, updateHover])
 
   const responder = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponderCapture: () => liftedRef.current !== null,
+    onMoveShouldSetPanResponderCapture: (_event, gesture) => {
+      const current = liftedRef.current
+      return current !== null && Math.hypot(gesture.moveX - current.x, gesture.moveY - current.y) > SLOP
+    },
     onPanResponderGrant: () => { rootActive.current = true },
     onPanResponderMove: (_event, gesture) => move(gesture.moveY),
     onPanResponderRelease: finish,
@@ -125,26 +151,46 @@ export function ReorderList<T extends { id: string }>({ items, renderItem, onPre
 
   useEffect(() => stop, [stop])
 
-  const lift = (item: T, index: number, event: GestureResponderEvent): void => {
+  const lift = (item: T, event: GestureResponderEvent): void => {
+    const index = latest.current.items.findIndex((entry) => entry.id === item.id)
+    if (index < 0) return
+    const { pageX, pageY } = event.nativeEvent
     const top = viewport.current.top + rowsTop.current + rowTop(index, null) - scrollY.current
-    const next: Lifted = { id: item.id, fromIndex: index, offsetY: event.nativeEvent.pageY - top }
+    const next: Lifted = { id: item.id, fromIndex: index, offsetY: pageY - top, x: pageX, y: pageY }
     Vibration.vibrate(12)
     liftedRef.current = next
     hoverRef.current = index
-    pointerY.current = event.nativeEvent.pageY
+    pointerY.current = pageY
     ghost.setValue(top - root.current.y)
     setLifted(next)
     setHover(index)
   }
 
-  /** A long press that ends without moving never hands the touch to the list, so it ends here. */
+  /**
+   * A hold that ends without moving never hands the touch to the list, so it ends here. The lifted
+   * row stays mounted, hidden, because an unmounted Pressable drops its handlers and this would
+   * never run.
+   */
   const releasedInPlace = (): void => {
-    if (liftedRef.current && !rootActive.current) finish()
+    const current = liftedRef.current
+    if (!current || rootActive.current) return
+    const item = latest.current.items.find((entry) => entry.id === current.id)
+    finish()
+    if (item) latest.current.onHold?.(item)
   }
 
+  const holdFor = (item: T): RowHold => ({
+    onLongPress: (event) => lift(item, event),
+    onPressOut: releasedInPlace,
+    delayLongPress: HOLD_DELAY
+  })
+
   const liftedItem = lifted ? items.find((item) => item.id === lifted.id) : undefined
-  const rows: Array<T | 'placeholder'> = items.filter((item) => item.id !== lifted?.id)
-  if (lifted && hover !== null) rows.splice(Math.min(hover, rows.length), 0, 'placeholder')
+  const rows: Array<T | 'placeholder'> = [...items]
+  if (lifted && hover !== null) {
+    const before = items.filter((item) => item.id !== lifted.id)[hover]
+    rows.splice(before ? rows.indexOf(before) : rows.length, 0, 'placeholder')
+  }
 
   return <View
     ref={rootView}
@@ -172,20 +218,28 @@ export function ReorderList<T extends { id: string }>({ items, renderItem, onPre
         contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
       >
         {header}
-        <View onLayout={(event) => { rowsTop.current = event.nativeEvent.layout.y }} style={{ gap: GAP }}>
-          {rows.map((item) => item === 'placeholder'
-            ? <View key="placeholder" style={{ height: liftedItem ? heights.current.get(liftedItem.id) ?? DEFAULT_HEIGHT : DEFAULT_HEIGHT, borderRadius: 24, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#525252' }} />
-            : <Pressable
+        <View onLayout={(event) => { rowsTop.current = event.nativeEvent.layout.y }} style={{ gap }}>
+          {rows.map((item) => {
+            if (item === 'placeholder') {
+              return <View key="placeholder" style={{ height: liftedItem ? heights.current.get(liftedItem.id) ?? DEFAULT_HEIGHT : DEFAULT_HEIGHT, borderRadius: radius, borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#525252' }} />
+            }
+            const hold = holdFor(item)
+            return <View
               key={item.id}
-              accessibilityRole="button"
-              accessibilityLabel={label(item)}
-              accessibilityHint="Opens it. Hold to reorder."
-              onLayout={(event) => heights.current.set(item.id, event.nativeEvent.layout.height)}
-              onPress={() => { if (!liftedRef.current) onPress(item) }}
-              onLongPress={(event) => lift(item, items.findIndex((entry) => entry.id === item.id), event)}
-              onPressOut={releasedInPlace}
-              delayLongPress={300}
-            >{renderItem(item, false)}</Pressable>)}
+              style={item.id === lifted?.id ? { display: 'none' } : undefined}
+              onLayout={(event) => { if (liftedRef.current?.id !== item.id) heights.current.set(item.id, event.nativeEvent.layout.height) }}
+            >
+              {onPress
+                ? <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={label?.(item)}
+                  accessibilityHint="Opens it. Hold to reorder."
+                  onPress={() => { if (!liftedRef.current) onPress(item) }}
+                  {...hold}
+                >{renderItem(item, false, hold)}</Pressable>
+                : renderItem(item, false, hold)}
+            </View>
+          })}
         </View>
         {footer}
       </ScrollView>
@@ -196,6 +250,6 @@ export function ReorderList<T extends { id: string }>({ items, renderItem, onPre
         position: 'absolute', left: 16, right: 16, top: 0, transform: [{ translateY: ghost }, { rotate: '1.5deg' }],
         opacity: 0.95, elevation: 12, shadowColor: '#000', shadowOpacity: 0.5, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }
       }}
-    >{renderItem(liftedItem, true)}</Animated.View>}
+    >{renderItem(liftedItem, true, GHOST_HOLD)}</Animated.View>}
   </View>
 }

@@ -5,11 +5,13 @@ import type { HabitRecord } from '@ego/api-contracts'
 import { Ring } from '../../components/habits/Ring'
 import { HabitIcon, HabitsError, HabitsGate } from '../../components/habits/ui'
 import { WeekStrip } from '../../components/habits/WeekStrip'
+import { ReorderList, type RowHold } from '../../components/tasks/ReorderList'
 import { Button } from '../../components/ui/button'
 import { Text as UiText } from '../../components/ui/text'
 import { formatIso, parseIso, shiftIso } from '@ego/local/dates'
 import { useHabits } from '../../lib/habits/context'
 import { Blurred } from '../../lib/blur'
+import { shownIndexToAll } from '@ego/local/habits/order'
 import { dayScore, mondayOf, rowState, type RowState } from '@ego/local/habits/stats'
 
 function dayTitle(date: string, today: string): string {
@@ -49,10 +51,13 @@ function Mark({ habit, state }: { habit: HabitRecord; state: RowState }): React.
   </View>
 }
 
-function HabitRow({ habit, state, thisWeek, onTap, onTakeBack, onEdit }: {
+/** Holding lifts the row: drag it to reorder, or let go in place to take one back. */
+function HabitRow({ habit, state, thisWeek, lifted, hold, onTap, onTakeBack, onEdit }: {
   habit: HabitRecord
   state: RowState
   thisWeek: boolean
+  lifted: boolean
+  hold: RowHold
   onTap: () => void
   onTakeBack: () => void
   onEdit: () => void
@@ -68,9 +73,8 @@ function HabitRow({ habit, state, thisWeek, onTap, onTakeBack, onEdit }: {
     accessibilityActions={state.today > 0 ? [{ name: 'longpress', label: 'Take one back' }] : []}
     onAccessibilityAction={(event) => { if (event.nativeEvent.actionName === 'longpress') onTakeBack() }}
     onPress={onTap}
-    onLongPress={onTakeBack}
-    delayLongPress={350}
-    className="min-h-[68px] flex-row items-center rounded-2xl bg-card py-3 pl-3 pr-2 active:bg-surface-900"
+    {...hold}
+    className={`min-h-[68px] flex-row items-center rounded-2xl py-3 pl-3 pr-2 active:bg-surface-900 ${lifted ? 'bg-surface-900' : 'bg-card'}`}
   >
     <HabitIcon icon={habit.icon} />
     <View className="ml-3 flex-1">
@@ -97,7 +101,7 @@ function HomeBody(): React.ReactElement {
   const score = scoreFor(date)
   const share = score.total === 0 ? 0 : score.done / score.total
 
-  return <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
+  const summary = <>
     <HabitsError />
     <WeekStrip selected={date} today={today} scoreFor={scoreFor} onSelect={habits.setDate} />
     <View className="mt-5 flex-row items-end justify-between">
@@ -120,30 +124,47 @@ function HomeBody(): React.ReactElement {
     {date !== today && <Pressable accessibilityRole="button" onPress={() => habits.setDate(today)} hitSlop={10} className="mt-3 self-start">
       <Text className="text-[14px] font-semibold text-foreground underline">Back to today</Text>
     </Pressable>}
+  </>
 
-    {building.length === 0
-      ? <View className="mt-10 items-center px-6">
-        <View className="h-16 w-16 items-center justify-center rounded-full bg-surface-900"><ListChecks color="#a3a3a3" size={30} /></View>
-        <Text className="mt-4 text-center text-[20px] font-semibold text-surface-100">No habits yet</Text>
-        <Text className="mt-2 text-center text-[16px] leading-6 text-surface-400">Add the things you want to do every day. Tap one to check it off.</Text>
-        <Button className="mt-5" onPress={() => habits.openEditor({ kind: 'build', habit: null })}>
-          <Plus color="#0a0a0a" size={18} /><UiText>Add a habit</UiText>
-        </Button>
-      </View>
-      : <View className="mt-5 gap-2">
-        {due.length === 0 && <Text className="py-6 text-center text-[15px] text-muted-foreground">None of your habits had started on this day.</Text>}
-        {due.map((habit) => <HabitRow
-          key={habit.id}
-          habit={habit}
-          state={rowState(habit, log, date)}
-          thisWeek={mondayOf(date) === mondayOf(today)}
-          onTap={() => void habits.tap(habit, date)}
-          onTakeBack={() => void habits.takeBack(habit, date)}
-          onEdit={() => habits.openEditor({ kind: 'build', habit })}
-        />)}
-        <Text className="mt-3 text-center text-[13px] text-surface-500">Tap to check off. Hold to take one back.</Text>
-      </View>}
-  </ScrollView>
+  if (due.length === 0) {
+    return <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
+      {summary}
+      {building.length === 0
+        ? <View className="mt-10 items-center px-6">
+          <View className="h-16 w-16 items-center justify-center rounded-full bg-surface-900"><ListChecks color="#a3a3a3" size={30} /></View>
+          <Text className="mt-4 text-center text-[20px] font-semibold text-surface-100">No habits yet</Text>
+          <Text className="mt-2 text-center text-[16px] leading-6 text-surface-400">Add the things you want to do every day. Tap one to check it off.</Text>
+          <Button className="mt-5" onPress={() => habits.openEditor({ kind: 'build', habit: null })}>
+            <Plus color="#0a0a0a" size={18} /><UiText>Add a habit</UiText>
+          </Button>
+        </View>
+        : <Text className="mt-5 py-6 text-center text-[15px] text-muted-foreground">None of your habits had started on this day.</Text>}
+    </ScrollView>
+  }
+
+  const thisWeek = mondayOf(date) === mondayOf(today)
+  return <ReorderList
+    items={due}
+    gap={8}
+    radius={16}
+    onMove={(id, index) => {
+      const habit = due.find((item) => item.id === id)
+      if (habit) void habits.move(habit, shownIndexToAll(building, due, id, index))
+    }}
+    onHold={(habit) => void habits.takeBack(habit, date)}
+    renderItem={(habit, lifted, hold) => <HabitRow
+      habit={habit}
+      state={rowState(habit, log, date)}
+      thisWeek={thisWeek}
+      lifted={lifted}
+      hold={hold}
+      onTap={() => void habits.tap(habit, date)}
+      onTakeBack={() => void habits.takeBack(habit, date)}
+      onEdit={() => habits.openEditor({ kind: 'build', habit })}
+    />}
+    header={<View className="mb-5">{summary}</View>}
+    footer={<Text className="mt-5 text-center text-[13px] text-surface-500">Tap to check off. Hold to take one back, or hold and drag to reorder.</Text>}
+  />
 }
 
 export default function HabitsHome(): React.ReactElement {

@@ -1,5 +1,6 @@
 import React, { useLayoutEffect, useRef, useState } from 'react'
 import { dropIndex, edgeScroll, usePointerDrag } from '../../lib/tasks/drag'
+import { cn } from '../../lib/utils'
 import { DraggingCursor } from './ui'
 
 const GAP = 12
@@ -15,21 +16,28 @@ interface Lifted {
   width: number
 }
 
+type Press<T> =
+  | { onPress: (item: T) => void; label: (item: T) => string }
+  /** The rows bring their own buttons, and the list only handles dragging. */
+  | { onPress?: undefined; label?: undefined }
+
 /**
  * A vertical list that reorders by dragging a row with the mouse, the way boards are ordered.
  * Alt with the up or down arrow moves the focused row. The rows are measured when one lifts, so
  * the drop index comes straight from the pointer's height, and the list scrolls when the pointer
  * rests near its top or bottom.
  */
-export function ReorderList<T extends { id: string }>({ items, renderItem, onPress, onMove, header, footer, label }: {
+export function ReorderList<T extends { id: string }>({
+  items, renderItem, onPress, onMove, header, footer, label, gap = GAP, rounded = 'rounded-3xl'
+}: {
   items: readonly T[]
   renderItem: (item: T, lifted: boolean) => React.ReactElement
-  onPress: (item: T) => void
   onMove: (id: string, index: number) => void
   header?: React.ReactNode
   footer?: React.ReactNode
-  label: (item: T) => string
-}): React.ReactElement {
+  gap?: number
+  rounded?: 'rounded-2xl' | 'rounded-3xl'
+} & Press<T>): React.ReactElement {
   const [lifted, setLifted] = useState<Lifted | null>(null)
   const [hover, setHover] = useState<number | null>(null)
   const latest = useRef({ items, onMove, onPress })
@@ -42,7 +50,7 @@ export function ReorderList<T extends { id: string }>({ items, renderItem, onPre
   const ghost = useRef<HTMLDivElement>(null)
   const rowViews = useRef(new Map<string, HTMLElement>())
   const heights = useRef(new Map<string, number>())
-  const refocus = useRef<string | null>(null)
+  const refocus = useRef<HTMLElement | null>(null)
 
   const updateHover = (): void => {
     const current = liftedRef.current
@@ -50,7 +58,7 @@ export function ReorderList<T extends { id: string }>({ items, renderItem, onPre
     if (!current || !rows) return
     const others = latest.current.items.filter((item) => item.id !== current.id)
     const index = dropIndex(pointerY.current - rows.getBoundingClientRect().top,
-      others.map((item) => heights.current.get(item.id) ?? DEFAULT_HEIGHT), GAP)
+      others.map((item) => heights.current.get(item.id) ?? DEFAULT_HEIGHT), gap)
     if (hoverRef.current === index) return
     hoverRef.current = index
     setHover(index)
@@ -94,15 +102,14 @@ export function ReorderList<T extends { id: string }>({ items, renderItem, onPre
       setHover(null)
       if (commit && current && index !== null && index !== current.fromIndex) latest.current.onMove(current.id, index)
     },
-    onClick: (item) => latest.current.onPress(item)
+    onClick: (item) => latest.current.onPress?.(item)
   })
 
   // Reordering moves the focused row's node, and Chromium drops focus when a focused node moves.
   useLayoutEffect(() => {
-    const id = refocus.current
+    const view = refocus.current
     refocus.current = null
-    const view = id ? rowViews.current.get(id) : undefined
-    if (view && (document.activeElement === null || document.activeElement === document.body)) view.focus()
+    if (view?.isConnected && (document.activeElement === null || document.activeElement === document.body)) view.focus()
   }, [items])
 
   useLayoutEffect(() => {
@@ -117,34 +124,34 @@ export function ReorderList<T extends { id: string }>({ items, renderItem, onPre
     <div ref={scroll} className="min-h-0 flex-1 overflow-y-auto">
       <div className="mx-auto w-full max-w-2xl px-6 pb-10 pt-5">
         {header}
-        <div ref={rowsView} className="flex flex-col" style={{ gap: GAP }}>
+        <div ref={rowsView} className="flex flex-col" style={{ gap }}>
           {rows.map((item) => item === 'placeholder'
-            ? <div key="placeholder" className="rounded-3xl border-[1.5px] border-dashed border-surface-600" style={{ height: liftedItem ? heights.current.get(liftedItem.id) ?? DEFAULT_HEIGHT : DEFAULT_HEIGHT }} />
+            ? <div key="placeholder" className={cn(rounded, 'border-[1.5px] border-dashed border-surface-600')} style={{ height: liftedItem ? heights.current.get(liftedItem.id) ?? DEFAULT_HEIGHT : DEFAULT_HEIGHT }} />
             : <div
               key={item.id}
               ref={(view) => {
                 if (view) rowViews.current.set(item.id, view)
                 else rowViews.current.delete(item.id)
               }}
-              role="button"
-              tabIndex={0}
-              aria-label={label(item)}
+              role={onPress ? 'button' : undefined}
+              tabIndex={onPress ? 0 : undefined}
+              aria-label={label?.(item)}
               onPointerDown={(event) => press(event, item)}
               onDragStart={(event) => event.preventDefault()}
               onKeyDown={(event) => {
                 const index = items.findIndex((entry) => entry.id === item.id)
-                if (event.key === 'Enter' || event.key === ' ') {
+                if (onPress && event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
                   event.preventDefault()
                   onPress(item)
                 } else if (event.altKey && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
                   event.preventDefault()
                   const target = index + (event.key === 'ArrowUp' ? -1 : 1)
                   if (target < 0 || target >= items.length) return
-                  refocus.current = item.id
+                  if (event.target instanceof HTMLElement) refocus.current = event.target
                   onMove(item.id, target)
                 }
               }}
-              className="cursor-pointer select-none rounded-3xl"
+              className={cn('cursor-pointer select-none', rounded)}
             >{renderItem(item, false)}</div>)}
         </div>
         {footer}
@@ -154,7 +161,7 @@ export function ReorderList<T extends { id: string }>({ items, renderItem, onPre
       <DraggingCursor />
       <div
         ref={ghost}
-        className="pointer-events-none fixed z-40 opacity-95 shadow-[0_6px_24px_rgba(0,0,0,0.6)]"
+        className={cn('pointer-events-none fixed z-40 opacity-95 shadow-[0_6px_24px_rgba(0,0,0,0.6)]', rounded)}
         style={{ left: lifted.left, top: 0, width: lifted.width }}
       >{renderItem(liftedItem, true)}</div>
     </>}

@@ -2,11 +2,13 @@ import React, { useCallback, useMemo } from 'react'
 import { Check, ListChecks, Minus, Pencil, Plus } from 'lucide-react'
 import type { HabitRecord } from '@ego/api-contracts'
 import { formatIso, parseIso, shiftIso } from '@ego/local/dates'
+import { shownIndexToAll } from '@ego/local/habits/order'
 import { dayScore, mondayOf, rowState, type RowState } from '@ego/local/habits/stats'
 import { Ring } from '../../components/habits/Ring'
 import { HabitIcon, HabitsError, HabitsGate, HabitsHeader } from '../../components/habits/ui'
 import { WeekStrip } from '../../components/habits/WeekStrip'
 import { Screen, ScreenBody } from '../../components/screen'
+import { ReorderList } from '../../components/tasks/ReorderList'
 import { Button } from '../../components/ui/button'
 import { Blurred } from '../../lib/blur'
 import { useHabits } from '../../lib/habits/context'
@@ -52,12 +54,13 @@ function Mark({ habit, state }: { habit: HabitRecord; state: RowState }): React.
 /**
  * The phone taps to add and holds to take back. Here a click adds, and a right-click, Delete, or
  * the minus that shows on hover takes one back. The click target covers the whole row, with the
- * row's own buttons above it.
+ * row's own buttons above it. Dragging the row anywhere reorders it.
  */
-export function HabitRow({ habit, state, thisWeek, onTap, onTakeBack, onEdit }: {
+export function HabitRow({ habit, state, thisWeek, lifted = false, onTap, onTakeBack, onEdit }: {
   habit: HabitRecord
   state: RowState
   thisWeek: boolean
+  lifted?: boolean
   onTap: () => void
   onTakeBack: () => void
   onEdit: () => void
@@ -66,7 +69,7 @@ export function HabitRow({ habit, state, thisWeek, onTap, onTakeBack, onEdit }: 
   const settled = habit.period === 'week' ? state.today > 0 || state.met : state.met
   const toggles = habit.period === 'week' || habit.target === 1
   const counts = !toggles && state.today > 0
-  return <div className="group relative flex min-h-[68px] items-center rounded-2xl bg-card py-3 pl-3 pr-2 transition-colors hover:bg-surface-900 active:bg-surface-900">
+  return <div className={cn('group relative flex min-h-[68px] items-center rounded-2xl py-3 pl-3 pr-2 transition-colors hover:bg-surface-900 active:bg-surface-900', lifted ? 'bg-surface-900' : 'bg-card')}>
     <button
       type="button"
       role={toggles ? 'checkbox' : undefined}
@@ -115,7 +118,7 @@ function HomeBody(): React.ReactElement {
   const score = scoreFor(date)
   const share = score.total === 0 ? 0 : score.done / score.total
 
-  return <ScreenBody>
+  const summary = <>
     <HabitsError />
     <WeekStrip selected={date} today={today} scoreFor={scoreFor} onSelect={habits.setDate} />
     <div className="mt-5 flex items-end justify-between">
@@ -139,30 +142,45 @@ function HomeBody(): React.ReactElement {
     {date !== today && <button type="button" onClick={() => habits.setDate(today)} className="mt-3 text-[14px] font-semibold text-foreground underline">
       Back to today
     </button>}
+  </>
 
-    {building.length === 0
-      ? <div className="mt-10 flex flex-col items-center px-6 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-900"><ListChecks color="#a3a3a3" size={30} /></div>
-        <h3 className="mt-4 text-[20px] font-semibold text-surface-100">No habits yet</h3>
-        <p className="mt-2 text-[16px] leading-6 text-surface-400">Add the things you want to do every day. Click one to check it off.</p>
-        <Button className="mt-5" onClick={() => habits.openEditor({ kind: 'build', habit: null })}>
-          <Plus color="#0a0a0a" size={18} />Add a habit
-        </Button>
-      </div>
-      : <div className="mt-5 flex flex-col gap-2">
-        {due.length === 0 && <p className="py-6 text-center text-[15px] text-muted-foreground">None of your habits had started on this day.</p>}
-        {due.map((habit) => <HabitRow
-          key={habit.id}
-          habit={habit}
-          state={rowState(habit, log, date)}
-          thisWeek={mondayOf(date) === mondayOf(today)}
-          onTap={() => void habits.tap(habit, date)}
-          onTakeBack={() => void habits.takeBack(habit, date)}
-          onEdit={() => habits.openEditor({ kind: 'build', habit })}
-        />)}
-        <p className="mt-3 text-center text-[13px] text-surface-500">Click to check off. Right-click to take one back.</p>
-      </div>}
-  </ScreenBody>
+  if (due.length === 0) {
+    return <ScreenBody>
+      {summary}
+      {building.length === 0
+        ? <div className="mt-10 flex flex-col items-center px-6 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-surface-900"><ListChecks color="#a3a3a3" size={30} /></div>
+          <h3 className="mt-4 text-[20px] font-semibold text-surface-100">No habits yet</h3>
+          <p className="mt-2 text-[16px] leading-6 text-surface-400">Add the things you want to do every day. Click one to check it off.</p>
+          <Button className="mt-5" onClick={() => habits.openEditor({ kind: 'build', habit: null })}>
+            <Plus color="#0a0a0a" size={18} />Add a habit
+          </Button>
+        </div>
+        : <p className="mt-5 py-6 text-center text-[15px] text-muted-foreground">None of your habits had started on this day.</p>}
+    </ScreenBody>
+  }
+
+  const thisWeek = mondayOf(date) === mondayOf(today)
+  return <ReorderList
+    items={due}
+    gap={8}
+    rounded="rounded-2xl"
+    onMove={(id, index) => {
+      const habit = due.find((item) => item.id === id)
+      if (habit) void habits.move(habit, shownIndexToAll(building, due, id, index))
+    }}
+    renderItem={(habit, lifted) => <HabitRow
+      habit={habit}
+      state={rowState(habit, log, date)}
+      thisWeek={thisWeek}
+      lifted={lifted}
+      onTap={() => void habits.tap(habit, date)}
+      onTakeBack={() => void habits.takeBack(habit, date)}
+      onEdit={() => habits.openEditor({ kind: 'build', habit })}
+    />}
+    header={<div className="mb-5">{summary}</div>}
+    footer={<p className="mt-5 text-center text-[13px] text-surface-500">Click to check off. Right-click to take one back. Drag to reorder.</p>}
+  />
 }
 
 export default function HabitsHome(): React.ReactElement {

@@ -290,10 +290,10 @@ function HabitForm({ target }: { target: EditorTarget }): React.ReactElement {
     </Button>
     {habit && <>
       {siblings.length > 1 && <View className="mt-3 flex-row gap-3">
-        <Button variant="outline" className="flex-1" disabled={index <= 0 || habits.busy} onPress={() => void habits.move(habit, -1)}>
+        <Button variant="outline" className="flex-1" disabled={index <= 0 || habits.busy} onPress={() => void habits.move(habit, index - 1)}>
           <ArrowUp color="#fafafa" size={17} /><UiText>Move up</UiText>
         </Button>
-        <Button variant="outline" className="flex-1" disabled={index >= siblings.length - 1 || habits.busy} onPress={() => void habits.move(habit, 1)}>
+        <Button variant="outline" className="flex-1" disabled={index >= siblings.length - 1 || habits.busy} onPress={() => void habits.move(habit, index + 1)}>
           <ArrowDown color="#fafafa" size={17} /><UiText>Move down</UiText>
         </Button>
       </View>}
