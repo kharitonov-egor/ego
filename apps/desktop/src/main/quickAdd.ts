@@ -5,6 +5,7 @@ import { queueUploads, type QueuedUpload } from '@ego/local/diary/uploads'
 import { newId, saveTaskCard } from '@ego/local/sync/commands'
 import { inboxCardInput } from '@ego/local/tasks/board'
 import { localTasks } from '@ego/local/tasks/repository'
+import { focusReturn } from './focusReturn'
 import { getAppIconPath } from './icon'
 import { announceLocalWrite, ledgerDatabase } from './local/ledger'
 import { deleteStagedMedia, stageMedia } from './local/media'
@@ -12,6 +13,7 @@ import type { QuickAddPayload, QuickAddResult } from '@ego/ui/platform/types'
 
 let quickAddWindow: BrowserWindow | null = null
 let previewExpanded = false
+const quickAddFocus = focusReturn()
 
 const notificationWindows: { window: BrowserWindow; displayId: number; height: number }[] = []
 const notificationWidth = 360
@@ -46,6 +48,7 @@ function createQuickAddWindow(): void {
   })
 
   quickAddWindow.on('blur', () => {
+    quickAddFocus.remember()
     if (previewExpanded) return
     quickAddWindow?.hide()
   })
@@ -63,6 +66,7 @@ function createQuickAddWindow(): void {
 }
 
 export function showQuickAddWindow(): void {
+  quickAddFocus.remember(quickAddWindow)
   if (!quickAddWindow || quickAddWindow.isDestroyed()) {
     createQuickAddWindow()
   }
@@ -81,6 +85,7 @@ export function showQuickAddWindow(): void {
 }
 
 export function hideQuickAddWindow(): void {
+  quickAddFocus.restore(quickAddWindow)
   quickAddWindow?.hide()
 }
 

@@ -11,6 +11,7 @@ import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'child_proc
 import { mkdir, unlink, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { tmpdir } from 'os'
+import { focusReturn } from './focusReturn'
 import { getAppIconPath } from './icon'
 import { showNotification } from './quickAdd'
 import type {
@@ -63,6 +64,7 @@ $result.Text
 let paletteWindow: BrowserWindow | null = null
 let paletteLocked = false
 let activeDownload: ChildProcessWithoutNullStreams | null = null
+const paletteFocus = focusReturn()
 
 function isPaletteSender(senderId: number): boolean {
   return Boolean(
@@ -94,7 +96,9 @@ function createPaletteWindow(): void {
   })
 
   paletteWindow.on('blur', () => {
-    if (!paletteLocked && !activeDownload) paletteWindow?.hide()
+    if (paletteLocked) return
+    paletteFocus.remember()
+    if (!activeDownload) paletteWindow?.hide()
   })
 
   paletteWindow.on('closed', () => {
@@ -109,6 +113,7 @@ function createPaletteWindow(): void {
 }
 
 export function showToolPalette(): void {
+  paletteFocus.remember(paletteWindow)
   if (!paletteWindow || paletteWindow.isDestroyed()) createPaletteWindow()
 
   const reveal = async (): Promise<void> => {
@@ -324,7 +329,9 @@ async function downloadMedia(input: MediaDownloadInput): Promise<MediaDownloadRe
 
 export function setupToolPaletteIpc(): void {
   ipcMain.on('tool-palette-hide', (event) => {
-    if (isPaletteSender(event.sender.id)) hideToolPalette()
+    if (!isPaletteSender(event.sender.id)) return
+    paletteFocus.restore(paletteWindow)
+    hideToolPalette()
   })
   ipcMain.handle('tool-open-claude', async (event) => {
     if (!isPaletteSender(event.sender.id)) return
