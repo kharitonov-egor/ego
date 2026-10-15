@@ -39,6 +39,8 @@ export interface ListExtras {
   action?: React.ReactNode
   top?: React.ReactNode
   bottom?: React.ReactNode
+  /** Takes the place of "Add a card" at the foot of the list. */
+  add?: { label: string; onPress: () => void }
 }
 
 export interface DragBoardProps {
@@ -362,13 +364,17 @@ export function DragBoard(props: DragBoardProps): React.ReactElement {
         : <button
           type="button"
           onClick={() => {
+            if (extras?.add) {
+              extras.add.onPress()
+              return
+            }
             setAdding(list.id)
             setDraft('')
           }}
           className="flex min-h-12 shrink-0 items-center rounded-b-2xl px-4 transition-colors hover:bg-surface-800 active:bg-surface-800"
         >
           <Plus color={color.textMuted} size={18} />
-          <span className="ml-2 text-[15px] font-semibold text-surface-400">Add a card</span>
+          <span className="ml-2 text-[15px] font-semibold text-surface-400">{extras?.add?.label ?? 'Add a card'}</span>
         </button>}
     </section>
   }
