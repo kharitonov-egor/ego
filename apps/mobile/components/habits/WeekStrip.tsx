@@ -1,13 +1,12 @@
 import React from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { ChevronLeft, ChevronRight } from 'lucide-react-native'
-import { parseIso, shiftIso } from '@ego/local/dates'
+import { WEEKDAYS, parseIso, shiftIso, weekdayIndex } from '@ego/local/dates'
 import { mondayOf, weekDates, type DayScore } from '@ego/local/habits/stats'
 import { formatSpan } from '@ego/local/periods'
 import { PeriodSwipe } from '../money/PeriodSwipe'
 import { Ring } from './Ring'
 
-const LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 const RING = 38
 
 function weekLabel(monday: string, today: string): string {
@@ -26,7 +25,7 @@ function DayPill({ date, today, selected, score, onPress }: {
   const future = date > today
   const finished = !future && score.total > 0 && score.done === score.total
   const share = future || score.total === 0 ? 0 : score.partial / score.total
-  const letter = LETTERS[(parseIso(date).getDay() + 6) % 7]
+  const letter = WEEKDAYS[weekdayIndex(parseIso(date))]
   const numberColor = finished ? (selected ? 'text-white' : 'text-primary-foreground')
     : selected ? 'text-primary-foreground' : future ? 'text-surface-600' : 'text-foreground'
   const spoken = parseIso(date).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })

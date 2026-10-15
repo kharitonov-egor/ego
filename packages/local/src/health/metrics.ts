@@ -3,7 +3,7 @@ import {
   DAILY_STEP_TARGET, SLEEP_TARGET_MINUTES, bodyWeightIn, bodyWeightUnit, distanceIn, distanceUnit,
   formatSleepMinutes, mainSleepMinutes, readinessFor, zoneMinutesOf, type HealthUnits, type Readiness
 } from '@ego/core'
-import { isoFromParts, parseIso, shiftIso } from '../dates'
+import { isoFromParts, parseIso, shiftIso, weekStartOf } from '../dates'
 
 export type HealthMetric =
   | 'readiness' | 'steps' | 'sleep' | 'calories' | 'distance' | 'zone' | 'heart' | 'resting' | 'hrv' | 'weight'
@@ -125,7 +125,7 @@ export function latestValue(
 }
 
 export function weekStart(date: string): string {
-  return shiftIso(date, -((parseIso(date).getDay() + 6) % 7))
+  return weekStartOf(date)
 }
 
 /** Zone minutes from Monday through `date`, the way Google counts the weekly goal. */

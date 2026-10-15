@@ -2,13 +2,14 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Plus, Video, X } from 'lucide-react'
 import type { CalendarEvent, CalendarEventDraft, CalendarInfo, CalendarReminder } from '@ego/api-contracts'
 import {
-  EVENT_COLORS, WEEKDAY_CODES, WEEKDAY_NAMES, describeRecurrence, recurrencePresets, type RecurrenceFrequency, type RecurrenceRule
+  EVENT_COLORS, WEEKDAY_CODES, WEEKDAY_NAMES, WEEK_ORDER, describeRecurrence, recurrencePresets, type RecurrenceFrequency, type RecurrenceRule
 } from '@ego/core'
 import { REMINDER_CHOICES, descriptionText, draftProblem, isWritable, lastDayOf, withAllDay, withStart } from '@ego/local/calendar/draft'
 import { atClock, clockValue, localDayOf } from '@ego/local/calendar/layout'
 import { defaultRule, monthlyChoices, presetOf, ruleOf, untilDay, untilFor, withRule } from '@ego/local/calendar/recurrence'
 import { shiftIso } from '@ego/local/dates'
 import { cn } from '../../lib/utils'
+import { DateField } from '../DatePicker'
 import { Button } from '../ui/button'
 import { Sheet } from '../ui/dialog'
 import { inputClass } from '../ui/input'
@@ -17,6 +18,7 @@ import { ColorDot } from './ui'
 
 const FIELD = cn(inputClass, 'min-h-10 py-2 text-[15px] [color-scheme:dark]')
 const SELECT = cn(FIELD, 'appearance-auto pr-2')
+const DATE_FIELD = 'min-h-10 w-44 py-2 text-[15px]'
 const FREQUENCIES: ReadonlyArray<{ value: RecurrenceFrequency; label: string }> = [
   { value: 'DAILY', label: 'day' }, { value: 'WEEKLY', label: 'week' }, { value: 'MONTHLY', label: 'month' }, { value: 'YEARLY', label: 'year' }
 ]
@@ -49,9 +51,8 @@ function CustomRepeat({ rule, startDay, allDay, onChange }: {
       </select>
     </div>
     {rule.frequency === 'WEEKLY' && <div className="flex gap-1.5" role="group" aria-label="Repeat on">
-      {[1, 2, 3, 4, 5, 6, 0].map((index) => {
-        const code = WEEKDAY_CODES[index]
-        const on = rule.weekdays.includes(code) || (rule.weekdays.length === 0 && new Date(`${startDay}T12:00:00`).getDay() === index)
+      {WEEK_ORDER.map((code) => {
+        const on = rule.weekdays.includes(code) || (rule.weekdays.length === 0 && WEEKDAY_CODES[new Date(`${startDay}T12:00:00`).getDay()] === code)
         return <button key={code} type="button" aria-pressed={on} title={WEEKDAY_NAMES[code]}
           onClick={() => {
             const current = rule.weekdays.length > 0 ? rule.weekdays : [WEEKDAY_CODES[new Date(`${startDay}T12:00:00`).getDay()]]
@@ -73,9 +74,8 @@ function CustomRepeat({ rule, startDay, allDay, onChange }: {
       <label className="flex items-center gap-3">
         <input type="radio" className="accent-white" checked={rule.end.kind === 'until'} onChange={() => onChange({ ...rule, end: { kind: 'until', until: untilFor(endDay, allDay) } })} />
         On
-        <input type="date" value={endDay} disabled={rule.end.kind !== 'until'} aria-label="End date"
-          onChange={(change) => { if (change.target.value) onChange({ ...rule, end: { kind: 'until', until: untilFor(change.target.value, allDay) } }) }}
-          className={cn(FIELD, 'w-44')} />
+        <DateField label="Repeat end date" value={endDay} disabled={rule.end.kind !== 'until'} className={DATE_FIELD}
+          onChange={(day) => onChange({ ...rule, end: { kind: 'until', until: untilFor(day, allDay) } })} />
       </label>
       <label className="flex items-center gap-3">
         <input type="radio" className="accent-white" checked={rule.end.kind === 'count'} onChange={() => onChange({ ...rule, end: { kind: 'count', count: 10 } })} />
@@ -211,8 +211,8 @@ export function EventEditor({ visible, event, initial, calendars, defaultCalenda
       <div className="flex flex-wrap items-end gap-3">
         <Field label="Starts">
           <div className="flex gap-2">
-            <input type="date" value={startDay} aria-label="Start date" className={cn(FIELD, 'w-44')}
-              onChange={(change) => { if (change.target.value) setDraft(withStart(draft, draft.allDay ? change.target.value : atClock(change.target.value, clockValue(draft.start)))) }} />
+            <DateField label="Start date" value={startDay} className={DATE_FIELD}
+              onChange={(day) => setDraft(withStart(draft, draft.allDay ? day : atClock(day, clockValue(draft.start))))} />
             {!draft.allDay && <input type="time" step={300} value={clockValue(draft.start)} aria-label="Start time" className={cn(FIELD, 'w-32')}
               onChange={(change) => { if (change.target.value) setDraft(withStart(draft, atClock(startDay, change.target.value))) }} />}
           </div>
@@ -221,11 +221,8 @@ export function EventEditor({ visible, event, initial, calendars, defaultCalenda
           <div className="flex gap-2">
             {!draft.allDay && <input type="time" step={300} value={clockValue(draft.end)} aria-label="End time" className={cn(FIELD, 'w-32')}
               onChange={(change) => { if (change.target.value) set({ end: atClock(endDay, change.target.value) }) }} />}
-            <input type="date" value={endDay} aria-label="End date" className={cn(FIELD, 'w-44')}
-              onChange={(change) => {
-                if (!change.target.value) return
-                set({ end: draft.allDay ? shiftIso(change.target.value, 1) : atClock(change.target.value, clockValue(draft.end)) })
-              }} />
+            <DateField label="End date" value={endDay} className={DATE_FIELD}
+              onChange={(day) => set({ end: draft.allDay ? shiftIso(day, 1) : atClock(day, clockValue(draft.end)) })} />
           </div>
         </Field>
         <label className="flex min-h-10 items-center gap-2.5 pb-0.5">

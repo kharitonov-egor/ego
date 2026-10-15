@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { CalendarCheck, ChevronLeft, ChevronRight } from 'lucide-react'
-import { isoFromParts, isoToday, shiftMonth } from '@ego/local/dates'
+import { isoFromParts, isoToday, shiftMonth, weekdayIndex } from '@ego/local/dates'
 import { gymCalendar } from '@ego/local/repositories/gym'
 import { Dot, GymGate } from '../../components/gym/ui'
 import { Screen, ScreenHeader } from '../../components/screen'
@@ -17,7 +17,7 @@ const PAST_MONTHS = 12
 /** Weeks start on Monday, the way the FitNotes calendar lays them out. */
 function mondayGrid(month: string): (number | null)[][] {
   const [year, index] = month.split('-').map(Number)
-  const leading = (new Date(year, index - 1, 1).getDay() + 6) % 7
+  const leading = weekdayIndex(new Date(year, index - 1, 1))
   const days = new Date(year, index, 0).getDate()
   const cells: (number | null)[] = [...Array.from({ length: leading }, () => null), ...Array.from({ length: days }, (_, day) => day + 1)]
   while (cells.length % 7 !== 0) cells.push(null)

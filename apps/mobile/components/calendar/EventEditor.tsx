@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Check, ChevronRight, Plus, Video, X } from 'lucide-react-native'
 import type { CalendarEvent, CalendarEventDraft, CalendarInfo } from '@ego/api-contracts'
 import {
-  EVENT_COLORS, WEEKDAY_CODES, WEEKDAY_NAMES, describeRecurrence, recurrencePresets, type RecurrenceFrequency, type RecurrenceRule
+  EVENT_COLORS, WEEKDAY_CODES, WEEKDAY_NAMES, WEEK_ORDER, describeRecurrence, recurrencePresets, type RecurrenceFrequency, type RecurrenceRule
 } from '@ego/core'
 import { REMINDER_CHOICES, descriptionText, draftProblem, isWritable, lastDayOf, reminderLabel, withAllDay, withStart } from '@ego/local/calendar/draft'
 import { atClock, clockLabel, clockValue, localDayOf } from '@ego/local/calendar/layout'
@@ -109,8 +109,7 @@ function RepeatSheet({ visible, draft, startDay, onChange, onClose }: {
           onValueChange={(frequency) => setRule({ ...rule, frequency, weekdays: [], monthly: null })} />
       </View>
       {rule.frequency === 'WEEKLY' && <View className="flex-row justify-between">
-        {[1, 2, 3, 4, 5, 6, 0].map((index) => {
-          const code = WEEKDAY_CODES[index]
+        {WEEK_ORDER.map((code) => {
           const current = rule.weekdays.length > 0 ? rule.weekdays : [WEEKDAY_CODES[parseIso(startDay).getDay()]]
           const on = current.includes(code)
           return <Pressable key={code} accessibilityRole="button" accessibilityLabel={WEEKDAY_NAMES[code]} accessibilityState={{ selected: on }}

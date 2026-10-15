@@ -1,6 +1,6 @@
 import React from 'react'
 import { Pressable, Text, View } from 'react-native'
-import { WEEKDAYS, parseIso } from '@ego/local/dates'
+import { WEEKDAYS, parseIso, weekdayIndex } from '@ego/local/dates'
 import { heatLevel, type DayScore, type HeatLevel } from '@ego/local/habits/stats'
 
 /** White at rising strength on the card: a sequential scale where only a finished day is solid. */
@@ -11,7 +11,6 @@ export const HEAT: Record<HeatLevel, string> = {
   3: 'rgba(250, 250, 250, 0.58)',
   4: '#fafafa'
 }
-const MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0]
 const DAY_TITLE = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 
 export function MonthCalendar({ days, today, selected, onOpenDay }: {
@@ -20,12 +19,12 @@ export function MonthCalendar({ days, today, selected, onOpenDay }: {
   selected: string
   onOpenDay: (date: string) => void
 }): React.ReactElement {
-  const leading = days.length > 0 ? (parseIso(days[0].date).getDay() + 6) % 7 : 0
+  const leading = days.length > 0 ? weekdayIndex(parseIso(days[0].date)) : 0
   const cells: (DayScore | null)[] = [...Array.from({ length: leading }, () => null), ...days]
   while (cells.length % 7 !== 0) cells.push(null)
   const weeks = Array.from({ length: cells.length / 7 }, (_, row) => cells.slice(row * 7, row * 7 + 7))
   return <View>
-    <View className="flex-row">{MONDAY_FIRST.map((weekday) => <Text key={weekday} className="flex-1 text-center text-[13px] font-medium text-muted-foreground">{WEEKDAYS[weekday]}</Text>)}</View>
+    <View className="flex-row">{WEEKDAYS.map((weekday, index) => <Text key={index} className="flex-1 text-center text-[13px] font-medium text-muted-foreground">{weekday}</Text>)}</View>
     <View className="mt-1.5 gap-1.5">{weeks.map((week, row) => <View key={row} className="flex-row gap-1.5">{week.map((day, column) => {
       if (day === null) return <View key={column} className="aspect-square flex-1" />
       const future = day.date > today

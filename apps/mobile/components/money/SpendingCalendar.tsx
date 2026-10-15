@@ -3,7 +3,7 @@ import { Pressable, View } from 'react-native'
 import { ChevronRight } from 'lucide-react-native'
 import type { MoneyTransaction } from '@ego/core'
 import { heatLevels } from '@ego/local/cash-flow'
-import { WEEKDAYS, parseIso, shiftIso } from '@ego/local/dates'
+import { WEEKDAYS, parseIso, shiftIso, weekdayIndex } from '@ego/local/dates'
 import { daysBetween, type Span } from '@ego/local/periods'
 import { Button } from '../ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
@@ -15,7 +15,6 @@ import { BlurSpan } from '../../lib/blur'
 
 /** One hue, darker to brighter, on the card surface: a sequential scale, not five categories. */
 const SHADES = ['#1c1c1c', `${SERIES_COLOR.expense}40`, `${SERIES_COLOR.expense}73`, `${SERIES_COLOR.expense}b3`, SERIES_COLOR.expense]
-const MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0]
 const DAY_TITLE = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 
 interface Day {
@@ -51,7 +50,7 @@ export function SpendingCalendar({ month, transactions, today, onOpenDay }: {
   }, [month.from, month.to, transactions])
   const levels = useMemo(() => heatLevels(days.map((day) => day.cents)), [days])
 
-  const leading = (parseIso(month.from).getDay() + 6) % 7
+  const leading = weekdayIndex(parseIso(month.from))
   const cells: (number | null)[] = [...Array.from({ length: leading }, () => null), ...days.map((_, index) => index)]
   while (cells.length % 7 !== 0) cells.push(null)
   const weeks = Array.from({ length: cells.length / 7 }, (_, row) => cells.slice(row * 7, row * 7 + 7))
@@ -63,7 +62,7 @@ export function SpendingCalendar({ month, transactions, today, onOpenDay }: {
       <CardDescription>Brighter days cost more. Tap one to see it.</CardDescription>
     </CardHeader>
     <CardContent className="pt-4">
-      <View className="flex-row">{MONDAY_FIRST.map((weekday) => <Text key={weekday} className="flex-1 text-center text-[13px] font-medium text-muted-foreground">{WEEKDAYS[weekday]}</Text>)}</View>
+      <View className="flex-row">{WEEKDAYS.map((weekday, index) => <Text key={index} className="flex-1 text-center text-[13px] font-medium text-muted-foreground">{weekday}</Text>)}</View>
       <View className="mt-1.5 gap-1.5">{weeks.map((week, row) => <View key={row} className="flex-row gap-1.5">{week.map((cell, column) => {
         if (cell === null) return <View key={column} className="aspect-square flex-1" />
         const day = days[cell]

@@ -63,14 +63,21 @@ export function CalendarDialog({ visible, value, onCancel, onConfirm, max }: {
 }
 
 /** A form field that shows the date in words and opens the calendar, instead of a YYYY-MM-DD text box. */
-export function DateField({ value, onChange, label = 'Date' }: { value: string; onChange: (iso: string) => void; label?: string }): React.ReactElement {
+export function DateField({ value, onChange, label = 'Date', disabled = false, className }: {
+  value: string
+  onChange: (iso: string) => void
+  label?: string
+  disabled?: boolean
+  className?: string
+}): React.ReactElement {
   const [open, setOpen] = useState(false)
   return <>
     <button
       type="button"
       aria-label={`${label}: ${formatIso(value)}`}
+      disabled={disabled}
       onClick={() => setOpen(true)}
-      className={cn(inputClass, 'flex items-center justify-between text-left')}
+      className={cn(inputClass, 'flex items-center justify-between gap-2 text-left disabled:opacity-50', className)}
     >
       <span className="min-w-0 flex-1 truncate">{formatIso(value)}</span>
       <CalendarDays color="#a3a3a3" size={18} />

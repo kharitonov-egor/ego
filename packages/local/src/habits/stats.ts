@@ -1,5 +1,5 @@
 import type { HabitEntryRecord, HabitRecord } from '@ego/api-contracts'
-import { isoFromParts, parseIso, shiftIso } from '../dates'
+import { isoFromParts, parseIso, shiftIso, weekStartOf } from '../dates'
 
 export interface HabitLog {
   /** How many times each habit was checked off, by day. */
@@ -89,7 +89,7 @@ export function doneCount(log: HabitLog, habitId: string, date: string): number 
 }
 
 export function mondayOf(date: string): string {
-  return shiftIso(date, -((parseIso(date).getDay() + 6) % 7))
+  return weekStartOf(date)
 }
 
 export function weekDates(date: string): string[] {
