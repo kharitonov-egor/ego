@@ -119,9 +119,24 @@
       }
 
       function windowAt(point) {
-        return windows.find((rect) =>
+        const found = windows.find((rect) =>
           point.x >= rect.x && point.x < rect.x + rect.width && point.y >= rect.y && point.y < rect.y + rect.height
         ) ?? wholeDisplay()
+        const left = Math.max(found.x, 0)
+        const top = Math.max(found.y, 0)
+        const right = Math.min(found.x + found.width, window.innerWidth)
+        const bottom = Math.min(found.y + found.height, window.innerHeight)
+        return { x: left, y: top, width: Math.max(right - left, 0), height: Math.max(bottom - top, 0) }
+      }
+
+      // A maximized window or the bare desktop gets no outline: lines along the screen edges look like a glitch.
+      function hover(point) {
+        const rect = windowAt(point)
+        if (rect.width * rect.height >= 0.9 * window.innerWidth * window.innerHeight) {
+          box.style.display = 'none'
+          return
+        }
+        showBox(rect, 'window')
       }
 
       function between(a, b) {
@@ -183,7 +198,7 @@
       document.addEventListener('mousemove', (event) => {
         last = pointOf(event)
         if (!start) {
-          showBox(windowAt(last), 'window')
+          hover(last)
           return
         }
         if (!dragging && Math.hypot(last.x - start.x, last.y - start.y) > DRAG_THRESHOLD) dragging = true
@@ -210,6 +225,11 @@
         const rect = between(start, pointOf(event))
         if (rect.width >= 3 && rect.height >= 3) select(rect)
         else reset()
+      })
+
+      // The window can still be settling on its display when the first mouse move arrives.
+      window.addEventListener('resize', () => {
+        if (!start && last) hover(last)
       })
 
       document.addEventListener('contextmenu', (event) => event.preventDefault())
