@@ -2,7 +2,7 @@ import { BrowserWindow, clipboard, ipcMain, screen, type Display, type IpcMainEv
 import { join } from 'path'
 import type { SnipFrame } from '@ego/ui/platform/types'
 import { focusReturn } from './focusReturn'
-import { imageToText } from './imageText'
+import { imageToText, warmImageToText } from './imageText'
 import { showNotification } from './quickAdd'
 import { captureDisplays, visibleWindows, type DisplayShot } from './screenCapture'
 import { isSnipRect, selectionInImage, windowsOnDisplay } from './snipGeometry'
@@ -133,17 +133,24 @@ export function cancelSnip(): void {
   endSnip(focused)
 }
 
+/** The model takes about a second, so a toast says it's reading the moment the mouse lets go. */
 async function readSnip(shot: DisplayShot, rect: unknown): Promise<void> {
   if (!isSnipRect(rect)) return
   const area = selectionInImage(rect, shot.display.bounds, shot.image.getSize())
   if (!area) return
-  const result = await imageToText({ data: shot.image.crop(area).toPNG(), mimeType: 'image/png' }, 'screen')
-  if (!result.ok) {
-    showNotification('error', `Image to text failed: ${result.detail}`)
-    return
+  const toast = showNotification('progress', 'Reading text…')
+  try {
+    const result = await imageToText({ data: shot.image.crop(area).toPNG(), mimeType: 'image/png' }, 'screen')
+    if (!result.ok) {
+      toast.update('error', `Image to text failed: ${result.detail}`)
+      return
+    }
+    await clipboard.writeText(result.text)
+    toast.update('success', result.engine === 'ai' ? 'Image to text completed' : 'Image to text completed with Windows OCR')
+  } catch (error: unknown) {
+    console.error('Image to text failed:', error)
+    toast.update('error', 'Image to text failed')
   }
-  await clipboard.writeText(result.text)
-  showNotification('success', result.engine === 'ai' ? 'Image to text completed' : 'Image to text completed with Windows OCR')
 }
 
 /** The hotkey freezes every display, then lets you drag a box or click a window on one of them. */
@@ -156,6 +163,7 @@ export async function startSnip(): Promise<void> {
   starting = true
   try {
     snipFocus.remember()
+    warmImageToText()
     const windows = visibleWindows().map((rect) => screen.screenToDipRect(null, rect))
     const shots = await captureDisplays()
     if (shots.length === 0) {
@@ -216,10 +224,7 @@ export function setupSnipIpc(): void {
     const shot = overlay?.shot
     if (!overlay || !active || !shot) return
     endSnip(overlay)
-    void readSnip(shot, rect).catch((error: unknown) => {
-      console.error('Image to text failed:', error)
-      showNotification('error', 'Image to text failed')
-    })
+    void readSnip(shot, rect)
   })
   ipcMain.on('snip-cancel', (event) => {
     if (overlayOf(event)) cancelSnip()

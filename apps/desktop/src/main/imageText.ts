@@ -70,6 +70,11 @@ async function readWithWindows(image: ImageInput): Promise<WindowsOcrResult> {
   }
 }
 
+/** Opens the connection to the Worker while you're still choosing an area, which saves about 150 ms. */
+export function warmImageToText(): void {
+  void workerRequest('/v1/health', 'GET')
+}
+
 /**
  * Reads the text with the Worker's model, which knows every language, and falls back to Windows
  * OCR when the Worker can't be reached or fails. A model answer with no text is final.

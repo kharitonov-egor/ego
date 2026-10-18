@@ -97,6 +97,13 @@ export interface SnipFrame {
   windows: SnipRect[]
 }
 
+/** Turns a toast that was waiting on something into its result, which then stays for `hold` ms. */
+export interface NotificationUpdate {
+  tone: 'success' | 'error'
+  message: string
+  hold: number
+}
+
 export interface MediaDownloaderStatus {
   available: boolean
   version?: string
@@ -203,6 +210,7 @@ export interface IpcApi {
   setQuickAddListShortcuts: (shortcuts: ListShortcut[]) => Promise<void>
 
   resizeNotification: (height: number) => void
+  onNotificationUpdate: (callback: (update: NotificationUpdate) => void) => () => void
 
   submitQuickAdd: (payload: QuickAddPayload) => Promise<QuickAddResult>
   cancelQuickAdd: () => void

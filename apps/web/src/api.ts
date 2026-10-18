@@ -184,6 +184,7 @@ export function createWebApi(): IpcApi {
     setQuickAddListShortcuts: async () => undefined,
 
     resizeNotification: () => undefined,
+    onNotificationUpdate: () => () => undefined,
 
     submitQuickAdd,
     cancelQuickAdd: () => undefined,

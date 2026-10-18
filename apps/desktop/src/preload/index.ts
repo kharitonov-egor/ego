@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type {
   BuildStage,
   IpcApi,
+  NotificationUpdate,
   QuickAddListShortcut,
   QuickAddPayload,
   SnipFrame,
@@ -104,6 +105,11 @@ const api: IpcApi = {
     ipcRenderer.invoke('set-quick-add-list-shortcuts', shortcuts),
 
   resizeNotification: (height: number) => ipcRenderer.send('notification-resize', height),
+  onNotificationUpdate: (callback: (update: NotificationUpdate) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, update: NotificationUpdate): void => callback(update)
+    ipcRenderer.on('notification-update', handler)
+    return () => ipcRenderer.removeListener('notification-update', handler)
+  },
 
   submitQuickAdd: (payload: QuickAddPayload) => ipcRenderer.invoke('quick-add-submit', payload),
   cancelQuickAdd: () => ipcRenderer.send('quick-add-cancel'),
