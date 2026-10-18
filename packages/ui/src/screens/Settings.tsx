@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import {
-  AlarmClock, BellRing, Check, ChevronRight, CircleUserRound, Command, EyeOff, Info, KeyRound, Landmark, LogOut, Power, RefreshCw, ScanLine, X
+  AlarmClock, BellRing, Check, ChevronRight, CircleUserRound, Command, EyeOff, Info, KeyRound, Landmark, LogOut, Power, RefreshCw, ScanLine, ScanText, X
 } from 'lucide-react'
 import type { ServiceStatus, SessionInfo } from '@ego/api-contracts'
 import { formatSetDuration } from '@ego/core'
@@ -222,6 +222,22 @@ function QuickToolsSection(): React.ReactElement {
   </Section>
 }
 
+function ImageTextSection(): React.ReactElement {
+  const [hotkey, setHotkey] = useState('')
+  useEffect(() => {
+    void window.api.getImageTextHotkey().then(setHotkey)
+  }, [])
+  const change = async (next: string): Promise<void> => {
+    setHotkey(next)
+    await window.api.setImageTextHotkey(next)
+  }
+  return <Section Icon={ScanText} title="Image to text">
+    <SectionNote>Press the hotkey, then drag around text or click a window. The text in any language lands on your clipboard, and Quick tools keeps the last 50.</SectionNote>
+    <FieldLabel>Global hotkey</FieldLabel>
+    <HotkeyInput value={hotkey} onChange={(next) => void change(next)} />
+  </Section>
+}
+
 function StartupSection(): React.ReactElement {
   const [autoStart, setAutoStart] = useState(false)
   useEffect(() => {
@@ -300,6 +316,7 @@ export default function Settings(): React.ReactElement {
       <HotkeysSection />
       <QuickAddSettings />
       {!web && <QuickToolsSection />}
+      {!web && <ImageTextSection />}
       {!web && <StartupSection />}
       <LiveSettings />
       {!web && <ReceiptSection />}

@@ -11,6 +11,20 @@ export interface TrelloCardResponse {
 
 export const MAX_TRELLO_ATTACHMENT_BYTES = 10 * 1024 * 1024
 
+/** `model` and `effort` override the Worker's defaults, for comparing models. The desktop sends neither. */
+export interface ImageTextRequest {
+  base64: string
+  mimeType: 'image/png' | 'image/jpeg' | 'image/webp'
+  model?: string
+  effort?: 'none' | 'minimal' | 'low' | 'medium' | 'high'
+}
+
+/** `text` is empty when the image has no text. */
+export interface ImageTextResponse {
+  text: string
+  model: string
+}
+
 /** One sync of the Work list. `problem` is the first change Trello refused; everything else still synced. */
 export interface TrelloWorkSyncResult {
   changed: boolean

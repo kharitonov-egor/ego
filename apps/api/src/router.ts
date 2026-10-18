@@ -26,7 +26,7 @@ import {
 } from './connectors'
 import { auditLocalLiveTool, executeLiveTool } from './live-tools'
 import { completeSignIn, exchangeSignIn, readSession, signOut, startSignIn } from './sign-in'
-import { analyzeReceiptImage, trelloAddAttachment, trelloBoards, trelloCreateCard, trelloLists } from './services'
+import { analyzeReceiptImage, readImageTextRoute, trelloAddAttachment, trelloBoards, trelloCreateCard, trelloLists } from './services'
 import { listDevices, revokeDevice } from './devices'
 import { assistantRoute } from './assistant'
 import { markStudyAssignment, readStudyAssignments } from './study'
@@ -134,6 +134,7 @@ export async function handle(request: Request, env: Env, work?: Pick<ExecutionCo
     return revoked ? ok({ revoked: true }) : failure({ code: 'NOT_FOUND', message: 'That device is already signed out' })
   }
   if (request.method === 'POST' && path === '/v1/money/receipt-image') return analyzeReceiptImage(request, env)
+  if (request.method === 'POST' && path === '/v1/image-text') return readImageTextRoute(request, env)
 
   if (path === '/v1/session') {
     if (request.method === 'GET') return ok(await readSession(env, device.data))

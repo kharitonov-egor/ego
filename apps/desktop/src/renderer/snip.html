@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Image to text</title>
+    <style>
+      html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #000000;
+        cursor: crosshair;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      #screen {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
+
+      #shade {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+        pointer-events: none;
+      }
+
+      #box {
+        position: fixed;
+        display: none;
+        outline: 1px solid #fafafa;
+        box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.6), 0 0 0 100vmax rgba(0, 0, 0, 0.45);
+        pointer-events: none;
+      }
+
+      #box.window {
+        outline: 2px solid #fafafa;
+        outline-offset: -2px;
+        box-shadow: inset 0 0 0 3px rgba(0, 0, 0, 0.6), 0 0 0 100vmax rgba(0, 0, 0, 0.45);
+      }
+
+      #size {
+        position: fixed;
+        display: none;
+        padding: 3px 7px;
+        border: 1px solid #333333;
+        border-radius: 6px;
+        background: rgba(10, 10, 10, 0.92);
+        color: #fafafa;
+        font: 11px "Segoe UI", sans-serif;
+        pointer-events: none;
+      }
+
+      #hint {
+        position: fixed;
+        top: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 8px 12px;
+        border: 1px solid #333333;
+        border-radius: 8px;
+        background: rgba(10, 10, 10, 0.94);
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+        color: #a3a3a3;
+        font: 12px "Segoe UI", sans-serif;
+        white-space: nowrap;
+        pointer-events: none;
+      }
+
+      #hint b { color: #fafafa; font-weight: 500; }
+
+      kbd {
+        border: 1px solid #333333;
+        border-radius: 4px;
+        background: #262626;
+        color: #d4d4d4;
+        padding: 1px 5px;
+        font: 10px "Segoe UI", sans-serif;
+      }
+    </style>
+  </head>
+  <body>
+    <img id="screen" alt="" draggable="false" />
+    <div id="shade"></div>
+    <div id="box"></div>
+    <div id="size"></div>
+    <div id="hint"><b>Image to text</b>&nbsp; Drag around text or click a window. <kbd>Esc</kbd> cancels.</div>
+
+    <script>
+      const screenImage = document.getElementById('screen')
+      const shade = document.getElementById('shade')
+      const box = document.getElementById('box')
+      const size = document.getElementById('size')
+      const hint = document.getElementById('hint')
+      const DRAG_THRESHOLD = 4
+      let windows = []
+      let start = null
+      let dragging = false
+      let last = null
+
+      function wholeDisplay() {
+        return { x: 0, y: 0, width: window.innerWidth, height: window.innerHeight }
+      }
+
+      function windowAt(point) {
+        return windows.find((rect) =>
+          point.x >= rect.x && point.x < rect.x + rect.width && point.y >= rect.y && point.y < rect.y + rect.height
+        ) ?? wholeDisplay()
+      }
+
+      function between(a, b) {
+        const clampX = (value) => Math.min(Math.max(value, 0), window.innerWidth)
+        const clampY = (value) => Math.min(Math.max(value, 0), window.innerHeight)
+        const left = clampX(Math.min(a.x, b.x))
+        const top = clampY(Math.min(a.y, b.y))
+        return { x: left, y: top, width: clampX(Math.max(a.x, b.x)) - left, height: clampY(Math.max(a.y, b.y)) - top }
+      }
+
+      function showBox(rect, kind) {
+        shade.style.display = 'none'
+        box.className = kind
+        box.style.display = 'block'
+        box.style.left = `${rect.x}px`
+        box.style.top = `${rect.y}px`
+        box.style.width = `${rect.width}px`
+        box.style.height = `${rect.height}px`
+        if (kind !== 'drag') {
+          size.style.display = 'none'
+          return
+        }
+        size.textContent = `${Math.round(rect.width)} × ${Math.round(rect.height)}`
+        size.style.display = 'block'
+        const below = rect.y + rect.height + 8
+        size.style.left = `${Math.min(rect.x, window.innerWidth - size.offsetWidth - 4)}px`
+        size.style.top = `${below + size.offsetHeight < window.innerHeight ? below : Math.max(rect.y - size.offsetHeight - 8, 4)}px`
+      }
+
+      function reset() {
+        start = null
+        dragging = false
+        box.style.display = 'none'
+        size.style.display = 'none'
+        shade.style.display = 'block'
+        hint.style.display = 'block'
+      }
+
+      function select(rect) {
+        reset()
+        window.api.snipSelect({
+          x: Math.round(rect.x),
+          y: Math.round(rect.y),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height)
+        })
+      }
+
+      function pointOf(event) {
+        return { x: event.clientX, y: event.clientY }
+      }
+
+      document.addEventListener('mousemove', (event) => {
+        last = pointOf(event)
+        if (!start) {
+          showBox(windowAt(last), 'window')
+          return
+        }
+        if (!dragging && Math.hypot(last.x - start.x, last.y - start.y) > DRAG_THRESHOLD) dragging = true
+        if (dragging) showBox(between(start, last), 'drag')
+      })
+
+      document.addEventListener('mousedown', (event) => {
+        if (event.button === 2) {
+          window.api.snipCancel()
+          return
+        }
+        if (event.button !== 0) return
+        start = pointOf(event)
+        dragging = false
+        hint.style.display = 'none'
+      })
+
+      document.addEventListener('mouseup', (event) => {
+        if (event.button !== 0 || !start) return
+        if (!dragging) {
+          select(windowAt(start))
+          return
+        }
+        const rect = between(start, pointOf(event))
+        if (rect.width >= 3 && rect.height >= 3) select(rect)
+        else reset()
+      })
+
+      document.addEventListener('contextmenu', (event) => event.preventDefault())
+      document.addEventListener('mouseenter', () => window.api.snipPointerEnter())
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          window.api.snipCancel()
+        }
+      })
+
+      window.api.onSnipFrame((frame) => {
+        reset()
+        box.style.display = 'none'
+        if (!frame) {
+          windows = []
+          screenImage.removeAttribute('src')
+          return
+        }
+        windows = frame.windows
+        last = null
+        screenImage.onload = () => window.api.snipReady()
+        screenImage.src = frame.image
+      })
+    </script>
+  </body>
+</html>

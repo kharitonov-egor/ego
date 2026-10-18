@@ -160,6 +160,8 @@ export function createWebApi(): IpcApi {
     setQuickAddHotkey: async () => undefined,
     getToolPaletteHotkey: async () => '',
     setToolPaletteHotkey: async () => undefined,
+    getImageTextHotkey: async () => '',
+    setImageTextHotkey: async () => undefined,
 
     getTrelloApiKey: async () => '',
     setTrelloApiKey: async () => undefined,
@@ -198,6 +200,15 @@ export function createWebApi(): IpcApi {
     openMediaDownloads: async () => undefined,
     onToolPaletteFocus: () => () => undefined,
     onMediaDownloadProgress: () => () => undefined,
+    listImageTextHistory: async () => [],
+    clearImageTextHistory: async () => undefined,
+    openImageTextHistoryImage: async () => undefined,
+
+    onSnipFrame: () => () => undefined,
+    snipReady: () => undefined,
+    snipPointerEnter: () => undefined,
+    snipSelect: () => undefined,
+    snipCancel: () => undefined,
 
     buildAndInstall: async () => ({ success: false, error: NOT_HERE }),
     onBuildProgress: () => () => undefined,

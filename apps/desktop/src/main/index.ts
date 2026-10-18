@@ -6,6 +6,7 @@ import { registerHotkey, unregisterHotkey, unregisterAll } from './hotkeys'
 import { getAppIconPath, getTrayIcon } from './icon'
 import {
   getLivePreferences,
+  getImageTextHotkey,
   getLedgerConfig,
   getOpenRouterApiKey,
   getQuickAddHotkey,
@@ -16,6 +17,7 @@ import {
   getTrelloBoardId,
   getTrelloListId,
   getTrelloToken,
+  setImageTextHotkey as saveImageTextHotkey,
   setLivePreferences,
   setQuickAddHotkey as saveQuickAddHotkey,
   setQuickAddListShortcuts as saveQuickAddListShortcuts,
@@ -28,6 +30,7 @@ import {
 } from './settings'
 import { trello } from './trello'
 import { showQuickAddWindow, setupQuickAddIpc } from './quickAdd'
+import { setupSnipIpc, startSnip } from './snip'
 import { analyzeTransactionImage, isLivePreferences } from '@ego/core'
 import type { DesktopTransactionImageInput, LivePreferences, QuickAddListShortcut, TransactionImageSettingsInput } from '@ego/ui/platform/types'
 import type { NotifyInput } from '@ego/ui/platform/local'
@@ -203,6 +206,15 @@ function registerToolPaletteHotkey(): void {
   if (hotkey) registerHotkey(hotkey, '__tool_palette__', showToolPalette)
 }
 
+function snipForText(): void {
+  void startSnip()
+}
+
+function registerImageTextHotkey(): void {
+  const hotkey = getImageTextHotkey()
+  if (hotkey) registerHotkey(hotkey, '__image_text__', snipForText)
+}
+
 function runCommand(command: string, cwd: string): Promise<string> {
   return new Promise((resolve, reject) => {
     exec(command, { cwd, maxBuffer: 10 * 1024 * 1024 }, (err, stdout, stderr) => {
@@ -287,6 +299,15 @@ function setupIpcHandlers(): void {
     if (previous) unregisterHotkey(previous)
     saveToolPaletteHotkey(hotkey)
     if (hotkey) registerHotkey(hotkey, '__tool_palette__', showToolPalette)
+  })
+
+  ipcMain.handle('get-image-text-hotkey', () => getImageTextHotkey())
+
+  ipcMain.handle('set-image-text-hotkey', (_event, hotkey: string) => {
+    const previous = getImageTextHotkey()
+    if (previous) unregisterHotkey(previous)
+    saveImageTextHotkey(hotkey)
+    if (hotkey) registerHotkey(hotkey, '__image_text__', snipForText)
   })
 
   ipcMain.handle('get-trello-api-key', () => getTrelloApiKey())
@@ -390,12 +411,14 @@ if (!gotSingleInstanceLock) {
     setupLocalIpc((sender) => Boolean(mainWindow && !mainWindow.isDestroyed() && sender.id === mainWindow.webContents.id))
     setupQuickAddIpc()
     setupToolPaletteIpc()
+    setupSnipIpc()
     createTray()
     const returnRoute = googleReturnRouteIn(process.argv)
     createWindow(returnRoute ?? undefined)
     if (returnRoute) showMainWindow()
     registerQuickAddHotkey()
     registerToolPaletteHotkey()
+    registerImageTextHotkey()
     handleMediaRequests({ database: async () => (await ledgerDatabase())?.local ?? null, api: ledgerApi })
     onLedgerEvent((event) => {
       if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('ledger-event', event)

@@ -11,6 +11,7 @@ import {
 interface AppSettings {
   quickAddHotkey: string
   toolPaletteHotkey: string
+  imageTextHotkey: string
   trelloApiKey: string
   trelloToken: string
   trelloBoardId: string
@@ -47,6 +48,7 @@ const store = new Store<AppSettings>({
   defaults: {
     quickAddHotkey: 'Alt+N',
     toolPaletteHotkey: 'Alt+S',
+    imageTextHotkey: 'Alt+Shift+T',
     trelloApiKey: seed.trelloApiKey,
     trelloToken: seed.trelloToken,
     trelloBoardId: seed.trelloBoardId,
@@ -167,6 +169,14 @@ export function getToolPaletteHotkey(): string {
 
 export function setToolPaletteHotkey(hotkey: string): void {
   store.set('toolPaletteHotkey', hotkey)
+}
+
+export function getImageTextHotkey(): string {
+  return store.get('imageTextHotkey')
+}
+
+export function setImageTextHotkey(hotkey: string): void {
+  store.set('imageTextHotkey', hotkey)
 }
 
 export function getTrelloApiKey(): string {

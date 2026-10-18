@@ -234,3 +234,51 @@ describe('receipt photos', () => {
     expect(response.status).toBe(400)
   })
 })
+
+describe('image to text', () => {
+  const image = { base64: 'aGVsbG8=', mimeType: 'image/png' }
+  const asDesktop = { authorization: `Bearer ${APP_TOKEN}` }
+
+  function openRouterAnswer(check: (sent: { model: string; reasoning: { effort: string } }) => void, content = 'Привет\nworld') {
+    return vi.fn(async (_url: string, init?: RequestInit) => {
+      check(JSON.parse(String(init?.body)) as { model: string; reasoning: { effort: string } })
+      return new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status: 200 })
+    })
+  }
+
+  it('needs a signed-in device and the Worker key', async () => {
+    const env = await environment()
+    expect((await handle(post('/v1/image-text', image), env)).status).toBe(401)
+    expect((await handle(post('/v1/image-text', image, asDesktop), env)).status).toBe(503)
+  })
+
+  it('reads the image with the configured model and effort', async () => {
+    const env = await environment({ OPENROUTER_API_KEY: 'or-key', IMAGE_TEXT_MODEL: 'test/model', IMAGE_TEXT_EFFORT: 'low' })
+    vi.stubGlobal('fetch', openRouterAnswer((sent) => {
+      expect(sent.model).toBe('test/model')
+      expect(sent.reasoning.effort).toBe('low')
+    }))
+    const response = await handle(post('/v1/image-text', image, asDesktop), env)
+    expect(response.status).toBe(200)
+    expect((await payload<{ text: string; model: string }>(response)).data).toEqual({ text: 'Привет\nworld', model: 'test/model' })
+  })
+
+  it('lets a request try another model without the configured effort', async () => {
+    const env = await environment({ OPENROUTER_API_KEY: 'or-key', IMAGE_TEXT_MODEL: 'test/model', IMAGE_TEXT_EFFORT: 'low' })
+    vi.stubGlobal('fetch', openRouterAnswer((sent) => {
+      expect(sent.model).toBe('other/model-2.5')
+      expect(sent.reasoning.effort).toBe('minimal')
+    }))
+    const response = await handle(post('/v1/image-text', { ...image, model: 'other/model-2.5' }, asDesktop), env)
+    expect(response.status).toBe(200)
+  })
+
+  it('refuses an unknown type, model id, or effort', async () => {
+    const env = await environment({ OPENROUTER_API_KEY: 'or-key' })
+    for (const body of [
+      { ...image, mimeType: 'image/tiff' },
+      { ...image, model: 'not a model' },
+      { ...image, effort: 'extreme' }
+    ]) expect((await handle(post('/v1/image-text', body, asDesktop), env)).status).toBe(400)
+  })
+})
