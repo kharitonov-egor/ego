@@ -225,6 +225,7 @@ export interface IpcApi {
 
   onSnipFrame: (callback: (frame: SnipFrame | null) => void) => () => void
   snipReady: () => void
+  snipCleared: () => void
   snipPointerEnter: () => void
   snipSelect: (rect: SnipRect) => void
   snipCancel: () => void

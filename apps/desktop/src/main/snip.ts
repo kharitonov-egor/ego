@@ -37,7 +37,9 @@ function createOverlay(display: Display): Overlay {
     skipTaskbar: true,
     alwaysOnTop: true,
     show: false,
-    backgroundColor: '#000000',
+    // Transparent so the window can show before its page paints: until then it shows nothing at all.
+    // An opaque one shows black for a frame or two, and changing its opacity does the same.
+    transparent: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
@@ -93,16 +95,19 @@ function reveal(): void {
   const cursorDisplay = screen.getDisplayNearestPoint(screen.getCursorScreenPoint())
   let focusTarget: BrowserWindow | null = null
   for (const overlay of overlays.values()) {
-    if (overlay.window.isDestroyed() || !overlay.ready || !overlay.shot) continue
-    // Set twice: across monitors with different scaling, Windows can size the first attempt for the wrong one.
-    overlay.window.setBounds(overlay.shot.display.bounds)
-    overlay.window.showInactive()
-    overlay.window.setBounds(overlay.shot.display.bounds)
+    if (overlay.window.isDestroyed() || !overlay.shot) continue
+    if (!overlay.ready) {
+      overlay.window.hide()
+      continue
+    }
     if (overlay.shot.display.id === cursorDisplay.id) focusTarget = overlay.window
   }
   const target = focusTarget ?? [...overlays.values()].find((overlay) => overlay.ready)?.window
-  target?.show()
   target?.focus()
+}
+
+function hideIfIdle(overlay: Overlay): void {
+  if (!overlay.shot && !overlay.window.isDestroyed() && overlay.window.isVisible()) overlay.window.hide()
 }
 
 function endSnip(focused: Overlay | null): void {
@@ -115,8 +120,10 @@ function endSnip(focused: Overlay | null): void {
     overlay.shot = null
     overlay.ready = false
     if (overlay.window.isDestroyed()) continue
-    overlay.window.hide()
+    // The page clears itself and says so before the window hides. A hidden window keeps its last
+    // picture, and the next snip would show it for a moment.
     overlay.window.webContents.send('snip-frame', null)
+    setTimeout(() => hideIfIdle(overlay), 300)
   }
 }
 
@@ -170,6 +177,10 @@ export async function startSnip(): Promise<void> {
       overlay.ready = false
       await overlay.loaded
       if (!active || overlay.window.isDestroyed()) return
+      // Set twice: across monitors with different scaling, Windows can size the first attempt for the wrong one.
+      overlay.window.setBounds(shot.display.bounds)
+      overlay.window.showInactive()
+      overlay.window.setBounds(shot.display.bounds)
       const frame: SnipFrame = {
         image: `data:image/jpeg;base64,${shot.image.toJPEG(92).toString('base64')}`,
         windows: windowsOnDisplay(windows, shot.display.bounds)
@@ -191,6 +202,10 @@ export function setupSnipIpc(): void {
     if (!overlay || !active || !overlay.shot) return
     overlay.ready = true
     if ([...overlays.values()].every((item) => item.window.isDestroyed() || item.ready || !item.shot)) reveal()
+  })
+  ipcMain.on('snip-cleared', (event) => {
+    const overlay = overlayOf(event)
+    if (overlay) hideIfIdle(overlay)
   })
   ipcMain.on('snip-pointer-enter', (event) => {
     const overlay = overlayOf(event)

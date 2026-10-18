@@ -24,7 +24,8 @@ const SM_XVIRTUALSCREEN = 76
 const SM_YVIRTUALSCREEN = 77
 const SM_CXVIRTUALSCREEN = 78
 const SM_CYVIRTUALSCREEN = 79
-const SRCCOPY_WITH_LAYERED_WINDOWS = 0x00cc0020 | 0x40000000
+/** No CAPTUREBLT: it makes the cursor flicker, and Windows 8 and later copy layered windows without it. */
+const SRCCOPY = 0x00cc0020
 const GWL_EXSTYLE = -20
 const WS_EX_TRANSPARENT = 0x20
 const DWMWA_EXTENDED_FRAME_BOUNDS = 9
@@ -77,7 +78,7 @@ function win32(): Win32Capture | null {
       const bitmap = createCompatibleBitmap(screenDC, width, height)
       try {
         const previous = selectObject(memoryDC, bitmap)
-        const copied = bitBlt(memoryDC, 0, 0, width, height, screenDC, x, y, SRCCOPY_WITH_LAYERED_WINDOWS)
+        const copied = bitBlt(memoryDC, 0, 0, width, height, screenDC, x, y, SRCCOPY)
         selectObject(memoryDC, previous)
         if (!copied) throw new Error('BitBlt could not copy the screen')
         const pixels = Buffer.alloc(width * height * 4)

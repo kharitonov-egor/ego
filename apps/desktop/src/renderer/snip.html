@@ -9,11 +9,18 @@
         height: 100%;
         margin: 0;
         overflow: hidden;
-        background: #000000;
+        background: transparent;
         cursor: crosshair;
         user-select: none;
         -webkit-user-select: none;
       }
+
+      #stage { visibility: hidden; }
+
+      /* The frozen screen matches the live one, so it appears unnoticed and the dim fades in after.
+         It stays on with reduced motion: nothing moves, and a sudden dim of both monitors reads as a flash. */
+      #shade, #hint { transition: opacity 120ms ease-out; }
+      #stage.entering #shade, #stage.entering #hint { opacity: 0; transition: none; }
 
       #screen {
         position: fixed;
@@ -41,7 +48,7 @@
       #box.window {
         outline: 2px solid #fafafa;
         outline-offset: -2px;
-        box-shadow: inset 0 0 0 3px rgba(0, 0, 0, 0.6), 0 0 0 100vmax rgba(0, 0, 0, 0.45);
+        box-shadow: inset 0 0 0 3px rgba(0, 0, 0, 0.6);
       }
 
       #size {
@@ -85,13 +92,16 @@
     </style>
   </head>
   <body>
-    <img id="screen" alt="" draggable="false" />
-    <div id="shade"></div>
-    <div id="box"></div>
-    <div id="size"></div>
-    <div id="hint"><b>Image to text</b>&nbsp; Drag around text or click a window. <kbd>Esc</kbd> cancels.</div>
+    <div id="stage">
+      <img id="screen" alt="" draggable="false" />
+      <div id="shade"></div>
+      <div id="box"></div>
+      <div id="size"></div>
+      <div id="hint"><b>Image to text</b>&nbsp; Drag around text or click a window. <kbd>Esc</kbd> cancels.</div>
+    </div>
 
     <script>
+      const stage = document.getElementById('stage')
       const screenImage = document.getElementById('screen')
       const shade = document.getElementById('shade')
       const box = document.getElementById('box')
@@ -99,6 +109,7 @@
       const hint = document.getElementById('hint')
       const DRAG_THRESHOLD = 4
       let windows = []
+      let frameNumber = 0
       let start = null
       let dragging = false
       let last = null
@@ -121,8 +132,10 @@
         return { x: left, y: top, width: clampX(Math.max(a.x, b.x)) - left, height: clampY(Math.max(a.y, b.y)) - top }
       }
 
+      // Hovering only outlines the window. Lifting the dim off a maximized window would brighten
+      // nearly the whole screen the moment the overlay opens, which reads as a flash.
       function showBox(rect, kind) {
-        shade.style.display = 'none'
+        shade.style.display = kind === 'drag' ? 'none' : 'block'
         box.className = kind
         box.style.display = 'block'
         box.style.left = `${rect.x}px`
@@ -157,6 +170,10 @@
           width: Math.round(rect.width),
           height: Math.round(rect.height)
         })
+      }
+
+      function afterPaint(callback) {
+        requestAnimationFrame(() => requestAnimationFrame(callback))
       }
 
       function pointOf(event) {
@@ -208,15 +225,30 @@
       window.api.onSnipFrame((frame) => {
         reset()
         box.style.display = 'none'
+        stage.style.visibility = 'hidden'
+        const number = ++frameNumber
         if (!frame) {
           windows = []
           screenImage.removeAttribute('src')
+          afterPaint(() => {
+            if (number === frameNumber) window.api.snipCleared()
+          })
           return
         }
         windows = frame.windows
         last = null
-        screenImage.onload = () => window.api.snipReady()
         screenImage.src = frame.image
+        // The stage appears only with the screenshot decoded, so the first visible frame already shows it.
+        screenImage.decode().catch(() => undefined).then(() => {
+          if (number !== frameNumber) return
+          stage.classList.add('entering')
+          stage.style.visibility = 'visible'
+          afterPaint(() => {
+            if (number !== frameNumber) return
+            stage.classList.remove('entering')
+            window.api.snipReady()
+          })
+        })
       })
     </script>
   </body>

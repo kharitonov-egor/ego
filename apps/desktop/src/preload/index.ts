@@ -146,6 +146,7 @@ const api: IpcApi = {
     return () => ipcRenderer.removeListener('snip-frame', handler)
   },
   snipReady: () => ipcRenderer.send('snip-ready'),
+  snipCleared: () => ipcRenderer.send('snip-cleared'),
   snipPointerEnter: () => ipcRenderer.send('snip-pointer-enter'),
   snipSelect: (rect: SnipRect) => ipcRenderer.send('snip-select', rect),
   snipCancel: () => ipcRenderer.send('snip-cancel'),

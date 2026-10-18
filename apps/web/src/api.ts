@@ -206,6 +206,7 @@ export function createWebApi(): IpcApi {
 
     onSnipFrame: () => () => undefined,
     snipReady: () => undefined,
+    snipCleared: () => undefined,
     snipPointerEnter: () => undefined,
     snipSelect: () => undefined,
     snipCancel: () => undefined,
