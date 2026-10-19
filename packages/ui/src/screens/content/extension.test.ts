@@ -10,14 +10,14 @@ const KEY = 'egoct_' + 'a'.repeat(64)
 const view = (id: string) => document.getElementById(id)?.hidden === false
 afterEach(() => { document.body.innerHTML = '' })
 
-function setup(options: { failOnce?: boolean; restricted?: boolean; pageUrl?: string; page?: string; storedKey?: string; rejectKey?: boolean } = {}) {
+function setup(options: { failOnce?: boolean; restricted?: boolean; pageUrl?: string; page?: string; storedKey?: string; rejectKey?: boolean; canvasDark?: boolean } = {}) {
   document.body.innerHTML = readFileSync(resolve(root, 'popup.html'), 'utf8').replace(/<script[\s\S]*?<\/script>/g, '')
   let attempts = 0
   const captureBodies: Array<{ id: string; item: { title: string; notes: string; coverUrl: string | null; tags: string[] } }> = []
   const session: Record<string, unknown> = {}
   const chrome = {
     storage: {
-      local: { setAccessLevel: vi.fn(async () => {}), get: vi.fn(async () => ({ contentKey: options.storedKey ?? KEY })), set: vi.fn(async () => {}), remove: vi.fn(async () => {}) },
+      local: { setAccessLevel: vi.fn(async () => {}), get: vi.fn(async () => ({ contentKey: options.storedKey ?? KEY, canvasDark: options.canvasDark })), set: vi.fn(async () => {}), remove: vi.fn(async () => {}) },
       session: { get: vi.fn(async () => session), set: vi.fn(async (value: Record<string, unknown>) => Object.assign(session, value)), remove: vi.fn(async (key: string) => { delete session[key] }) }
     },
     tabs: { query: vi.fn(async () => [{ id: 7, url: options.pageUrl ?? 'https://example.com/article', title: 'Fallback title' }]) },
@@ -44,7 +44,8 @@ function setup(options: { failOnce?: boolean; restricted?: boolean; pageUrl?: st
   const start = () => runInContext('start()', context) as Promise<void>
   const save = () => runInContext("$('capture').onsubmit({ preventDefault() {} })", context) as Promise<void>
   const connect = () => runInContext("$('connect-button').onclick()", context) as Promise<void>
-  return { start, save, connect, chrome, captureBodies }
+  const toggleCanvasDark = () => runInContext("$('canvas-dark').onclick()", context) as Promise<void>
+  return { start, save, connect, toggleCanvasDark, chrome, captureBodies }
 }
 
 describe('Chrome popup', () => {
@@ -104,5 +105,18 @@ describe('Chrome popup', () => {
     expect((document.getElementById('save') as HTMLButtonElement).disabled).toBe(false)
     expect([...document.querySelectorAll('#collection option')].map(option => option.textContent)).toEqual(['Unsorted', 'Reading'])
     expect(document.getElementById('tag-options')?.textContent).toBe('#reading')
+  })
+  it('toggles Canvas dark mode from the header', async () => {
+    const popup = setup({ canvasDark: false }); await popup.start()
+    const button = document.getElementById('canvas-dark') as HTMLButtonElement
+    expect(button.getAttribute('aria-pressed')).toBe('false')
+    await popup.toggleCanvasDark()
+    expect(button.getAttribute('aria-pressed')).toBe('true')
+    expect(popup.chrome.storage.local.set).toHaveBeenCalledWith({ canvasDark: true })
+    await popup.toggleCanvasDark()
+    expect(popup.chrome.storage.local.set).toHaveBeenLastCalledWith({ canvasDark: false })
+    document.body.innerHTML = ''
+    const fresh = setup(); await fresh.start()
+    expect(document.getElementById('canvas-dark')?.getAttribute('aria-pressed')).toBe('true')
   })
 })

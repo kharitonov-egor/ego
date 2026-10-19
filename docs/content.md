@@ -76,6 +76,54 @@ Interrupted saves retain their request ID in Chrome's session storage so retries
 do not create a second record. A deliberate second save of an existing URL is
 allowed and shows a notice first.
 
+## Canvas dark mode
+
+The extension also turns Canvas dark. It runs on every `https://*.instructure.com`
+page except Instructure's marketing and community sites, and the moon button in
+the popup header switches it off and on. The setting is `canvasDark` in
+`chrome.storage.local`; open Canvas tabs follow a change without a reload.
+
+Canvas has no theme hooks, and most of its newer screens use InstUI, whose class
+names are hashed per build, so a hand-written stylesheet cannot target them.
+Instead `canvas-dark.js` rewrites the colors Canvas already ships. For every
+stylesheet on the page it reads each rule, maps light backgrounds to dark greys,
+dark text to light grey, pale borders to dark ones, and leaves saturated brand and
+status colors alone. Text in a rule that also sets a kept colored background stays
+as it is. Inline `<style>` tags, which is where InstUI puts its rules, are read
+through the CSSOM as React adds them. Linked stylesheets go through `background.js`,
+the service worker, which has host permissions for the Canvas CDN, the institution
+upload bucket, and DesignPLUS, because CloudFront serves the bundles without a CORS
+header. The worker owns all `chrome.storage.local` access, because the popup sets
+the store to trusted contexts only (to keep the extension key out of content
+scripts), which also bars the content script from storage. So the content script
+asks the worker for each sheet: the worker returns the cached rewritten rules, or
+the raw text for the content script to map and hand back to cache. Cache keys are
+the sheet URL, `@import` targets are followed, and entries older than 45 days are
+pruned, so only the first visit after a Canvas deploy pays for the fetch and parse.
+The toggle lives in the same store: the content script reads it from the worker on
+load, and the worker relays a change to every open Canvas tab so they update
+without a reload. Inline `style` attributes and `bgcolor` in course content are
+rewritten the same way. `canvas-dark.css` sets the base page colors,
+`color-scheme: dark`, and the brand variables Canvas's own CSS reads.
+
+When Canvas dark mode is on, the script adds a `<meta name="darkreader-lock">`
+tag so Dark Reader and other extensions that honor the lock leave the page alone,
+and it removes the tag when the toggle is off so they can take over again. Running
+two dark-mode extensions on Canvas without the lock leaves half-mapped surfaces,
+such as a white breadcrumb bar or a light grades hover row.
+
+The content script turns itself off in frames from another host, such as New
+Quizzes, and on a document with no Canvas markup. Cross-origin tools in iframes,
+such as Simple Syllabus, keep their own colors. On the first visit to a page whose
+bundles are not cached yet, the inner surfaces can flash light for a moment while
+the sheets are fetched.
+
+To check a change visually, launch Playwright's Chromium with `--headless=new`,
+`--load-extension`, and `--remote-debugging-port`, then screenshot pages over
+CDP. Public Canvas courses, such as UBC's student resource site, render the full
+layout without a login; USF pages need the DOM serialized out of a logged-in
+browser. The harness used for this lives outside the repo.
+
 ## Import a Raindrop export
 
 `python scripts/content-import.py export.csv --output out/content-backfill.sql`
