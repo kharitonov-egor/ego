@@ -23,6 +23,9 @@ export interface Env {
   FOOD_MODEL?: string
   /** The OpenRouter model that reads receipt photos for the web app. */
   RECEIPT_MODEL?: string
+  /** The OpenRouter model behind the desktop's image to text, with IMAGE_TEXT_EFFORT as its reasoning effort. */
+  IMAGE_TEXT_MODEL?: string
+  IMAGE_TEXT_EFFORT?: string
   /** A FoodData Central key. Barcode lookups use Open Food Facts alone without it. */
   USDA_API_KEY?: string
   /** The bot whose messages become Inbox cards, from BotFather. */

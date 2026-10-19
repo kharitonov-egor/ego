@@ -2,8 +2,11 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type {
   BuildStage,
   IpcApi,
+  NotificationUpdate,
   QuickAddListShortcut,
-  QuickAddPayload
+  QuickAddPayload,
+  SnipFrame,
+  SnipRect
 } from '@ego/ui/platform/types'
 import type {
   AssistantStreamMessage, LedgerEvent, MediaProgress, RemoteApi, RemoteApiMethod, SignInOutcome
@@ -83,6 +86,8 @@ const api: IpcApi = {
   setQuickAddHotkey: (hotkey: string) => ipcRenderer.invoke('set-quick-add-hotkey', hotkey),
   getToolPaletteHotkey: () => ipcRenderer.invoke('get-tool-palette-hotkey'),
   setToolPaletteHotkey: (hotkey: string) => ipcRenderer.invoke('set-tool-palette-hotkey', hotkey),
+  getImageTextHotkey: () => ipcRenderer.invoke('get-image-text-hotkey'),
+  setImageTextHotkey: (hotkey: string) => ipcRenderer.invoke('set-image-text-hotkey', hotkey),
 
   getTrelloApiKey: () => ipcRenderer.invoke('get-trello-api-key'),
   setTrelloApiKey: (value: string) => ipcRenderer.invoke('set-trello-api-key', value),
@@ -100,6 +105,11 @@ const api: IpcApi = {
     ipcRenderer.invoke('set-quick-add-list-shortcuts', shortcuts),
 
   resizeNotification: (height: number) => ipcRenderer.send('notification-resize', height),
+  onNotificationUpdate: (callback: (update: NotificationUpdate) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, update: NotificationUpdate): void => callback(update)
+    ipcRenderer.on('notification-update', handler)
+    return () => ipcRenderer.removeListener('notification-update', handler)
+  },
 
   submitQuickAdd: (payload: QuickAddPayload) => ipcRenderer.invoke('quick-add-submit', payload),
   cancelQuickAdd: () => ipcRenderer.send('quick-add-cancel'),
@@ -132,6 +142,20 @@ const api: IpcApi = {
     ipcRenderer.on('media-download-progress', handler)
     return () => ipcRenderer.removeListener('media-download-progress', handler)
   },
+  listImageTextHistory: () => ipcRenderer.invoke('image-text-history'),
+  clearImageTextHistory: () => ipcRenderer.invoke('image-text-history-clear'),
+  openImageTextHistoryImage: (id: string) => ipcRenderer.invoke('image-text-history-open', id),
+
+  onSnipFrame: (callback: (frame: SnipFrame | null) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, frame: SnipFrame | null): void => callback(frame)
+    ipcRenderer.on('snip-frame', handler)
+    return () => ipcRenderer.removeListener('snip-frame', handler)
+  },
+  snipReady: () => ipcRenderer.send('snip-ready'),
+  snipCleared: () => ipcRenderer.send('snip-cleared'),
+  snipPointerEnter: () => ipcRenderer.send('snip-pointer-enter'),
+  snipSelect: (rect: SnipRect) => ipcRenderer.send('snip-select', rect),
+  snipCancel: () => ipcRenderer.send('snip-cancel'),
 
   buildAndInstall: () => ipcRenderer.invoke('build-and-install'),
   onBuildProgress: (callback: (stage: BuildStage) => void) => {

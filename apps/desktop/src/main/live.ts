@@ -66,7 +66,7 @@ export async function createLiveSession(sdp: string): Promise<LiveCreateSessionR
   return { ok: false, code, message }
 }
 
-async function workerRequest<T>(path: string, method: string, body?: unknown): Promise<DesktopApiResult<T>> {
+export async function workerRequest<T>(path: string, method: string, body?: unknown): Promise<DesktopApiResult<T>> {
   const config = getLedgerConfig()
   const token = getLedgerToken()
   if (!config.url || !token) return { ok: false, code: 'NOT_CONFIGURED', message: 'Connect the Ego service first.' }

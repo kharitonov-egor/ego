@@ -164,6 +164,7 @@
       .claude .dot { background: #fafafa; }
       .ocr .dot { background: #a3a3a3; }
       .download .dot { background: #525252; }
+      .history .dot { background: #737373; }
 
       .foot {
         display: flex;
@@ -316,6 +317,74 @@
         font: 10px/1.45 Consolas, monospace;
       }
 
+      .button.small {
+        min-height: 24px;
+        padding: 0 10px;
+        font-size: 11px;
+      }
+
+      .history-list {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        gap: 6px;
+        min-height: 0;
+        margin: 10px 14px 0;
+        overflow-y: auto;
+      }
+
+      .history-item {
+        display: grid;
+        grid-template-columns: 72px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 8px;
+        border: 1px solid #1f1f1f;
+        border-radius: 8px;
+        background: #141414;
+        cursor: pointer;
+      }
+
+      .history-item:hover,
+      .history-item.selected {
+        border-color: #fafafa;
+        background: #1c1c1c;
+      }
+
+      .history-thumb {
+        width: 72px;
+        height: 44px;
+        border: 1px solid #262626;
+        border-radius: 5px;
+        background: #262626 center / cover no-repeat;
+      }
+
+      .history-text {
+        display: -webkit-box;
+        overflow: hidden;
+        color: #fafafa;
+        font-size: 12px;
+        line-height: 1.35;
+        white-space: pre-line;
+        word-break: break-word;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+      }
+
+      .history-meta {
+        margin-top: 3px;
+        color: #737373;
+        font-size: 10px;
+      }
+
+      .history-empty {
+        padding: 18px 2px;
+        color: #737373;
+        font-size: 12px;
+      }
+
+      #history-status { margin-top: 8px; }
+
       .setup-link {
         color: #fafafa;
         text-decoration: none;
@@ -356,13 +425,18 @@
             </button>
             <button class="choice ocr" data-action="ocr" role="option" aria-selected="false">
               <span class="number">02</span>
-              <span><span class="choice-name">Read text from image</span><span class="choice-detail">Clipboard or file, processed by Windows</span></span>
-              <span class="tag"><span class="dot"></span>LOCAL</span>
+              <span><span class="choice-name">Image to text</span><span class="choice-detail">Clipboard or file, any language</span></span>
+              <span class="tag"><span class="dot"></span>AI</span>
             </button>
             <button class="choice download" data-action="download" role="option" aria-selected="false">
               <span class="number">03</span>
               <span><span class="choice-name">Save video or audio</span><span class="choice-detail">Download one link with yt-dlp</span></span>
               <span class="tag"><span class="dot"></span>DOWNLOADS</span>
+            </button>
+            <button class="choice history" data-action="history" role="option" aria-selected="false">
+              <span class="number">04</span>
+              <span><span class="choice-name">Image to text history</span><span class="choice-detail">Your last 50 results. Choose one to copy it again</span></span>
+              <span class="tag"><span class="dot"></span>HISTORY</span>
             </button>
           </div>
 
@@ -375,8 +449,8 @@
 
         <div class="view" id="ocr-view">
           <div class="topline">
-            <div class="subhead"><button class="back" aria-label="Back">←</button><div><h2>Read text from image</h2><p class="description">Windows reads the image locally. Ego copies recognized text to your clipboard.</p></div></div>
-            <span class="tag"><span class="dot" style="background: #a3a3a3"></span>LOCAL OCR</span>
+            <div class="subhead"><button class="back" aria-label="Back">←</button><div><h2>Image to text</h2><p class="description">Ego reads the image in any language and copies the text to your clipboard.</p></div></div>
+            <span class="tag"><span class="dot" style="background: #a3a3a3"></span>ANY LANGUAGE</span>
           </div>
           <div class="action-grid">
             <button class="button primary" id="ocr-clipboard">Use clipboard image</button>
@@ -385,6 +459,16 @@
           <p class="status" id="ocr-status">Copy a screenshot, then choose "Use clipboard image."</p>
           <pre class="result" id="ocr-result"></pre>
           <div class="foot"><span><kbd>Esc</kbd> back</span><span id="ocr-copy-note"></span></div>
+        </div>
+
+        <div class="view" id="history-view">
+          <div class="topline">
+            <div class="subhead"><button class="back" aria-label="Back">←</button><div><h2>Image to text history</h2></div></div>
+            <button class="button small" id="history-clear">Clear</button>
+          </div>
+          <div class="history-list" id="history-list" role="listbox" aria-label="Recent results"></div>
+          <p class="status" id="history-status"></p>
+          <div class="foot"><span><kbd>↑</kbd><kbd>↓</kbd> choose</span><span><kbd>Enter</kbd> copy</span><span><kbd>Esc</kbd> back</span></div>
         </div>
 
         <div class="view" id="download-view">
@@ -415,6 +499,7 @@
       const views = {
         home: document.getElementById('home-view'),
         ocr: document.getElementById('ocr-view'),
+        history: document.getElementById('history-view'),
         download: document.getElementById('download-view')
       }
       const choices = Array.from(document.querySelectorAll('.choice'))
@@ -450,6 +535,8 @@
           await window.api.openClaude()
         } else if (action === 'ocr') {
           setView('ocr')
+        } else if (action === 'history') {
+          await showHistory()
         } else {
           setView('download')
           mediaUrl.focus()
@@ -486,10 +573,118 @@
         ocrResult.textContent = result.text
         ocrResult.classList.add('visible')
         ocrStatus.className = 'status success'
-        ocrStatus.textContent = 'Text copied to clipboard.'
+        ocrStatus.textContent = result.engine === 'windows'
+          ? 'Text copied. The Ego service did not answer, so Windows OCR read it.'
+          : 'Text copied to clipboard.'
         ocrCopyNote.textContent = `${result.text.length.toLocaleString()} characters`
         await window.api.copyToolText(result.text)
       }
+
+      const historyList = document.getElementById('history-list')
+      const historyStatus = document.getElementById('history-status')
+      const historyClear = document.getElementById('history-clear')
+      const SOURCE_LABELS = { screen: 'Screen', clipboard: 'Clipboard', file: 'File' }
+      let historyItems = []
+      let historySelected = 0
+      let clearArmed = null
+
+      function timeAgo(iso) {
+        const seconds = (Date.now() - Date.parse(iso)) / 1000
+        if (seconds < 60) return 'just now'
+        if (seconds < 3600) return `${Math.floor(seconds / 60)} min ago`
+        if (seconds < 86400) return `${Math.floor(seconds / 3600)} h ago`
+        return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+      }
+
+      function disarmClear() {
+        if (clearArmed) clearTimeout(clearArmed)
+        clearArmed = null
+        historyClear.textContent = 'Clear'
+      }
+
+      function selectHistory(index) {
+        const rows = Array.from(historyList.querySelectorAll('.history-item'))
+        if (!rows.length) return
+        historySelected = (index + rows.length) % rows.length
+        rows.forEach((row, position) => {
+          const active = position === historySelected
+          row.classList.toggle('selected', active)
+          row.setAttribute('aria-selected', String(active))
+        })
+        rows[historySelected].scrollIntoView({ block: 'nearest' })
+      }
+
+      async function copyHistory(index) {
+        const item = historyItems[index]
+        if (!item) return
+        await window.api.copyToolText(item.text)
+        historyStatus.className = 'status success'
+        historyStatus.textContent = 'Text copied to clipboard.'
+      }
+
+      function renderHistory() {
+        historyList.replaceChildren()
+        historyClear.disabled = historyItems.length === 0
+        if (!historyItems.length) {
+          const empty = document.createElement('p')
+          empty.className = 'history-empty'
+          empty.textContent = 'Nothing yet. Text you read with the hotkey or with Image to text shows up here.'
+          historyList.append(empty)
+          return
+        }
+        historyItems.forEach((item, index) => {
+          const row = document.createElement('div')
+          row.className = 'history-item'
+          row.setAttribute('role', 'option')
+          const thumb = document.createElement('span')
+          thumb.className = 'history-thumb'
+          if (item.thumbnail) thumb.style.backgroundImage = `url("${item.thumbnail}")`
+          const body = document.createElement('span')
+          const text = document.createElement('span')
+          text.className = 'history-text'
+          text.textContent = item.text
+          const meta = document.createElement('div')
+          meta.className = 'history-meta'
+          meta.textContent = [timeAgo(item.createdAt), SOURCE_LABELS[item.source], item.engine === 'windows' ? 'Windows OCR' : '']
+            .filter(Boolean).join(' · ')
+          body.append(text, meta)
+          const open = document.createElement('button')
+          open.className = 'button small'
+          open.textContent = 'Image'
+          open.addEventListener('click', (event) => {
+            event.stopPropagation()
+            void window.api.openImageTextHistoryImage(item.id)
+          })
+          row.append(thumb, body, open)
+          row.addEventListener('mouseenter', () => selectHistory(index))
+          row.addEventListener('click', () => void copyHistory(index))
+          historyList.append(row)
+        })
+        selectHistory(0)
+      }
+
+      async function showHistory() {
+        setView('history')
+        disarmClear()
+        historyStatus.className = 'status'
+        historyStatus.textContent = ''
+        historyItems = await window.api.listImageTextHistory()
+        renderHistory()
+      }
+
+      historyClear.addEventListener('click', async () => {
+        if (!clearArmed) {
+          historyClear.textContent = 'Clear all?'
+          clearArmed = setTimeout(disarmClear, 3000)
+          return
+        }
+        disarmClear()
+        await window.api.clearImageTextHistory()
+        historyItems = []
+        renderHistory()
+        historyStatus.className = 'status'
+        historyStatus.textContent = 'History cleared.'
+      })
 
       document.getElementById('ocr-clipboard').addEventListener('click', () => void runOcr('clipboard'))
       document.getElementById('ocr-file').addEventListener('click', () => void runOcr('file'))
@@ -570,6 +765,16 @@
           else setView('home')
           return
         }
+        if (currentView === 'history') {
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault()
+            selectHistory(historySelected + (event.key === 'ArrowDown' ? 1 : -1))
+          } else if (event.key === 'Enter' && event.target === document.body) {
+            event.preventDefault()
+            void copyHistory(historySelected)
+          }
+          return
+        }
         if (currentView !== 'home') return
         if (event.key === 'ArrowDown') {
           event.preventDefault()
@@ -580,7 +785,7 @@
         } else if (event.key === 'Enter') {
           event.preventDefault()
           void activate(choices[selected].dataset.action)
-        } else if (/^[1-3]$/.test(event.key)) {
+        } else if (/^[1-4]$/.test(event.key)) {
           event.preventDefault()
           const index = Number(event.key) - 1
           selectChoice(index)
