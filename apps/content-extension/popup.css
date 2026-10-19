@@ -52,6 +52,9 @@ input::placeholder, textarea::placeholder { color: #737373; }
   transition: background-color 120ms, color 120ms;
 }
 .icon-button:hover { background: #262626; color: #fafafa; }
+.icon-button[aria-pressed='true'] { color: #fafafa; }
+.icon-button[aria-pressed='true'] .icon { fill: currentColor; }
+.icon-button[aria-pressed='false'] { color: #737373; }
 
 .view { display: flex; flex-direction: column; gap: 12px; padding: 14px 20px 18px; }
 #capture { max-height: 548px; overflow-y: auto; padding-bottom: 0; }

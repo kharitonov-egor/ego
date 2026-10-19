@@ -35,6 +35,10 @@ function settings(rejected = false) {
   $('connected').hidden = !key || rejected
   $('key').value = ''
 }
+function setCanvasDark(on) {
+  $('canvas-dark').setAttribute('aria-pressed', String(on))
+  $('canvas-dark').title = on ? 'Canvas dark mode is on' : 'Canvas dark mode is off'
+}
 function setFavorite(value) {
   favorite = value
   $('favorite').setAttribute('aria-pressed', String(favorite))
@@ -156,6 +160,11 @@ function finish(draft) {
 }
 
 $('settings').onclick = () => settings()
+$('canvas-dark').onclick = async () => {
+  const on = $('canvas-dark').getAttribute('aria-pressed') !== 'true'
+  setCanvasDark(on)
+  await chrome.storage.local.set({ canvasDark: on })
+}
 $('back').onclick = () => { show('capture'); if (library) ready() }
 $('favorite').onclick = () => setFavorite(!favorite)
 $('kind').onchange = () => setKind($('kind').value)
@@ -211,8 +220,9 @@ $('capture').onsubmit = async event => {
 }
 async function start() {
   await chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' })
-  const stored = await chrome.storage.local.get('contentKey')
+  const stored = await chrome.storage.local.get(['contentKey', 'canvasDark'])
   key = stored.contentKey || ''
+  setCanvasDark(stored.canvasDark !== false)
   const pending = await chrome.storage.session.get('pendingCapture')
   submission = pending.pendingCapture || null
   if (!key) return settings()

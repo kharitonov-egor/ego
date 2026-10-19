@@ -1,0 +1,24 @@
+html:not([data-ego-canvas-light]) {
+  color-scheme: dark;
+  --ego-bg: hsl(0, 0%, 10%);
+  --ego-surface: hsl(0, 0%, 13%);
+  --ego-surface-2: hsl(0, 0%, 17%);
+  --ego-border: hsl(0, 0%, 22%);
+  --ego-text: hsl(0, 0%, 90%);
+  --ego-text-muted: hsl(0, 0%, 68%);
+  --ego-link: hsl(207, 70%, 70%);
+  --ic-brand-font-color-dark: var(--ego-text);
+  --ic-brand-font-color-dark-lightened-15: var(--ego-text-muted);
+  --ic-brand-font-color-dark-lightened-28: hsl(0, 0%, 60%);
+  --ic-link-color: var(--ego-link);
+  --ic-link-color-darkened-10: hsl(207, 75%, 78%);
+  --ic-link-color-lightened-10: hsl(207, 75%, 78%);
+  --ic-brand-button--secondary-bgd: hsl(0, 0%, 24%);
+  --ic-brand-button--secondary-bgd-darkened-5: hsl(0, 0%, 28%);
+  --ic-brand-button--secondary-bgd-darkened-15: hsl(0, 0%, 32%);
+  background: var(--ego-bg);
+
+  body { background: var(--ego-bg); color: var(--ego-text); }
+  img.equation_image, .math_equation_latex img { filter: invert(1) hue-rotate(180deg); }
+  .ic-Layout-watermark { opacity: 0.25; }
+}
