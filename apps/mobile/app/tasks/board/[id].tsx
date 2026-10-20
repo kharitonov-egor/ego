@@ -7,6 +7,7 @@ import {
 } from 'lucide-react-native'
 import type { TaskListRecord } from '@ego/api-contracts'
 import { HeaderButton } from '../../../components/HeaderButton'
+import { HeaderTitle } from '../../../components/HeaderTitle'
 import { HeaderIcon, MenuSheet, type MenuItem } from '../../../components/gym/ui'
 import { ConfirmDialog } from '../../../components/money/Common'
 import { color } from '../../../components/money/tokens'
@@ -55,8 +56,10 @@ function Board({ boardId }: { boardId: string }): React.ReactElement {
   const isHome = data ? homeBoardId(data) === boardId : false
 
   useLayoutEffect(() => {
+    const title = board ? `${board.icon ? `${board.icon} ` : ''}${board.name}` : ''
     navigation.setOptions({
-      title: board ? `${board.icon ? `${board.icon} ` : ''}${board.name}` : '',
+      title,
+      headerTitle: () => <HeaderTitle title={title} />,
       headerLeft: isHome
         ? () => <HeaderButton label="All boards" onPress={() => router.replace('/tasks')}><SquareKanban color="#fafafa" size={21} /></HeaderButton>
         : undefined,

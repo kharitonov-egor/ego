@@ -8,6 +8,7 @@ import {
 } from 'lucide-react-native'
 import type { SheetRowRecord } from '@ego/api-contracts'
 import type { SheetColumn } from '@ego/core'
+import { HeaderTitle } from '../../components/HeaderTitle'
 import { HeaderIcon, MenuSheet, type MenuItem } from '../../components/gym/ui'
 import { ConfirmDialog } from '../../components/money/Common'
 import { CellEditor } from '../../components/sheets/CellEditor'
@@ -88,8 +89,10 @@ function SheetView({ sheetId }: { sheetId: string }): React.ReactElement {
   const grid = useMemo(() => sheet ? sheetGrid(sheet, rows, query, collapsed, today) : null, [collapsed, query, rows, sheet, today])
 
   useLayoutEffect(() => {
+    const title = sheet ? `${sheet.icon ? `${sheet.icon} ` : ''}${sheet.name}` : ''
     navigation.setOptions({
-      title: sheet ? `${sheet.icon ? `${sheet.icon} ` : ''}${sheet.name}` : '',
+      title,
+      headerTitle: () => <HeaderTitle title={title} />,
       headerRight: () => <SheetsHeaderRight>
         <HeaderIcon label="Search rows" onPress={() => setSearching((open) => !open)}><Search color="#fafafa" size={21} /></HeaderIcon>
         <HeaderIcon label="Sheet menu" onPress={() => setPanel('menu')}><Ellipsis color="#fafafa" size={22} /></HeaderIcon>
