@@ -5,6 +5,7 @@ import { Ellipsis, Flag, Link2, ListChecks, Pencil, Plus, Target, Trash2 } from 
 import { goalProgress, type TaskGoalInput } from '@ego/core'
 import { GOAL_HORIZON_LABELS, GOAL_STATUS_LABELS, GoalLinkSheet, GoalSheet, MilestoneRow } from '../../../components/tasks/goals'
 import { TasksError, TasksGate, TasksHeaderRight, TasksMessage, SectionTitle } from '../../../components/tasks/ui'
+import { HeaderTitle } from '../../../components/HeaderTitle'
 import { HeaderIcon, MenuSheet } from '../../../components/gym/ui'
 import { ConfirmDialog } from '../../../components/money/Common'
 import { color } from '../../../components/money/tokens'
@@ -27,8 +28,10 @@ function GoalDetail({ goalId }: { goalId: string }): React.ReactElement {
   const [deleting, setDeleting] = useState(false)
 
   useLayoutEffect(() => {
+    const title = goal?.title ?? 'Goal'
     navigation.setOptions({
-      title: goal?.title ?? 'Goal',
+      title,
+      headerTitle: () => <HeaderTitle title={title} />,
       headerRight: () => <TasksHeaderRight><HeaderIcon label="Goal menu" onPress={() => setMenu(true)}><Ellipsis color="#fafafa" size={22} /></HeaderIcon></TasksHeaderRight>
     })
   }, [goal?.title, navigation])
