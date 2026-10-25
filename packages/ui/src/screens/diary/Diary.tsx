@@ -19,6 +19,7 @@ import { mediaSource } from '../../lib/diary/media'
 import { followUploadProgress } from '../../lib/diary/progress'
 import { useDiary } from '../../lib/diary/use-diary'
 import { useLedger } from '../../lib/ledger'
+import { ErrorBanner } from '../../components/ui/error-banner'
 
 /** Rows drawn at first, and added each time the reader scrolls near the oldest one drawn. */
 const PAGE = 60
@@ -292,10 +293,7 @@ function DiaryChat(): React.ReactElement {
           if (target) jumpTo(target.id)
           setPinIndex((current) => (current + 1) % pinned.length)
         }} />}
-        {diary.error && <button type="button" onClick={diary.dismissError} className="flex w-full items-center gap-2 bg-red-500/10 px-5 py-2.5 text-left">
-          <span className="flex-1 text-[14px] leading-5 text-red-300">{diary.error}</span>
-          <X color="#fca5a5" size={16} />
-        </button>}
+        <ErrorBanner variant="bar" message={diary.error} onDismiss={diary.dismissError} />
         <div className="relative min-h-0 flex-1">
           {rows.length === 0
             ? ledger.current

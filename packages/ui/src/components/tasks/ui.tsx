@@ -1,7 +1,7 @@
 import React, { memo, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import {
-  AlignLeft, Bot, CircleCheck, Circle, Clock, CloudUpload, Paperclip, SquareCheckBig, SquareKanban, TriangleAlert, X,
+  AlignLeft, Bot, CircleCheck, Circle, Clock, CloudUpload, Paperclip, SquareCheckBig, SquareKanban, TriangleAlert,
   type LucideIcon
 } from 'lucide-react'
 import type { TaskAgentRun, TaskCardRecord, TaskLabelRecord } from '@ego/api-contracts'
@@ -19,6 +19,7 @@ import { Button } from '../ui/button'
 import { Sheet } from '../ui/dialog'
 import { Spinner } from '../ui/spinner'
 import { SwitchTrack } from '../ui/switch'
+import { ErrorBanner } from '../ui/error-banner'
 
 /** Muted enough to sit on black without turning the board into a rainbow. */
 export const LABEL_COLORS: Record<TaskLabelColor, string> = {
@@ -334,15 +335,7 @@ export function TasksGate({ title, back, tabs, children }: {
 
 export function TasksError({ className }: { className?: string }): React.ReactElement | null {
   const { error, dismissError } = useTasks()
-  if (!error) return null
-  return <button
-    type="button"
-    onClick={dismissError}
-    className={cn('flex w-full items-center gap-2 rounded-2xl bg-red-500/10 px-4 py-3 text-left hover:bg-red-500/15', className)}
-  >
-    <span className="flex-1 text-[14px] leading-5 text-red-300">{error}</span>
-    <X color="#fca5a5" size={16} />
-  </button>
+  return <ErrorBanner message={error} onDismiss={dismissError} className={className} />
 }
 
 export function SectionTitle({ Icon, title, right }: { Icon?: LucideIcon; title: string; right?: React.ReactNode }): React.ReactElement {

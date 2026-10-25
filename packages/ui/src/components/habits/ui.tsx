@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router'
-import { Ban, CalendarDays, House, ListChecks, Plus, TriangleAlert, X, type LucideIcon } from 'lucide-react'
+import { Ban, CalendarDays, House, ListChecks, Plus, TriangleAlert, type LucideIcon } from 'lucide-react'
 import type { HabitKind } from '@ego/core'
 import { useHabits } from '../../lib/habits/context'
 import { useLedger } from '../../lib/ledger'
@@ -8,6 +8,7 @@ import { BlurBlob, useBlur } from '../../lib/blur'
 import { ScreenHeader, TabLinks } from '../screen'
 import { Button, IconButton } from '../ui/button'
 import { Spinner } from '../ui/spinner'
+import { ErrorBanner } from '../ui/error-banner'
 
 const TABS = [
   { to: '/habits/home', label: 'Home', Icon: House },
@@ -74,16 +75,7 @@ export function HabitsGate({ children }: { children: React.ReactNode }): React.R
 
 export function HabitsError(): React.ReactElement | null {
   const { error, dismissError } = useHabits()
-  if (!error) return null
-  return <button
-    type="button"
-    title="Dismiss"
-    onClick={dismissError}
-    className="mb-3 flex w-full items-center gap-2 rounded-2xl bg-red-500/10 px-4 py-3 text-left hover:bg-red-500/15"
-  >
-    <span className="flex-1 text-[14px] leading-5 text-red-300">{error}</span>
-    <X color="#fca5a5" size={16} />
-  </button>
+  return <ErrorBanner message={error} onDismiss={dismissError} className="mb-3" />
 }
 
 /**

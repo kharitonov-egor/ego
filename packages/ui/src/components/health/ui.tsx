@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router'
-import { ChevronRight, HeartPulse, RefreshCw, TriangleAlert, X, type LucideIcon } from 'lucide-react'
+import { ChevronRight, HeartPulse, RefreshCw, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { formatSleepMinutes, type HealthUnits, type Readiness, type ReadinessPart } from '@ego/core'
 import { formatIso, parseIso } from '@ego/local/dates'
 import { useHealth } from '../../lib/health/context'
@@ -12,6 +12,7 @@ import { Button } from '../ui/button'
 import { ConfirmDialog, Sheet } from '../ui/dialog'
 import { SegmentedControl } from '../ui/segmented-control'
 import { Spinner } from '../ui/spinner'
+import { ErrorBanner } from '../ui/error-banner'
 
 export function sinceLabel(iso: string | null, now = Date.now()): string {
   if (!iso) return 'never'
@@ -89,15 +90,7 @@ export function SyncStatus(): React.ReactElement | null {
   const health = useHealth()
   const connection = health.connection
   if (health.error) {
-    return <button
-      type="button"
-      title="Dismisses this message"
-      onClick={health.dismissError}
-      className="flex w-full items-center gap-2 rounded-2xl bg-red-500/10 px-4 py-3 text-left hover:bg-red-500/15"
-    >
-      <span className="flex-1 text-[14px] leading-5 text-red-300">{health.error.message}</span>
-      <X color="#fca5a5" size={16} />
-    </button>
+    return <ErrorBanner message={health.error.message} onDismiss={health.dismissError} />
   }
   if (connection?.lastError) {
     return <div className="flex items-center gap-2 rounded-2xl bg-attention/10 px-4 py-3">

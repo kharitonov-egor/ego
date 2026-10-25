@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { Smile, X } from 'lucide-react'
+import { Smile } from 'lucide-react'
 import { DayBar } from '../../components/DayBar'
 import { CalendarDialog } from '../../components/DatePicker'
 import { MoodDayEditor, MoodHistory } from '../../components/mood/Mood'
@@ -10,6 +10,7 @@ import { Spinner } from '../../components/ui/spinner'
 import { useLedger } from '../../lib/ledger'
 import { useMoodJournal } from '../../lib/mood-journal'
 import { useToday } from '../../lib/today'
+import { ErrorBanner } from '../../components/ui/error-banner'
 
 /** The phone's one column, with the past days beside the editor once the window is wide enough. */
 export default function MoodScreen(): React.ReactElement {
@@ -71,15 +72,7 @@ function Mood(): React.ReactElement {
       <div className="grid items-start gap-3 lg:grid-cols-2 lg:gap-5">
         <div ref={editor} className="flex scroll-mt-5 flex-col gap-3 lg:sticky lg:top-5">
           <DayBar date={date} today={today} onPick={pick} onOpenCalendar={() => setCalendarOpen(true)} />
-          {journal.error && <button
-            type="button"
-            title="Dismiss"
-            onClick={journal.dismissError}
-            className="flex items-center gap-2 rounded-2xl bg-red-500/10 px-4 py-3 text-left hover:bg-red-500/15"
-          >
-            <span className="flex-1 text-[14px] leading-5 text-red-300">{journal.error}</span>
-            <X color="#fca5a5" size={16} />
-          </button>}
+          <ErrorBanner message={journal.error} onDismiss={journal.dismissError} />
           <MoodDayEditor
             key={`${date}:${entry?.revision ?? 'none'}`}
             date={date}

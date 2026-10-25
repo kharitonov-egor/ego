@@ -2,7 +2,7 @@ import React from 'react'
 import { useNavigate } from 'react-router'
 import {
   AlignLeft, Calendar, CaseSensitive, Hash, Link, Mail, Phone, Sheet, SquareCheck, SquareChevronDown, Tags, TriangleAlert,
-  X, type LucideIcon
+  type LucideIcon
 } from 'lucide-react'
 import type { SheetColumnType, SheetOption, SheetShade } from '@ego/core'
 import { useLedger } from '../../lib/ledger'
@@ -11,6 +11,7 @@ import { cn } from '../../lib/utils'
 import { Screen } from '../screen'
 import { Button } from '../ui/button'
 import { Spinner } from '../ui/spinner'
+import { ErrorBanner } from '../ui/error-banner'
 
 /** The only color in Sheets: a value that does not fit its column. */
 export const UNFIT = '#f87171'
@@ -101,16 +102,7 @@ export function SheetsGate({ header, children }: { header: React.ReactNode; chil
 
 export function SheetsError(): React.ReactElement | null {
   const { error, dismissError } = useSheets()
-  if (!error) return null
-  return <button
-    type="button"
-    title="Dismiss"
-    onClick={dismissError}
-    className="mx-5 my-2 flex shrink-0 items-center gap-2 rounded-2xl bg-red-500/10 px-4 py-3 text-left hover:bg-red-500/15"
-  >
-    <span className="flex-1 text-[14px] leading-5 text-red-300">{error}</span>
-    <X color="#fca5a5" size={16} />
-  </button>
+  return <ErrorBanner message={error} onDismiss={dismissError} className="mx-5 my-2" />
 }
 
 export function FieldLabel({ type, name, htmlFor }: { type: SheetColumnType; name: string; htmlFor?: string }): React.ReactElement {

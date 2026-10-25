@@ -23,9 +23,9 @@ export function Switch({ checked, onCheckedChange, label, disabled = false }: {
 
 /** The switch's look alone, for a row that is itself the switch. */
 export function SwitchTrack({ checked }: { checked: boolean }): React.ReactElement {
-  return <span aria-hidden className={cn('relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors',
+  return <span aria-hidden className={cn('relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors motion-reduce:transition-none',
     checked ? 'bg-primary' : 'bg-surface-700')}>
-    <span className={cn('inline-block h-5 w-5 rounded-full transition-transform',
+    <span className={cn('inline-block h-5 w-5 rounded-full transition-transform motion-reduce:transition-none',
       checked ? 'translate-x-[22px] bg-primary-foreground' : 'translate-x-0.5 bg-surface-300')} />
   </span>
 }
