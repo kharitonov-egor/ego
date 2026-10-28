@@ -1,7 +1,7 @@
-import { MAX_TRELLO_ATTACHMENT_BYTES, type TrelloCardResponse } from '@ego/api-contracts'
+import { MAX_TRELLO_ATTACHMENT_BYTES, type ImageTextResponse, type TrelloCardResponse } from '@ego/api-contracts'
 import {
-  MAX_TRANSACTION_IMAGE_BYTES, analyzeTransactionImage, createTrelloClient,
-  type ImageAnalysisCategory, type TrelloClient
+  IMAGE_TEXT_MIME_TYPES, MAX_IMAGE_TEXT_BYTES, MAX_TRANSACTION_IMAGE_BYTES, analyzeTransactionImage, createTrelloClient,
+  isImageTextEffort, readImageText, type ImageAnalysisCategory, type ImageTextEffort, type TrelloClient
 } from '@ego/core'
 import type { Env } from './auth'
 
@@ -143,4 +143,47 @@ export async function analyzeReceiptImage(request: Request, env: Env): Promise<R
     model: env.RECEIPT_MODEL?.trim() || DEFAULT_RECEIPT_MODEL
   }, (url, init) => fetch(url, init))
   return result.ok ? ok(result.data) : failure(502, 'UPSTREAM_ERROR', result.message)
+}
+
+/** Beat Claude Haiku 5.5, GPT-5.6 Luna, and Gemini 3.8 Flash on 15 test images: fewest errors at about a second. */
+const DEFAULT_IMAGE_TEXT_MODEL = 'google/gemini-3.5-flash-lite'
+const DEFAULT_IMAGE_TEXT_EFFORT: ImageTextEffort = 'minimal'
+const MAX_IMAGE_TEXT_REQUEST_CHARS = Math.ceil(MAX_IMAGE_TEXT_BYTES / 3) * 4 + 4096
+const OPENROUTER_MODEL_ID = /^[a-z0-9][\w.-]*\/[\w.:-]+$/i
+
+/** Reads every line of text in a screenshot or photo, in any language, for the desktop's image to text. */
+export async function readImageTextRoute(request: Request, env: Env): Promise<Response> {
+  if (!env.OPENROUTER_API_KEY) return failure(503, 'NOT_CONFIGURED', 'Add OPENROUTER_API_KEY to the Worker to read images')
+  const declared = Number(request.headers.get('content-length') ?? '')
+  if (Number.isFinite(declared) && declared > MAX_IMAGE_TEXT_REQUEST_CHARS) {
+    return failure(400, 'INVALID_REQUEST', 'This image is larger than 10 MB.')
+  }
+  let body: unknown
+  try { body = await request.json() } catch { return failure(400, 'INVALID_REQUEST', 'Send the image as JSON') }
+  if (!isRecord(body) || typeof body.base64 !== 'string' || typeof body.mimeType !== 'string' ||
+    !(IMAGE_TEXT_MIME_TYPES as readonly string[]).includes(body.mimeType)) {
+    return failure(400, 'INVALID_REQUEST', 'Send a PNG, JPEG, or WebP image and its type')
+  }
+  const override = body.model === undefined ? null : body.model
+  if (override !== null && (typeof override !== 'string' || override.length > 100 || !OPENROUTER_MODEL_ID.test(override))) {
+    return failure(400, 'INVALID_REQUEST', 'That is not an OpenRouter model id')
+  }
+  if (body.effort !== undefined && !isImageTextEffort(body.effort)) {
+    return failure(400, 'INVALID_REQUEST', 'Effort is none, minimal, low, medium, or high')
+  }
+  const model = override ?? (env.IMAGE_TEXT_MODEL?.trim() || DEFAULT_IMAGE_TEXT_MODEL)
+  const configuredEffort = env.IMAGE_TEXT_EFFORT?.trim()
+  const effort: ImageTextEffort = isImageTextEffort(body.effort) ? body.effort
+    : !override && isImageTextEffort(configuredEffort) ? configuredEffort
+    : DEFAULT_IMAGE_TEXT_EFFORT
+  const result = await readImageText({
+    base64: body.base64,
+    mimeType: body.mimeType,
+    apiKey: env.OPENROUTER_API_KEY,
+    model,
+    effort
+  }, (url, init) => fetch(url, init))
+  return result.ok
+    ? ok<ImageTextResponse>({ text: result.text, model })
+    : failure(502, 'UPSTREAM_ERROR', result.message)
 }

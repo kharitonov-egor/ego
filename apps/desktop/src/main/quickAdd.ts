@@ -119,6 +119,14 @@ function closeNotificationWindow(window: BrowserWindow): void {
 
 export type NotificationTone = 'success' | 'error'
 
+export interface NotificationHandle {
+  update: (tone: NotificationTone, message: string) => void
+}
+
+const NOTIFICATION_HOLD_MS = 3000
+/** How long a waiting toast may spin before it closes on its own, in case nothing ever updates it. */
+const PROGRESS_LIMIT_MS = 30000
+
 /** The page measures its own content and calls back, so no toast is clipped by a guessed height. */
 export function setupNotificationResize(): void {
   ipcMain.on('notification-resize', (event, height: number) => {
@@ -137,7 +145,8 @@ export function setupNotificationResize(): void {
   })
 }
 
-export function showNotification(tone: NotificationTone, message: string): void {
+/** A `progress` toast spins until `update` gives it a result, then holds that like any other toast. */
+export function showNotification(tone: NotificationTone | 'progress', message: string): NotificationHandle {
   const cursorPoint = screen.getCursorScreenPoint()
   const display = screen.getDisplayNearestPoint(cursorPoint)
   const height = notificationHeight
@@ -149,7 +158,6 @@ export function showNotification(tone: NotificationTone, message: string): void 
     transparent: true,
     resizable: false,
     skipTaskbar: true,
-    alwaysOnTop: true,
     show: false,
     focusable: false,
     icon: getAppIconPath(),
@@ -158,6 +166,10 @@ export function showNotification(tone: NotificationTone, message: string): void 
       sandbox: false
     }
   })
+  // Electron slots the default 'floating' level just under the taskbar. While the fullscreen snip
+  // overlay has focus, Windows takes the taskbar out of always-on-top, so a toast opened at that
+  // moment lost it too and hid behind the app that got focus back.
+  notificationWindow.setAlwaysOnTop(true, 'pop-up-menu')
 
   notificationWindows.push({ window: notificationWindow, displayId: display.id, height })
   repositionNotifications(display.id)
@@ -170,7 +182,7 @@ export function showNotification(tone: NotificationTone, message: string): void 
     repositionNotifications(displayId)
   })
 
-  const holdMs = 3000
+  const holdMs = tone === 'progress' ? 0 : NOTIFICATION_HOLD_MS
   const query = new URLSearchParams({
     type: tone,
     message,
@@ -190,9 +202,26 @@ export function showNotification(tone: NotificationTone, message: string): void 
     notificationWindow?.showInactive()
   })
 
-  setTimeout(() => {
+  let closeTimer = setTimeout(() => {
     closeNotificationWindow(notificationWindow)
-  }, holdMs)
+  }, holdMs || PROGRESS_LIMIT_MS)
+
+  return {
+    update: (nextTone, nextMessage) => {
+      if (notificationWindow.isDestroyed()) {
+        showNotification(nextTone, nextMessage)
+        return
+      }
+      clearTimeout(closeTimer)
+      closeTimer = setTimeout(() => closeNotificationWindow(notificationWindow), NOTIFICATION_HOLD_MS)
+      const send = (): void => {
+        if (notificationWindow.isDestroyed()) return
+        notificationWindow.webContents.send('notification-update', { tone: nextTone, message: nextMessage, hold: NOTIFICATION_HOLD_MS })
+      }
+      if (notificationWindow.webContents.isLoading()) notificationWindow.webContents.once('did-finish-load', send)
+      else send()
+    }
+  }
 }
 
 /**

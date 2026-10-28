@@ -8,11 +8,17 @@ import {
   shell
 } from 'electron'
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'child_process'
-import { mkdir, unlink, writeFile } from 'fs/promises'
-import { join } from 'path'
-import { tmpdir } from 'os'
+import { mkdir, readFile } from 'fs/promises'
+import { extname, join } from 'path'
 import { focusReturn } from './focusReturn'
 import { getAppIconPath } from './icon'
+import {
+  clearImageTextHistory,
+  imageTextHistory,
+  imageToText,
+  openImageTextHistoryImage,
+  type ImageMimeType
+} from './imageText'
 import { showNotification } from './quickAdd'
 import type {
   MediaDownloadInput,
@@ -23,43 +29,6 @@ import type {
 
 const PALETTE_WIDTH = 560
 const PALETTE_HEIGHT = 420
-const POWERSHELL_OCR = `
-$ErrorActionPreference = 'Stop'
-$ProgressPreference = 'SilentlyContinue'
-[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
-Add-Type -AssemblyName System.Runtime.WindowsRuntime
-[Windows.Storage.StorageFile, Windows.Storage, ContentType = WindowsRuntime] | Out-Null
-[Windows.Storage.FileAccessMode, Windows.Storage, ContentType = WindowsRuntime] | Out-Null
-[Windows.Storage.Streams.IRandomAccessStream, Windows.Storage.Streams, ContentType = WindowsRuntime] | Out-Null
-[Windows.Graphics.Imaging.BitmapDecoder, Windows.Graphics.Imaging, ContentType = WindowsRuntime] | Out-Null
-[Windows.Graphics.Imaging.SoftwareBitmap, Windows.Graphics.Imaging, ContentType = WindowsRuntime] | Out-Null
-[Windows.Media.Ocr.OcrEngine, Windows.Foundation, ContentType = WindowsRuntime] | Out-Null
-[Windows.Media.Ocr.OcrResult, Windows.Foundation, ContentType = WindowsRuntime] | Out-Null
-
-function Await($operation, [Type]$resultType) {
-  $method = [System.WindowsRuntimeSystemExtensions].GetMethods() |
-    Where-Object {
-      $_.Name -eq 'AsTask' -and
-      $_.IsGenericMethod -and
-      $_.GetGenericArguments().Count -eq 1 -and
-      $_.GetParameters().Count -eq 1 -and
-      $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation\`1'
-    } |
-    Select-Object -First 1
-  $task = $method.MakeGenericMethod($resultType).Invoke($null, @($operation))
-  $task.Wait()
-  return $task.Result
-}
-
-$file = Await ([Windows.Storage.StorageFile]::GetFileFromPathAsync($env:EGO_OCR_IMAGE)) ([Windows.Storage.StorageFile])
-$stream = Await ($file.OpenAsync([Windows.Storage.FileAccessMode]::Read)) ([Windows.Storage.Streams.IRandomAccessStream])
-$decoder = Await ([Windows.Graphics.Imaging.BitmapDecoder]::CreateAsync($stream)) ([Windows.Graphics.Imaging.BitmapDecoder])
-$bitmap = Await ($decoder.GetSoftwareBitmapAsync()) ([Windows.Graphics.Imaging.SoftwareBitmap])
-$engine = [Windows.Media.Ocr.OcrEngine]::TryCreateFromUserProfileLanguages()
-if ($null -eq $engine) { throw 'Install a Windows OCR language pack, then try again.' }
-$result = Await ($engine.RecognizeAsync($bitmap)) ([Windows.Media.Ocr.OcrResult])
-$result.Text
-`
 
 let paletteWindow: BrowserWindow | null = null
 let paletteLocked = false
@@ -140,37 +109,6 @@ function hideToolPalette(): void {
   paletteWindow?.hide()
 }
 
-function runPowerShellOcr(imagePath: string): Promise<OcrResult> {
-  const encoded = Buffer.from(POWERSHELL_OCR, 'utf16le').toString('base64')
-
-  return new Promise((resolve) => {
-    execFile(
-      'powershell.exe',
-      ['-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
-      {
-        encoding: 'utf8',
-        env: { ...process.env, EGO_OCR_IMAGE: imagePath },
-        maxBuffer: 10 * 1024 * 1024,
-        windowsHide: true
-      },
-      (error, stdout, stderr) => {
-        if (error) {
-          const detail = stderr.trim() || error.message
-          resolve({ ok: false, detail: detail.replace(/^.*?:\s*/s, '').trim() })
-          return
-        }
-
-        const text = stdout.replace(/^\uFEFF/, '').trim()
-        resolve(
-          text
-            ? { ok: true, text }
-            : { ok: false, detail: 'Windows OCR did not find any text in that image.' }
-        )
-      }
-    )
-  })
-}
-
 async function clipboardPng(): Promise<Buffer | null> {
   const items = await clipboard.read().catch(() => [])
   const item = items.find((entry) => entry.types.includes('image/png'))
@@ -184,14 +122,14 @@ async function readClipboardImage(): Promise<OcrResult> {
   if (!png || png.length === 0) {
     return { ok: false, detail: 'Copy an image or screenshot first.' }
   }
+  return imageToText({ data: png, mimeType: 'image/png' }, 'clipboard')
+}
 
-  const imagePath = join(tmpdir(), `ego-ocr-${Date.now()}.png`)
-  await writeFile(imagePath, png)
-  try {
-    return await runPowerShellOcr(imagePath)
-  } finally {
-    await unlink(imagePath).catch(() => undefined)
-  }
+const FILE_TYPES: Record<string, ImageMimeType> = {
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp'
 }
 
 async function chooseImage(): Promise<OcrResult> {
@@ -201,14 +139,15 @@ async function chooseImage(): Promise<OcrResult> {
       title: 'Read text from image',
       defaultPath: app.getPath('pictures'),
       properties: ['openFile'],
-      filters: [
-        { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'bmp', 'tif', 'tiff', 'gif'] }
-      ]
+      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }]
     })
-    if (result.canceled || !result.filePaths[0]) {
+    const path = result.filePaths[0]
+    if (result.canceled || !path) {
       return { ok: false, detail: 'No image selected.' }
     }
-    return await runPowerShellOcr(result.filePaths[0])
+    const mimeType = FILE_TYPES[extname(path).toLowerCase()]
+    if (!mimeType) return { ok: false, detail: 'Choose a PNG, JPEG, or WebP image.' }
+    return await imageToText({ data: await readFile(path), mimeType }, 'file')
   } finally {
     paletteLocked = false
     paletteWindow?.show()
@@ -349,6 +288,13 @@ export function setupToolPaletteIpc(): void {
       return { ok: false, detail: 'This action is only available in Quick tools.' } satisfies OcrResult
     }
     return chooseImage()
+  })
+  ipcMain.handle('image-text-history', (event) => isPaletteSender(event.sender.id) ? imageTextHistory() : [])
+  ipcMain.handle('image-text-history-clear', async (event) => {
+    if (isPaletteSender(event.sender.id)) await clearImageTextHistory()
+  })
+  ipcMain.handle('image-text-history-open', async (event, id: unknown) => {
+    if (isPaletteSender(event.sender.id) && typeof id === 'string') await openImageTextHistoryImage(id)
   })
   ipcMain.handle('tool-copy-text', async (event, text: string) => {
     if (isPaletteSender(event.sender.id) && typeof text === 'string') await clipboard.writeText(text)

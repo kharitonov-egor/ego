@@ -65,9 +65,44 @@ export interface DesktopTransactionImageInput {
   categories: import('@ego/core').ImageAnalysisCategory[]
 }
 
+/** `windows` means the Ego service could not read the image and Windows OCR stood in. */
+export type ImageTextEngine = 'ai' | 'windows'
+export type ImageTextSource = 'screen' | 'clipboard' | 'file'
+
 export type OcrResult =
-  | { ok: true; text: string }
+  | { ok: true; text: string; engine: ImageTextEngine }
   | { ok: false; detail: string }
+
+export interface ImageTextHistoryItem {
+  id: string
+  createdAt: string
+  source: ImageTextSource
+  engine: ImageTextEngine
+  text: string
+  /** A small JPEG data URL, or null when Ego could not decode the image. */
+  thumbnail: string | null
+}
+
+/** In CSS pixels of the overlay, which match the display's own coordinates. */
+export interface SnipRect {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+/** What one display's overlay shows: the frozen screen and the windows on it, topmost first. */
+export interface SnipFrame {
+  image: string
+  windows: SnipRect[]
+}
+
+/** Turns a toast that was waiting on something into its result, which then stays for `hold` ms. */
+export interface NotificationUpdate {
+  tone: 'success' | 'error'
+  message: string
+  hold: number
+}
 
 export interface MediaDownloaderStatus {
   available: boolean
@@ -157,6 +192,8 @@ export interface IpcApi {
   setQuickAddHotkey: (hotkey: string) => Promise<void>
   getToolPaletteHotkey: () => Promise<string>
   setToolPaletteHotkey: (hotkey: string) => Promise<void>
+  getImageTextHotkey: () => Promise<string>
+  setImageTextHotkey: (hotkey: string) => Promise<void>
 
   getTrelloApiKey: () => Promise<string>
   setTrelloApiKey: (value: string) => Promise<void>
@@ -173,6 +210,7 @@ export interface IpcApi {
   setQuickAddListShortcuts: (shortcuts: ListShortcut[]) => Promise<void>
 
   resizeNotification: (height: number) => void
+  onNotificationUpdate: (callback: (update: NotificationUpdate) => void) => () => void
 
   submitQuickAdd: (payload: QuickAddPayload) => Promise<QuickAddResult>
   cancelQuickAdd: () => void
@@ -189,6 +227,16 @@ export interface IpcApi {
   openMediaDownloads: (savedFile?: string) => Promise<void>
   onToolPaletteFocus: (callback: (clipboardText: string) => void) => () => void
   onMediaDownloadProgress: (callback: (line: string) => void) => () => void
+  listImageTextHistory: () => Promise<ImageTextHistoryItem[]>
+  clearImageTextHistory: () => Promise<void>
+  openImageTextHistoryImage: (id: string) => Promise<void>
+
+  onSnipFrame: (callback: (frame: SnipFrame | null) => void) => () => void
+  snipReady: () => void
+  snipCleared: () => void
+  snipPointerEnter: () => void
+  snipSelect: (rect: SnipRect) => void
+  snipCancel: () => void
 
   buildAndInstall: () => Promise<BuildResult>
   onBuildProgress: (callback: (stage: BuildStage) => void) => () => void

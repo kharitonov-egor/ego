@@ -53,7 +53,8 @@ export default defineConfig({
           main: resolve(__dirname, 'src/renderer/index.html'),
           'quick-add': resolve(__dirname, 'src/renderer/quick-add.html'),
           'tool-palette': resolve(__dirname, 'src/renderer/tool-palette.html'),
-          notification: resolve(__dirname, 'src/renderer/notification.html')
+          notification: resolve(__dirname, 'src/renderer/notification.html'),
+          snip: resolve(__dirname, 'src/renderer/snip.html')
         }
       }
     }

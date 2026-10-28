@@ -32,8 +32,15 @@
       .ego .title { font-size: 13px; font-weight: 600; line-height: 18px; color: #fafafa; }
       .ego.success .glyph { color: #fafafa; }
       .ego.error .glyph { color: #fb7185; }
+      .ego.progress .glyph,
+      .ego.progress .title { color: #a3a3a3; }
+      .ego.progress .glyph svg { animation: spin 0.9s linear infinite; }
       .ego .glyph { flex: 0 0 auto; margin-top: 1px; }
 
+      @keyframes spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) {
+        .ego.progress .glyph svg { animation: none; }
+      }
       @keyframes slideIn { to { opacity: 1; transform: translateX(0); } }
       @keyframes slideOut {
         from { opacity: 1; transform: translateX(0); }
@@ -52,7 +59,9 @@
         success:
           '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
         error:
-          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>'
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+        progress:
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></svg>'
       }
 
       const params = new URLSearchParams(window.location.search)
@@ -60,10 +69,26 @@
       const message = params.get('message') || 'Done'
 
       const toast = document.getElementById('ego')
-      document.getElementById('ego-title').textContent = message
-      document.getElementById('ego-glyph').innerHTML = glyphs[tone]
+      let fadeTimer = null
 
-      toast.classList.add(tone)
+      function present(nextTone, nextMessage) {
+        document.getElementById('ego-title').textContent = nextMessage
+        document.getElementById('ego-glyph').innerHTML = glyphs[nextTone]
+        toast.classList.remove(...Object.keys(glyphs))
+        toast.classList.add(nextTone)
+      }
+
+      function scheduleFade(hold) {
+        clearTimeout(fadeTimer)
+        fadeTimer = null
+        if (hold === 0) return
+        fadeTimer = setTimeout(
+          () => toast.classList.add('fade-out'),
+          Number.isFinite(hold) && hold > 800 ? hold - 800 : 2200
+        )
+      }
+
+      present(tone, message)
       toast.hidden = false
 
       const margin = parseFloat(getComputedStyle(toast).marginTop) || 0
@@ -75,11 +100,22 @@
       fit()
       if (document.fonts?.ready) document.fonts.ready.then(fit)
 
-      const hold = Number(params.get('hold'))
-      setTimeout(
-        () => toast.classList.add('fade-out'),
-        Number.isFinite(hold) && hold > 800 ? hold - 800 : 2200
-      )
+      scheduleFade(Number(params.get('hold')))
+
+      // Swapping the text in place was easy to miss, so the result slides in like a new toast.
+      function slideInAgain() {
+        toast.classList.remove('fade-out')
+        toast.style.animation = 'none'
+        void toast.offsetWidth
+        toast.style.animation = ''
+      }
+
+      window.api?.onNotificationUpdate?.((update) => {
+        present(glyphs[update.tone] ? update.tone : 'success', update.message)
+        slideInAgain()
+        fit()
+        scheduleFade(update.hold)
+      })
     </script>
   </body>
 </html>
