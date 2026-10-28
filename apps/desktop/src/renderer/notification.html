@@ -32,7 +32,8 @@
       .ego .title { font-size: 13px; font-weight: 600; line-height: 18px; color: #fafafa; }
       .ego.success .glyph { color: #fafafa; }
       .ego.error .glyph { color: #fb7185; }
-      .ego.progress .glyph { color: #a3a3a3; }
+      .ego.progress .glyph,
+      .ego.progress .title { color: #a3a3a3; }
       .ego.progress .glyph svg { animation: spin 0.9s linear infinite; }
       .ego .glyph { flex: 0 0 auto; margin-top: 1px; }
 
@@ -101,8 +102,17 @@
 
       scheduleFade(Number(params.get('hold')))
 
+      // Swapping the text in place was easy to miss, so the result slides in like a new toast.
+      function slideInAgain() {
+        toast.classList.remove('fade-out')
+        toast.style.animation = 'none'
+        void toast.offsetWidth
+        toast.style.animation = ''
+      }
+
       window.api?.onNotificationUpdate?.((update) => {
         present(glyphs[update.tone] ? update.tone : 'success', update.message)
+        slideInAgain()
         fit()
         scheduleFade(update.hold)
       })
