@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router'
-import { Barcode, Droplet, NotebookPen, Plus, Refrigerator, TriangleAlert, UtensilsCrossed, X, type LucideIcon } from 'lucide-react'
+import { Barcode, Droplet, NotebookPen, Plus, Refrigerator, TriangleAlert, UtensilsCrossed, type LucideIcon } from 'lucide-react'
 import {
   WATER_BOTTLE_ML, formatCalories, formatGrams, formatNutrient, formatWater, isOverLimit, isWaterEntry, nutrientReadings,
   type FoodEntryInput, type FoodGoalInput, type FoodMacros, type FoodPhoto, type NutrientReading
@@ -14,6 +14,7 @@ import { cn } from '../../lib/utils'
 import { ScreenHeader, TabLinks } from '../screen'
 import { Button } from '../ui/button'
 import { Spinner } from '../ui/spinner'
+import { ErrorBanner } from '../ui/error-banner'
 
 export function macroText(macros: Pick<FoodMacros, 'protein' | 'carbs' | 'fat'>): string {
   return `P ${formatGrams(macros.protein)} · C ${formatGrams(macros.carbs)} · F ${formatGrams(macros.fat)}`
@@ -81,16 +82,7 @@ export function FoodGate({ children }: { children: React.ReactNode }): React.Rea
 
 export function FoodError(): React.ReactElement | null {
   const { error, dismissError } = useFood()
-  if (!error) return null
-  return <button
-    type="button"
-    title="Dismiss"
-    onClick={dismissError}
-    className="mb-3 flex w-full items-center gap-2 rounded-2xl bg-red-500/10 px-4 py-3 text-left hover:bg-red-500/15"
-  >
-    <span className="flex-1 text-[14px] leading-5 text-red-300">{error}</span>
-    <X color="#fca5a5" size={16} />
-  </button>
+  return <ErrorBanner message={error} onDismiss={dismissError} className="mb-3" />
 }
 
 /**

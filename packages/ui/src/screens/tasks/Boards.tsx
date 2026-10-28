@@ -88,7 +88,7 @@ function Boards(): React.ReactElement {
     </>} />
     {boards.length === 0
       ? <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-8 text-center">
-        <TasksError className="mb-4 max-w-md" />
+        <TasksError className="mb-4 w-full max-w-md" />
         <h2 className="text-[20px] font-semibold text-surface-100">No boards yet</h2>
         <p className="mt-2 max-w-md text-[16px] leading-6 text-surface-400">
           A board holds lists, and lists hold cards. New boards start with To Do, Doing, and Done.

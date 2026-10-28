@@ -1,6 +1,6 @@
 import React, { useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { X } from 'lucide-react'
+import { LoaderCircle, X } from 'lucide-react'
 import { Blurred } from '../../lib/blur'
 import { cn } from '../../lib/utils'
 import { Button } from './button'
@@ -143,8 +143,9 @@ export function Sheet({ visible, title, onClose, onEscape, dismissOnBackdrop = f
       <button
         type="button"
         aria-label="Close"
+        title="Close (Esc)"
         onClick={onClose}
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-900 text-surface-300 hover:bg-surface-800"
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-900 text-surface-300 transition-colors hover:bg-surface-800 hover:text-foreground"
       ><X size={18} /></button>
     </div>
     <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6 pt-3">{children}</div>
@@ -168,8 +169,9 @@ export function ConfirmDialog({ visible, title, detail, confirmLabel, destructiv
     <p className="mt-2 text-[16px] leading-6 text-muted-foreground">{detail}</p>
     <div className="mt-6 flex gap-3">
       <Button variant="outline" size="lg" disabled={busy} onClick={onCancel} className="flex-1">Cancel</Button>
-      <Button variant={destructive ? 'destructive' : 'default'} size="lg" disabled={busy} onClick={onConfirm} className="flex-1">
-        {busy ? 'Saving...' : confirmLabel}
+      <Button variant={destructive ? 'destructive' : 'default'} size="lg" disabled={busy} aria-busy={busy} onClick={onConfirm} className="flex-1">
+        {busy && <LoaderCircle aria-hidden size={18} className="animate-spin" />}
+        {confirmLabel}
       </Button>
     </div>
   </Modal>

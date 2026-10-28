@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router'
-import { Dumbbell, MessageSquare, Trophy, X } from 'lucide-react'
+import { Dumbbell, MessageSquare, Trophy } from 'lucide-react'
 import type { ExerciseType, GymSetLike, WeightUnit } from '@ego/core'
 import { setParts } from '@ego/local/gym/format'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
@@ -10,6 +10,7 @@ import { color } from '../../lib/tokens'
 import { cn } from '../../lib/utils'
 import { CenteredMessage } from '../screen'
 import { Spinner } from '../ui/spinner'
+import { ErrorBanner } from '../ui/error-banner'
 
 /** FitNotes' section heading: small capitals over a rule, drawn in the money palette's gray. */
 export function SectionLabel({ children, right }: { children: string; right?: React.ReactNode }): React.ReactElement {
@@ -140,11 +141,7 @@ export function useWideWindow(): boolean {
 
 export function GymError(): React.ReactElement | null {
   const { error, dismissError } = useGym()
-  if (!error) return null
-  return <button type="button" title="Dismiss this message" onClick={dismissError} className="flex min-h-11 w-full shrink-0 items-center gap-2 bg-red-500/10 px-5 py-2 text-left hover:bg-red-500/15">
-    <span className="flex-1 text-[14px] leading-5 text-red-300">{error}</span>
-    <X color="#fca5a5" size={16} />
-  </button>
+  return <ErrorBanner variant="bar" message={error} onDismiss={dismissError} />
 }
 
 /** Shows the gym screens once the local copy is readable, and says why when it is not. */

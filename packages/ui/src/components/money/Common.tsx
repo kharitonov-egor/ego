@@ -11,6 +11,7 @@ import { ICON_OPTIONS, MoneyIcon } from '../common'
 import { CenteredMessage } from '../screen'
 import { Button } from '../ui/button'
 import { Spinner } from '../ui/spinner'
+import { ErrorBanner } from '../ui/error-banner'
 
 export { COLORS, Chips, ColorPicker, Empty, ICON_OPTIONS, Label, MoneyIcon, money, sentenceCase } from '../common'
 
@@ -71,10 +72,7 @@ export function MoneyScreen({ children }: { children: (snapshot: MoneySnapshot) 
   })()
   if (state || !snapshot) return <div className="min-h-0 flex-1">{state}</div>
   return <div className="relative flex min-h-0 flex-1 flex-col">
-    {error && <button type="button" title="Dismisses this message" onClick={dismissError} className="flex min-h-11 w-full items-center gap-2 bg-red-500/10 px-5 py-2 text-left hover:bg-red-500/15">
-      <span className="flex-1 text-[14px] leading-5 text-red-300">{error}</span>
-      <X color="#fca5a5" size={16} />
-    </button>}
+    <ErrorBanner variant="bar" message={error} onDismiss={dismissError} />
     {alert && <button type="button" title="Dismisses this message" onClick={dismissAlert} className="flex min-h-11 w-full items-start gap-2 border-b border-rose-500/30 bg-rose-500/15 px-5 py-2.5 text-left hover:bg-rose-500/20">
       <TriangleAlert color="#fb7185" size={15} className="mt-0.5 shrink-0" />
       <span className="flex-1 whitespace-pre-line text-[14px] leading-5 text-rose-200">{alert}</span>
