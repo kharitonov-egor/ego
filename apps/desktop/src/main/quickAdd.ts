@@ -158,7 +158,6 @@ export function showNotification(tone: NotificationTone | 'progress', message: s
     transparent: true,
     resizable: false,
     skipTaskbar: true,
-    alwaysOnTop: true,
     show: false,
     focusable: false,
     icon: getAppIconPath(),
@@ -167,6 +166,10 @@ export function showNotification(tone: NotificationTone | 'progress', message: s
       sandbox: false
     }
   })
+  // Electron slots the default 'floating' level just under the taskbar. While the fullscreen snip
+  // overlay has focus, Windows takes the taskbar out of always-on-top, so a toast opened at that
+  // moment lost it too and hid behind the app that got focus back.
+  notificationWindow.setAlwaysOnTop(true, 'pop-up-menu')
 
   notificationWindows.push({ window: notificationWindow, displayId: display.id, height })
   repositionNotifications(display.id)
